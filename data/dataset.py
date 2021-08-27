@@ -1,22 +1,27 @@
 import sqlite3
 import numpy as np
 import io
+from os import path
 
 
 class Dataset:
-  def __init__(self, path: str) -> None:
-    # Converts np.array to TEXT when inserting
+  def __init__(self, dbpath: str) -> None:
+    # Converts np.array to BLOB when inserting
     sqlite3.register_adapter(np.ndarray, self.__adapt_nparray)
 
-    # Converts TEXT to np.array when selecting
+    # Converts BLOB to np.array when selecting
     sqlite3.register_converter("array", self.__convert_nparray)
 
-    x = np.arange(12).reshape(2, 6)
-
+    # Connect to SQLite
     con = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES)
     cur = con.cursor()
     cur.execute("create table test (arr array)")
     self.con = con
+
+    basepath = path.dirname(__file__)
+    filepath = path.abspath(path.join(basepath, "schema.sql"))
+    with open(filepath, "r") as f:
+      pass  # TODO
 
   def __enter__(self):
     return self
