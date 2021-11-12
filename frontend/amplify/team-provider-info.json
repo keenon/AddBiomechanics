@@ -1,0 +1,26 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-biomechanicsfrontend-dev-161949-authRole",
+      "UnauthRoleArn": "arn:aws:iam::756193201945:role/amplify-biomechanicsfrontend-dev-161949-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::756193201945:role/amplify-biomechanicsfrontend-dev-161949-authRole",
+      "Region": "us-west-2",
+      "DeploymentBucketName": "amplify-biomechanicsfrontend-dev-161949-deployment",
+      "UnauthRoleName": "amplify-biomechanicsfrontend-dev-161949-unauthRole",
+      "StackName": "amplify-biomechanicsfrontend-dev-161949",
+      "StackId": "arn:aws:cloudformation:us-west-2:756193201945:stack/amplify-biomechanicsfrontend-dev-161949/ecefefc0-41bb-11ec-a29c-0a04ec863665",
+      "AmplifyAppId": "d2m3l2mk5m037f"
+    },
+    "categories": {
+      "auth": {
+        "biomechanicsfrontendf7e99b66": {}
+      },
+      "function": {
+        "S3Triggera674d3b7": {
+          "deploymentBucketName": "amplify-biomechanicsfrontend-dev-161949-deployment",
+          "s3Key": "amplify-builds/S3Triggera674d3b7-6c43674f36494e577a58-build.zip"
+        }
+      }
+    }
+  }
+}

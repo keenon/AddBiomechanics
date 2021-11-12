@@ -1,0 +1,18 @@
+.Login {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+
+  .Login__header {
+    margin-bottom: 15px;
+  }
+
+  .Login__form {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+  }
+}

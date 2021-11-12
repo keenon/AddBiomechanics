@@ -1,0 +1,68 @@
+.UserHeader {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+
+  .UserHeader__header {
+    flex: 0 0 auto;
+    height: 50px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: stretch;
+    border-bottom: 1px solid #ddd;
+    padding: 0 20px;
+
+    .UserHeader__nav {
+      flex: 1 1 auto;
+      text-align: left;
+
+      a[href] {
+        margin-right: 30px;
+      }
+    }
+
+    .UserHeader__status {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: row;
+      justify-content: flex-end;
+
+      .UserHeader__username {
+        margin-right: 20px;
+      }
+    }
+
+    .UserHeader__new-data-button {
+      cursor: pointer;
+      padding: 10px 20px;
+      border-radius: 30px;
+      border: 1px solid #bbb;
+      background-color: white;
+      color: rgb(71, 71, 71);
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease-in-out;
+
+      .UserHeader__new-data-button-plus {
+        width: 20px;
+        height: 20px;
+        margin-right: 5px;
+        position: relative;
+        top: 4px;
+      }
+    }
+
+    .UserHeader__new-data-button:hover {
+      background-color: rgb(248, 248, 248);
+      box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  .UserHeader__body {
+    flex: 1 1 auto;
+    overflow-x: hidden;
+    overflow-y: scroll;
+  }
+}

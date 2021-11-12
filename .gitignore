@@ -1,4 +1,5 @@
 meshes/
+site/node_modules
 build/
 dist/
 biomechanics_net.egg-info/
