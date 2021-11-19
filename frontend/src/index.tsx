@@ -1,33 +1,75 @@
 import React from "react";
 import ReactDOM from "react-dom";
-import "./index.css";
-import Login from "./components/auth/Login/Login";
-import Logout from "./components/auth/Logout/Logout";
-import SignUp from "./components/auth/SignUp/SignUp";
+import "./index.scss";
+import "bootstrap";
+import Login from "./pages/auth/Login";
+import Logout from "./pages/auth/Logout";
+import SignUp from "./pages/auth/SignUp";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
+import ConfirmUser from "./pages/auth/ConfirmUser";
 import reportWebVitals from "./reportWebVitals";
+import HorizontalLayout from "./layouts/Horizontal";
+import FileManager from "./pages/FileManager";
 
-import Amplify from "aws-amplify";
+import MyMocapUploads from "./state/MyMocapUploads";
+import MyUploads from "./pages/MyUploads/MyUploads";
+import Amplify, { API } from "aws-amplify";
+import { AWSIoTProvider } from "@aws-amplify/pubsub";
 import awsExports from "./aws-exports";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import RequireAuth from "./components/auth/RequireAuth/RequireAuth";
-import UserData from "./components/UserData/UserData";
-import ConfirmUser from "./components/auth/ConfirmUser/ConfirmUser";
-import Home from "./components/Home/Home";
-import ForgotPassword from "./components/auth/ForgotPassword/ForgotPassword";
-import ResetPassword from "./components/auth/ResetPassword/ResetPassword";
-import UploadManager from "./components/UploadManager/UploadManager";
+import RequireAuth from "./pages/auth/RequireAuth";
+import UserData from "./pages/UserData/UserData";
+import Home from "./pages/Home/Home";
+import UploadManager from "./dead_components/UploadManager/UploadManager";
+
+// Verify TS is configured correctly
+if (
+  !new (class {
+    x: any;
+  })().hasOwnProperty("x")
+)
+  throw new Error("Transpiler is not configured correctly");
 
 Amplify.configure(awsExports);
+
+API.post("PostAuthAPI", "/", {})
+  .then((response) => {
+    console.log("Got response!");
+    console.log(response);
+
+    console.log("Configuring AWSIoTProvider");
+    // Apply plugin with configuration
+    Amplify.addPluggable(
+      new AWSIoTProvider({
+        aws_pubsub_region: "us-west-2",
+        aws_pubsub_endpoint:
+          "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt",
+      })
+    );
+  })
+  .catch((error) => {
+    console.log(error.response);
+  });
+
+const myUploads = new MyMocapUploads("/my_mocap");
 
 ReactDOM.render(
   <BrowserRouter>
     <Routes>
-      <Route index element={<Home />}></Route>
+      <Route
+        index
+        element={
+          <HorizontalLayout>
+            <FileManager />
+          </HorizontalLayout>
+        }
+      ></Route>
       <Route
         path="/my_uploads"
         element={
           <RequireAuth>
-            <UserData />
+            <MyUploads state={myUploads} />
           </RequireAuth>
         }
       ></Route>

@@ -1,0 +1,43 @@
+{
+    "paths": [
+        {
+            "name": "/",
+            "lambdaFunction": "PostAuthAPI",
+            "privacy": {
+                "private": true,
+                "auth": [
+                    "/POST",
+                    "/GET",
+                    "/PUT",
+                    "/PATCH",
+                    "/DELETE"
+                ]
+            },
+            "policyResourceName": "/"
+        }
+    ],
+    "resourceName": "PostAuthAPI",
+    "apiName": "PostAuthAPI",
+    "functionArns": [
+        {
+            "lambdaFunction": "PostAuthAPI"
+        }
+    ],
+    "privacy": {
+        "auth": 1,
+        "unauth": 0,
+        "authRoleName": "amplify-biomechanicsfrontend-dev-161949-authRole",
+        "unAuthRoleName": "amplify-biomechanicsfrontend-dev-161949-unauthRole"
+    },
+    "dependsOn": [
+        {
+            "category": "function",
+            "resourceName": "PostAuthAPI",
+            "attributes": [
+                "Name",
+                "Arn"
+            ]
+        }
+    ],
+    "uuid": "d4aa7c8c"
+}

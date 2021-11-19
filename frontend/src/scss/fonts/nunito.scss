@@ -1,0 +1,54 @@
+//
+// Nunito fonts
+//
+
+@font-face {
+  font-family: "Nunito";
+  src: url("../../assets/fonts/Nunito-Light.eot");
+  src: local("Nunito Light"), local("Nunito-Light"),
+    url("../../assets/fonts/Nunito-Light.eot?#iefix")
+      format("embedded-opentype"),
+    url("../../assets/fonts/Nunito-Light.woff") format("woff"),
+    url("../../assets/fonts/Nunito-Light.ttf") format("truetype"),
+    url("../../assets/fonts/Nunito-Light.svg#Roboto") format("svg");
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Nunito";
+  src: url("../../assets/fonts/Nunito-Regular.eot");
+  src: local("Nunito Regular"), local("Nunito-Regular"),
+    url("../../assets/fonts/Nunito-Regular.eot?#iefix")
+      format("embedded-opentype"),
+    url("../../assets/fonts/Nunito-Regular.woff") format("woff"),
+    url("../../assets/fonts/Nunito-Regular.ttf") format("truetype"),
+    url("../../assets/fonts/Nunito-Regular.svg#Roboto") format("svg");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Nunito";
+  src: url("../../assets/fonts/Nunito-SemiBold.eot");
+  src: local("Nunito SemiBold"), local("Nunito-SemiBold"),
+    url("../../assets/fonts/Nunito-SemiBold.eot?#iefix")
+      format("embedded-opentype"),
+    url("../../assets/fonts/Nunito-SemiBold.woff") format("woff"),
+    url("../../assets/fonts/Nunito-SemiBold.ttf") format("truetype"),
+    url("../../assets/fonts/Nunito-SemiBold.svg#Roboto") format("svg");
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Nunito";
+  src: url("../../assets/fonts/Nunito-Bold.eot");
+  src: local("Nunito Bold"), local("Nunito-Bold"),
+    url("../../assets/fonts/Nunito-Bold.eot?#iefix") format("embedded-opentype"),
+    url("../../assets/fonts/Nunito-Bold.woff") format("woff"),
+    url("../../assets/fonts/Nunito-Bold.ttf") format("truetype"),
+    url("../../assets/fonts/Nunito-Bold.svg#Roboto") format("svg");
+  font-weight: 700;
+  font-style: normal;
+}

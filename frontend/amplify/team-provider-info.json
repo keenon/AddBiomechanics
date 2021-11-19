@@ -19,6 +19,10 @@
         "S3Triggera674d3b7": {
           "deploymentBucketName": "amplify-biomechanicsfrontend-dev-161949-deployment",
           "s3Key": "amplify-builds/S3Triggera674d3b7-6c43674f36494e577a58-build.zip"
+        },
+        "PostAuthAPI": {
+          "deploymentBucketName": "amplify-biomechanicsfrontend-dev-161949-deployment",
+          "s3Key": "amplify-builds/PostAuthAPI-5364426e714745756d36-build.zip"
         }
       }
     }

@@ -1,0 +1,66 @@
+//Core files
+@import "./node_modules/bootstrap/scss/functions";
+@import "./node_modules/bootstrap/scss/variables";
+@import "scss/config/variables";
+@import "scss/config/custom-variables";
+@import "./node_modules/bootstrap/scss/bootstrap";
+
+// Layout
+@import "scss/layout/general.scss";
+@import "scss/layout/topbar.scss";
+@import "scss/layout/page-head.scss";
+@import "scss/layout/footer.scss";
+// Horizontal nav
+@import "scss/layout/horizontal-nav.scss";
+
+//Fonts
+@import "scss/fonts/nunito";
+
+// Components
+@import "scss/components/mixins/badge.scss";
+@import "scss/components/mixins/background-variant.scss";
+@import "scss/components/mixins/buttons.scss";
+@import "scss/components/reboot.scss";
+@import "scss/components/avatar.scss";
+@import "scss/components/dropdown.scss";
+@import "scss/components/forms.scss";
+@import "scss/components/breadcrumb.scss";
+@import "scss/components/card.scss";
+@import "scss/components/type.scss";
+@import "scss/components/buttons.scss";
+
+// Pages
+@import "scss/pages/authentication";
+@import "scss/pages/email";
+@import "scss/pages/error";
+
+// Icons
+@import "scss/plugins/icons";
+
+// Plugins
+@import "scss/plugins/apexcharts";
+@import "scss/plugins/britechart";
+@import "scss/plugins/calendar";
+@import "scss/plugins/chartjs";
+@import "scss/plugins/datatable";
+@import "scss/plugins/daterange"; //react-range slider style
+@import "scss/plugins/datepicker"; //react-date picker style
+@import "scss/plugins/dragula";
+@import "scss/plugins/dropzone";
+@import "scss/plugins/form-wizard";
+@import "scss/plugins/maps"; // react-vector map style
+@import "scss/plugins/quill-editor";
+@import "scss/plugins/select2";
+@import "scss/plugins/simplebar";
+@import "scss/plugins/toaster";
+@import "scss/plugins/bootstrap-touchspin";
+@import "scss/plugins/bootstrap-timepicker";
+@import "scss/plugins/simplemde";
+@import "scss/plugins/typehead";
+@import "scss/plugins/sparklines";
+@import "scss/plugins/timepicker";
+@import "scss/plugins/rateit";
+@import "scss/plugins/rating";
+@import "scss/plugins/react-select"; // react select style
+@import "scss/plugins/react-table"; // react table style
+@import "scss/plugins/ion-rangeslider";

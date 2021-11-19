@@ -1,0 +1,56 @@
+//
+// simplemde.scss
+//
+
+.editor-toolbar.fullscreen,.CodeMirror-fullscreen {
+  z-index: 1000;
+}
+
+.editor-preview, .editor-preview-side {
+  background: $gray-300 !important;
+}
+
+.editor-preview-active{
+  background: lighten($gray-300,2.5%) !important;
+}
+
+.editor-toolbar {
+  border: 1px solid $input-border-color !important;
+  border-bottom: 0 !important;
+
+  button {
+    color: $gray-700 !important;
+
+    &:hover,
+    &.active {
+      background-color: transparent !important;
+      color: $primary !important;
+      border-color: transparent !important;
+    }
+  }
+
+  i.separator {
+    display: none !important;
+  }
+
+  &.disabled-for-preview {
+    a:not(.no-disable) {
+      background: transparent !important;
+    }
+  }
+}
+
+.CodeMirror {
+  border: 1px solid $input-border-color !important;
+  background: $input-bg !important;
+  color: $input-color !important;
+  min-height: 100px;
+}
+
+.CodeMirror-cursor {
+  border-left: 1px solid $gray-800 !important;
+}
+
+.editor-statusbar {
+  color: $gray-800 !important;
+}

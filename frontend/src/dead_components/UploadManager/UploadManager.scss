@@ -1,0 +1,66 @@
+.UploadManager {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.UploadManager__form {
+  display: flex;
+  flex-direction: column;
+  width: 80%;
+
+  .UploadManager__dropdown {
+    font-size: 20px;
+  }
+
+  .UploadManager__row {
+    height: 40vh;
+    display: flex;
+    flex-direction: row;
+    justify-content: stretch;
+    align-items: center;
+  }
+
+  .UploadManager__row-elem {
+    flex: 1 1 auto;
+    height: 100%;
+    width: 100%;
+
+    &.UploadManager__row-elem-transition-enter {
+      width: 1px;
+      &.UploadManager__row-elem-transition-enter-active {
+        overflow: hidden;
+        white-space: nowrap;
+        width: 100%;
+        transition: width 200ms ease-in;
+      }
+    }
+
+    &.UploadManager__row-elem-transition-exit {
+      width: 100%;
+      &.UploadManager__row-elem-transition-exit-active {
+        overflow: hidden;
+        white-space: nowrap;
+        width: 1px;
+        transition: width 200ms ease-in;
+      }
+    }
+
+    &.UploadManager__row-elem-transition-exit-done {
+      display: none;
+    }
+  }
+}
+
+.UploadManager__comparison-table {
+  margin-bottom: 10px;
+  .UploadManager__comparison-checkbox {
+    vertical-align: middle;
+    padding: 10px;
+  }
+  .UploadManager__comparison-text {
+    max-width: 300px;
+  }
+}
