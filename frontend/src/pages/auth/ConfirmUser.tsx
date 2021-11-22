@@ -140,7 +140,7 @@ const ConfirmUser = () => {
             containerClass={"mb-3"}
           />
           <FormInput
-            label={t("Recovery Code")}
+            label={t("Activation Code")}
             type="text"
             name="code"
             placeholder={t("Enter the code we emailed you")}

@@ -48,7 +48,7 @@ const SignUp = () => {
    */
   const schemaResolver = yupResolver(
     yup.object().shape({
-      fullname: yup.string().required(t("Please enter Fullname")),
+      // fullname: yup.string().required(t("Please enter Fullname")),
       email: yup
         .string()
         .required("Please enter Email")
@@ -61,6 +61,7 @@ const SignUp = () => {
     let password = value["password"] as string;
     let email = value["email"] as string;
 
+    console.log("Signing up!");
     setLoading(true);
     Auth.signUp({ username: email, password })
       .then(() => {
