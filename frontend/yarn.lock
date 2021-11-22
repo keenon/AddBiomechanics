@@ -9730,6 +9730,14 @@ nice-try@^1.0.4:
   resolved "https://registry.yarnpkg.com/nice-try/-/nice-try-1.0.5.tgz#a3378a7696ce7d223e88fc9b764bd7ef1089e366"
   integrity sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
 
+nimble-visualizer@^0.6.2:
+  version "0.6.2"
+  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.6.2.tgz#a47e30ba582673f49f283999a22e41cb1705f5a8"
+  integrity sha512-p53me5v1CPBUNQRrr0o4HNmPjYEUk74J3+YdAUqSYnQakGyNZX/5m9Yd0bUa69lCI0vax/KRQLD1Wt5ulZVZRw==
+  dependencies:
+    react "^17.0.2"
+    three "^0.121.1"
+
 nise@^1.5.2:
   version "1.5.3"
   resolved "https://registry.yarnpkg.com/nise/-/nise-1.5.3.tgz#9d2cfe37d44f57317766c6e9408a359c5d3ac1f7"
@@ -12980,6 +12988,11 @@ text-table@0.2.0, text-table@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/text-table/-/text-table-0.2.0.tgz#7f5ee823ae805207c00af2df4a84ec3fcfa570b4"
   integrity sha1-f17oI66AUgfACvLfSoTsP8+lcLQ=
+
+three@^0.121.1:
+  version "0.121.1"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.121.1.tgz#fda39cf4701d02be9c3be5c27ccea24b7a1ea59b"
+  integrity sha512-+rYhNpW5W1aBdLkPQDld/GA4Sj/uOKJJKVpCAZUbpk/HZEiYRUlPt8+s+9nmxRglWmRHdBa3ERvUwqg4nmoA5w==
 
 throat@^5.0.0:
   version "5.0.0"

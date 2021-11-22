@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
-import { Trans } from "react-i18next";
-import Amplify, { Auth } from "aws-amplify";
+import { Navigate, useLocation, Outlet } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { Auth } from "aws-amplify";
 
-function RequireAuth({ children }: { children: JSX.Element }) {
+function RequireAuth() {
   let location = useLocation();
   const [authState, setAuthState] = useState("loading");
   Auth.currentAuthenticatedUser()
@@ -19,7 +19,7 @@ function RequireAuth({ children }: { children: JSX.Element }) {
     });
 
   if (authState == "authenticated") {
-    return children;
+    return <Outlet />;
   } else if (authState == "unauthenticated") {
     return <Navigate to="/login" replace={true} state={{ from: location }} />;
   } else if (authState == "loading" || true) {

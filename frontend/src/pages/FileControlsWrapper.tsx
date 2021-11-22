@@ -1,56 +1,91 @@
 // @flow
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, Outlet } from "react-router-dom";
 import {
   Row,
   Col,
   Card,
   Dropdown,
   ButtonGroup,
-  ProgressBar,
+  Modal,
+  Button,
 } from "react-bootstrap";
 
-// components
-import PageTitle from "../../components/PageTitle";
+import { MocapFolder } from "../state/MocapS3";
+import { observer } from "mobx-react-lite";
+import { Auth } from "aws-amplify";
 
-import QuickAccess from "./QuickAccess";
-import Recent from "./Recent";
-
-// dummy data
-import { quickAccessFiles, recentFiles } from "./data";
-
+type LeftSideProps = {
+  myRootFolder: MocapFolder;
+};
 // left side panel
-const LeftSide = () => {
+const LeftSide = observer((props: LeftSideProps) => {
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+  const [folderName, setFolderName] = useState("");
+
   return (
     <>
+      {/* Create Folder Modal */}
+      <Modal
+        show={showCreateFolderModal}
+        onHide={() => setShowCreateFolderModal(false)}
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Create Folder</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <input
+            type="text"
+            value={folderName}
+            onChange={(e) => {
+              setFolderName(e.target.value);
+            }}
+          ></input>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setShowCreateFolderModal(false)}
+          >
+            Close
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              props.myRootFolder.ensureFolder(folderName);
+              setShowCreateFolderModal(false);
+            }}
+          >
+            Create Folder
+          </Button>
+        </Modal.Footer>
+      </Modal>
+      {/* "Create" dropdown */}
       <ButtonGroup className="d-block mb-2">
         <Dropdown>
           <Dropdown.Toggle className="btn btn-success dropdown-toggle w-100">
             <i className="mdi mdi-plus"></i> Create New{" "}
           </Dropdown.Toggle>
           <Dropdown.Menu>
-            <Dropdown.Item>
+            <Dropdown.Item onClick={() => setShowCreateFolderModal(true)}>
               <i className="mdi mdi-folder-plus-outline me-1"></i> Folder
             </Dropdown.Item>
-            <Dropdown.Item>
-              <i className="mdi mdi-file-plus-outline me-1"></i> File
+            <Dropdown.Item onClick={() => alert("Not implemented yet")}>
+              <i className="mdi mdi-walk me-1"></i> Motion Clip
             </Dropdown.Item>
-            <Dropdown.Item>
+            <Dropdown.Item onClick={() => alert("Not implemented yet")}>
               <i className="mdi mdi-file-document me-1"></i> Document
-            </Dropdown.Item>
-            <Dropdown.Item>
-              <i className="mdi mdi-upload me-1"></i> Choose File
             </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown>
       </ButtonGroup>
-
+      {/* Left side nav links */}
       <div className="email-menu-list mt-3">
-        <Link to="/apps/file">
+        <Link to="#">
           <i className="mdi mdi-folder-outline font-18 align-middle me-2"></i>
           My Files
         </Link>
-        <Link to="/apps/file">
+        <Link to="#">
           <i className="mdi mdi-earth font-18 align-middle me-2"></i>
           Public Files
         </Link>
@@ -68,27 +103,22 @@ const LeftSide = () => {
       */}
     </>
   );
+});
+
+type FileManagerProps = {
+  myRootFolder: MocapFolder;
 };
 
 // FileManager
-const FileManager = () => {
+const FileManager = observer((props: FileManagerProps) => {
   return (
     <>
-      {/*
-      <PageTitle
-        breadCrumbItems={[
-          { label: "Apps", path: "/apps/file" },
-          { label: "File Manager", path: "/apps/file", active: true },
-        ]}
-        title={"File Manager"}
-      />
-      */}
       <Row className="mt-3">
         <Col md="12">
-          <Card>
+          <Card className="mt-4">
             <Card.Body>
               <div className="page-aside-left">
-                <LeftSide />
+                <LeftSide myRootFolder={props.myRootFolder} />
               </div>
 
               <div className="page-aside-right">
@@ -124,14 +154,7 @@ const FileManager = () => {
                 <QuickAccess quickAccessFiles={quickAccessFiles} />
                 */}
 
-                <Recent
-                  title="My Files"
-                  breadCrumbItems={[
-                    { label: "Apps", path: "/apps/file" },
-                    { label: "File Manager", path: "/apps/file", active: true },
-                  ]}
-                  recentFiles={recentFiles}
-                />
+                <Outlet />
               </div>
             </Card.Body>
           </Card>
@@ -139,6 +162,21 @@ const FileManager = () => {
       </Row>
     </>
   );
-};
+  /*
+    return (
+      <>
+        <Row className="mt-3">
+          <Col md="12">
+            <Card>
+              <Card.Body>
+                <Outlet />
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </>
+    );
+    */
+});
 
 export default FileManager;

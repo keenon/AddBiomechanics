@@ -1,5 +1,5 @@
 import { makeAutoObservable, action } from "mobx";
-import { Storage } from "aws-amplify";
+import { Storage, PubSub } from "aws-amplify";
 import {
   S3ProviderListOutput,
   S3ProviderListOutputItem,
@@ -7,6 +7,7 @@ import {
 
 class LiveS3File {
   folder: LiveS3Folder;
+  name: string;
   fullPath: string;
   level: "protected" | "public";
   lastModified: Date = new Date();
@@ -30,6 +31,8 @@ class LiveS3File {
     this.folder = folder;
     this.fullPath = fullPath;
     this.level = level;
+    const parts = fullPath.split("/");
+    this.name = parts.length == 0 ? fullPath : parts[parts.length - 1];
   }
 
   setLastModified = (date: Date) => {
@@ -92,6 +95,12 @@ class LiveS3File {
     );
   };
 
+  getSignedURL = () => {
+    return Storage.get(this.fullPath, {
+      level: this.level,
+    });
+  };
+
   downloadFile = () => {
     Storage.get(this.fullPath, {
       level: this.level,
@@ -111,12 +120,14 @@ class LiveS3File {
     }).then((result) => {
       if (result != null && result.Body != null) {
         // data.Body is a Blob
-        (result.Body as Blob).text().then((text: string) => {
+        return (result.Body as Blob).text().then((text: string) => {
           console.log(text);
           return text;
         });
       }
-      throw new Error("Result didn't have a Body");
+      throw new Error(
+        'Result of downloading "' + this.fullPath + "\" didn't have a Body"
+      );
     });
   };
 
@@ -139,6 +150,9 @@ class LiveS3Folder {
   // This is the S3 prefix for the data
   bucketPath: string;
 
+  // The human-readable name of S3 folder
+  name: string;
+
   // This is the level for this data
   level: "public" | "protected";
 
@@ -157,6 +171,9 @@ class LiveS3Folder {
   // This is the most recently modified file in this hierarchy
   lastModified: Date;
 
+  // This is the total size of the folder's contents
+  size: number = 0;
+
   constructor(
     bucketPath: string,
     level: "public" | "protected",
@@ -165,9 +182,39 @@ class LiveS3Folder {
     makeAutoObservable(this);
     this.level = level;
     this.bucketPath = bucketPath;
+    // Ensure we always end bucket paths with a "/"
+    if (!this.bucketPath.endsWith("/")) {
+      this.bucketPath = this.bucketPath + "/";
+    }
     this.lastModified = new Date();
     this.parent = parent;
+
+    const parts = bucketPath.split("/");
+    this.name = parts.length == 0 ? bucketPath : parts[parts.length - 1];
   }
+
+  /**
+   * TODO: Implement me
+   */
+  registerPubSubListener = () => {
+    // Subscribe to PubSub
+    PubSub.subscribe("/").subscribe({
+      next: (data) => console.log("Message received", data),
+      error: (error) => {
+        console.error("Error on PubSub.subscribe()");
+        console.error(error);
+      },
+      complete: () => console.log("Done"),
+    });
+  };
+
+  /**
+   * TODO: Implement me
+   */
+  reportChangeToPubSub = () => {
+    console.log("Attempting to publish");
+    PubSub.publish("/", { msg: "Hello to all subscribers!" });
+  };
 
   /**
    * This either gets or (if it doesn't exist yet) creates a folder at this name
@@ -175,18 +222,17 @@ class LiveS3Folder {
    * @param folderName
    * @returns
    */
-  ensureFolder = (folderName: string) => {
+  ensureFolder = action((folderName: string) => {
+    console.log("LiveS3Folder ensuring folder: " + folderName);
     let folder: LiveS3Folder | undefined = this.folders.get(folderName);
     if (folder == null) {
-      folder = new LiveS3Folder(
-        this.bucketPath + "/" + folderName,
-        this.level,
-        this
-      );
+      console.log("LiveS3Folder creating folder: " + folderName);
+      folder = new LiveS3Folder(this.bucketPath + folderName, this.level, this);
       this.folders.set(folderName, folder);
+      console.log("New folders size: " + this.folders.size);
     }
     return folder;
-  };
+  });
 
   /**
    * This either grabs the file that already exists, or creates an empty slot to upload
@@ -220,6 +266,19 @@ class LiveS3Folder {
       this.files.set(fileName, file);
     }
     file.stageFileForUpload(contents, allowOverwrite);
+    return file;
+  };
+
+  /**
+   * This either returns the desired file, or null if it doesn't exist
+   *
+   * @param fileName The file to retrieve
+   */
+  getFile = (fileName: string) => {
+    let file: LiveS3File | undefined = this.files.get(fileName);
+    if (file == null) {
+      return null;
+    }
     return file;
   };
 
@@ -279,16 +338,31 @@ class LiveS3Folder {
       }
 
       const suffix = key.substr(this.bucketPath.length);
-      let pathIndex = suffix.indexOf("/");
-      if (pathIndex != -1) {
-        const folderName = suffix.substr(0, pathIndex);
-        this.ensureFolder(folderName).__ensureRawS3Item(rawFileS3);
-      } else {
-        this.ensureFileInS3(
-          suffix,
-          rawFileS3.lastModified ?? new Date(),
-          rawFileS3.size ?? 0
-        );
+      console.log(
+        'Got suffix "' +
+          suffix +
+          '" from path "' +
+          key +
+          '" with our bucket key="' +
+          key +
+          '"'
+      );
+      // We get empty files indicating each folder in S3, but ignore those
+      if (suffix.length > 0) {
+        let pathIndex = suffix.indexOf("/");
+        if (pathIndex != -1) {
+          const folderName = suffix.substr(0, pathIndex);
+          console.log(
+            'Got folder name "' + folderName + '" from "' + suffix + '"'
+          );
+          this.ensureFolder(folderName).__ensureRawS3Item(rawFileS3);
+        } else {
+          this.ensureFileInS3(
+            suffix,
+            rawFileS3.lastModified ?? new Date(),
+            rawFileS3.size ?? 0
+          );
+        }
       }
     }
   };
@@ -299,19 +373,23 @@ class LiveS3Folder {
   refresh = () => {
     this.loading = true;
     return Storage.list(this.bucketPath, { level: this.level })
-      .then((result: S3ProviderListOutput) => {
-        console.log(
-          'Successfully refreshed folder "' +
-            this.bucketPath +
-            '", got ' +
-            result.length +
-            " items"
-        );
-        for (let i = 0; i < result.length; i++) {
-          this.__ensureRawS3Item(result[i]);
-        }
-        this.loading = false;
-      })
+      .then(
+        action((result: S3ProviderListOutput) => {
+          console.log(
+            "Successfully refreshed " +
+              this.level +
+              ' folder "' +
+              this.bucketPath +
+              '", got ' +
+              result.length +
+              " items"
+          );
+          for (let i = 0; i < result.length; i++) {
+            this.__ensureRawS3Item(result[i]);
+          }
+          this.loading = false;
+        })
+      )
       .catch((err: Error) => {
         console.error('Unable to refresh folder "' + this.bucketPath + '"');
         console.log(err);
