@@ -75,21 +75,17 @@ class LiveS3File {
           this.state = "uploading";
           Storage.put(this.fullPath, this.stagedForUpload, {
             level: this.level,
-            completeCallback: action((event) => {
-              console.log(`Successfully uploaded ${event.key}`);
-              this.state = "s3";
-              resolve();
-            }),
             progressCallback: action((progress) => {
               console.log(`Uploaded: ${progress.loaded}/${progress.total}`);
               this.uploadProgress = progress.loaded / progress.total;
             }),
-            errorCallback: action((err) => {
-              console.error("Unexpected error while uploading", err);
-              this.state = "error";
-              reject(err);
-            }),
-          });
+          })
+            .then(() => {
+              resolve();
+            })
+            .catch((e) => {
+              reject(e);
+            });
         }
       )
     );
@@ -192,6 +188,15 @@ class LiveS3Folder {
     const parts = bucketPath.split("/");
     this.name = parts.length == 0 ? bucketPath : parts[parts.length - 1];
   }
+
+  /**
+   * This returns true if there's a child (either folder or file) at the given name. False otherwise.
+   *
+   * @param name The name of the child to check for
+   */
+  hasChild = (name: string) => {
+    return this.files.has(name) && this.folders.has(name);
+  };
 
   /**
    * TODO: Implement me

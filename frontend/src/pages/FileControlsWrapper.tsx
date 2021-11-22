@@ -11,7 +11,6 @@ import {
 } from "react-bootstrap";
 import NewFolderModal from "./create/NewFolderModal";
 import NewMocapClipsModal from "./create/NewMocapClipsModal";
-import NewAutoscaleTest from "./create/NewAutoscaleTest";
 import DeleteFolderModal from "./create/DeleteFolderModal";
 
 import { MocapFolder } from "../state/MocapS3";
@@ -33,7 +32,6 @@ const FileManager = observer((props: FileManagerProps) => {
             <Card.Body>
               <NewFolderModal {...props} />
               <NewMocapClipsModal {...props} />
-              <NewAutoscaleTest {...props} />
               <DeleteFolderModal {...props} />
 
               <div className="page-aside-left">
@@ -51,15 +49,7 @@ const FileManager = observer((props: FileManagerProps) => {
                         Folder
                       </Dropdown.Item>
                       <Dropdown.Item
-                        onClick={() =>
-                          navigate({ search: "?new-autoscale-test" })
-                        }
-                      >
-                        <i className="mdi mdi-flask-plus-outline me-1"></i>{" "}
-                        Autoscaling Test
-                      </Dropdown.Item>
-                      <Dropdown.Item
-                        onClick={() => navigate({ search: "?new-mocap-clips" })}
+                        onClick={() => navigate({ search: "?new-subject" })}
                       >
                         <i className="mdi mdi-run me-1"></i> Motion Clip(s)
                       </Dropdown.Item>

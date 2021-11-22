@@ -40,7 +40,8 @@ function parsePathParts(pathname: string, linkPrefix?: string): string[] {
 
 class MocapClip {
   name: string;
-  protectedUploadFolder: LiveS3Folder;
+  parent: MocapFolder | null;
+  backingFolder: LiveS3Folder;
   status: MocapStatusJSON;
   statusFile: LiveS3File;
   markerFile: LiveS3File;
@@ -53,17 +54,18 @@ class MocapClip {
   resultsPreviewFile: LiveS3File | null = null;
   logFile: LiveS3File | null = null;
 
-  constructor(protectedUploadFolder: LiveS3Folder) {
+  constructor(backingFolder: LiveS3Folder, parent: MocapFolder | null = null) {
     makeAutoObservable(this);
-    this.name = protectedUploadFolder.name;
+    this.name = backingFolder.name;
+    this.parent = parent;
     this.status = {
       state: "loading",
       progress: 0,
     };
-    let statusFileOrNull = protectedUploadFolder.files.get(MOCAP_STATUS_FILE);
+    let statusFileOrNull = backingFolder.files.get(MOCAP_STATUS_FILE);
     if (statusFileOrNull == null) {
       this.status.state = "ready-to-upload";
-      this.statusFile = protectedUploadFolder.ensureFileToUpload(
+      this.statusFile = backingFolder.ensureFileToUpload(
         MOCAP_STATUS_FILE,
         JSON.stringify(this.status, null, 2)
       );
@@ -74,27 +76,30 @@ class MocapClip {
           this.status = JSON.parse(value);
 
           if (this.status.resultsPreviewFile) {
-            this.resultsPreviewFile = this.protectedUploadFolder.getFile(
+            this.resultsPreviewFile = this.backingFolder.getFile(
               this.status.resultsPreviewFile
             );
           }
           if (this.status.logFile) {
-            this.logFile = this.protectedUploadFolder.getFile(
-              this.status.logFile
-            );
+            this.logFile = this.backingFolder.getFile(this.status.logFile);
           }
         })
       );
     }
-    this.protectedUploadFolder = protectedUploadFolder;
+    this.backingFolder = backingFolder;
 
-    this.markerFile =
-      protectedUploadFolder.getOrCreateEmptyFileToUpload("markers.trc");
+    this.markerFile = backingFolder.getOrCreateEmptyFileToUpload("markers.trc");
     this.manualScalesFile =
-      protectedUploadFolder.getOrCreateEmptyFileToUpload("gold_ik.osim");
+      backingFolder.getOrCreateEmptyFileToUpload("gold_ik.osim");
     this.manualIKFile =
-      protectedUploadFolder.getOrCreateEmptyFileToUpload("hand_ik.mot");
+      backingFolder.getOrCreateEmptyFileToUpload("hand_ik.mot");
   }
+
+  uploadEmptyPlaceholders = () => {
+    return this.backingFolder.uploadEmptyFileForFolder().then(() => {
+      return this.statusFile.upload();
+    });
+  };
 
   upload = () => {
     let promises: Promise<void>[] = [];
@@ -121,7 +126,7 @@ class MocapFolder {
   name: string;
   parent: MocapFolder | null;
   // These are the mocap clips to display
-  mocapClips: MocapClip[] = [];
+  mocapClips: Map<string, MocapClip> = new Map();
   // These are the child folders and files
   folders: Map<string, MocapFolder> = new Map();
   strayFiles: Map<string, LiveS3File> = new Map();
@@ -138,9 +143,7 @@ class MocapFolder {
     if (path.length == 0) return "folder";
     if (path.length == 1) {
       const fileName = path[0];
-      for (let i = 0; i < this.mocapClips.length; i++) {
-        if (this.mocapClips[i].name == fileName) return "mocap";
-      }
+      if (this.mocapClips.has(fileName)) return "mocap";
       if (this.folders.has(fileName)) return "folder";
       if (this.strayFiles.has(fileName)) return "file";
       return "none";
@@ -190,8 +193,9 @@ class MocapFolder {
       );
     else {
       if (path.length == 1) {
-        for (let i = 0; i < this.mocapClips.length; i++) {
-          if (this.mocapClips[i].name == path[0]) return this.mocapClips[i];
+        const clip: MocapClip | undefined = this.mocapClips.get(path[0]);
+        if (clip) {
+          return clip;
         }
         throw new Error(
           'Folder "' +
@@ -255,14 +259,26 @@ class MocapFolder {
     }
   };
 
-  addMocapClip = () => {
-    let mocapClipName = "MocapClip" + (this.mocapClips.length + 1);
-    console.log('Creating clip "' + mocapClipName + '"');
-    let folder = this.backingFolder.ensureFolder(mocapClipName);
-    this.mocapClips.push(new MocapClip(folder));
+  createMocapClip = (path: string[], name: string) => {
+    if (this.getDataType(path) !== "folder") {
+      return Promise.reject(
+        "Trying to create a folder within a path that doesn't exist."
+      );
+    }
+    const targetFolder: MocapFolder = this.getFolder(path);
+    if (!targetFolder.backingFolder.hasChild(name)) {
+      const newFolder: LiveS3Folder =
+        targetFolder.backingFolder.ensureFolder(name);
+      const newClip: MocapClip = new MocapClip(newFolder, targetFolder);
+      targetFolder.mocapClips.set(name, newClip);
+
+      return newClip.uploadEmptyPlaceholders();
+    } else {
+      return Promise.reject('Folder "' + name + '" already exists');
+    }
   };
 
-  ensureFolder = (path: string[], name: string) => {
+  createFolder = (path: string[], name: string) => {
     console.log("Ensuring folder: " + name);
     if (this.getDataType(path) !== "folder") {
       return Promise.reject(
@@ -270,7 +286,7 @@ class MocapFolder {
       );
     }
     const targetFolder: MocapFolder = this.getFolder(path);
-    if (!targetFolder.folders.has(name)) {
+    if (!targetFolder.backingFolder.hasChild(name)) {
       const newFolder: LiveS3Folder =
         targetFolder.backingFolder.ensureFolder(name);
       targetFolder.folders.set(name, new MocapFolder(newFolder, targetFolder));
@@ -293,14 +309,14 @@ class MocapFolder {
   };
 
   updateFromBackingFolder = () => {
-    this.mocapClips = [];
+    this.mocapClips.clear();
     this.folders.clear();
     this.strayFiles.clear();
 
     this.backingFolder.folders.forEach((folder: LiveS3Folder) => {
       // We decide things are a MocapClip if they have a status file, otherwise it's a folder
       if (folder.files.has(MOCAP_STATUS_FILE)) {
-        this.mocapClips.push(new MocapClip(folder));
+        this.mocapClips.set(folder.name, new MocapClip(folder));
       } else {
         this.folders.set(folder.name, new MocapFolder(folder, this));
       }

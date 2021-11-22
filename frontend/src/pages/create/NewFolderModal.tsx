@@ -20,7 +20,18 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  let show = location.search === "?new-folder";
+  let show =
+    location.search === "?new-folder" || location.search === "?new-subject";
+
+  let typeToCreate: "Folder" | "Subject" = "Folder";
+  let icon = "";
+  if (location.search === "?new-folder") {
+    typeToCreate = "Folder";
+    icon = "mdi-folder-plus-outline";
+  } else if (location.search === "?new-subject") {
+    typeToCreate = "Subject";
+    icon = "mdi-run";
+  }
 
   let hideModal = () => {
     navigate({ search: "" });
@@ -39,7 +50,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
       <div key="body">
         <Form noValidate validated={false}>
           <Form.Group className="mb-3" controlId="folderName">
-            <Form.Label>Folder name</Form.Label>
+            <Form.Label>{typeToCreate} name</Form.Label>
             <Form.Control
               type="text"
               value={folderName}
@@ -60,8 +71,8 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
               isInvalid={!valid}
             />
             <Form.Text className="text-muted">
-              The folder to create inside of {"/" + path.join("/")} in your
-              protected space.
+              The {typeToCreate.toLocaleLowerCase()} to create inside of{" "}
+              {"/" + path.join("/")} in your protected space.
             </Form.Text>
             <Form.Control.Feedback type="invalid">
               Must be non-empty string of letters, numbers, hyphens, underscores
@@ -78,7 +89,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
       <Modal show={show} onHide={hideModal}>
         <Modal.Header closeButton>
           <Modal.Title>
-            <i className="mdi mdi-folder-plus-outline me-1"></i> Create Folder
+            <i className={"mdi me-1 " + icon}></i> Create {typeToCreate}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>{body}</Modal.Body>
@@ -94,20 +105,33 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
                 setValid(false);
               } else if (valid) {
                 setLoading(true);
-                props.myRootFolder
-                  .ensureFolder(path, folderName)
-                  .then(() => {
-                    setLoading(false);
-                    hideModal();
-                  })
-                  .catch((e) => {
-                    setLoading(false);
-                    setError(e);
-                  });
+                if (typeToCreate == "Subject") {
+                  props.myRootFolder
+                    .createMocapClip(path, folderName)
+                    .then(() => {
+                      setLoading(false);
+                      hideModal();
+                    })
+                    .catch((e) => {
+                      setLoading(false);
+                      setError(e);
+                    });
+                } else {
+                  props.myRootFolder
+                    .createFolder(path, folderName)
+                    .then(() => {
+                      setLoading(false);
+                      hideModal();
+                    })
+                    .catch((e) => {
+                      setLoading(false);
+                      setError(e);
+                    });
+                }
               }
             }}
           >
-            Create Folder
+            Create {typeToCreate}
           </Button>
         </Modal.Footer>
       </Modal>
