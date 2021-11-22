@@ -1,6 +1,5 @@
-// @flow
 import React, { useState } from "react";
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import {
   Row,
   Col,
@@ -10,88 +9,76 @@ import {
   Modal,
   Button,
 } from "react-bootstrap";
+import NewFolderModal from "./create/NewFolderModal";
+import NewMocapClipsModal from "./create/NewMocapClipsModal";
+import NewAutoscaleTest from "./create/NewAutoscaleTest";
+import DeleteFolderModal from "./create/DeleteFolderModal";
 
 import { MocapFolder } from "../state/MocapS3";
 import { observer } from "mobx-react-lite";
-import { Auth } from "aws-amplify";
 
-type LeftSideProps = {
+type FileManagerProps = {
   myRootFolder: MocapFolder;
+  linkPrefix: string;
 };
-// left side panel
-const LeftSide = observer((props: LeftSideProps) => {
-  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
-  const [folderName, setFolderName] = useState("");
 
+// FileManager
+const FileManager = observer((props: FileManagerProps) => {
+  const navigate = useNavigate();
   return (
     <>
-      {/* Create Folder Modal */}
-      <Modal
-        show={showCreateFolderModal}
-        onHide={() => setShowCreateFolderModal(false)}
-      >
-        <Modal.Header closeButton>
-          <Modal.Title>Create Folder</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <input
-            type="text"
-            value={folderName}
-            onChange={(e) => {
-              setFolderName(e.target.value);
-            }}
-          ></input>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button
-            variant="secondary"
-            onClick={() => setShowCreateFolderModal(false)}
-          >
-            Close
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => {
-              props.myRootFolder.ensureFolder(folderName);
-              setShowCreateFolderModal(false);
-            }}
-          >
-            Create Folder
-          </Button>
-        </Modal.Footer>
-      </Modal>
-      {/* "Create" dropdown */}
-      <ButtonGroup className="d-block mb-2">
-        <Dropdown>
-          <Dropdown.Toggle className="btn btn-success dropdown-toggle w-100">
-            <i className="mdi mdi-plus"></i> Create New{" "}
-          </Dropdown.Toggle>
-          <Dropdown.Menu>
-            <Dropdown.Item onClick={() => setShowCreateFolderModal(true)}>
-              <i className="mdi mdi-folder-plus-outline me-1"></i> Folder
-            </Dropdown.Item>
-            <Dropdown.Item onClick={() => alert("Not implemented yet")}>
-              <i className="mdi mdi-walk me-1"></i> Motion Clip
-            </Dropdown.Item>
-            <Dropdown.Item onClick={() => alert("Not implemented yet")}>
-              <i className="mdi mdi-file-document me-1"></i> Document
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown>
-      </ButtonGroup>
-      {/* Left side nav links */}
-      <div className="email-menu-list mt-3">
-        <Link to="#">
-          <i className="mdi mdi-folder-outline font-18 align-middle me-2"></i>
-          My Files
-        </Link>
-        <Link to="#">
-          <i className="mdi mdi-earth font-18 align-middle me-2"></i>
-          Public Files
-        </Link>
-      </div>
+      <Row className="mt-3">
+        <Col md="12">
+          <Card className="mt-4">
+            <Card.Body>
+              <NewFolderModal {...props} />
+              <NewMocapClipsModal {...props} />
+              <NewAutoscaleTest {...props} />
+              <DeleteFolderModal {...props} />
 
-      {/*
+              <div className="page-aside-left">
+                {/* "Create" dropdown */}
+                <ButtonGroup className="d-block mb-2">
+                  <Dropdown>
+                    <Dropdown.Toggle className="btn btn-success dropdown-toggle w-100">
+                      <i className="mdi mdi-plus"></i> Create New{" "}
+                    </Dropdown.Toggle>
+                    <Dropdown.Menu>
+                      <Dropdown.Item
+                        onClick={() => navigate({ search: "?new-folder" })}
+                      >
+                        <i className="mdi mdi-folder-plus-outline me-1"></i>{" "}
+                        Folder
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        onClick={() =>
+                          navigate({ search: "?new-autoscale-test" })
+                        }
+                      >
+                        <i className="mdi mdi-flask-plus-outline me-1"></i>{" "}
+                        Autoscaling Test
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        onClick={() => navigate({ search: "?new-mocap-clips" })}
+                      >
+                        <i className="mdi mdi-run me-1"></i> Motion Clip(s)
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown>
+                </ButtonGroup>
+                {/* Left side nav links */}
+                <div className="email-menu-list mt-3">
+                  <Link to="#">
+                    <i className="mdi mdi-folder-outline font-18 align-middle me-2"></i>
+                    My Files
+                  </Link>
+                  <Link to="#">
+                    <i className="mdi mdi-earth font-18 align-middle me-2"></i>
+                    Public Files
+                  </Link>
+                </div>
+
+                {/*
       <div className="mt-5">
         <h4>
           <span className="badge rounded-pill p-1 px-2 bg-secondary">FREE</span>
@@ -101,24 +88,6 @@ const LeftSide = observer((props: LeftSideProps) => {
         <p className="text-muted font-13 mb-0">7.02 GB (46%) of 15 GB used</p>
       </div>
       */}
-    </>
-  );
-});
-
-type FileManagerProps = {
-  myRootFolder: MocapFolder;
-};
-
-// FileManager
-const FileManager = observer((props: FileManagerProps) => {
-  return (
-    <>
-      <Row className="mt-3">
-        <Col md="12">
-          <Card className="mt-4">
-            <Card.Body>
-              <div className="page-aside-left">
-                <LeftSide myRootFolder={props.myRootFolder} />
               </div>
 
               <div className="page-aside-right">

@@ -1,5 +1,6 @@
 import { LiveS3File, LiveS3Folder } from "./LiveS3";
 import { makeAutoObservable, action } from "mobx";
+import { parsePath } from "history";
 
 const MOCAP_STATUS_FILE = "_status.json";
 
@@ -21,6 +22,21 @@ type MocapStatusJSON = {
   manuallyScaledOsimFile?: string;
   manuallyScaledIKFile?: string;
 };
+
+function parsePathParts(pathname: string, linkPrefix?: string): string[] {
+  const path = decodeURI(pathname).split("/");
+  while (path.length > 0 && path[0].length == 0) {
+    path.splice(0, 1);
+  }
+  while (path.length > 0 && path[path.length - 1].length == 0) {
+    path.splice(path.length - 1, 1);
+  }
+  if (path.length > 0 && path[0] == linkPrefix) {
+    path.splice(0, 1);
+  }
+  console.log(path);
+  return path;
+}
 
 class MocapClip {
   name: string;
@@ -246,15 +262,41 @@ class MocapFolder {
     this.mocapClips.push(new MocapClip(folder));
   };
 
-  ensureFolder = (name: string) => {
+  ensureFolder = (path: string[], name: string) => {
     console.log("Ensuring folder: " + name);
-    if (!this.folders.has(name)) {
-      const newFolder: LiveS3Folder = this.backingFolder.ensureFolder(name);
-      this.folders.set(name, new MocapFolder(newFolder, this));
+    if (this.getDataType(path) !== "folder") {
+      return Promise.reject(
+        "Trying to create a folder within a path that doesn't exist."
+      );
+    }
+    const targetFolder: MocapFolder = this.getFolder(path);
+    if (!targetFolder.folders.has(name)) {
+      const newFolder: LiveS3Folder =
+        targetFolder.backingFolder.ensureFolder(name);
+      targetFolder.folders.set(name, new MocapFolder(newFolder, targetFolder));
+      return newFolder.uploadEmptyFileForFolder();
+    } else {
+      return Promise.reject('Folder "' + name + '" already exists');
     }
   };
 
+  deleteByPrefix = (path: string[], prefix: string) => {
+    if (this.getDataType(path) !== "folder") {
+      return Promise.reject(
+        "Trying to delete within a folder within a path that doesn't exist."
+      );
+    }
+    const targetFolder: MocapFolder = this.getFolder(path);
+    return targetFolder.backingFolder.deleteByPrefix(prefix).then(() => {
+      targetFolder.updateFromBackingFolder();
+    });
+  };
+
   updateFromBackingFolder = () => {
+    this.mocapClips = [];
+    this.folders.clear();
+    this.strayFiles.clear();
+
     this.backingFolder.folders.forEach((folder: LiveS3Folder) => {
       // We decide things are a MocapClip if they have a status file, otherwise it's a folder
       if (folder.files.has(MOCAP_STATUS_FILE)) {
@@ -273,4 +315,4 @@ class MocapFolder {
   };
 }
 
-export { MocapClip, MocapFolder };
+export { MocapClip, MocapFolder, parsePathParts };

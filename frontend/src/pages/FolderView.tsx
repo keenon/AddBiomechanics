@@ -10,6 +10,8 @@ type FolderViewProps = {
 };
 
 const FolderView = observer((props: FolderViewProps) => {
+  const navigate = useNavigate();
+
   const folder = props.folder;
   let linkPrefix = props.linkPrefix;
   if (!linkPrefix.endsWith("/")) {
@@ -70,7 +72,11 @@ const FolderView = observer((props: FolderViewProps) => {
                         Download
                       </Dropdown.Item>
                       */}
-                  <Dropdown.Item>
+                  <Dropdown.Item
+                    onClick={() => {
+                      navigate({ search: "?delete-folder=" + folder.name });
+                    }}
+                  >
                     <i className="mdi mdi-delete me-2 text-muted vertical-middle"></i>
                     Delete
                   </Dropdown.Item>
@@ -130,7 +136,11 @@ const FolderView = observer((props: FolderViewProps) => {
                         Download
                       </Dropdown.Item>
                       */}
-                  <Dropdown.Item>
+                  <Dropdown.Item
+                    onClick={() => {
+                      navigate({ search: "?delete-folder=" + clip.name });
+                    }}
+                  >
                     <i className="mdi mdi-delete me-2 text-muted vertical-middle"></i>
                     Delete
                   </Dropdown.Item>
@@ -151,7 +161,10 @@ const FolderView = observer((props: FolderViewProps) => {
     );
   }
   return (
-    <Table responsive className="table table-centered table-nowrap mb-0">
+    <Table
+      responsive={rows.length > 2}
+      className="table table-centered table-nowrap mb-0"
+    >
       <thead className="table-light">
         <tr>
           <th className="border-0">Name</th>

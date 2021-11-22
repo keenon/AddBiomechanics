@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import FolderView from "./FolderView";
 import MocapView from "./MocapView";
 import { Breadcrumb, BreadcrumbItem, Spinner } from "react-bootstrap";
-import { MocapFolder } from "../state/MocapS3";
+import { MocapFolder, parsePathParts } from "../state/MocapS3";
 import { observer } from "mobx-react-lite";
 
 type FileRouterProps = {
@@ -15,18 +15,7 @@ type FileRouterProps = {
 const FileRouter = observer((props: FileRouterProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const path = location.pathname.split("/");
-  while (path.length > 0 && path[0].length == 0) {
-    path.splice(0, 1);
-  }
-  while (path.length > 0 && path[path.length - 1].length == 0) {
-    path.splice(path.length - 1, 1);
-  }
-
-  const LINK_PREFIX = props.linkPrefix;
-  if (path.length > 0 && path[0] == LINK_PREFIX) {
-    path.splice(0, 1);
-  }
+  const path = parsePathParts(location.pathname, props.linkPrefix);
 
   //////////////////////////////////////////////////////////////
   // Set up the breadcrumbs
@@ -35,19 +24,19 @@ const FileRouter = observer((props: FileRouterProps) => {
   let breadcrumbs = [];
   breadcrumbs.push(
     <BreadcrumbItem
-      href={"/" + LINK_PREFIX}
+      href={"/" + props.linkPrefix}
       onClick={(e) => {
         e.preventDefault();
-        navigate("/" + LINK_PREFIX);
+        navigate("/" + props.linkPrefix);
       }}
       active={path.length === 0}
     >
       {props.isRootFolderPublic ? "Public" : "My Data"}
     </BreadcrumbItem>
   );
-  let linkPath = "/" + LINK_PREFIX;
+  let linkPath = "/" + props.linkPrefix;
   for (let i = 0; i < path.length; i++) {
-    linkPath += "/" + path[i];
+    linkPath += "/" + encodeURIComponent(path[i]);
     breadcrumbs.push(
       <BreadcrumbItem
         href={linkPath}

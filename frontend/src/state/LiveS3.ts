@@ -132,7 +132,7 @@ class LiveS3File {
   };
 
   deleteFile = () => {
-    Storage.remove(this.fullPath, { level: this.level })
+    return Storage.remove(this.fullPath, { level: this.level })
       .then((result) => {
         console.log(result);
       })
@@ -233,6 +233,81 @@ class LiveS3Folder {
     }
     return folder;
   });
+
+  /**
+   * This uploads an empty file to S3 at this folder's path, which records the existence of the folder.
+   */
+  uploadEmptyFileForFolder = () => {
+    return Storage.put(this.bucketPath, "", {
+      level: this.level,
+    });
+  };
+
+  /**
+   * This deletes everything inside a folder
+   */
+  clearFolder = () => {
+    let deletePromises: Promise<any>[] = [];
+    this.folders.forEach((folder) => {
+      deletePromises.push(folder.deleteFolder());
+    });
+    this.folders.clear();
+    this.files.forEach((file) => {
+      deletePromises.push(file.deleteFile());
+    });
+    this.files.clear();
+    return Promise.all(deletePromises);
+  };
+
+  /**
+   * This recursively deletes this folder and all its contents
+   */
+  deleteFolder = () => {
+    return this.clearFolder().then(() => {
+      return Storage.remove(this.bucketPath, {
+        level: this.level,
+      });
+    });
+  };
+
+  /**
+   * This deletes all the files that match a given prefix
+   *
+   * @param prefix
+   */
+  deleteByPrefix = (prefix: string) => {
+    let deleteFiles: string[] = [];
+    this.files.forEach((v: LiveS3File, key: string) => {
+      if (key.startsWith(prefix)) {
+        deleteFiles.push(key);
+      }
+    });
+    let deletePromises: Promise<any>[] = [];
+
+    for (let key of deleteFiles) {
+      let file = this.files.get(key);
+      if (file != null) {
+        deletePromises.push(file.deleteFile());
+      }
+      this.files.delete(key);
+    }
+
+    let deleteFolders: string[] = [];
+    this.folders.forEach((v: LiveS3Folder, key: string) => {
+      if (key.startsWith(prefix)) {
+        deleteFolders.push(key);
+      }
+    });
+    for (let key of deleteFolders) {
+      let folder = this.folders.get(key);
+      if (folder != null) {
+        deletePromises.push(folder.deleteFolder());
+      }
+      this.folders.delete(key);
+    }
+
+    return Promise.all(deletePromises);
+  };
 
   /**
    * This either grabs the file that already exists, or creates an empty slot to upload

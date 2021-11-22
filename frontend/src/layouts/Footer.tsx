@@ -8,9 +8,7 @@ const Footer = () => {
       <footer className="footer">
         <div className="container-fluid">
           <Row>
-            <Col md={12}>
-              {currentYear} © Keenon Werling, Stanford University
-            </Col>
+            <Col md={12}>{currentYear} © Stanford University</Col>
 
             {/*
             <Col md={6}>

@@ -70,6 +70,10 @@ Auth.currentAuthenticatedUser()
 const publicData = new MocapFolder(new LiveS3Folder("data", "public"));
 publicData.refresh();
 const myData = new MocapFolder(new LiveS3Folder("data", "protected"));
+myData.refresh();
+
+const PUBLIC_DATA_URL_PREFIX = "public_data";
+const MY_DATA_URL_PREFIX = "my_data";
 
 ReactDOM.render(
   <BrowserRouter>
@@ -77,7 +81,7 @@ ReactDOM.render(
       <Route element={<HorizontalLayout />}>
         <Route index element={<Welcome />} />
         <Route
-          path="/public_data/*"
+          path={"/" + PUBLIC_DATA_URL_PREFIX + "/*"}
           element={
             <Row>
               <Col md="12">
@@ -86,7 +90,7 @@ ReactDOM.render(
                     <FileRouter
                       rootFolder={publicData}
                       isRootFolderPublic={true}
-                      linkPrefix="public_data"
+                      linkPrefix={PUBLIC_DATA_URL_PREFIX}
                     />
                   </Card.Body>
                 </Card>
@@ -94,15 +98,22 @@ ReactDOM.render(
             </Row>
           }
         ></Route>
-        <Route path="/my_data/*" element={<RequireAuth />}>
-          <Route element={<FileControlsWrapper myRootFolder={myData} />}>
+        <Route path={"/" + MY_DATA_URL_PREFIX + "/*"} element={<RequireAuth />}>
+          <Route
+            element={
+              <FileControlsWrapper
+                linkPrefix={MY_DATA_URL_PREFIX}
+                myRootFolder={myData}
+              />
+            }
+          >
             <Route
               path="*"
               element={
                 <FileRouter
                   rootFolder={myData}
                   isRootFolderPublic={false}
-                  linkPrefix="my_data"
+                  linkPrefix={MY_DATA_URL_PREFIX}
                 />
               }
             ></Route>
