@@ -88,7 +88,7 @@ const FolderView = observer((props: FolderViewProps) => {
       </tr>
     );
   });
-  folder.mocapClips.forEach((clip) => {
+  folder.mocapSubjects.forEach((clip) => {
     const name = clip.name;
     rows.push(
       <tr key={name}>

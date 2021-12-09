@@ -33,26 +33,37 @@ if (
 
 Amplify.configure(awsExports);
 
+const publicData = new MocapFolder(new LiveS3Folder("data", "public"));
+publicData.refresh();
+const myData = new MocapFolder(new LiveS3Folder("data", "protected"));
+
+function afterLogin() {
+  myData.refresh();
+  // If we're logged in, there's extra steps we have to do to ensure that
+  // our account has rights to IOT, so we have to make an extra call to
+  // the backend before we set up PubSub
+  API.post("PostAuthAPI", "/", {})
+    .then((response) => {
+      // Apply plugin with configuration
+      Amplify.addPluggable(
+        new AWSIoTProvider({
+          aws_pubsub_region: "us-west-2",
+          aws_pubsub_endpoint:
+            "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt",
+        })
+      );
+      publicData.backingFolder.registerPubSubListener();
+      myData.backingFolder.registerPubSubListener();
+    })
+    .catch((error) => {
+      console.log("Got error with PostAuthAPI!");
+      console.log(error.response);
+    });
+}
+
 Auth.currentAuthenticatedUser()
   .then(() => {
-    // If we're logged in, there's extra steps we have to do to ensure that
-    // our account has rights to IOT, so we have to make an extra call to
-    // the backend before we set up PubSub
-    API.post("PostAuthAPI", "/", {})
-      .then((response) => {
-        // Apply plugin with configuration
-        Amplify.addPluggable(
-          new AWSIoTProvider({
-            aws_pubsub_region: "us-west-2",
-            aws_pubsub_endpoint:
-              "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt",
-          })
-        );
-      })
-      .catch((error) => {
-        console.log("Got error with PostAuthAPI!");
-        console.log(error.response);
-      });
+    afterLogin();
   })
   .catch(() => {
     // If we're not logged in, we can set up the PubSub provider right away
@@ -65,12 +76,8 @@ Auth.currentAuthenticatedUser()
           "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt",
       })
     );
+    publicData.backingFolder.registerPubSubListener();
   });
-
-const publicData = new MocapFolder(new LiveS3Folder("data", "public"));
-publicData.refresh();
-const myData = new MocapFolder(new LiveS3Folder("data", "protected"));
-myData.refresh();
 
 const PUBLIC_DATA_URL_PREFIX = "public_data";
 const MY_DATA_URL_PREFIX = "my_data";
@@ -120,7 +127,16 @@ ReactDOM.render(
           </Route>
         </Route>
       </Route>
-      <Route path="/login" element={<Login />}></Route>
+      <Route
+        path="/login"
+        element={
+          <Login
+            onLogin={() => {
+              afterLogin();
+            }}
+          />
+        }
+      ></Route>
       <Route path="/logout" element={<Logout />}></Route>
       <Route path="/sign-up" element={<SignUp />}></Route>
       <Route path="/forgot-password" element={<ForgotPassword />}></Route>

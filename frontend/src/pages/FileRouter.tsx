@@ -1,7 +1,7 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import FolderView from "./FolderView";
-import MocapView from "./MocapView";
+import MocapSubjectView from "./MocapSubjectView";
 import { Breadcrumb, BreadcrumbItem, Spinner } from "react-bootstrap";
 import { MocapFolder, parsePathParts } from "../state/MocapS3";
 import { observer } from "mobx-react-lite";
@@ -67,7 +67,9 @@ const FileRouter = observer((props: FileRouterProps) => {
       body = <FolderView folder={folder} linkPrefix={linkPath} />;
     } else if (dataType == "mocap") {
       const mocap = props.rootFolder.getMocapClip(path);
-      body = <MocapView clip={mocap} />;
+      body = (
+        <MocapSubjectView subject={mocap} canEdit={!props.isRootFolderPublic} />
+      );
     } else {
       body = (
         <div>

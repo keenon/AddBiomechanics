@@ -1,1 +1,4 @@
 awsiotsdk
+boto3-stubs
+boto3
+inotify

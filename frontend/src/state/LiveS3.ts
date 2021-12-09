@@ -1,9 +1,10 @@
 import { makeAutoObservable, action } from "mobx";
-import { Storage, PubSub } from "aws-amplify";
+import { Storage, PubSub, Auth } from "aws-amplify";
 import {
   S3ProviderListOutput,
   S3ProviderListOutputItem,
 } from "@aws-amplify/storage";
+import { ZenObservable } from 'zen-observable-ts';
 
 class LiveS3File {
   folder: LiveS3Folder;
@@ -21,6 +22,7 @@ class LiveS3File {
     | "error" = "empty";
   stagedForUpload?: File | string;
   uploadProgress: number = 0.0;
+  updateListeners: Array<() => void> = [];
 
   constructor(
     folder: LiveS3Folder,
@@ -33,6 +35,7 @@ class LiveS3File {
     this.level = level;
     const parts = fullPath.split("/");
     this.name = parts.length == 0 ? fullPath : parts[parts.length - 1];
+    console.log("Creating new file at "+this.fullPath+" inside folder "+this.folder.bucketPath);
   }
 
   setLastModified = (date: Date) => {
@@ -63,6 +66,15 @@ class LiveS3File {
     this.setLastModified(new Date());
   };
 
+  registerUpdateListener = (listener: () => void) => {
+    this.updateListeners.push(listener);
+  }
+
+  notifyUpdateListeners = () => {
+    console.log("Attempting to notify "+this.updateListeners.length+" listeners for "+this.fullPath);
+    this.updateListeners.forEach(l => l());
+  }
+
   upload = () => {
     if (this.stagedForUpload == null) {
       return Promise.reject(
@@ -79,13 +91,41 @@ class LiveS3File {
               console.log(`Uploaded: ${progress.loaded}/${progress.total}`);
               this.uploadProgress = progress.loaded / progress.total;
             }),
+            completeCallback: action(() => {
+              console.log("Finished uploading");
+              this.uploadProgress = 1.0;
+              // Ensure we flash the full progress bar for at least 500ms
+              setTimeout(
+                action(() => {
+                  this.state = "s3";
+                  this.folder.reportChangeToPubSub(this.fullPath, 'uploaded');
+                  resolve();
+                }),
+                500
+              );
+            }),
           })
-            .then(() => {
-              resolve();
-            })
-            .catch((e) => {
-              reject(e);
-            });
+            .then(
+              action(() => {
+                console.log("Finished uploading");
+                // Ensure we flash the full progress bar for at least 500ms
+                this.uploadProgress = 1.0;
+                setTimeout(
+                  action(() => {
+                    this.state = "s3";
+                    this.folder.reportChangeToPubSub(this.fullPath, 'uploaded');
+                    resolve();
+                  }),
+                  500
+                );
+              })
+            )
+            .catch(
+              action((e) => {
+                this.state = "error";
+                reject(e);
+              })
+            );
         }
       )
     );
@@ -117,7 +157,6 @@ class LiveS3File {
       if (result != null && result.Body != null) {
         // data.Body is a Blob
         return (result.Body as Blob).text().then((text: string) => {
-          console.log(text);
           return text;
         });
       }
@@ -137,6 +176,14 @@ class LiveS3File {
       });
   };
 }
+
+type LiveS3UpdateMessage = {
+  path: string;
+};
+
+type LiveS3DeleteMessage = {
+  path: string;
+};
 
 /**
  * This class abstracts the annoyances in creating, uploading, and downloading data from S3.
@@ -170,6 +217,10 @@ class LiveS3Folder {
   // This is the total size of the folder's contents
   size: number = 0;
 
+  // This listens for updates to the files in this folder, and then re-fetches files as we're notified of changes to them.
+  updateListener: ZenObservable.Subscription | null = null;
+  deleteListener: ZenObservable.Subscription | null = null;
+
   constructor(
     bucketPath: string,
     level: "public" | "protected",
@@ -195,30 +246,140 @@ class LiveS3Folder {
    * @param name The name of the child to check for
    */
   hasChild = (name: string) => {
-    return this.files.has(name) && this.folders.has(name);
+    return this.files.has(name) || this.folders.has(name);
   };
 
   /**
-   * TODO: Implement me
+   * This transforms a raw, "global", bucket path into a path within our little folder.
+   * 
+   * @param globalPath This is the S3 path in raw bucket space
+   */
+  rawBucketPathToLocalPath = (globalPath: string) => {
+    if (this.level === 'public') {
+      if (globalPath.startsWith('public/'+this.bucketPath)) {
+        return globalPath.substring('public/'.length + this.bucketPath.length);
+      }
+      console.warn("rawBucketPathToLocalPath() handed a path that doesn't look like a global path for this (public) folder: "+globalPath);
+      return globalPath;
+    }
+    else if (this.level === 'protected') {
+      const parts: string[] = globalPath.split('/');
+      const bucketPathParts: string[] = this.bucketPath.split('/');
+      if (parts.length >= (2 + bucketPathParts.length) && parts[0] === 'protected') {
+        for (let i = 0; i < bucketPathParts.length; i++) {
+          if (parts[i+2] != bucketPathParts[i]) {
+            console.warn("rawBucketPathToLocalPath() handed a path that doesn't look like a global path for this (protected) folder: "+globalPath);
+            return globalPath;
+          }
+        }
+        return parts.slice(2 + bucketPathParts.length).join('/');
+      }
+      console.warn("rawBucketPathToLocalPath() handed a path that doesn't look like a global path for this (protected) folder: "+globalPath);
+      return globalPath;
+    }
+    return globalPath;
+  };
+
+  /**
+   * This transforms a local path within our folder to a raw, "global" bucket path in S3
+   * 
+   * @param localPath This is the local path within our little folder
+   */
+  localPathToRawBucketPath = (localPath: string) => {
+
+  };
+
+  /**
+   * This registers a PubSub listener for live change-updates on this S3 bucket.
    */
   registerPubSubListener = () => {
-    // Subscribe to PubSub
-    PubSub.subscribe("/").subscribe({
-      next: (data) => console.log("Message received", data),
-      error: (error) => {
-        console.error("Error on PubSub.subscribe()");
-        console.error(error);
-      },
-      complete: () => console.log("Done"),
-    });
+    console.log("Registering PubSub listeners");
+
+    if (this.updateListener != null && !this.updateListener.closed) {
+      this.updateListener.unsubscribe();
+    }
+    if (this.deleteListener != null && !this.deleteListener.closed) {
+      this.deleteListener.unsubscribe();
+    }
+
+    const onUpdate = (data: LiveS3UpdateMessage) => {
+      const localPath: string = this.rawBucketPathToLocalPath(data.path);
+      console.log("Update received for "+localPath);
+      this.ensureFileInS3(localPath, new Date(), 0).notifyUpdateListeners();
+    };
+
+    const onDelete = (data: LiveS3DeleteMessage) => {
+      const localPath: string = this.rawBucketPathToLocalPath(data.path);
+      console.log("Delete received for "+localPath);
+      this.deleteByPrefix(localPath);
+    };
+
+    if (this.level === 'protected') {
+      Auth.currentCredentials().then((credentials) => {
+        // If we're logged in, then we want to establish a listener for our own data
+        this.updateListener = PubSub.subscribe("/UPDATE/protected/"+credentials.identityId+"/#").subscribe({
+          next: (msg) => {
+            onUpdate(msg.value);
+          },
+          error: (error) => {
+            console.error("Error on PubSub.subscribe()");
+            console.error(error);
+          },
+          complete: () => console.log("Done"),
+        });
+        this.deleteListener = PubSub.subscribe("/DELETE/protected/"+credentials.identityId+"/#").subscribe({
+          next: (msg) => {
+            onDelete(msg.value);
+          },
+          error: (error) => {
+            console.error("Error on PubSub.subscribe()");
+            console.error(error);
+          },
+          complete: () => console.log("Done"),
+        });
+      });
+    }
+    else if (this.level === 'public') {
+      // If we're logged in, then we want to establish listeners for both public and private data updates
+      this.updateListener = PubSub.subscribe("/UPDATE/public/#").subscribe({
+        next: (msg) => {
+          onUpdate(msg.value);
+        },
+        error: (error) => {
+          console.error("Error on PubSub.subscribe()");
+          console.error(error);
+        },
+        complete: () => console.log("Done"),
+      });
+      this.deleteListener = PubSub.subscribe("/DELETE/public/#").subscribe({
+        next: (msg) => {
+          onDelete(msg.value);
+        },
+        error: (error) => {
+          console.error("Error on PubSub.subscribe()");
+          console.error(error);
+        },
+        complete: () => console.log("Done"),
+      });
+    }
   };
 
   /**
-   * TODO: Implement me
+   * This notifies any listening servers/clients that this S3 bucket has changed
    */
-  reportChangeToPubSub = () => {
-    console.log("Attempting to publish");
-    PubSub.publish("/", { msg: "Hello to all subscribers!" });
+  reportChangeToPubSub = (path: string, reason: string) => {
+    const message = {
+      path,
+      reason
+    };
+    if (this.level === 'protected') {
+      Auth.currentCredentials().then((credentials) => {
+        PubSub.publish("/UPDATE/protected/"+credentials.identityId+"/", message);
+      });
+    }
+    else if (this.level === 'public') {
+      PubSub.publish("/UPDATE/public/", message);
+    }
   };
 
   /**
@@ -228,13 +389,10 @@ class LiveS3Folder {
    * @returns
    */
   ensureFolder = action((folderName: string) => {
-    console.log("LiveS3Folder ensuring folder: " + folderName);
     let folder: LiveS3Folder | undefined = this.folders.get(folderName);
     if (folder == null) {
-      console.log("LiveS3Folder creating folder: " + folderName);
       folder = new LiveS3Folder(this.bucketPath + folderName, this.level, this);
       this.folders.set(folderName, folder);
-      console.log("New folders size: " + this.folders.size);
     }
     return folder;
   });
@@ -367,11 +525,19 @@ class LiveS3Folder {
    *
    * @param fileName
    */
-  ensureFileInS3 = (fileName: string, lastModified: Date, size: number) => {
-    let file: LiveS3File | undefined = this.files.get(fileName);
+  ensureFileInS3 = (filePath: string, lastModified: Date, size: number) => {
+    let pathParts = filePath.split('/');
+
+    let folder: LiveS3Folder = this;
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      folder = folder.ensureFolder(pathParts[i]);
+    }
+
+    let fileName = pathParts[pathParts.length - 1];
+    let file: LiveS3File | undefined = folder.files.get(fileName);
     if (file == null) {
-      file = new LiveS3File(this, this.bucketPath + fileName, this.level);
-      this.files.set(fileName, file);
+      file = new LiveS3File(folder, folder.bucketPath + fileName, folder.level);
+      folder.files.set(fileName, file);
     }
     if (file.stagedForUpload != null) {
       console.error(
@@ -418,23 +584,11 @@ class LiveS3Folder {
       }
 
       const suffix = key.substr(this.bucketPath.length);
-      console.log(
-        'Got suffix "' +
-          suffix +
-          '" from path "' +
-          key +
-          '" with our bucket key="' +
-          key +
-          '"'
-      );
       // We get empty files indicating each folder in S3, but ignore those
       if (suffix.length > 0) {
         let pathIndex = suffix.indexOf("/");
         if (pathIndex != -1) {
           const folderName = suffix.substr(0, pathIndex);
-          console.log(
-            'Got folder name "' + folderName + '" from "' + suffix + '"'
-          );
           this.ensureFolder(folderName).__ensureRawS3Item(rawFileS3);
         } else {
           this.ensureFileInS3(

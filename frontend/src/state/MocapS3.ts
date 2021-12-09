@@ -2,25 +2,40 @@ import { LiveS3File, LiveS3Folder } from "./LiveS3";
 import { makeAutoObservable, action } from "mobx";
 import { parsePath } from "history";
 
-const MOCAP_STATUS_FILE = "_status.json";
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// This folder handles the Mocap file system.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-type MocapStatusJSON = {
+const MOCAP_TRIAL_FILE = "_trial.json";
+
+type MocapTrialStatusJSON = {
   state:
     | "loading"
     | "ready-to-upload"
+    | "uploading"
     | "waiting-for-worker"
     | "processing"
     | "done";
   progress: number;
   markersFile?: string;
-  heightMeters?: number;
-  weightKg?: number;
   logFile?: string;
   grfFile?: string;
+  manualIKFile?: string;
   resultsPreviewFile?: string;
-  unscaledOsimFile?: string;
+};
+
+type GenericOsimFile = "rajagopal" | "lai_arnold" | "custom";
+
+const MOCAP_SUBJECT_FILE = "_subject.json";
+
+type MocapStatusJSON = {
+  heightMeters?: number;
+  weightKg?: number;
+  genericOsimFile?: GenericOsimFile;
+  customGenericOsimFile?: string;
   manuallyScaledOsimFile?: string;
-  manuallyScaledIKFile?: string;
+  logFile?: string;
+  state?: "loading" | "waiting-for-worker" | "processing" | "done";
 };
 
 function parsePathParts(pathname: string, linkPrefix?: string): string[] {
@@ -34,39 +49,43 @@ function parsePathParts(pathname: string, linkPrefix?: string): string[] {
   if (path.length > 0 && path[0] == linkPrefix) {
     path.splice(0, 1);
   }
-  console.log(path);
   return path;
 }
 
-class MocapClip {
+class MocapTrial {
   name: string;
-  parent: MocapFolder | null;
-  backingFolder: LiveS3Folder;
-  status: MocapStatusJSON;
+  status: MocapTrialStatusJSON;
   statusFile: LiveS3File;
   markerFile: LiveS3File;
-
-  // We only need these files if we're doing a comparison
-  manualScalesFile: LiveS3File;
   manualIKFile: LiveS3File;
+  grfFile: LiveS3File;
+  backingFolder: LiveS3Folder;
+  parent: MocapSubject;
 
   // These are the files that are created by processing
   resultsPreviewFile: LiveS3File | null = null;
   logFile: LiveS3File | null = null;
 
-  constructor(backingFolder: LiveS3Folder, parent: MocapFolder | null = null) {
+  constructor(backingFolder: LiveS3Folder, parent: MocapSubject) {
     makeAutoObservable(this);
     this.name = backingFolder.name;
+    this.backingFolder = backingFolder;
     this.parent = parent;
+
+    this.markerFile = backingFolder.getOrCreateEmptyFileToUpload("markers.trc");
+    this.manualIKFile =
+      backingFolder.getOrCreateEmptyFileToUpload("hand_ik.mot");
+    this.grfFile = backingFolder.getOrCreateEmptyFileToUpload("grf.mot");
+
     this.status = {
       state: "loading",
       progress: 0,
     };
-    let statusFileOrNull = backingFolder.files.get(MOCAP_STATUS_FILE);
+    let statusFileOrNull = backingFolder.files.get(MOCAP_TRIAL_FILE);
     if (statusFileOrNull == null) {
       this.status.state = "ready-to-upload";
       this.statusFile = backingFolder.ensureFileToUpload(
-        MOCAP_STATUS_FILE,
+        MOCAP_TRIAL_FILE,
         JSON.stringify(this.status, null, 2)
       );
     } else {
@@ -74,39 +93,49 @@ class MocapClip {
       this.statusFile.downloadText().then(
         action((value: string) => {
           this.status = JSON.parse(value);
-
-          if (this.status.resultsPreviewFile) {
-            this.resultsPreviewFile = this.backingFolder.getFile(
-              this.status.resultsPreviewFile
-            );
-          }
-          if (this.status.logFile) {
-            this.logFile = this.backingFolder.getFile(this.status.logFile);
-          }
+          this.refreshStatus();
         })
       );
     }
-    this.backingFolder = backingFolder;
-
-    this.markerFile = backingFolder.getOrCreateEmptyFileToUpload("markers.trc");
-    this.manualScalesFile =
-      backingFolder.getOrCreateEmptyFileToUpload("gold_ik.osim");
-    this.manualIKFile =
-      backingFolder.getOrCreateEmptyFileToUpload("hand_ik.mot");
+    // On updates to the trial status file, we pull the latest from S3, and parse it
+    this.statusFile.registerUpdateListener(() => {
+      this.refreshStatus();
+    });
   }
 
-  uploadEmptyPlaceholders = () => {
-    return this.backingFolder.uploadEmptyFileForFolder().then(() => {
-      return this.statusFile.upload();
-    });
+  /**
+   * Re-download the status JSON from the backend
+   */
+  refreshStatus = () => {
+    this.status.state = "loading";
+    this.statusFile.downloadText().then(
+      action((value: string) => {
+        this.status = JSON.parse(value);
+
+        if (this.status.resultsPreviewFile) {
+          this.resultsPreviewFile = this.backingFolder.getFile(
+            this.status.resultsPreviewFile
+          );
+        }
+        if (this.status.logFile) {
+          this.logFile = this.backingFolder.getFile(this.status.logFile);
+        }
+      })
+    );
   };
 
   upload = () => {
     let promises: Promise<void>[] = [];
-    if (this.markerFile != null) promises.push(this.markerFile.upload());
-    if (this.manualIKFile != null) promises.push(this.manualIKFile.upload());
-    if (this.manualScalesFile != null)
-      promises.push(this.manualScalesFile.upload());
+    this.status.state = "uploading";
+    this.statusFile.stageFileForUpload(JSON.stringify(this.status));
+    promises.push(this.statusFile.upload());
+    if (this.markerFile != null && this.markerFile.stagedForUpload != null)
+      promises.push(this.markerFile.upload());
+    if (this.manualIKFile != null && this.manualIKFile.stagedForUpload != null)
+      promises.push(this.manualIKFile.upload());
+    if (this.grfFile != null && this.grfFile.stagedForUpload != null)
+      promises.push(this.grfFile.upload());
+
     return Promise.all(promises).then(
       action(() => {
         this.status.state = "waiting-for-worker";
@@ -117,6 +146,132 @@ class MocapClip {
       })
     );
   };
+
+  delete = () => {
+    this.parent.deleteTrial(this.name);
+  };
+}
+
+class MocapSubject {
+  name: string;
+  parent: MocapFolder | null;
+  backingFolder: LiveS3Folder;
+  trialFolder: LiveS3Folder;
+
+  status: MocapStatusJSON;
+  loading: boolean;
+  statusFile: LiveS3File;
+
+  customGenericOsimFile: LiveS3File;
+  manualScalesFile: LiveS3File;
+
+  trials: MocapTrial[] = [];
+
+  constructor(backingFolder: LiveS3Folder, parent: MocapFolder | null = null) {
+    makeAutoObservable(this);
+    this.name = backingFolder.name;
+    this.parent = parent;
+    this.status = {};
+    let statusFileOrNull = backingFolder.files.get(MOCAP_SUBJECT_FILE);
+    this.loading = false;
+    if (statusFileOrNull == null) {
+      // Default to Rajagopal for new subjects
+      this.status.genericOsimFile = "rajagopal";
+      this.statusFile = backingFolder.ensureFileToUpload(
+        MOCAP_SUBJECT_FILE,
+        JSON.stringify(this.status, null, 2)
+      );
+    } else {
+      this.statusFile = statusFileOrNull;
+      this.refreshStatus();
+    }
+    // On updates to the trial status file, we pull the latest from S3, and parse it
+    this.statusFile.registerUpdateListener(() => {
+      this.refreshStatus();
+    });
+    this.backingFolder = backingFolder;
+
+    this.customGenericOsimFile =
+      backingFolder.getOrCreateEmptyFileToUpload("generic.osim");
+    this.manualScalesFile = backingFolder.getOrCreateEmptyFileToUpload(
+      "manually_scaled.osim"
+    );
+
+    this.trialFolder = this.backingFolder.ensureFolder("trials");
+    this.trialFolder.folders.forEach((trialFolder: LiveS3Folder) => {
+      this.trials.push(new MocapTrial(trialFolder, this));
+    });
+  }
+
+  refreshStatus = () => {
+    this.loading = true;
+    this.statusFile.downloadText().then(
+      action((value: string) => {
+        this.status = JSON.parse(value);
+        this.loading = false;
+      })
+    );
+  };
+
+  setStatusValues = (values: MocapStatusJSON) => {
+    for (let key in values) {
+      (this.status as any)[key] = (values as any)[key];
+    }
+    this.statusFile.stageFileForUpload(JSON.stringify(this.status));
+    this.statusFile.upload();
+  };
+
+  isGenericOsimFileValid(): boolean {
+    return (
+      this.status.genericOsimFile === "rajagopal" ||
+      this.status.genericOsimFile === "lai_arnold" ||
+      (this.status.genericOsimFile === "custom" &&
+        this.customGenericOsimFile.state !== "empty")
+    );
+  }
+
+  uploadEmptyPlaceholders = () => {
+    return this.backingFolder.uploadEmptyFileForFolder().then(() => {
+      return this.statusFile.upload();
+    });
+  };
+
+  upload = () => {
+    let promises: Promise<void>[] = [];
+    if (this.customGenericOsimFile != null)
+      promises.push(this.customGenericOsimFile.upload());
+    if (this.manualScalesFile != null)
+      promises.push(this.manualScalesFile.upload());
+    return Promise.all(promises).then(
+      action(() => {
+        this.statusFile.stageFileForUpload(
+          JSON.stringify(this.status, null, 2)
+        );
+        return this.statusFile.upload();
+      })
+    );
+  };
+
+  createTrials = (files: File[]) => {
+    for (let i = 0; i < files.length; i++) {
+      let suffix = "";
+      let suffixIndex = 0;
+      while (this.trialFolder.hasChild(files[i].name + suffix)) {
+        suffixIndex++;
+        suffix = " Copy " + suffixIndex;
+      }
+      const trialFolder = this.trialFolder.ensureFolder(files[i].name + suffix);
+      const newTrial = new MocapTrial(trialFolder, this);
+      newTrial.markerFile.stageFileForUpload(files[i]);
+      newTrial.upload();
+      this.trials.push(newTrial);
+    }
+  };
+
+  deleteTrial = (name: string) => {
+    this.trials = this.trials.filter((t) => t.name !== name);
+    return this.trialFolder.deleteByPrefix(name);
+  };
 }
 
 type MocapDataType = "none" | "folder" | "mocap" | "file";
@@ -126,7 +281,7 @@ class MocapFolder {
   name: string;
   parent: MocapFolder | null;
   // These are the mocap clips to display
-  mocapClips: Map<string, MocapClip> = new Map();
+  mocapSubjects: Map<string, MocapSubject> = new Map();
   // These are the child folders and files
   folders: Map<string, MocapFolder> = new Map();
   strayFiles: Map<string, LiveS3File> = new Map();
@@ -143,7 +298,7 @@ class MocapFolder {
     if (path.length == 0) return "folder";
     if (path.length == 1) {
       const fileName = path[0];
-      if (this.mocapClips.has(fileName)) return "mocap";
+      if (this.mocapSubjects.has(fileName)) return "mocap";
       if (this.folders.has(fileName)) return "folder";
       if (this.strayFiles.has(fileName)) return "file";
       return "none";
@@ -183,7 +338,7 @@ class MocapFolder {
     }
   };
 
-  getMocapClip: (path: string[]) => MocapClip = (path: string[]) => {
+  getMocapClip: (path: string[]) => MocapSubject = (path: string[]) => {
     if (path.length == 0)
       throw new Error(
         'Folder "' +
@@ -193,7 +348,7 @@ class MocapFolder {
       );
     else {
       if (path.length == 1) {
-        const clip: MocapClip | undefined = this.mocapClips.get(path[0]);
+        const clip: MocapSubject | undefined = this.mocapSubjects.get(path[0]);
         if (clip) {
           return clip;
         }
@@ -269,8 +424,8 @@ class MocapFolder {
     if (!targetFolder.backingFolder.hasChild(name)) {
       const newFolder: LiveS3Folder =
         targetFolder.backingFolder.ensureFolder(name);
-      const newClip: MocapClip = new MocapClip(newFolder, targetFolder);
-      targetFolder.mocapClips.set(name, newClip);
+      const newClip: MocapSubject = new MocapSubject(newFolder, targetFolder);
+      targetFolder.mocapSubjects.set(name, newClip);
 
       return newClip.uploadEmptyPlaceholders();
     } else {
@@ -309,14 +464,14 @@ class MocapFolder {
   };
 
   updateFromBackingFolder = () => {
-    this.mocapClips.clear();
+    this.mocapSubjects.clear();
     this.folders.clear();
     this.strayFiles.clear();
 
     this.backingFolder.folders.forEach((folder: LiveS3Folder) => {
       // We decide things are a MocapClip if they have a status file, otherwise it's a folder
-      if (folder.files.has(MOCAP_STATUS_FILE)) {
-        this.mocapClips.set(folder.name, new MocapClip(folder));
+      if (folder.files.has(MOCAP_SUBJECT_FILE)) {
+        this.mocapSubjects.set(folder.name, new MocapSubject(folder));
       } else {
         this.folders.set(folder.name, new MocapFolder(folder, this));
       }
@@ -331,4 +486,4 @@ class MocapFolder {
   };
 }
 
-export { MocapClip, MocapFolder, parsePathParts };
+export { MocapSubject, MocapFolder, parsePathParts, MocapTrial };
