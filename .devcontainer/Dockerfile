@@ -9,9 +9,18 @@ FROM ubuntu:20.04
 RUN apt-get update && apt-get upgrade
 RUN apt-get install -y curl unzip jq
 # Install AWS CLI
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
-    unzip awscliv2.zip && \
-    ./aws/install
+RUN ARCH=`uname -m` && \
+    echo "$ARCH" && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+        unzip awscliv2.zip && \
+        ./aws/install; \
+    elif [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then \
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip" && \
+        unzip awscliv2.zip && \
+        ./aws/install; \
+    else exit; \
+    fi
 COPY .aws /root/.aws
 # Check that AWS is working
 RUN aws iot describe-endpoint --endpoint-type iot:Data-ATS
