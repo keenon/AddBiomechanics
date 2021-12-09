@@ -6,7 +6,16 @@ Our goal in this project is to provide a standard format for modality-sparse hum
 
 Licenses-permitting, we plan to make pre-translated aggregate datasets available for public download.
 
-## Getting Set Up
+## Getting Set Up (frontend)
+1. Install the Amplify CLI `npm install -g @aws-amplify/cli` (may require `sudo`, depending on your setup)
+2. From inside the `frontend` folder, run `amplify configure`, and follow the instructions to create a new IAM user for your computer (in the 'us-west-2' region)
+3. From inside the `frontend` folder, run `amplify init`
+    a. When asked "Do you want to use an existing environment?" say YES
+    b. Choose the environment "dev"
+    c. Choose anything you like for your default editor
+    d. Select the authentication method "AWS profile", and select the profile you created in step 2
+4. Run `yarn start` to launch the app!
+## Getting Set Up (server)
 
 1. Download (credentials)[https://drive.google.com/file/d/1okCCdvqaZh20gc4TG152o7yJV9_vnBtf/view?usp=sharing] into `.devcontainer/.aws/credentials` and `server/.aws/credentials`.
 2. Download (server_credentials.csv)[https://drive.google.com/file/d/1e1GrwpOm0viZhNGkw_lDNPa_cfYhJ3r3/view?usp=sharing] into `.devcontainer/server_credentials.csv` and `server/server_credentials.csv`.
