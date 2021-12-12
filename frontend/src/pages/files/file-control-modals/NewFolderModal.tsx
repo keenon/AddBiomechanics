@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Modal, Button, Spinner, Form, InputGroup } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
-import { MocapFolder, parsePathParts } from "../../state/MocapS3";
+import MocapS3Cursor from '../../../state/MocapS3Cursor';
 
 type NewFolderModalProps = {
-  myRootFolder: MocapFolder;
+  cursor: MocapS3Cursor;
   linkPrefix: string;
 };
 
@@ -37,7 +37,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
     navigate({ search: "" });
   };
 
-  const path = parsePathParts(location.pathname, props.linkPrefix);
+  const filePath: string = props.cursor.getCurrentFilePath();
 
   let body = [];
   if (loading) {
@@ -71,8 +71,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
               isInvalid={!valid}
             />
             <Form.Text className="text-muted">
-              The {typeToCreate.toLocaleLowerCase()} to create inside of{" "}
-              {"/" + path.join("/")} in your protected space.
+              The {typeToCreate.toLocaleLowerCase()} to create inside of "{filePath}" in your protected space.
             </Form.Text>
             <Form.Control.Feedback type="invalid">
               Must be non-empty string of letters, numbers, hyphens, underscores
@@ -106,8 +105,8 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
               } else if (valid) {
                 setLoading(true);
                 if (typeToCreate == "Subject") {
-                  props.myRootFolder
-                    .createMocapClip(path, folderName)
+                  props.cursor
+                    .createMocapClip(folderName)
                     .then(() => {
                       setLoading(false);
                       hideModal();
@@ -117,8 +116,8 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
                       setError(e);
                     });
                 } else {
-                  props.myRootFolder
-                    .createFolder(path, folderName)
+                  props.cursor
+                    .createFolder(folderName)
                     .then(() => {
                       setLoading(false);
                       hideModal();

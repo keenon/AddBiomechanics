@@ -11,12 +11,12 @@ import ResetPassword from "./pages/auth/ResetPassword";
 import ConfirmUser from "./pages/auth/ConfirmUser";
 import reportWebVitals from "./reportWebVitals";
 import HorizontalLayout from "./layouts/Horizontal";
-import FileRouter from "./pages/FileRouter";
-import FileControlsWrapper from "./pages/FileControlsWrapper";
+import FileRouter from "./pages/files/FileRouter";
+import FileControlsWrapper from "./pages/files/FileControlsWrapper";
 import Welcome from "./pages/Welcome";
 
-import { LiveS3Folder } from "./state/LiveS3";
-import { MocapFolder } from "./state/MocapS3";
+import { ReactiveIndex } from "./state/ReactiveS3";
+import MocapS3Cursor from "./state/MocapS3Cursor";
 import Amplify, { API, Auth } from "aws-amplify";
 import { AWSIoTProvider } from "@aws-amplify/pubsub";
 import awsExports from "./aws-exports";
@@ -33,32 +33,41 @@ if (
 
 Amplify.configure(awsExports);
 
-const publicData = new MocapFolder(new LiveS3Folder("data", "public"));
-publicData.refresh();
-const myData = new MocapFolder(new LiveS3Folder("data", "protected"));
+const publicIndex = new ReactiveIndex("public", false);
+const myData = new ReactiveIndex("protected", false);
+const cursor = new MocapS3Cursor(publicIndex, myData);
 
 function afterLogin() {
-  myData.refresh();
-  // If we're logged in, there's extra steps we have to do to ensure that
-  // our account has rights to IOT, so we have to make an extra call to
-  // the backend before we set up PubSub
-  API.post("PostAuthAPI", "/", {})
-    .then((response) => {
-      // Apply plugin with configuration
-      Amplify.addPluggable(
-        new AWSIoTProvider({
-          aws_pubsub_region: "us-west-2",
-          aws_pubsub_endpoint:
-            "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt",
+  console.log("Refreshing public data...");
+  publicIndex.fullRefresh().then(() => {
+    console.log("Refreshing my data...");
+    myData.fullRefresh().then(() => {
+      console.log("Running PostAuthAPI...");
+      // If we're logged in, there's extra steps we have to do to ensure that
+      // our account has rights to IOT, so we have to make an extra call to
+      // the backend before we set up PubSub
+      API.post("PostAuthAPI", "/", {})
+        .then((response) => {
+          console.log("Adding PubSub plugin...");
+          // Apply plugin with configuration
+          Amplify.addPluggable(
+            new AWSIoTProvider({
+              aws_pubsub_region: "us-west-2",
+              aws_pubsub_endpoint:
+                "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt",
+            })
+          );
+          console.log("Adding PubSub subscribers...");
+          publicIndex.setupPubsub();
+          myData.setupPubsub();
+          console.log("Success!");
         })
-      );
-      publicData.backingFolder.registerPubSubListener();
-      myData.backingFolder.registerPubSubListener();
+        .catch((error) => {
+          console.log("Got error with PostAuthAPI!");
+          console.log(error.response);
+        });
     })
-    .catch((error) => {
-      console.log("Got error with PostAuthAPI!");
-      console.log(error.response);
-    });
+  })
 }
 
 Auth.currentAuthenticatedUser()
@@ -76,7 +85,7 @@ Auth.currentAuthenticatedUser()
           "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt",
       })
     );
-    publicData.backingFolder.registerPubSubListener();
+    publicIndex.setupPubsub();
   });
 
 const PUBLIC_DATA_URL_PREFIX = "public_data";
@@ -95,7 +104,7 @@ ReactDOM.render(
                 <Card className="mt-4">
                   <Card.Body>
                     <FileRouter
-                      rootFolder={publicData}
+                      cursor={cursor}
                       isRootFolderPublic={true}
                       linkPrefix={PUBLIC_DATA_URL_PREFIX}
                     />
@@ -110,7 +119,7 @@ ReactDOM.render(
             element={
               <FileControlsWrapper
                 linkPrefix={MY_DATA_URL_PREFIX}
-                myRootFolder={myData}
+                cursor={cursor}
               />
             }
           >
@@ -118,7 +127,7 @@ ReactDOM.render(
               path="*"
               element={
                 <FileRouter
-                  rootFolder={myData}
+                  cursor={cursor}
                   isRootFolderPublic={false}
                   linkPrefix={MY_DATA_URL_PREFIX}
                 />

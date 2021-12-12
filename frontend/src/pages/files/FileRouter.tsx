@@ -1,21 +1,28 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import FolderView from "./FolderView";
-import MocapSubjectView from "./MocapSubjectView";
+import MocapSubjectView from "../mocap/MocapSubjectView";
 import { Breadcrumb, BreadcrumbItem, Spinner } from "react-bootstrap";
-import { MocapFolder, parsePathParts } from "../state/MocapS3";
+import MocapS3Cursor from "../../state/MocapS3Cursor";
 import { observer } from "mobx-react-lite";
+import { autorun } from "mobx";
 
 type FileRouterProps = {
   isRootFolderPublic: boolean;
   linkPrefix: string;
-  rootFolder: MocapFolder;
+  cursor: MocapS3Cursor;
 };
 
 const FileRouter = observer((props: FileRouterProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const path = parsePathParts(location.pathname, props.linkPrefix);
+  props.cursor.setUrlPath(location.pathname);
+
+  const path = location.pathname.split('/');
+  while (path.length > 0 && (path[0] == props.linkPrefix) || (path[0] == '')) {
+    path.splice(0, 1);
+  }
+
 
   //////////////////////////////////////////////////////////////
   // Set up the breadcrumbs
@@ -57,26 +64,23 @@ const FileRouter = observer((props: FileRouterProps) => {
   // Render the body
   //////////////////////////////////////////////////////////////
 
+  const type = props.cursor.getFileType();
+  console.log("Re-rendering FileRouter");
   let body = null;
-  if (props.rootFolder.backingFolder.loading) {
-    body = <Spinner animation="border" />;
-  } else {
-    const dataType = props.rootFolder.getDataType(path);
-    if (dataType == "folder") {
-      const folder = props.rootFolder.getFolder(path);
-      body = <FolderView folder={folder} linkPrefix={linkPath} />;
-    } else if (dataType == "mocap") {
-      const mocap = props.rootFolder.getMocapClip(path);
-      body = (
-        <MocapSubjectView subject={mocap} canEdit={!props.isRootFolderPublic} />
-      );
-    } else {
-      body = (
-        <div>
-          TODO: {dataType} @ {path}
-        </div>
-      );
-    }
+  if (type === 'folder') {
+    body = <FolderView cursor={props.cursor} />;
+  }
+  else if (type === 'mocap') {
+    body = (
+      <MocapSubjectView cursor={props.cursor} />
+    );
+  }
+  else if (type === 'not-found') {
+    body = (
+      <div>
+        404 Not Found!
+      </div>
+    );
   }
 
   return (

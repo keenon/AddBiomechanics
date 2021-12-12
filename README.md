@@ -21,3 +21,8 @@ Licenses-permitting, we plan to make pre-translated aggregate datasets available
 2. Download (server_credentials.csv)[https://drive.google.com/file/d/1e1GrwpOm0viZhNGkw_lDNPa_cfYhJ3r3/view?usp=sharing] into `.devcontainer/server_credentials.csv` and `server/server_credentials.csv`.
 3. Open this project in VSCode, and then use Ctrl+Shift+P and get to the command "Remote-Containers: Open Folder in Container...". Re-open this folder in a Docker container.
 4. Using a VSCode Terminal, navigate to `frontend` and execute `yarn start` to begin serving a live frontend
+
+## Apple M1(X) Macs
+
+For the time being, need to specify an `x86_64` emulator for the Docker that you may want to launch your editor in.
+You can do that by running `docker build  --platform linux/x86_64 .` from inside `.devcontainer`

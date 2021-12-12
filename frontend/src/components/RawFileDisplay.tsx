@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Spinner } from "react-bootstrap";
-import { LiveS3File } from "../state/LiveS3";
 
 type RawFileDisplayProps = {
-  file: LiveS3File | null;
+  file: any | null;
 };
 
 const RawFileDisplay = (props: RawFileDisplayProps) => {

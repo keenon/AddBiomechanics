@@ -1,12 +1,12 @@
 import React, { useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { MocapSubject, MocapTrial } from "../../state/MocapS3";
 import { Modal, Button, Spinner } from "react-bootstrap";
 import RawFileDisplay from "../../components/RawFileDisplay";
 import { observer } from "mobx-react-lite";
+import MocapS3Cursor from '../../state/MocapS3Cursor';
 
 type MocapTrialModalProps = {
-  subject: MocapSubject;
+  cursor: MocapS3Cursor;
 };
 
 const MocapTrialModal = observer((props: MocapTrialModalProps) => {
@@ -45,10 +45,12 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
     };
   }, []);
 
+  //////////// TODO: fixme
+
   let body = null;
   let name = null;
-  if (props.subject.trials.length > trialNumber && trialNumber >= 0) {
-    const trial = props.subject.trials[trialNumber];
+  if ((props.cursor as any).trials.length > trialNumber && trialNumber >= 0) {
+    const trial = (props.cursor as any).subject.trials[trialNumber];
     name = trial.name;
     if (trial.status.state === "loading") {
       body = <Spinner animation="border" />;
@@ -87,7 +89,8 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
               if (r != null) {
                 setTimeout(() => {
                   if (trial.resultsPreviewFile) {
-                    trial.resultsPreviewFile.getSignedURL().then((url) => {
+                    // TODO: this is broken
+                    trial.resultsPreviewFile.getSignedURL().then((url: any) => {
                       if (standalone.current != null) {
                         standalone.current.dispose();
                       }

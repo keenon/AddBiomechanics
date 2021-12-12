@@ -10,14 +10,13 @@ import {
   Button,
 } from "react-bootstrap";
 import NewFolderModal from "./file-control-modals/NewFolderModal";
-import NewMocapClipsModal from "./file-control-modals/NewMocapClipsModal";
 import DeleteFolderModal from "./file-control-modals/DeleteFolderModal";
+import MocapS3Cursor from "../../state/MocapS3Cursor";
 
-import { MocapFolder, parsePathParts } from "../state/MocapS3";
 import { observer } from "mobx-react-lite";
 
 type FileManagerProps = {
-  myRootFolder: MocapFolder;
+  cursor: MocapS3Cursor;
   linkPrefix: string;
 };
 
@@ -25,10 +24,12 @@ type FileManagerProps = {
 const FileManager = observer((props: FileManagerProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const path = parsePathParts(location.pathname, props.linkPrefix);
+  const path = location.pathname.split('/');
+  while (path.length > 0 && (path[0] == props.linkPrefix) || (path[0] == '')) {
+    path.splice(0, 1);
+  }
 
-  const type = props.myRootFolder.getDataType(path);
-  console.log(type);
+  const type = props.cursor.getFileType();
 
   let body = <Outlet />;
   if (type === "folder") {
@@ -50,7 +51,7 @@ const FileManager = observer((props: FileManagerProps) => {
                 <Dropdown.Item
                   onClick={() => navigate({ search: "?new-subject" })}
                 >
-                  <i className="mdi mdi-run me-1"></i> Motion Clip(s)
+                  <i className="mdi mdi-run me-1"></i> Subject
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>
@@ -123,7 +124,6 @@ const FileManager = observer((props: FileManagerProps) => {
           <Card className="mt-4">
             <Card.Body>
               <NewFolderModal {...props} />
-              <NewMocapClipsModal {...props} />
               <DeleteFolderModal {...props} />
               {body}
             </Card.Body>

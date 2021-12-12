@@ -20,4 +20,16 @@
             display: none;
         }
     }
+
+    &.dropzone-sm {
+        padding: 5px;
+        min-height: 0;
+        .dz-message {
+            margin: 5px 0;
+        }
+    }
+
+    &.dropzone-replace {
+        background-color: #f0f1ff;
+    }
 }

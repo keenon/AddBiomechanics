@@ -1,14 +1,14 @@
 import React, { useState } from "react";
-import { LiveS3File } from "../state/LiveS3";
 import { Form, ProgressBar, InputGroup, Button } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 
 type FileInputType = {
-  file: LiveS3File;
+  file: any;
   name?: string;
   description?: string;
   accept?: string;
   canEdit?: boolean;
+  onUpload?: () => void;
 };
 
 const FileInput = observer((props: FileInputType) => {
@@ -32,12 +32,16 @@ const FileInput = observer((props: FileInputType) => {
             }}
           />
           {props.file.state === "staged-for-upload" ||
-          props.file.state === "staged-for-overwrite" ? (
+            props.file.state === "staged-for-overwrite" ? (
             <Button
               variant="outline-success"
               onClick={() => {
                 setReplaceFile(false);
-                props.file.upload();
+                props.file.upload().then(() => {
+                  if (props.onUpload) {
+                    props.onUpload();
+                  }
+                });
               }}
             >
               <i className="mdi mdi-upload-outline me-1"></i>

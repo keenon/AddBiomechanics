@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Modal, Button, Spinner, Form } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
-import { MocapFolder, parsePathParts } from "../../state/MocapS3";
+import MocapS3Cursor from '../../../state/MocapS3Cursor';
 
 type DeleteFolderModalProps = {
-  myRootFolder: MocapFolder;
+  cursor: MocapS3Cursor;
   linkPrefix: string;
 };
 
@@ -29,8 +29,6 @@ const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {
   let hideModal = () => {
     navigate({ search: "" });
   };
-
-  const path = parsePathParts(location.pathname, props.linkPrefix);
 
   let body = [];
   if (loading) {
@@ -95,8 +93,8 @@ const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {
                 setValid(false);
               } else if (valid) {
                 setLoading(true);
-                props.myRootFolder
-                  .deleteByPrefix(path, folderName)
+                props.cursor
+                  .deleteByPrefix(folderName)
                   .then(() => {
                     setLoading(false);
                     hideModal();
