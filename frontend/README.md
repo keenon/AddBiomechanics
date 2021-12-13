@@ -1,3 +1,7 @@
+# To deploy
+
+Run `yarn build`, then copy the contents of the `build` folder to the `biomechnet.org` bucket.
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

@@ -85,7 +85,9 @@ Auth.currentAuthenticatedUser()
           "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt",
       })
     );
-    publicIndex.setupPubsub();
+    publicIndex.fullRefresh().then(() => {
+      publicIndex.setupPubsub();
+    });
   });
 
 const PUBLIC_DATA_URL_PREFIX = "public_data";
