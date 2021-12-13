@@ -256,6 +256,38 @@ class ReactiveCursor {
     };
 
     /**
+     * This actually downloads a file from S3, if the browser allows it
+     */
+    downloadFile = (childPath?: string) => {
+        let myPath = this.path;
+        if (childPath != null) {
+            if (!myPath.endsWith("/")) {
+                myPath += "/";
+            }
+            myPath += childPath;
+        }
+
+        return this.index.downloadFile(myPath);
+    };
+
+    /**
+     * This downloads and parses a file into a string, and returns it
+     * 
+     * @returns A promise for the text of the file being downloaded
+     */
+    downloadText = (childPath?: string) => {
+        let myPath = this.path;
+        if (childPath != null) {
+            if (!myPath.endsWith("/")) {
+                myPath += "/";
+            }
+            myPath += childPath;
+        }
+
+        return this.index.downloadText(myPath);
+    };
+
+    /**
      * Tries to delete the file we're currently pointing at, which fails if it doesn't exist.
      * @returns a promise for successful deletion
      */

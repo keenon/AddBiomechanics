@@ -22,6 +22,9 @@ class MocapS3Cursor {
     protectedS3Index: ReactiveIndex;
     urlError: boolean;
 
+    cachedLogFiles: Map<string, Promise<string>>;
+    cachedResultsFiles: Map<string, Promise<string>>;
+
     constructor(publicS3Index: ReactiveIndex, protectedS3Index: ReactiveIndex) {
         const parsedUrl = this.parseUrlPath(window.location.pathname);
 
@@ -30,6 +33,10 @@ class MocapS3Cursor {
         this.protectedS3Index = protectedS3Index;
         this.urlError = parsedUrl.error;
         this.urlPath = window.location.pathname;
+
+        this.cachedLogFiles = new Map();
+        this.cachedResultsFiles = new Map();
+
         makeAutoObservable(this);
     }
 
@@ -103,6 +110,10 @@ class MocapS3Cursor {
         this.urlError = parsedUrl.error;
         this.rawCursor.setIndex(parsedUrl.isPublic ? this.publicS3Index : this.protectedS3Index);
         this.rawCursor.setPath(parsedUrl.path);
+
+        // Clear the cache when we move to a new url
+        this.cachedLogFiles.clear();
+        this.cachedResultsFiles.clear();
     };
 
     /**
@@ -253,12 +264,12 @@ class MocapS3Cursor {
         const hasProcessingFlag = this.rawCursor.getExists("trials/" + trialName + "/PROCESSING");
 
         const logMetadata = this.rawCursor.getChildMetadata("trials/" + trialName + "/log.txt");
-        const previewMetadata = this.rawCursor.getChildMetadata("trials/" + trialName + "/preview.json");
+        const resultsMetadata = this.rawCursor.getChildMetadata("trials/" + trialName + "/_results.json");
 
         if (markersMetadata == null) {
             return 'empty';
         }
-        else if (logMetadata != null && previewMetadata != null) {
+        else if (logMetadata != null && resultsMetadata != null) {
             if (logMetadata.lastModified > markersMetadata.lastModified) {
                 return 'done';
             }
@@ -283,6 +294,30 @@ class MocapS3Cursor {
         else {
             return 'could-process';
         }
+    };
+
+    /**
+     * Gets the contents of the log.txt for this trial, as a promise
+     */
+    getLogFileText = (trialName: string) => {
+        let promise: Promise<string> | undefined = this.cachedLogFiles.get(trialName);
+        if (promise == null) {
+            promise = this.rawCursor.downloadText("trials/" + trialName + "/log.txt");
+            this.cachedLogFiles.set(trialName, promise);
+        }
+        return promise;
+    };
+
+    /**
+     * Gets the contents of the _results.json for this trial, as a promise
+     */
+    getResultsFileText = (trialName: string) => {
+        let promise: Promise<string> | undefined = this.cachedResultsFiles.get(trialName);
+        if (promise == null) {
+            promise = this.rawCursor.downloadText("trials/" + trialName + "/_results.json");
+            this.cachedResultsFiles.set(trialName, promise);
+        }
+        return promise;
     };
 
     /**

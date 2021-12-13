@@ -61,7 +61,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
         <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadFiles[props.name + ".trc"]} accept=".trc" />
       </td>
       <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/gold_ik.mot"} uploadOnMount={props.uploadFiles[props.name + "_ik.mot"]} accept=".mot" />
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/manual_ik.mot"} uploadOnMount={props.uploadFiles[props.name + "_ik.mot"]} accept=".mot" />
       </td>
       <td>
         <DropFile cursor={props.cursor} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadFiles[props.name + "_grf.mot"]} accept=".mot" />
@@ -157,7 +157,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   return (
     <div className="MocapView">
-      {/* <MocapTrialModal cursor={props.cursor} /> */}
+      <MocapTrialModal cursor={props.cursor} />
       <h3>
         <i className="mdi mdi-walk me-1 text-muted vertical-middle"></i>
         Subject: {props.cursor.getCurrentFileName()}{" "}
