@@ -5,6 +5,8 @@ import tempfile
 import os
 import sys
 import subprocess
+import uuid
+import json
 
 
 def absPath(path: str):
@@ -64,10 +66,13 @@ class TrialToProcess:
         while also managing the processing flag age.
         """
         print('Processing '+str(self))
+
+        procLogTopic = str(uuid.uuid4())
+
         # 1. Update the processing flag, to let people know that we're working on this. This isn't a guarantee
         # that no other competing servers will process this at the same time (which would be harmless but
         # inefficient), but hopefully it reduces collisions.
-        self.pushProcessingFlag()
+        self.pushProcessingFlag(procLogTopic)
 
         # 2. Download the files to a tmp folder
         path = tempfile.mkdtemp()
@@ -83,16 +88,27 @@ class TrialToProcess:
                                 path+'manually_scaled.osim')
 
         # 3. That download can take a while, so re-up our processing soft-lock
-        self.pushProcessingFlag()
+        self.pushProcessingFlag(procLogTopic)
 
         # 4. Launch a processing process
         enginePath = absPath('../engine/engine.py')
         print('Calling Command:\n'+enginePath+' '+path)
         with open(path + 'log.txt', 'wb+') as logFile:
             with subprocess.Popen([enginePath, path], stdout=subprocess.PIPE) as proc:
-                for line in iter(proc.stdout.readline, b''):
-                    print('>>> '+str(line))
-                    logFile.write(line)
+                print('Process created: '+str(proc.pid))
+                for lineBytes in iter(proc.stdout.readline, b''):
+                    if lineBytes is None and proc.poll() is not None:
+                        break
+                    line = lineBytes.decode("utf-8")
+                    print('>>> '+str(line).strip())
+                    # Send to the log
+                    logFile.write(lineBytes)
+                    # Send to PubSub
+                    logLine: Dict[str, str] = {}
+                    logLine['line'] = line
+                    logLine['timestamp'] = time.time() * 1000
+                    self.index.pubSub.sendMessage(
+                        '/LOG/'+procLogTopic, logLine)
 
         # 5. Upload the results back to S3
         self.index.uploadFile(self.logfile, path + 'log.txt')
@@ -104,8 +120,11 @@ class TrialToProcess:
         # 6. Clean up after ourselves
         # os.rmdir(path)
 
-    def pushProcessingFlag(self):
-        self.index.uploadText(self.processingFlagFile, "")
+    def pushProcessingFlag(self, procLogTopic: str):
+        procData: Dict[str, str] = {}
+        procData['logTopic'] = procLogTopic
+        procData['timestamp'] = time.time() * 1000
+        self.index.uploadText(self.processingFlagFile, json.dumps(procData))
 
     def shouldProcess(self) -> bool:
         # If this isn't ready, or it's already done, ignore it
@@ -135,20 +154,27 @@ class TrialToProcess:
         """
         If there's already results files, and they're newer than the input files, we're already processed
         """
-        if not self.index.exists(self.previewJsonFile):
+        if not self.index.exists(self.resultsFile):
             return False
 
-        # Get the earliest output timestamp
-        processedTimestamp = self.index.getMetadata(
-            self.previewJsonFile).lastModified
+        # TODO: this doesn't seem to quite match up, since S3 maybe doesn't sync lastModified properly
+        # Maybe we need a better way to handle this than looking at lastModified times...
 
-        # Get the latest input timestamp
-        if not self.index.exists(self.markersFile):
-            return True
-        uploadedTimestamp = self.latestInputTimestamp()
+        # # Get the earliest output timestamp
+        # processedTimestamp = self.index.getMetadata(
+        #     self.resultsFile).lastModified
 
-        # If the output is older than the input, then it's out of date and we need could replace it
-        return uploadedTimestamp > processedTimestamp
+        # # Get the latest input timestamp
+        # if not self.index.exists(self.markersFile):
+        #     return True
+        # uploadedTimestamp = self.latestInputTimestamp()
+
+        # processingTime = processedTimestamp - uploadedTimestamp
+
+        # # If the output is older than the input, then it's out of date and we need could replace it
+        # return processingTime < 0
+
+        return True
 
     def latestInputTimestamp(self) -> int:
         if not self.index.exists(self.markersFile):
@@ -213,6 +239,11 @@ class MocapServer:
                 # If it doesn't, then perhaps something went wrong and it's actually fine to process again. So the key idea is DON'T
                 # MANUALLY MANAGE THE WORK QUEUE! That happens in self.onChange()
                 nextUp.process()
+                # We need to avoid race conditions with S3 by not immediately processing the next item. Give S3 a chance to update.
+                print(
+                    'Sleeping for 10 seconds before attempting to process the next item...')
+                time.sleep(10)
+                print('Done sleeping')
             else:
                 time.sleep(1)
 

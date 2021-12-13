@@ -26,101 +26,100 @@ CLIENT_ID = "processing-server-" + str(uuid4())
 
 
 class PubSub:
-  """
-  Here's a PubSub object
-  """
-
-  def __init__(self):
-    print('creating PubSub object')
-    # Spin up resources
-    eventLoopGroup = io.EventLoopGroup(1)
-    hostResolver = io.DefaultHostResolver(eventLoopGroup)
-    clientBootstrap = io.ClientBootstrap(eventLoopGroup, hostResolver)
-
-    self.mqttConnection = mqtt_connection_builder.mtls_from_path(
-        endpoint=ENDPOINT,
-        port=PORT,
-        cert_filepath=CERT,
-        pri_key_filepath=KEY,
-        client_bootstrap=clientBootstrap,
-        ca_filepath=ROOT_CA,
-        on_connection_interrupted=self._onConnectionInterrupted,
-        on_connection_resumed=self._onConnectionResumed,
-        client_id=CLIENT_ID,
-        clean_session=False,
-        keep_alive_secs=30,
-        http_proxy_options=None)
-
-    print("Connecting to {} with client ID '{}'...".format(ENDPOINT, CLIENT_ID))
-
-    connectFuture = self.mqttConnection.connect()
-    # Future.result() waits until a result is available
-    connectFuture.result()
-
-  def subscribe(self, topic: str, callback: Callable[[str, Any], None]):
     """
-    Subscribe to a topic
+    Here's a PubSub object
     """
-    subscribeFuture, packetId = self.mqttConnection.subscribe(
-        topic=topic,
-        qos=mqtt.QoS.AT_MOST_ONCE,  # AT_LEAST_ONCE
-        callback=callback)
-    # Future.result() waits until a result is available
-    subscribeFuture.result()
 
-  def sendMessage(self, topic: str, payload: Dict[str, Any] = {}):
-    """
-    Sends a message to PubSub
-    """
-    payloadWithTopic = payload.copy()
-    payloadWithTopic['topic'] = topic
-    payload_json = json.dumps(payloadWithTopic)
-    print(payload_json)
-    sendFuture, packetId = self.mqttConnection.publish(
-        topic=topic,
-        payload=payload_json,
-        qos=mqtt.QoS.AT_LEAST_ONCE)  # AT_LEAST_ONCE
-    # Future.result() waits until a result is available
-    sendFuture.result()
+    def __init__(self):
+        print('creating PubSub object')
+        # Spin up resources
+        eventLoopGroup = io.EventLoopGroup(1)
+        hostResolver = io.DefaultHostResolver(eventLoopGroup)
+        clientBootstrap = io.ClientBootstrap(eventLoopGroup, hostResolver)
 
-  def disconnect(self):
-    """
-    Disconnect the PubSub pipe
-    """
-    disconnect_future = self.mqtt_connection.disconnect()
-    # Wait for the async op to complete
-    disconnect_future.result()
+        self.mqttConnection = mqtt_connection_builder.mtls_from_path(
+            endpoint=ENDPOINT,
+            port=PORT,
+            cert_filepath=CERT,
+            pri_key_filepath=KEY,
+            client_bootstrap=clientBootstrap,
+            ca_filepath=ROOT_CA,
+            on_connection_interrupted=self._onConnectionInterrupted,
+            on_connection_resumed=self._onConnectionResumed,
+            client_id=CLIENT_ID,
+            clean_session=False,
+            keep_alive_secs=30,
+            http_proxy_options=None)
 
-  def _onConnectionInterrupted(self, connection, error, **kwargs):
-    """
-    The connection is interrupted
-    """
-    print("Connection interrupted. error: {}".format(error))
+        print("Connecting to {} with client ID '{}'...".format(ENDPOINT, CLIENT_ID))
 
-  def _onConnectionResumed(self, connection, returnCode=None, sessionPresent=None, **kwargs):
-    """
-    The connection is resumed from an interrupt
-    """
-    print("Connection resumed. connection: {} return_code: {} session_present: {}".format(
-        connection, returnCode, sessionPresent))
+        connectFuture = self.mqttConnection.connect()
+        # Future.result() waits until a result is available
+        connectFuture.result()
 
-    self.mqtt_connection = connection
+    def subscribe(self, topic: str, callback: Callable[[str, Any], None]):
+        """
+        Subscribe to a topic
+        """
+        subscribeFuture, packetId = self.mqttConnection.subscribe(
+            topic=topic,
+            qos=mqtt.QoS.AT_MOST_ONCE,  # AT_LEAST_ONCE
+            callback=callback)
+        # Future.result() waits until a result is available
+        subscribeFuture.result()
 
-    if returnCode == mqtt.ConnectReturnCode.ACCEPTED and not sessionPresent:
-      print("Session did not persist. Resubscribing to existing topics...")
-      resubscribeFuture, _ = connection.resubscribe_existing_topics()
+    def sendMessage(self, topic: str, payload: Dict[str, Any] = {}):
+        """
+        Sends a message to PubSub
+        """
+        payloadWithTopic = payload.copy()
+        payloadWithTopic['topic'] = topic
+        payload_json = json.dumps(payloadWithTopic)
+        sendFuture, packetId = self.mqttConnection.publish(
+            topic=topic,
+            payload=payload_json,
+            qos=mqtt.QoS.AT_LEAST_ONCE)  # AT_LEAST_ONCE
+        # Future.result() waits until a result is available
+        sendFuture.result()
 
-      # Cannot synchronously wait for resubscribe result because we're on the connection's event-loop thread,
-      # evaluate result with a callback instead.
-      resubscribeFuture.add_done_callback(self._onResubscribeComplete)
+    def disconnect(self):
+        """
+        Disconnect the PubSub pipe
+        """
+        disconnect_future = self.mqtt_connection.disconnect()
+        # Wait for the async op to complete
+        disconnect_future.result()
 
-  def _onResubscribeComplete(self, resubscribeFuture):
-    """
-    We've resubscribed to results
-    """
-    resubscribeResults = resubscribeFuture.result()
-    print("Resubscribe results: {}".format(resubscribeResults))
+    def _onConnectionInterrupted(self, connection, error, **kwargs):
+        """
+        The connection is interrupted
+        """
+        print("Connection interrupted. error: {}".format(error))
 
-    for topic, qos in resubscribeResults['topics']:
-      if qos is None:
-        sys.exit("Server rejected resubscribe to topic: {}".format(topic))
+    def _onConnectionResumed(self, connection, returnCode=None, sessionPresent=None, **kwargs):
+        """
+        The connection is resumed from an interrupt
+        """
+        print("Connection resumed. connection: {} return_code: {} session_present: {}".format(
+            connection, returnCode, sessionPresent))
+
+        self.mqtt_connection = connection
+
+        if returnCode == mqtt.ConnectReturnCode.ACCEPTED and not sessionPresent:
+            print("Session did not persist. Resubscribing to existing topics...")
+            resubscribeFuture, _ = connection.resubscribe_existing_topics()
+
+            # Cannot synchronously wait for resubscribe result because we're on the connection's event-loop thread,
+            # evaluate result with a callback instead.
+            resubscribeFuture.add_done_callback(self._onResubscribeComplete)
+
+    def _onResubscribeComplete(self, resubscribeFuture):
+        """
+        We've resubscribed to results
+        """
+        resubscribeResults = resubscribeFuture.result()
+        print("Resubscribe results: {}".format(resubscribeResults))
+
+        for topic, qos in resubscribeResults['topics']:
+            if qos is None:
+                sys.exit("Server rejected resubscribe to topic: {}".format(topic))

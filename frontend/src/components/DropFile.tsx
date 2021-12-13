@@ -30,7 +30,15 @@ const DropFile = observer((props: DropFileProps) => {
 
     let body = <></>;
 
-    if (isUploading) {
+    if (props.cursor.dataIsReadonly()) {
+        if (metadata != null) {
+            return (<a href="#" onClick={() => props.cursor.rawCursor.downloadFile(props.path)}>Download</a>);
+        }
+        else {
+            return <></>;
+        }
+    }
+    else if (isUploading) {
         body = <ProgressBar
             style={{ width: "100%" }}
             min={0}

@@ -31,5 +31,13 @@
 
     &.dropzone-replace {
         background-color: #f0f1ff;
+
+        &:hover {
+            background-color: #e6e7ff;
+        }
+    }
+
+    &:hover {
+        background-color: #f5f5fa;
     }
 }

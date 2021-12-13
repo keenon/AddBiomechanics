@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { observer } from "mobx-react-lite";
 import "./MocapView.scss";
 import {
@@ -22,7 +22,6 @@ import MocapS3Cursor from '../../state/MocapS3Cursor';
 type MocapTrialRowViewProps = {
   index: number;
   name: string;
-  canEdit: boolean;
   cursor: MocapS3Cursor;
   uploadFiles: { [key: string]: File; };
 };
@@ -40,7 +39,12 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
     statusBadge = <span className="badge bg-warning">Processing</span>;
   }
   else if (status === "could-process") {
-    statusBadge = <Button onClick={() => props.cursor.markTrialReadyForProcessing(props.name)}>Process</Button>;
+    if (props.cursor.canEdit()) {
+      statusBadge = <Button onClick={() => props.cursor.markTrialReadyForProcessing(props.name)}>Process</Button>;
+    }
+    else {
+      statusBadge = <span className="badge bg-secondary">Waiting for owner to process</span>;
+    }
   }
   else if (status === "waiting") {
     statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
@@ -67,7 +71,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
         <DropFile cursor={props.cursor} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadFiles[props.name + "_grf.mot"]} accept=".mot" />
       </td>
       <td>{statusBadge}</td>
-      {!props.canEdit ? null : (
+      {!props.cursor.canEdit() ? null : (
         <td>
           <ButtonGroup className="d-block mb-2">
             <Dropdown>
@@ -99,6 +103,7 @@ type MocapSubjectViewProps = {
 const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const { t } = useTranslation();
   const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
+  const navigate = useNavigate();
 
   let trialViews: any[] = [];
 
@@ -110,7 +115,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         index={i}
         key={trials[i].key}
         name={trials[i].key}
-        canEdit={true}
         uploadFiles={uploadFiles}
       />
     );
@@ -140,7 +144,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                   <input {...getInputProps()} />
                   <i className="h3 text-muted dripicons-cloud-upload"></i>
                   <h5>
-                    Drop files here or click to upload trials.
+                    Drop files here or click to bulk upload trials.
                   </h5>
                   <span className="text-muted font-13">
                     (You can drop multiple files at once to create multiple
@@ -161,7 +165,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       <h3>
         <i className="mdi mdi-walk me-1 text-muted vertical-middle"></i>
         Subject: {props.cursor.getCurrentFileName()}{" "}
-        <span className="badge bg-secondary">{"TODO"}</span>
+        {/*<span className="badge bg-secondary">{"TODO"}</span>*/}
       </h3>
       <div>
         <h5>Unscaled OpenSim</h5>
@@ -175,7 +179,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         <h5>Trials</h5>
         <Table
           responsive={trials.length > 2}
-          className="table table-centered table-nowrap mb-0"
+          className="table table-centered table-nowrap mb-0 mt-2"
         >
           <thead className="table-light">
             <tr>
@@ -195,6 +199,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           </thead>
           <tbody>{trialViews}</tbody>
         </Table>
+        <Button onClick={() => navigate({ search: "?new-trial" })}>Create new trial</Button>
       </div>
     </div>
   );

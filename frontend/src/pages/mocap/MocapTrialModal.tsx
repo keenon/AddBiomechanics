@@ -28,6 +28,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
     const standalone = useRef(null as null | any);
     const [logText, setLogText] = useState('');
     const [resultsJson, setResultsJson] = useState({} as ProcessingResultsJSON);
+    const modalRef = useRef(null as any);
 
     let show = location.search.startsWith("?show-trial=");
     let trialNumber: number = 0;
@@ -41,17 +42,40 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
         }
     }
 
+    const onLogLine = (logLine: string) => {
+        setLogText(oldLog => oldLog + logLine);
+        // Scroll to the bottom to follow the logs
+        if (modalRef.current != null) {
+            modalRef.current.dialog.scrollTop = modalRef.current.dialog.scrollHeight - modalRef.current.dialog.clientHeight;
+        }
+    };
+
     useEffect(() => {
-        if (show && trial != null) {
+        if (show && trial != null && trialStatus === 'done') {
             props.cursor.getLogFileText(trial.key).then((text: string) => {
                 setLogText(text);
+
+                // Scroll to the top
+                if (modalRef.current != null) {
+                    modalRef.current.dialog.scrollTo({ top: 0, behavior: 'smooth' });
+                }
             }).catch(() => {
 
             });
             props.cursor.getResultsFileText(trial.key).then((text: string) => {
                 setResultsJson(JSON.parse(text));
+
+                // Scroll to the top
+                if (modalRef.current != null) {
+                    modalRef.current.dialog.scrollTo({ top: 0, behavior: 'smooth' });
+                }
             }).catch(() => { });
         }
+        if (trialStatus === 'processing') {
+            setLogText('');
+        }
+        // This cleans up our log listener
+        return props.cursor.subscribeToLogUpdates(trial?.key, onLogLine);
     }, [trialNumber, show, trialStatus]);
 
     if (!show || trial == null) {
@@ -72,12 +96,21 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
 
     }
     else if (trialStatus === 'could-process') {
-        body = (
-            <div className="MocapView">
-                <h2>Status: Ready to process</h2>
-                <Button size="lg" onClick={() => props.cursor.markTrialReadyForProcessing(trial?.key ?? '')}>Process</Button>
-            </div>
-        );
+        if (props.cursor.canEdit()) {
+            body = (
+                <div className="MocapView">
+                    <h2>Status: Ready to process</h2>
+                    <Button size="lg" onClick={() => props.cursor.markTrialReadyForProcessing(trial?.key ?? '')}>Process</Button>
+                </div>
+            );
+        }
+        else {
+            body = (
+                <div className="MocapView">
+                    <h2>Status: Waiting for owner to process</h2>
+                </div>
+            );
+        }
     }
     else if (trialStatus === 'waiting') {
         body = (
@@ -95,10 +128,19 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
         body = (
             <div className="MocapView">
                 <h2>Status: Processing</h2>
+                <div>
+                    <pre>
+                        {logText}
+                    </pre>
+                </div>
+                <Spinner animation='border' size="sm" /> {' '} Live Processing Logs
             </div>
         );
     }
     else if (trialStatus === 'done') {
+        let percentImprovementRMSE = ((resultsJson.goldAvgRMSE - resultsJson.autoAvgRMSE) / resultsJson.goldAvgRMSE) * 100;
+        let percentImprovementMax = ((resultsJson.goldAvgMax - resultsJson.autoAvgMax) / resultsJson.goldAvgMax) * 100;
+
         body = (
             <div className="MocapView">
                 <h2>Results:</h2>
@@ -114,13 +156,13 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                         <tbody>
                             <tr>
                                 <td>Manual:</td>
-                                <td>{(resultsJson.goldAvgRMSE ?? 0.0).toFixed(2)} cm</td>
-                                <td>{(resultsJson.goldAvgMax ?? 0.0).toFixed(2)} cm</td>
+                                <td>{(resultsJson.goldAvgRMSE * 100 ?? 0.0).toFixed(2)} cm</td>
+                                <td>{(resultsJson.goldAvgMax * 100 ?? 0.0).toFixed(2)} cm</td>
                             </tr>
                             <tr>
                                 <td>Automatic:</td>
-                                <td>{(resultsJson.autoAvgRMSE ?? 0.0).toFixed(2)} cm</td>
-                                <td>{(resultsJson.autoAvgMax ?? 0.0).toFixed(2)} cm</td>
+                                <td>{(resultsJson.autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm <b>({percentImprovementRMSE.toFixed(1)}% error {percentImprovementRMSE > 0 ? 'reduction' : 'increase'})</b></td>
+                                <td>{(resultsJson.autoAvgMax * 100 ?? 0.0).toFixed(2)} cm <b>({percentImprovementMax.toFixed(1)}% error {percentImprovementMax > 0 ? 'reduction' : 'increase'})</b></td>
                             </tr>
                         </tbody>
                     </Table>
@@ -141,7 +183,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
     }
 
     return (
-        <Modal size="xl" show={show} onHide={hideModal}>
+        <Modal size="xl" show={show} onHide={hideModal} ref={modalRef}>
             <Modal.Header closeButton>
                 <Modal.Title>
                     <i className="mdi mdi-run me-1"></i> Trial: {trial.key}

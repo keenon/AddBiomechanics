@@ -1,5 +1,6 @@
 import { ReactiveCursor, ReactiveIndex } from "./ReactiveS3";
 import { makeAutoObservable } from 'mobx';
+import PubSub from "@aws-amplify/pubsub";
 
 type MocapFolderEntry = {
     type: 'folder' | 'mocap';
@@ -14,6 +15,16 @@ type MocapTrialEntry = {
     lastModified: Date;
     size: number;
 };
+
+type MocapProcessingFlags = {
+    logTopic: string;
+    timestamp: number;
+}
+
+type MocapProcessingLogMsg = {
+    line: string;
+    timestamp: number;
+}
 
 class MocapS3Cursor {
     urlPath: string;
@@ -234,6 +245,13 @@ class MocapS3Cursor {
     };
 
     /**
+     * Creates a new trial folder on the mocap subject.
+     */
+    createTrial = (name: string) => {
+        return this.rawCursor.uploadChild("trials/" + name, "");
+    }
+
+    /**
      * This attempts to guess from file names how to group bulk uploaded files into trials,
      * then goes ahead and creates those trials.
      * 
@@ -293,6 +311,55 @@ class MocapS3Cursor {
         }
         else {
             return 'could-process';
+        }
+    };
+
+    /**
+     * This downloads and parses the contents of the PROCESSING flag
+     */
+    getProcessingInfo = (trialName: string) => {
+        return this.rawCursor.downloadText("trials/" + trialName + "/PROCESSING").then((text: string) => {
+            let val: MocapProcessingFlags = JSON.parse(text);
+            return val;
+        })
+    };
+
+    /**
+     * This gets the PROCESSING info, attaches a PubSub listener, and returns a handle to remove it when we're done.
+     * 
+     * @param trialName The name of the trial to subscribe to
+     * @param onLogLine the callback when a new line of the log is received
+     * @returns an unsubscribe method
+     */
+    subscribeToLogUpdates = (trialName: string | undefined, onLogLine: (line: string) => void) => {
+        // Do nothing if we're not PROCESSING
+        if (trialName == null) return () => { };
+        if (this.getTrialStatus(trialName) !== 'processing') return () => { };
+        // Otherwise, attach a log
+        console.log("Subscribing to log updates for " + trialName);
+        let logListener: any[] = [];
+        let unsubscribed: boolean[] = [false];
+        this.getProcessingInfo(trialName).then((procFlagContents) => {
+            // Try to avoid race conditions if we already cleaned up
+            if (unsubscribed[0]) return;
+
+            logListener.push(PubSub.subscribe("/LOG/" + procFlagContents.logTopic).subscribe({
+                next: (msg) => {
+                    const logMsg: MocapProcessingLogMsg = msg.value;
+                    onLogLine(logMsg.line);
+                },
+                error: (error) => {
+                    console.error("Error reported by /LOG/" + procFlagContents.logTopic + " PubSub update listener:");
+                    console.error(error);
+                },
+                complete: () => console.log("PubSub complete()"),
+            }));
+        });
+
+        return () => {
+            console.log("Cleaning up /LOG/# PubSub for " + trialName);
+            unsubscribed[0] = true;
+            logListener[0].unsubscribe();
         }
     };
 

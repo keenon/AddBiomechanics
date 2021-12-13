@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Modal, Button, Spinner, Form, InputGroup } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
@@ -21,9 +21,13 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
   const [error, setError] = useState(null);
 
   let show =
-    location.search === "?new-folder" || location.search === "?new-subject";
+    location.search === "?new-folder" || location.search === "?new-subject" || location.search === '?new-trial';
 
-  let typeToCreate: "Folder" | "Subject" = "Folder";
+  useEffect(() => {
+    setFolderName("");
+  }, [show]);
+
+  let typeToCreate: "Folder" | "Subject" | "Trial" = "Folder";
   let icon = "";
   if (location.search === "?new-folder") {
     typeToCreate = "Folder";
@@ -31,7 +35,11 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
   } else if (location.search === "?new-subject") {
     typeToCreate = "Subject";
     icon = "mdi-run";
+  } else if (location.search === "?new-trial") {
+    typeToCreate = "Trial";
+    icon = "mdi-run";
   }
+
 
   let hideModal = () => {
     navigate({ search: "" });
@@ -104,7 +112,19 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
                 setValid(false);
               } else if (valid) {
                 setLoading(true);
-                if (typeToCreate == "Subject") {
+                if (typeToCreate == "Trial") {
+                  props.cursor
+                    .createTrial(folderName)
+                    .then(() => {
+                      setLoading(false);
+                      hideModal();
+                    })
+                    .catch((e) => {
+                      setLoading(false);
+                      setError(e);
+                    });
+                }
+                else if (typeToCreate == "Subject") {
                   props.cursor
                     .createMocapClip(folderName)
                     .then(() => {

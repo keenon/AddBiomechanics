@@ -5,7 +5,8 @@ import os
 from nimblephysics.loader import absPath
 import json
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
+import numpy as np
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 
@@ -32,7 +33,7 @@ def processLocalSubjectFolder(path: str):
     requireExists(path+'_subject.json', 'subject status file')
     with open(path+'_subject.json') as subj:
         subjectJson = json.loads(subj.read())
-    print(subjectJson)
+    print(subjectJson, flush=True)
 
     # 3. Load the unscaled Osim file, which we can then scale and format
     customOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
@@ -58,21 +59,28 @@ def processLocalSubjectFolder(path: str):
 
         originalIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
             goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, markerTrajectories.markerTimesteps)
-        print('average RMSE: '+str(originalIK.averageRootMeanSquaredError))
+        print('manually scaled average RMSE cm: ' +
+              str(originalIK.averageRootMeanSquaredError), flush=True)
+        print('manually scaled average max cm: ' +
+              str(originalIK.averageMaxError), flush=True)
         processingResult['goldAvgRMSE'] = originalIK.averageRootMeanSquaredError
         processingResult['goldAvgMax'] = originalIK.averageMaxError
 
-    """ This is slow, so we skip this for now in setting up processing
     # 7. Process the trial
-    fitter = nimble.biomechanics.MarkerFitter(customOsim.skeleton, customOsim.markersMap)
+    fitter = nimble.biomechanics.MarkerFitter(
+        customOsim.skeleton, customOsim.markersMap)
     fitter.setInitialIKSatisfactoryLoss(0.05)
     fitter.setInitialIKMaxRestarts(50)
-    fitter.setIterationLimit(10)
+    fitter.setIterationLimit(300)
     result: nimble.biomechanics.MarkerInitialization = fitter.runKinematicsPipeline(
         markerTrajectories.markerTimesteps, nimble.biomechanics.InitialMarkerFitParams())
-    # processingResult['autoAvgRMSE'] = originalIK.averageRootMeanSquaredError
-    # processingResult['autoAvgMax'] = originalIK.averageMaxError
-    """
+    customOsim.skeleton.setGroupScales(result.groupScales)
+    fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
+                                np.ndarray]] = result.updatedMarkerMap
+    resultIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
+        customOsim.skeleton, fitMarkers, result.poses, markerTrajectories.markerTimesteps)
+    processingResult['autoAvgRMSE'] = resultIK.averageRootMeanSquaredError
+    processingResult['autoAvgMax'] = resultIK.averageMaxError
 
     # 8. Write out our result files
     with open(path+'/_results.json', 'w') as f:
@@ -82,6 +90,15 @@ def processLocalSubjectFolder(path: str):
         # goldAvgMax: number;
         # goldAvgRMSE: number;
         json.dump(processingResult, f)
+
+    # counter = 0
+    # while True:
+    #     print('[For live log demo] Counting to 10: '+str(counter), flush=True)
+    #     counter += 1
+    #     time.sleep(1)
+    #     if counter > 10:
+    #         break
+    print('Done!')
 
 
 if __name__ == "__main__":
