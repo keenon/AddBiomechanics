@@ -315,6 +315,24 @@ class MocapS3Cursor {
     };
 
     /**
+     * @param trialName The name of the trial to check
+     * @returns true if there's a visualization file for this trial
+     */
+    hasTrialVisualization = (trialName: string) => {
+        return this.rawCursor.getExists('trials/' + trialName + '/preview.json.zip');
+    };
+
+    /**
+     * This downloads and unzips the recorded JSON for the preview of the recorded motion
+     * 
+     * @param trialName The trial name to retrieve
+     * @returns a promise for the downloaded and unzipped trial preview
+     */
+    getTrialVisualization = (trialName: string) => {
+        return this.rawCursor.downloadZip('trials/' + trialName + '/preview.json.zip');
+    };
+
+    /**
      * This downloads and parses the contents of the PROCESSING flag
      */
     getProcessingInfo = (trialName: string) => {

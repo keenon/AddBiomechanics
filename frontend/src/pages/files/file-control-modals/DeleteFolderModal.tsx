@@ -30,6 +30,24 @@ const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {
     navigate({ search: "" });
   };
 
+  function deleteFolder() {
+    if (folderName.length === 0) {
+      setValid(false);
+    } else if (valid) {
+      setLoading(true);
+      props.cursor
+        .deleteByPrefix(folderName)
+        .then(() => {
+          setLoading(false);
+          hideModal();
+        })
+        .catch((e) => {
+          setLoading(false);
+          setError(e);
+        });
+    }
+  }
+
   let body = [];
   if (loading) {
     body.push(<Spinner animation="grow" />);
@@ -39,7 +57,7 @@ const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {
     }
     body.push(
       <div key="body">
-        <Form noValidate validated={false}>
+        <Form noValidate validated={false} onSubmitCapture={deleteFolder}>
           <Form.Group className="mb-3" controlId="folderName">
             <Form.Label>
               This cannot be undone! Confirm to make sure.
@@ -88,23 +106,7 @@ const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {
           <Button
             variant="danger"
             disabled={!valid}
-            onClick={() => {
-              if (folderName.length === 0) {
-                setValid(false);
-              } else if (valid) {
-                setLoading(true);
-                props.cursor
-                  .deleteByPrefix(folderName)
-                  .then(() => {
-                    setLoading(false);
-                    hideModal();
-                  })
-                  .catch((e) => {
-                    setLoading(false);
-                    setError(e);
-                  });
-              }
-            }}
+            onClick={deleteFolder}
           >
             Delete Folder
           </Button>

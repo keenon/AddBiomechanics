@@ -4,6 +4,7 @@ import { Modal, Button, Spinner, Table } from "react-bootstrap";
 import RawFileDisplay from "../../components/RawFileDisplay";
 import { observer } from "mobx-react-lite";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
+import MocapTrialPreview from './MocapTrialPreview';
 
 type MocapTrialModalProps = {
     cursor: MocapS3Cursor;
@@ -144,6 +145,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
         body = (
             <div className="MocapView">
                 <h2>Results:</h2>
+                <MocapTrialPreview trialName={trial.key} cursor={props.cursor} />
                 <div>
                     <Table>
                         <thead>

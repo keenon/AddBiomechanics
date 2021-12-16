@@ -213,9 +213,11 @@ class MocapServer:
             if self.index.hasChildren(folder, ['trials/', '_subject.json']):
                 if not folder.endswith('/'):
                     folder += '/'
+                print('SUBJECT: '+str(folder))
                 trials: Dict[str, FileMetadata] = self.index.getImmediateChildren(
                     folder+'trials/')
                 for trialName in trials:
+                    print('TRIAL: '+str(trialName))
                     trial = TrialToProcess(self.index, folder, trialName)
                     if trial.shouldProcess():
                         shouldProcessTrials.append(trial)

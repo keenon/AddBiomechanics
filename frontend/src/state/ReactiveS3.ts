@@ -7,6 +7,7 @@ import {
     S3ProviderListOutputItem,
 } from "@aws-amplify/storage";
 import { ZenObservable } from 'zen-observable-ts';
+import JSZip from 'jszip';
 
 /**
  * This strips any illegal characters from a PubSub path (or subset of a path), and returns what's left
@@ -288,6 +289,23 @@ class ReactiveCursor {
     };
 
     /**
+     * This downloads and parses a file into a string, and returns it
+     * 
+     * @returns A promise for the text of the file being downloaded
+     */
+    downloadZip = (childPath?: string, progressCallback?: (progress: number) => void) => {
+        let myPath = this.path;
+        if (childPath != null) {
+            if (!myPath.endsWith("/")) {
+                myPath += "/";
+            }
+            myPath += childPath;
+        }
+
+        return this.index.downloadZip(myPath);
+    };
+
+    /**
      * Tries to delete the file we're currently pointing at, which fails if it doesn't exist.
      * @returns a promise for successful deletion
      */
@@ -499,6 +517,32 @@ class ReactiveIndex {
                 // data.Body is a Blob
                 return (result.Body as Blob).text().then((text: string) => {
                     return text;
+                });
+            }
+            throw new Error(
+                'Result of downloading "' + path + "\" didn't have a Body"
+            );
+        });
+    };
+
+    /**
+     * This downloads and unzips a file into a string, and returns it
+     * 
+     * @param path the path of the file to download
+     * @returns a promise for the unzipped text of the file being downloaded
+     */
+    downloadZip = (path: string, progressCallback?: (progress: number) => void) => {
+        return Storage.get(path, {
+            level: this.level,
+            download: true,
+            cacheControl: "no-cache",
+            progressCallback
+        }).then((result) => {
+            const zip = new JSZip();
+            if (result != null && result.Body != null) {
+                // data.Body is a Blob
+                return zip.loadAsync(result.Body as Blob).then((unzipped: JSZip) => {
+                    return unzipped.file(Object.keys(unzipped.files)[0])?.async("string");
                 });
             }
             throw new Error(

@@ -47,6 +47,49 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
 
   const filePath: string = props.cursor.getCurrentFilePath();
 
+  function createFolder() {
+    if (folderName.length === 0) {
+      setValid(false);
+    } else if (valid) {
+      setLoading(true);
+      if (typeToCreate == "Trial") {
+        props.cursor
+          .createTrial(folderName)
+          .then(() => {
+            setLoading(false);
+            hideModal();
+          })
+          .catch((e) => {
+            setLoading(false);
+            setError(e);
+          });
+      }
+      else if (typeToCreate == "Subject") {
+        props.cursor
+          .createMocapClip(folderName)
+          .then(() => {
+            setLoading(false);
+            hideModal();
+          })
+          .catch((e) => {
+            setLoading(false);
+            setError(e);
+          });
+      } else {
+        props.cursor
+          .createFolder(folderName)
+          .then(() => {
+            setLoading(false);
+            hideModal();
+          })
+          .catch((e) => {
+            setLoading(false);
+            setError(e);
+          });
+      }
+    }
+  }
+
   let body = [];
   if (loading) {
     body.push(<Spinner animation="grow" />);
@@ -56,7 +99,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
     }
     body.push(
       <div key="body">
-        <Form noValidate validated={false}>
+        <Form noValidate validated={false} onSubmitCapture={createFolder}>
           <Form.Group className="mb-3" controlId="folderName">
             <Form.Label>{typeToCreate} name</Form.Label>
             <Form.Control
@@ -107,48 +150,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
           <Button
             variant="primary"
             disabled={!valid}
-            onClick={() => {
-              if (folderName.length === 0) {
-                setValid(false);
-              } else if (valid) {
-                setLoading(true);
-                if (typeToCreate == "Trial") {
-                  props.cursor
-                    .createTrial(folderName)
-                    .then(() => {
-                      setLoading(false);
-                      hideModal();
-                    })
-                    .catch((e) => {
-                      setLoading(false);
-                      setError(e);
-                    });
-                }
-                else if (typeToCreate == "Subject") {
-                  props.cursor
-                    .createMocapClip(folderName)
-                    .then(() => {
-                      setLoading(false);
-                      hideModal();
-                    })
-                    .catch((e) => {
-                      setLoading(false);
-                      setError(e);
-                    });
-                } else {
-                  props.cursor
-                    .createFolder(folderName)
-                    .then(() => {
-                      setLoading(false);
-                      hideModal();
-                    })
-                    .catch((e) => {
-                      setLoading(false);
-                      setError(e);
-                    });
-                }
-              }
-            }}
+            onClick={createFolder}
           >
             Create {typeToCreate}
           </Button>
