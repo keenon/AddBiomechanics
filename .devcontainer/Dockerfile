@@ -56,6 +56,10 @@ RUN aws iot attach-policy \
 
 # Install Python 3
 RUN apt-get install -y python3 python3-pip
+
+# Install zip
+RUN apt-get install -y zip
+
 # Install Git
 RUN apt-get install -y git
 # COPY ./app /app

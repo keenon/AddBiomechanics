@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Modal, Button, Spinner, Form } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
@@ -22,9 +22,15 @@ const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {
   let folderToDelete = "";
   if (show) {
     folderToDelete = decodeURIComponent(
-      location.search.substr("?delete-folder=".length)
+      location.search.substring("?delete-folder=".length)
     );
   }
+
+  useEffect(() => {
+    if (show) {
+      setFolderName("");
+    }
+  }, [show]);
 
   let hideModal = () => {
     navigate({ search: "" });

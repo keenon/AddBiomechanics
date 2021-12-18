@@ -7,6 +7,7 @@ import json
 import time
 from typing import Any, Dict, Tuple
 import numpy as np
+import subprocess
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 
@@ -83,13 +84,29 @@ def processLocalSubjectFolder(path: str):
     processingResult['autoAvgMax'] = resultIK.averageMaxError
 
     # 8. Write out our result files
-    with open(path+'/_results.json', 'w') as f:
+
+    # 8.1. Write out the result summary JSON
+    with open(path+'_results.json', 'w') as f:
         # The frontend expects JSON in this format
         # autoAvgMax: number;
         # autoAvgRMSE: number;
         # goldAvgMax: number;
         # goldAvgRMSE: number;
         json.dump(processingResult, f)
+
+    # 8.2. Write out the animation preview
+    # 8.2.1. Create the raw JSON
+    guiRecording = nimble.server.GUIRecording()
+    for timestep in range(result.poses.shape[1]):
+        customOsim.skeleton.setPositions(result.poses[:, timestep])
+        guiRecording.renderSkeleton(customOsim.skeleton, 'result')
+        guiRecording.saveFrame()
+    guiRecording.writeFramesJson(path+'preview.json')
+    # 8.2.2. Zip it up
+    print('Zipping up preview.json', flush=True)
+    subprocess.run(["zip", "-r", path+'preview.json.zip', path +
+                   'preview.json'], capture_output=True)
+    print('Finished zipping up preview.json.zip', flush=True)
 
     # counter = 0
     # while True:
@@ -98,7 +115,7 @@ def processLocalSubjectFolder(path: str):
     #     time.sleep(1)
     #     if counter > 10:
     #         break
-    print('Done!')
+    print('Done!', flush=True)
 
 
 if __name__ == "__main__":

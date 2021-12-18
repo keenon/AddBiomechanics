@@ -3,8 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Modal, Button, Spinner, Table } from "react-bootstrap";
 import RawFileDisplay from "../../components/RawFileDisplay";
 import { observer } from "mobx-react-lite";
-import MocapS3Cursor from '../../state/MocapS3Cursor';
-import MocapTrialPreview from './MocapTrialPreview';
+import MocapS3Cursor, { LargeZipJsonObject } from '../../state/MocapS3Cursor';
+import NimbleStandaloneReact from 'nimble-visualizer/dist/NimbleStandaloneReact';
 
 type MocapTrialModalProps = {
     cursor: MocapS3Cursor;
@@ -35,11 +35,15 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
     let trialNumber: number = 0;
     let trialStatus = 'empty'
     let trial: MocapTrialEntry | null = null;
+    let visualization: LargeZipJsonObject | null = null;
     if (show) {
         trialNumber = parseInt(decodeURIComponent(location.search.substring("?show-trial=".length)));
         trial = props.cursor.getTrials()[trialNumber];
         if (trial != null) {
             trialStatus = props.cursor.getTrialStatus(trial.key);
+        }
+        if (trialStatus === 'done') {
+            visualization = props.cursor.getTrialVisualization(trial.key);
         }
     }
 
@@ -145,7 +149,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
         body = (
             <div className="MocapView">
                 <h2>Results:</h2>
-                <MocapTrialPreview trialName={trial.key} cursor={props.cursor} />
+                <NimbleStandaloneReact style={{ height: '400px' }} loading={visualization?.loading ?? true} loadingProgress={visualization?.loadingProgress ?? 0.0} recording={visualization?.object ?? null} />
                 <div>
                     <Table>
                         <thead>

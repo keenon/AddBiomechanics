@@ -28,7 +28,6 @@ type MocapTrialRowViewProps = {
 
 const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   let status = props.cursor.getTrialStatus(props.name);
-  console.log(status);
   let statusBadge = null;
   if (status === "empty") {
   }
@@ -50,6 +49,15 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
     statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
   }
 
+  let manualIKRow = null;
+  if (props.cursor.getShowValidationControls()) {
+    manualIKRow = (
+      <td>
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/manual_ik.mot"} uploadOnMount={props.uploadFiles[props.name + "_ik.mot"]} accept=".mot" />
+      </td>
+    );
+  }
+
   return (
     <tr>
       <td>
@@ -64,9 +72,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
       <td>
         <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadFiles[props.name + ".trc"]} accept=".trc" />
       </td>
-      <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/manual_ik.mot"} uploadOnMount={props.uploadFiles[props.name + "_ik.mot"]} accept=".mot" />
-      </td>
+      {manualIKRow}
       <td>
         <DropFile cursor={props.cursor} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadFiles[props.name + "_grf.mot"]} accept=".mot" />
       </td>
@@ -138,9 +144,9 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               props.cursor.bulkCreateTrials(fileNames);
             }}
           >
-            {({ getRootProps, getInputProps }) => (
-              <div className="dropzone">
-                <div className="dz-message needsclick" {...getRootProps()}>
+            {({ getRootProps, getInputProps, isDragActive }) => (
+              <div className={"dropzone" + (isDragActive ? ' dropzone-hover' : '')} {...getRootProps()}>
+                <div className="dz-message needsclick">
                   <input {...getInputProps()} />
                   <i className="h3 text-muted dripicons-cloud-upload"></i>
                   <h5>
@@ -159,6 +165,23 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     );
   }
 
+  let showValidationControls = props.cursor.getShowValidationControls();
+  let validationControlsEnabled = props.cursor.getValidationControlsEnabled();
+
+  let manuallyScaledOpensimUpload = null;
+  let manualIkRowHeader = null;
+  if (showValidationControls) {
+    manuallyScaledOpensimUpload = (
+      <div>
+        <h5>Manually Scaled OpenSim</h5>
+        <DropFile cursor={props.cursor} path={"manually_scaled.osim"} accept=".osim" />
+      </div>
+    );
+    manualIkRowHeader = (
+      <th className="border-0">Gold IK</th>
+    );
+  }
+
   return (
     <div className="MocapView">
       <MocapTrialModal cursor={props.cursor} />
@@ -167,14 +190,14 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         Subject: {props.cursor.getCurrentFileName()}{" "}
         {/*<span className="badge bg-secondary">{"TODO"}</span>*/}
       </h3>
+      <div>Run Comparison with Hand-Scaled Version: <input type="checkbox" checked={showValidationControls} onChange={(e) => {
+        props.cursor.setShowValidationControls(e.target.checked);
+      }} disabled={!validationControlsEnabled} /></div>
       <div>
         <h5>Unscaled OpenSim</h5>
         <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" />
       </div>
-      <div>
-        <h5>(Optional) Manually Scaled OpenSim</h5>
-        <DropFile cursor={props.cursor} path={"manually_scaled.osim"} accept=".osim" />
-      </div>
+      {manuallyScaledOpensimUpload}
       <div>
         <h5>Trials</h5>
         <Table
@@ -185,7 +208,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             <tr>
               <th className="border-0">Trial Name</th>
               <th className="border-0">Markers</th>
-              <th className="border-0">Gold IK</th>
+              {manualIkRowHeader}
               <th className="border-0">GRF</th>
               <th className="border-0" style={{ width: "100px" }}>
                 Status

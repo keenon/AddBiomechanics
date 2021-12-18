@@ -35,9 +35,17 @@
         &:hover {
             background-color: #e6e7ff;
         }
+
+        &.dropzone-dover {
+            background-color: #e6e7ff;
+        }
     }
 
     &:hover {
+        background-color: #f5f5fa;
+    }
+
+    &.dropzone-hover {
         background-color: #f5f5fa;
     }
 }

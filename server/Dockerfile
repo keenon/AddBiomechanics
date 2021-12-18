@@ -50,3 +50,6 @@ RUN apt-get install -y python3 python3-pip
 COPY ./app /app
 RUN pip3 install -r /app/requirements.txt
 CMD python3 /app/simpleserver.py
+
+# Install zip
+RUN apt-get install -y zip

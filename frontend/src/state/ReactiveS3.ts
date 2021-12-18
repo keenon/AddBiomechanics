@@ -302,7 +302,7 @@ class ReactiveCursor {
             myPath += childPath;
         }
 
-        return this.index.downloadZip(myPath);
+        return this.index.downloadZip(myPath, progressCallback);
     };
 
     /**
@@ -539,6 +539,7 @@ class ReactiveIndex {
             progressCallback
         }).then((result) => {
             const zip = new JSZip();
+            if (progressCallback) progressCallback(1.0);
             if (result != null && result.Body != null) {
                 // data.Body is a Blob
                 return zip.loadAsync(result.Body as Blob).then((unzipped: JSZip) => {

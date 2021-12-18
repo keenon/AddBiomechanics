@@ -57,7 +57,7 @@ class TrialToProcess:
         self.readyFlagFile = self.trialPath + 'READY_TO_PROCESS'
         self.processingFlagFile = self.trialPath + 'PROCESSING'
         self.resultsFile = self.trialPath + '_results.json'
-        self.previewJsonFile = self.trialPath + 'preview.json'
+        self.previewJsonFile = self.trialPath + 'preview.json.zip'
         self.logfile = self.trialPath + 'log.txt'
 
     def process(self):
@@ -112,10 +112,13 @@ class TrialToProcess:
 
         # 5. Upload the results back to S3
         self.index.uploadFile(self.logfile, path + 'log.txt')
+        if os.path.exists(path + 'preview.json.zip'):
+            self.index.uploadFile(self.previewJsonFile,
+                                  path + 'preview.json.zip')
+        # 5.1. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
+        # and it starts to be able
         if os.path.exists(path + '_results.json'):
             self.index.uploadFile(self.resultsFile, path + '_results.json')
-        if os.path.exists(path + 'preview.json'):
-            self.index.uploadFile(self.previewJsonFile, path + 'preview.json')
 
         # 6. Clean up after ourselves
         # os.rmdir(path)

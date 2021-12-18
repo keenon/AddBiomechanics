@@ -1,5 +1,5 @@
 import { ReactiveCursor, ReactiveIndex } from "./ReactiveS3";
-import { makeAutoObservable } from 'mobx';
+import { makeAutoObservable, action } from 'mobx';
 import PubSub from "@aws-amplify/pubsub";
 
 type MocapFolderEntry = {
@@ -26,6 +26,30 @@ type MocapProcessingLogMsg = {
     timestamp: number;
 }
 
+class LargeZipJsonObject {
+    object: any | null;
+    loading: boolean;
+    loadingProgress: number;
+
+    constructor(rawCursor: ReactiveCursor, path: string) {
+        this.object = null;
+        this.loading = true;
+        this.loadingProgress = 0.0;
+
+        makeAutoObservable(this);
+
+        rawCursor.downloadZip(path, action((progress: number) => {
+            this.loadingProgress = progress;
+            console.log("Loading progress: " + this.loadingProgress);
+        })).then(action((result?: string) => {
+            this.loading = false;
+            if (result != null) {
+                this.object = JSON.parse(result);
+            }
+        }));
+    }
+}
+
 class MocapS3Cursor {
     urlPath: string;
     rawCursor: ReactiveCursor;
@@ -33,8 +57,10 @@ class MocapS3Cursor {
     protectedS3Index: ReactiveIndex;
     urlError: boolean;
 
+    showValidationControls: boolean;
     cachedLogFiles: Map<string, Promise<string>>;
     cachedResultsFiles: Map<string, Promise<string>>;
+    cachedVisulizationFiles: Map<string, LargeZipJsonObject>;
 
     constructor(publicS3Index: ReactiveIndex, protectedS3Index: ReactiveIndex) {
         const parsedUrl = this.parseUrlPath(window.location.pathname);
@@ -47,6 +73,8 @@ class MocapS3Cursor {
 
         this.cachedLogFiles = new Map();
         this.cachedResultsFiles = new Map();
+        this.cachedVisulizationFiles = new Map();
+        this.showValidationControls = false;
 
         makeAutoObservable(this);
     }
@@ -122,9 +150,13 @@ class MocapS3Cursor {
         this.rawCursor.setIndex(parsedUrl.isPublic ? this.publicS3Index : this.protectedS3Index);
         this.rawCursor.setPath(parsedUrl.path);
 
+        // Subject state
+        this.showValidationControls = this.rawCursor.getExists("manually_scaled.osim");
+
         // Clear the cache when we move to a new url
         this.cachedLogFiles.clear();
         this.cachedResultsFiles.clear();
+        this.cachedVisulizationFiles.clear();
     };
 
     /**
@@ -223,6 +255,33 @@ class MocapS3Cursor {
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Mocap controls
     ///////////////////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * If this returns true, we should show the validation controls for this subject. The validation
+     * controls include the scaled *.osim model, and the *.mot Gold IK files.
+     */
+    getShowValidationControls = () => {
+        // Store "override" to ensure we access both variables before returning
+        let override = this.showValidationControls;
+        return this.rawCursor.getExists("manually_scaled.osim") || override;
+    };
+
+    /**
+     * This returns true if we can control whether or not to turn on validation for our mocap subjects.
+     */
+    getValidationControlsEnabled = () => {
+        return !this.rawCursor.getExists("manually_scaled.osim");
+    };
+
+    /**
+     * This shows/hides the validation controls. This only has an effect if there aren't already validation 
+     * files that have been uploaded.
+     * 
+     * @param show 
+     */
+    setShowValidationControls = (show: boolean) => {
+        this.showValidationControls = show;
+    };
 
     /**
      * This gets the list of the trials under this folder. If we're not pointing to a mocap subject, 
@@ -329,7 +388,12 @@ class MocapS3Cursor {
      * @returns a promise for the downloaded and unzipped trial preview
      */
     getTrialVisualization = (trialName: string) => {
-        return this.rawCursor.downloadZip('trials/' + trialName + '/preview.json.zip');
+        let visualization = this.cachedVisulizationFiles.get(trialName);
+        if (visualization == null) {
+            visualization = new LargeZipJsonObject(this.rawCursor, 'trials/' + trialName + '/preview.json.zip');
+            this.cachedVisulizationFiles.set(trialName, visualization);
+        }
+        return visualization;
     };
 
     /**
@@ -416,4 +480,5 @@ class MocapS3Cursor {
     };
 }
 
+export { LargeZipJsonObject };
 export default MocapS3Cursor;
