@@ -57,6 +57,7 @@ class TrialToProcess:
         self.readyFlagFile = self.trialPath + 'READY_TO_PROCESS'
         self.processingFlagFile = self.trialPath + 'PROCESSING'
         self.resultsFile = self.trialPath + '_results.json'
+        self.osimResults = self.trialPath + 'osim_results.zip'
         self.previewJsonFile = self.trialPath + 'preview.json.zip'
         self.logfile = self.trialPath + 'log.txt'
 
@@ -115,7 +116,9 @@ class TrialToProcess:
         if os.path.exists(path + 'preview.json.zip'):
             self.index.uploadFile(self.previewJsonFile,
                                   path + 'preview.json.zip')
-        # 5.1. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
+        # 5.1. Upload the downloadable osim_results.zip file
+        self.index.uploadFile(self.osimResults, path + 'osim_results.zip')
+        # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
         # and it starts to be able
         if os.path.exists(path + '_results.json'):
             self.index.uploadFile(self.resultsFile, path + '_results.json')

@@ -1,4 +1,4 @@
-import { ReactiveCursor, ReactiveIndex } from "./ReactiveS3";
+import { ReactiveCursor, ReactiveIndex, ReactiveJsonFile } from "./ReactiveS3";
 import { makeAutoObservable, action } from 'mobx';
 import PubSub from "@aws-amplify/pubsub";
 
@@ -62,6 +62,8 @@ class MocapS3Cursor {
     cachedResultsFiles: Map<string, Promise<string>>;
     cachedVisulizationFiles: Map<string, LargeZipJsonObject>;
 
+    subjectJson: ReactiveJsonFile;
+
     constructor(publicS3Index: ReactiveIndex, protectedS3Index: ReactiveIndex) {
         const parsedUrl = this.parseUrlPath(window.location.pathname);
 
@@ -75,6 +77,8 @@ class MocapS3Cursor {
         this.cachedResultsFiles = new Map();
         this.cachedVisulizationFiles = new Map();
         this.showValidationControls = false;
+
+        this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
 
         makeAutoObservable(this);
     }
@@ -374,6 +378,16 @@ class MocapS3Cursor {
     };
 
     /**
+     * This requests that a trial be reprocessed, by deleting the results of previous processing.
+     * 
+     * @param trialName 
+     */
+    requestReprocessTrial = (trialName: string) => {
+        this.rawCursor.deleteChild("trials/" + trialName + "/log.txt");
+        this.rawCursor.deleteChild("trials/" + trialName + "/_results.json");
+    };
+
+    /**
      * @param trialName The name of the trial to check
      * @returns true if there's a visualization file for this trial
      */
@@ -477,6 +491,23 @@ class MocapS3Cursor {
      */
     markTrialReadyForProcessing = (trialName: string) => {
         return this.rawCursor.uploadChild("trials/" + trialName + "/READY_TO_PROCESS", "");
+    };
+
+    /**
+     * Reurns true if there's a zip archive of the results
+     * 
+     * @param trialName 
+     * @returns 
+     */
+    hasResultsArchive = (trialName: string) => {
+        return this.rawCursor.childHasChildren("trials", [trialName + "/osim_results.zip"]);
+    };
+
+    /**
+     * Download the zip results archive
+     */
+    downloadResultsArchive = (trialName: string) => {
+        this.rawCursor.downloadFile("trials/" + trialName + "/osim_results.zip");
     };
 }
 

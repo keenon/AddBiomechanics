@@ -146,9 +146,22 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
         let percentImprovementRMSE = ((resultsJson.goldAvgRMSE - resultsJson.autoAvgRMSE) / resultsJson.goldAvgRMSE) * 100;
         let percentImprovementMax = ((resultsJson.goldAvgMax - resultsJson.autoAvgMax) / resultsJson.goldAvgMax) * 100;
 
+        let download = null;
+        if (props.cursor.hasResultsArchive(trial?.key ?? '')) {
+            download = (
+                <div style={{ 'marginBottom': '5px' }}>
+                    <Button onClick={() => props.cursor.downloadResultsArchive(trial?.key ?? '')}>
+                        <i className="mdi mdi-download me-2 vertical-middle"></i>
+                        Download OpenSim Results
+                    </Button>
+                </div>
+            );
+        }
+
         body = (
             <div className="MocapView">
                 <h2>Results:</h2>
+                {download}
                 <NimbleStandaloneReact style={{ height: '400px' }} loading={visualization?.loading ?? true} loadingProgress={visualization?.loadingProgress ?? 0.0} recording={visualization?.object ?? null} />
                 <div>
                     <Table>

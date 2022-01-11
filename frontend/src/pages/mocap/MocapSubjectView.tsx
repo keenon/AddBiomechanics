@@ -198,6 +198,17 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" />
       </div>
       {manuallyScaledOpensimUpload}
+      <h5>Anthropometrics</h5>
+      <p>
+        Weight: <input type="number" value={props.cursor.subjectJson.getAttribute("massKg", 0.0)} onChange={(e) => {
+          props.cursor.subjectJson.setAttribute("massKg", e.target.value);
+        }}></input> kg
+      </p>
+      <p>
+        Height: <input type="number" value={props.cursor.subjectJson.getAttribute("heightM", 0.0)} onChange={(e) => {
+          props.cursor.subjectJson.setAttribute("heightM", e.target.value);
+        }}></input> m
+      </p>
       <div>
         <h5>Trials</h5>
         <Table

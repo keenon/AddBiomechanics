@@ -8,6 +8,7 @@ import time
 from typing import Any, Dict, Tuple
 import numpy as np
 import subprocess
+import shutil
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 
@@ -35,6 +36,10 @@ def processLocalSubjectFolder(path: str):
     with open(path+'_subject.json') as subj:
         subjectJson = json.loads(subj.read())
     print(subjectJson, flush=True)
+
+    # 2.1. Get the basic measurements from _subject.json
+    massKg = float(subjectJson['massKg'])
+    heightM = float(subjectJson['heightM'])
 
     # 3. Load the unscaled Osim file, which we can then scale and format
     customOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
@@ -73,6 +78,8 @@ def processLocalSubjectFolder(path: str):
     fitter.setInitialIKSatisfactoryLoss(0.05)
     fitter.setInitialIKMaxRestarts(50)
     fitter.setIterationLimit(300)
+    # fitter.setInitialIKMaxRestarts(1)
+    # fitter.setIterationLimit(2)
     result: nimble.biomechanics.MarkerInitialization = fitter.runKinematicsPipeline(
         markerTrajectories.markerTimesteps, nimble.biomechanics.InitialMarkerFitParams())
     customOsim.skeleton.setGroupScales(result.groupScales)
@@ -94,12 +101,32 @@ def processLocalSubjectFolder(path: str):
         # goldAvgRMSE: number;
         json.dump(processingResult, f)
 
+    # 8.2. Write out the usable OpenSim results
+
+    if not os.path.exists(path+'results'):
+        os.mkdir(path+'results')
+    print('Outputting OpenSim files', flush=True)
+    # 8.2.1. Write the XML instructions for the OpenSim scaling tool
+    nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(customOsim.skeleton, massKg, heightM, path + 'unscaled_generic.osim', path + 'results/rescaled.osim', path + 'scaling_instructions.xml')
+    # 8.2.2. Call the OpenSim scaling tool
+    command = 'opensim-cmd run-tool ' + path + 'scaling_instructions.xml'
+    print('Scaling OpenSim files: '+command)
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+    process.wait()
+    # 8.2.3. Write out the .mot files
+    timestamps = [i * 0.001 for i in range(result.poses.shape[1])]
+    print('Writing OpenSim .mot file')
+    nimble.biomechanics.OpenSimParser.saveMot(customOsim.skeleton, path + 'results/motion.mot', timestamps, result.poses)
+    print('Zipping up OpenSim files', flush=True)
+    shutil.make_archive(path + 'osim_results', 'zip', path, 'results')
+    print('Finished outputting OpenSim files', flush=True)
+
     # 8.2. Write out the animation preview
     # 8.2.1. Create the raw JSON
     guiRecording = nimble.server.GUIRecording()
     for timestep in range(result.poses.shape[1]):
         customOsim.skeleton.setPositions(result.poses[:, timestep])
-        guiRecording.renderSkeleton(customOsim.skeleton, 'result')
+        guiRecording.renderSkeleton(customOsim.skeleton, 'result', [-1, -1, -1, -1])
         guiRecording.saveFrame()
     guiRecording.writeFramesJson(path+'preview.json')
     # 8.2.2. Zip it up
@@ -120,5 +147,6 @@ def processLocalSubjectFolder(path: str):
 
 if __name__ == "__main__":
     print(sys.argv)
+    # processLocalSubjectFolder("/tmp/tmpmnf2siae/")
     # processLocalSubjectFolder("/tmp/tmp_287z04g")
     processLocalSubjectFolder(sys.argv[1])

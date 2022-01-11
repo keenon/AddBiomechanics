@@ -44,6 +44,98 @@ function makeTopicPubSubSafe(path: string) {
     return path;
 }
 
+/// This is a cacheing layer for mobx-style interaction with JSON files stored in S3. This handles doing the downloading, parsing, 
+/// and re-uploading in the background.
+class ReactiveJsonFile {
+    cursor: ReactiveCursor;
+    path: string;
+    values: Map<string, any>;
+    pendingTimeout: any | null;
+    changeListeners: Array<() => void>;
+
+    constructor(cursor: ReactiveCursor, path: string) {
+        this.cursor = cursor;
+        this.path = path;
+        this.values = new Map();
+        this.pendingTimeout = null;
+        this.changeListeners = [];
+        this.pathChanged();
+
+        makeAutoObservable(this);
+    }
+
+    /**
+     * This fires when a value has changed and we've re-uploaded to S3
+     */
+    addChangeListener = (listener: () => {}) => {
+        this.changeListeners.push(listener);
+    };
+
+    /**
+     * This gets called when the path has changed in the supporting cursor
+     */
+    pathChanged = () => {
+        this.cursor.downloadText(this.path).then((text: string) => {
+            const result = JSON.parse(text);
+            for (let key in result) {
+                this.values.set(key, result[key]);
+            }
+        });
+    };
+
+    /**
+     * @returns True if the file currently exists, false otherwise
+     */
+    fileExist = () => {
+        return this.cursor.getExists(this.path);
+    };
+
+    /**
+     * @param key The key we want to retrieve
+     * @param defaultValue A default value to return, if the value hasn't loaded yet or the file doesn't exist
+     * @returns 
+     */
+    getAttribute = (key: string, defaultValue: any) => {
+        let value = this.values.get(key);
+        if (value == null) return defaultValue;
+        else return value;
+    };
+
+    /**
+     * This sets the value, overwriting the old value, and uploads the resulting JSON to S3 (after a short timeout, to avoid spamming with uploads if you're typing).
+     * 
+     * @param key 
+     * @param value 
+     */
+    setAttribute = (key: string, value: any) => {
+        this.values.set(key, value);
+        this.restartUploadTimer();
+    };
+
+    /**
+     * When called, this starts a timer to upload in a few hundred milliseconds.
+     * If it's called while another time is present, that timer is cleared before this one fires.
+     */
+    restartUploadTimer = () => {
+        if (this.pendingTimeout != null) {
+            clearTimeout(this.pendingTimeout);
+            this.pendingTimeout = null;
+        }
+        this.pendingTimeout = setTimeout(() => {
+            let object: any = {};
+            this.values.forEach((v, k) => {
+                object[k] = v;
+            });
+            let json = JSON.stringify(object);
+            this.cursor.uploadChild(this.path, json).then(() => {
+                // Call all the change listeners
+                this.changeListeners.forEach((listener) => listener());
+            });
+            this.pendingTimeout = null;
+        }, 500);
+    };
+}
+
 /// This is a convenience wrapper for mobx-style interaction with ReactiveS3. It's reusable, to avoid memory leaks.
 /// Ideally, users of this class create a single one, and re-use it as the GUI traverses over different paths and indexes,
 /// by calling setPath() and setIndex(). This should handle cleaning up stray listeners as it traverses, which prevents leaks.
@@ -52,12 +144,14 @@ class ReactiveCursor {
     path: string;
     metadata: ReactiveFileMetadata | null;
     children: Map<string, ReactiveFileMetadata>;
+    jsonFiles: Map<string, ReactiveJsonFile>;
 
     constructor(index: ReactiveIndex, path: string) {
         this.index = index;
         this.path = (null as any);
         this.metadata = null;
         this.children = new Map();
+        this.jsonFiles = new Map();
 
         makeAutoObservable(this);
 
@@ -81,10 +175,25 @@ class ReactiveCursor {
         this.path = path;
         this.metadata = this.index.getMetadata(this.path);
         this.children = this.index.getChildren(this.path);
+        this.jsonFiles.forEach((file: ReactiveJsonFile) => file.pathChanged());
 
         // Add new listeners for changes at the current path
         this.index.addMetadataListener(this.path, this._metadataListener);
         this.index.addChildrenListener(this.path, this._onChildrenListener);
+    };
+
+    /**
+     * This retrieves or creates an object whose job is to retrieve and store changes to a JSON file in S3.
+     * 
+     * @param path The path of the JSON file object to retrieve or create
+     */
+    getJsonFile = (path: string) => {
+        let file = this.jsonFiles.get(path);
+        if (file == null) {
+            file = new ReactiveJsonFile(this, path);
+            this.jsonFiles.set(path, file);
+        }
+        return file;
     };
 
     /**
@@ -853,4 +962,4 @@ class ReactiveIndex {
     }
 }
 
-export { ReactiveIndex, ReactiveCursor };
+export { ReactiveIndex, ReactiveCursor, ReactiveJsonFile };
