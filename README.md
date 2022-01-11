@@ -6,7 +6,8 @@ Our goal in this project is to provide a standard format for modality-sparse hum
 
 Licenses-permitting, we plan to make pre-translated aggregate datasets available for public download.
 
-## Getting Set Up (frontend)
+## Getting Set Up For Development (frontend)
+
 1. Install the Amplify CLI `npm install -g @aws-amplify/cli` (may require `sudo`, depending on your setup)
 2. From inside the `frontend` folder, run `amplify configure`, and follow the instructions to create a new IAM user for your computer (in the 'us-west-2' region)
 3. From inside the `frontend` folder, run `amplify init`
@@ -15,12 +16,18 @@ Licenses-permitting, we plan to make pre-translated aggregate datasets available
     c. Choose anything you like for your default editor
     d. Select the authentication method "AWS profile", and select the profile you created in step 2
 4. Run `yarn start` to launch the app!
-## Getting Set Up (server)
+## Getting Set Up For Development (server)
 
 1. Download (credentials)[https://drive.google.com/file/d/1okCCdvqaZh20gc4TG152o7yJV9_vnBtf/view?usp=sharing] into `.devcontainer/.aws/credentials` and `server/.aws/credentials`.
 2. Download (server_credentials.csv)[https://drive.google.com/file/d/1e1GrwpOm0viZhNGkw_lDNPa_cfYhJ3r3/view?usp=sharing] into `.devcontainer/server_credentials.csv` and `server/server_credentials.csv`.
 3. Open this project in VSCode, and then use Ctrl+Shift+P and get to the command "Remote-Containers: Open Folder in Container...". Re-open this folder in a Docker container.
 4. Using a VSCode Terminal, navigate to `frontend` and execute `yarn start` to begin serving a live frontend
+
+## Hosting a Processing Server
+
+1. Got into the `server` folder
+2. Run `docker build .` to build the Docker container to run the server. It's important that you rebuild the Docker container each time you boot a new server, since that sets it up with its own PubSub connection.
+3. Run the docker container you just built! That's your server. Leave it running as a process.
 
 ## Apple M1(X) Macs
 

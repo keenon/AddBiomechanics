@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
-FROM ubuntu:20.04
+FROM keenon/biomechnet_base
 
 #########################################################
 # Set up access to AWS (most of this work sets up IOT)
 #########################################################
 
 # Install basic tools
-RUN apt-get update && apt-get upgrade
+RUN apt-get update
 RUN apt-get install -y curl unzip jq
 # Install AWS CLI
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
@@ -45,11 +45,8 @@ RUN aws iot attach-policy \
 # Set up the server app
 #########################################################
 
-# Install Python 3
-RUN apt-get install -y python3 python3-pip
 COPY ./app /app
+COPY ./engine /engine
+COPY ./server_credentials.csv /server_credentials.csv
 RUN pip3 install -r /app/requirements.txt
-CMD python3 /app/simpleserver.py
-
-# Install zip
-RUN apt-get install -y zip
+CMD python3 /app/mocap_server.py
