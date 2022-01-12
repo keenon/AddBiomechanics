@@ -45,8 +45,10 @@ RUN aws iot attach-policy \
 # Set up the server app
 #########################################################
 
+RUN echo "Installing requirements"
 COPY ./app /app
 COPY ./engine /engine
 COPY ./server_credentials.csv /server_credentials.csv
 RUN pip3 install -r /app/requirements.txt
+RUN pip3 install -r /engine/requirements.txt
 CMD python3 /app/mocap_server.py
