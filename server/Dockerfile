@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM keenon/biomechnet_base
+# Tag as keenon/biomechnet
 
 #########################################################
 # Set up access to AWS (most of this work sets up IOT)
@@ -48,6 +49,7 @@ RUN aws iot attach-policy \
 RUN echo "Installing requirements"
 COPY ./app /app
 COPY ./engine /engine
+COPY ./data /data
 COPY ./server_credentials.csv /server_credentials.csv
 RUN pip3 install -r /app/requirements.txt
 RUN pip3 install -r /engine/requirements.txt

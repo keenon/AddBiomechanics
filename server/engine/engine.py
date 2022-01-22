@@ -38,8 +38,17 @@ def processLocalSubjectFolder(path: str):
     print(subjectJson, flush=True)
 
     # 2.1. Get the basic measurements from _subject.json
-    massKg = float(subjectJson['massKg'])
-    heightM = float(subjectJson['heightM'])
+    if 'massKg' in subjectJson:
+        massKg = float(subjectJson['massKg'])
+    else:
+        print('!!WARNING!! No Mass specified for subject. Defaulting to 68 kg.')
+        massKg = 68.0
+
+    if 'heightM' in subjectJson:
+        heightM = float(subjectJson['heightM'])
+    else:
+        print('!!WARNING!! No Height specified for subject. Defaulting to 1.6 m.')
+        heightM = 1.6
 
     # 3. Load the unscaled Osim file, which we can then scale and format
     customOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
@@ -80,8 +89,28 @@ def processLocalSubjectFolder(path: str):
     fitter.setIterationLimit(300)
     # fitter.setInitialIKMaxRestarts(1)
     # fitter.setIterationLimit(2)
+
+    # Create an anthropometric prior
+    anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
+        '/data/ANSUR_metrics.xml')
+    cols = anthropometrics.getMetricNames()
+    cols.append('Heightin')
+    cols.append('Weightlbs')
+    gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
+        '/data/ANSUR_II_MALE_Public.csv',
+        cols,
+        0.001)  # mm -> m
+    observedValues = {
+        'Heightin': heightM * 39.37 * 0.001,
+        'Weightlbs': massKg * 0.453 * 0.001,
+    }
+    gauss = gauss.condition(observedValues)
+    anthropometrics.setDistribution(gauss)
+    fitter.setAnthropometricPrior(anthropometrics, 0.1)
+
+    # Run the kinematics pipeline
     result: nimble.biomechanics.MarkerInitialization = fitter.runKinematicsPipeline(
-        markerTrajectories.markerTimesteps, nimble.biomechanics.InitialMarkerFitParams())
+        markerTrajectories.markerTimesteps, nimble.biomechanics.InitialMarkerFitParams(), 50)
     customOsim.skeleton.setGroupScales(result.groupScales)
     fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
                                 np.ndarray]] = result.updatedMarkerMap
@@ -107,7 +136,8 @@ def processLocalSubjectFolder(path: str):
         os.mkdir(path+'results')
     print('Outputting OpenSim files', flush=True)
     # 8.2.1. Write the XML instructions for the OpenSim scaling tool
-    nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(customOsim.skeleton, massKg, heightM, path + 'unscaled_generic.osim', path + 'results/rescaled.osim', path + 'scaling_instructions.xml')
+    nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
+        customOsim.skeleton, massKg, heightM, path + 'unscaled_generic.osim', path + 'results/rescaled.osim', path + 'scaling_instructions.xml')
     # 8.2.2. Call the OpenSim scaling tool
     command = 'opensim-cmd run-tool ' + path + 'scaling_instructions.xml'
     print('Scaling OpenSim files: '+command)
@@ -116,23 +146,29 @@ def processLocalSubjectFolder(path: str):
     # 8.2.3. Write out the .mot files
     timestamps = [i * 0.001 for i in range(result.poses.shape[1])]
     print('Writing OpenSim .mot file')
-    nimble.biomechanics.OpenSimParser.saveMot(customOsim.skeleton, path + 'results/motion.mot', timestamps, result.poses)
+    nimble.biomechanics.OpenSimParser.saveMot(
+        customOsim.skeleton, path + 'results/motion.mot', timestamps, result.poses)
     print('Zipping up OpenSim files', flush=True)
     shutil.make_archive(path + 'osim_results', 'zip', path, 'results')
     print('Finished outputting OpenSim files', flush=True)
 
     # 8.2. Write out the animation preview
     # 8.2.1. Create the raw JSON
+    fitter.saveTrajectoryAndMarkersToGUI(
+        path+'preview.json', result, markerTrajectories.markerTimesteps)
+    """
     guiRecording = nimble.server.GUIRecording()
     for timestep in range(result.poses.shape[1]):
         customOsim.skeleton.setPositions(result.poses[:, timestep])
-        guiRecording.renderSkeleton(customOsim.skeleton, 'result', [-1, -1, -1, -1])
+        guiRecording.renderSkeleton(
+            customOsim.skeleton, 'result', [-1, -1, -1, -1])
         guiRecording.saveFrame()
     guiRecording.writeFramesJson(path+'preview.json')
+    """
     # 8.2.2. Zip it up
     print('Zipping up preview.json', flush=True)
     subprocess.run(["zip", "-r", path+'preview.json.zip', path +
-                   'preview.json'], capture_output=True)
+                    'preview.json'], capture_output=True)
     print('Finished zipping up preview.json.zip', flush=True)
 
     # counter = 0
