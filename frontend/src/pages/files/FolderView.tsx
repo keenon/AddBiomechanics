@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Dropdown, ButtonGroup, Table, Spinner } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
@@ -82,11 +82,22 @@ const FolderView = observer((props: FolderViewProps) => {
   });
 
   if (rows.length === 0) {
-    rows.push(
-      <tr key="empty">
-        <td colSpan={4}>This folder is empty!</td>
-      </tr>
-    );
+    if (props.cursor.getIsLoading()) {
+      rows.push(
+        <tr key="loading">
+          <td colSpan={4}>
+            <Spinner animation="border" />
+          </td>
+        </tr>
+      );
+    }
+    else {
+      rows.push(
+        <tr key="empty">
+          <td colSpan={4}>This folder is empty!</td>
+        </tr>
+      );
+    }
   }
   return (
     <Table

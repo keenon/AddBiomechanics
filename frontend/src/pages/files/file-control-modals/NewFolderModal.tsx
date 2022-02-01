@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Modal, Button, Spinner, Form, InputGroup } from "react-bootstrap";
+import { Modal, Button, Spinner, Form } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 import MocapS3Cursor from '../../../state/MocapS3Cursor';
 
@@ -52,7 +52,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
       setValid(false);
     } else if (valid) {
       setLoading(true);
-      if (typeToCreate == "Trial") {
+      if (typeToCreate === "Trial") {
         props.cursor
           .createTrial(folderName)
           .then(() => {
@@ -64,7 +64,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
             setError(e);
           });
       }
-      else if (typeToCreate == "Subject") {
+      else if (typeToCreate === "Subject") {
         props.cursor
           .createMocapClip(folderName)
           .then(() => {
@@ -92,7 +92,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
 
   let body = [];
   if (loading) {
-    body.push(<Spinner animation="grow" />);
+    body.push(<Spinner animation="grow" key="pending" />);
   } else {
     if (error) {
       body.push(<div key="error">{error}</div>);

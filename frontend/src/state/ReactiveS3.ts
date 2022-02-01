@@ -1,7 +1,5 @@
 import { makeAutoObservable, action } from 'mobx';
-import Storage from "@aws-amplify/storage";
-import PubSub from "@aws-amplify/pubsub";
-import Auth from "@aws-amplify/auth";
+import { PubSub, Auth, Storage } from "aws-amplify";
 import {
     S3ProviderListOutput,
     S3ProviderListOutputItem,
@@ -44,6 +42,11 @@ function makeTopicPubSubSafe(path: string) {
     return path;
 }
 
+function ensurePathEndsWithSlash(path: string): string {
+    if (path.endsWith("/") || path.length === 0) return path;
+    else return path + "/";
+}
+
 /// This is a cacheing layer for mobx-style interaction with JSON files stored in S3. This handles doing the downloading, parsing, 
 /// and re-uploading in the background.
 class ReactiveJsonFile {
@@ -75,12 +78,17 @@ class ReactiveJsonFile {
      * This gets called when the path has changed in the supporting cursor
      */
     pathChanged = () => {
-        this.cursor.downloadText(this.path).then((text: string) => {
-            const result = JSON.parse(text);
-            for (let key in result) {
-                this.values.set(key, result[key]);
-            }
-        });
+        if (this.fileExist()) {
+            this.cursor.downloadText(this.path).then((text: string) => {
+                const result = JSON.parse(text);
+                for (let key in result) {
+                    this.values.set(key, result[key]);
+                }
+            });
+        }
+        else {
+            this.values.clear();
+        }
     };
 
     /**
@@ -145,6 +153,7 @@ class ReactiveCursor {
     metadata: ReactiveFileMetadata | null;
     children: Map<string, ReactiveFileMetadata>;
     jsonFiles: Map<string, ReactiveJsonFile>;
+    loading: boolean;
 
     constructor(index: ReactiveIndex, path: string) {
         this.index = index;
@@ -152,6 +161,10 @@ class ReactiveCursor {
         this.metadata = null;
         this.children = new Map();
         this.jsonFiles = new Map();
+        this.index.addLoadingListener(action((loading: boolean) => {
+            this.loading = loading;
+        }));
+        this.loading = this.index.loading;
 
         makeAutoObservable(this);
 
@@ -180,6 +193,13 @@ class ReactiveCursor {
         // Add new listeners for changes at the current path
         this.index.addMetadataListener(this.path, this._metadataListener);
         this.index.addChildrenListener(this.path, this._onChildrenListener);
+    };
+
+    /**
+     * @returns True if the S3 index is refreshing
+     */
+    getIsLoading = () => {
+        return this.loading;
     };
 
     /**
@@ -357,10 +377,7 @@ class ReactiveCursor {
      * @returns a promise for successful upload
      */
     uploadChild = (childPath: string, contents: File | string, progressCallback: (percentage: number) => void = () => { }) => {
-        let myPath = this.path;
-        if (!myPath.endsWith("/")) {
-            myPath += "/";
-        }
+        let myPath = ensurePathEndsWithSlash(this.path);
 
         return this.index.upload(myPath + childPath, contents, progressCallback);
     };
@@ -371,9 +388,7 @@ class ReactiveCursor {
     downloadFile = (childPath?: string) => {
         let myPath = this.path;
         if (childPath != null) {
-            if (!myPath.endsWith("/")) {
-                myPath += "/";
-            }
+            myPath = ensurePathEndsWithSlash(myPath);
             myPath += childPath;
         }
 
@@ -388,9 +403,7 @@ class ReactiveCursor {
     downloadText = (childPath?: string) => {
         let myPath = this.path;
         if (childPath != null) {
-            if (!myPath.endsWith("/")) {
-                myPath += "/";
-            }
+            myPath = ensurePathEndsWithSlash(myPath);
             myPath += childPath;
         }
 
@@ -405,9 +418,7 @@ class ReactiveCursor {
     downloadZip = (childPath?: string, progressCallback?: (progress: number) => void) => {
         let myPath = this.path;
         if (childPath != null) {
-            if (!myPath.endsWith("/")) {
-                myPath += "/";
-            }
+            myPath = ensurePathEndsWithSlash(myPath);
             myPath += childPath;
         }
 
@@ -428,9 +439,7 @@ class ReactiveCursor {
      */
     deleteChild = (childPath: string) => {
         let myPath = this.path;
-        if (!myPath.endsWith("/")) {
-            myPath += "/";
-        }
+        myPath = ensurePathEndsWithSlash(myPath);
 
         return this.index.delete(myPath + childPath);
     };
@@ -443,9 +452,7 @@ class ReactiveCursor {
     deleteByPrefix = (prefix: string) => {
         let totalPrefix = this.path;
         if (this.path.length > 0 && prefix.length > 0) {
-            if (!totalPrefix.endsWith("/")) {
-                totalPrefix += "/";
-            }
+            totalPrefix = ensurePathEndsWithSlash(totalPrefix);
             totalPrefix += prefix;
         }
         else {
@@ -491,6 +498,10 @@ class ReactiveIndex {
     pubsubDeleteListener: ZenObservable.Subscription | null = null;
     pubsubIsReconnecting: boolean = false;
 
+    // We initialize as "loading", because we haven't loaded the relevant file index yet
+    loading: boolean = true;
+    loadingListeners: Array<(loading: boolean) => void> = [];
+
     constructor(level: 'protected' | 'public', runNetworkSetup: boolean = true) {
         this.level = level;
 
@@ -505,11 +516,11 @@ class ReactiveIndex {
      * If you call the constructor with `runNetworkSetup = false`, then you can use this method later to set up the network for this index.
      */
     setupPubsub = () => {
-        if (this.level == 'public') {
+        if (this.level === 'public') {
             this.globalPrefix = 'public/';
             this.registerPubSubListeners();
         }
-        else if (this.level == 'protected') {
+        else if (this.level === 'protected') {
             Auth.currentCredentials().then((credentials) => {
                 this.globalPrefix = "protected/" + credentials.identityId + "/";
                 this.registerPubSubListeners();
@@ -631,6 +642,10 @@ class ReactiveIndex {
             throw new Error(
                 'Result of downloading "' + path + "\" didn't have a Body"
             );
+        }).catch(e => {
+            console.log("DownloadText() error: " + path);
+            console.log(e);
+            return '';
         });
     };
 
@@ -743,10 +758,13 @@ class ReactiveIndex {
      * This does a complete refresh, overwriting the paths
      */
     fullRefresh = () => {
+        this.setIsLoading(true);
         // 1. Make the remote API call to list all the objects in this bucket
         return Storage.list("", { level: this.level })
             .then(
                 (result: S3ProviderListOutput) => {
+                    this.setIsLoading(false);
+
                     // 2. Update the set of files
 
                     // 2.1. Build a map of the updated set of objects
@@ -782,6 +800,7 @@ class ReactiveIndex {
                 }
             )
             .catch((err: Error) => {
+                this.setIsLoading(false);
                 console.error('Unable to refresh index type "' + this.level + '"');
                 console.log(err);
             });
@@ -852,6 +871,32 @@ class ReactiveIndex {
     };
 
     /**
+     * @returns True if the index is currently loading
+     */
+    getIsLoading = () => {
+        return this.loading;
+    };
+
+    /**
+     * Sets the loading flag, and calls any listeners.
+     */
+    setIsLoading = (loading: boolean) => {
+        if (loading !== this.loading) {
+            this.loading = loading;
+            this.loadingListeners.forEach((listener) => {
+                listener(loading);
+            });
+        }
+    };
+
+    /**
+     * This adds a listener that gets called when the loading state of the index changes.
+     */
+    addLoadingListener = (onLoading: (loading: boolean) => void) => {
+        this.loadingListeners.push(onLoading);
+    };
+
+    /**
      * This returns true if a file exists, and false if it doesn't.
      * 
      * @param path The exact path to check
@@ -883,7 +928,7 @@ class ReactiveIndex {
      */
     removeMetadataListener = (path: string, onUpdate: (exists: ReactiveFileMetadata | null) => void) => {
         const index: number = this.metadataListeners.get(path)?.indexOf(onUpdate) ?? -1;
-        if (index != -1) {
+        if (index !== -1) {
             this.metadataListeners.get(path)?.splice(index, 1);
         }
     };
@@ -895,12 +940,12 @@ class ReactiveIndex {
      * @returns A map where keys are sub-paths, and values are file information
      */
     getChildren = (path: string) => {
-        if (path != '' && !path.endsWith('/')) path = path + '/';
+        if (path !== '' && !path.endsWith('/')) path = path + '/';
 
         let children: Map<string, ReactiveFileMetadata> = new Map();
 
         this.files.forEach((file: ReactiveFileMetadata, key: string) => {
-            if (key.startsWith(path) && key != path) {
+            if (key.startsWith(path) && key !== path) {
                 let suffix = key.substring(path.length);
                 children.set(suffix, file);
             }
@@ -930,7 +975,7 @@ class ReactiveIndex {
      */
     removeChildrenListener = (path: string, onChange: (children: Map<string, ReactiveFileMetadata>) => void) => {
         const index: number = this.childrenListeners.get(path)?.indexOf(onChange) ?? -1;
-        if (index != -1) {
+        if (index !== -1) {
             this.childrenListeners.get(path)?.splice(index, 1);
         }
     };

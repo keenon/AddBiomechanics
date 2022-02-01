@@ -1,7 +1,6 @@
 // @flow
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { Dropdown } from "react-bootstrap";
 import { Auth } from "aws-amplify";
 import { CognitoUser } from "amazon-cognito-identity-js";
 
@@ -10,7 +9,6 @@ const STATE_LOGGED_IN = "logged-in";
 const STATE_LOGGED_OUT = "logged-out";
 
 const ProfileDropdown = () => {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [loggedInState, setLoggedInState] = useState(STATE_LOADING);
 
@@ -23,18 +21,11 @@ const ProfileDropdown = () => {
       setLoggedInState(STATE_LOGGED_OUT);
     });
 
-  /*
-   * toggle profile-dropdown
-   */
-  const toggleDropdown = () => {
-    setDropdownOpen(!dropdownOpen);
-  };
-
   let contents;
 
-  if (loggedInState == STATE_LOADING) {
+  if (loggedInState === STATE_LOADING) {
     contents = <>Loading...</>;
-  } else if (loggedInState == STATE_LOGGED_IN) {
+  } else if (loggedInState === STATE_LOGGED_IN) {
     contents = (
       <>
         {email}
@@ -46,7 +37,7 @@ const ProfileDropdown = () => {
         </Link>
       </>
     );
-  } else if (loggedInState == STATE_LOGGED_OUT) {
+  } else if (loggedInState === STATE_LOGGED_OUT) {
     contents = (
       <>
         Guest{"  "}

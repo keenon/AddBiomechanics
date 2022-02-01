@@ -6,14 +6,6 @@
     "@aws-amplify/ui-react": "^1.2.23",
     "@hookform/resolvers": "^2.8.3",
     "@popperjs/core": "^2.10.2",
-    "@testing-library/jest-dom": "^5.11.4",
-    "@testing-library/react": "^11.1.0",
-    "@testing-library/user-event": "^12.1.10",
-    "@types/jest": "^27.0.3",
-    "@types/node": "^16.11.7",
-    "@types/react": "^17.0.34",
-    "@types/react-dom": "^17.0.11",
-    "@types/react-transition-group": "^4.4.4",
     "aws-amplify": "^4.3.5",
     "bootstrap": "^5.0.2",
     "history": "5",
@@ -26,15 +18,29 @@
     "react-bootstrap": "^2.0.2",
     "react-dom": "^17.0.2",
     "react-dropzone": "^11.4.2",
+    "react-error-overlay": "6.0.9",
     "react-hook-form": "^7.19.5",
     "react-i18next": "^11.14.0",
     "react-router-dom": "6",
     "react-scripts": "4.0.3",
     "react-transition-group": "^4.4.2",
+    "yup": "^0.32.11"
+  },
+  "resolutions": {
+    "react-error-overlay": "6.0.9"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^5.11.4",
+    "@testing-library/react": "^11.1.0",
+    "@testing-library/user-event": "^12.1.10",
+    "@types/jest": "^27.0.3",
+    "@types/node": "^16.11.7",
+    "@types/react": "^17.0.34",
+    "@types/react-dom": "^17.0.11",
+    "@types/react-transition-group": "^4.4.4",
     "sass": "^1.43.4",
     "typescript": "^4.4.4",
-    "web-vitals": "^1.0.1",
-    "yup": "^0.32.11"
+    "web-vitals": "^1.0.1"
   },
   "scripts": {
     "start": "react-scripts start",

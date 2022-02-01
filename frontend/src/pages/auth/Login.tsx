@@ -69,7 +69,7 @@ const Login = (props: LoginProps) => {
       })
       .catch((reason: Error) => {
         setLoading(false);
-        if (reason.name == "UserNotConfirmedException") {
+        if (reason.name === "UserNotConfirmedException") {
           navigate(
             {
               pathname: "/enter-confirmation-code",

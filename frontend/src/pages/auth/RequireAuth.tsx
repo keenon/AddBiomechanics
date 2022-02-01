@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Navigate, useLocation, Outlet } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { Auth } from "aws-amplify";
 
 function RequireAuth() {
@@ -18,11 +17,11 @@ function RequireAuth() {
       setAuthState("unauthenticated");
     });
 
-  if (authState == "authenticated") {
+  if (authState === "authenticated") {
     return <Outlet />;
-  } else if (authState == "unauthenticated") {
+  } else if (authState === "unauthenticated") {
     return <Navigate to="/login" replace={true} state={{ from: location }} />;
-  } else if (authState == "loading" || true) {
+  } else if (authState === "loading" || true) {
     return <div>Loading...</div>;
   }
 }

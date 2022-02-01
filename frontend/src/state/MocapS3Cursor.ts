@@ -52,6 +52,7 @@ class LargeZipJsonObject {
 
 class MocapS3Cursor {
     urlPath: string;
+    dataPrefix: string;
     rawCursor: ReactiveCursor;
     publicS3Index: ReactiveIndex;
     protectedS3Index: ReactiveIndex;
@@ -67,7 +68,9 @@ class MocapS3Cursor {
     constructor(publicS3Index: ReactiveIndex, protectedS3Index: ReactiveIndex) {
         const parsedUrl = this.parseUrlPath(window.location.pathname);
 
-        this.rawCursor = new ReactiveCursor(parsedUrl.isPublic ? publicS3Index : protectedS3Index, parsedUrl.path);
+        this.dataPrefix = 'data/';
+
+        this.rawCursor = new ReactiveCursor(parsedUrl.isPublic ? publicS3Index : protectedS3Index, this.dataPrefix + parsedUrl.path);
         this.publicS3Index = publicS3Index;
         this.protectedS3Index = protectedS3Index;
         this.urlError = parsedUrl.error;
@@ -95,7 +98,7 @@ class MocapS3Cursor {
         let error: boolean = false;
 
         // 1. Set an error state if the path is empty
-        if (urlPath.length == 0) {
+        if (urlPath.length === 0) {
             error = true;
             return { isPublic, path, error };
         }
@@ -143,7 +146,7 @@ class MocapS3Cursor {
      * 
      * @param path The portion of the URL after the /, and before the ?
      */
-    setUrlPath = (urlPath: string) => {
+    setUrlPath = action((urlPath: string) => {
         if (urlPath === this.urlPath) return;
         this.urlPath = urlPath;
 
@@ -152,7 +155,7 @@ class MocapS3Cursor {
 
         this.urlError = parsedUrl.error;
         this.rawCursor.setIndex(parsedUrl.isPublic ? this.publicS3Index : this.protectedS3Index);
-        this.rawCursor.setPath(parsedUrl.path);
+        this.rawCursor.setPath(this.dataPrefix + parsedUrl.path);
 
         // Subject state
         this.showValidationControls = this.rawCursor.getExists("manually_scaled.osim");
@@ -161,7 +164,7 @@ class MocapS3Cursor {
         this.cachedLogFiles.clear();
         this.cachedResultsFiles.clear();
         this.cachedVisulizationFiles.clear();
-    };
+    });
 
     /**
      * @returns True if the cursor is pointing at readonly (i.e. public) data
@@ -192,6 +195,13 @@ class MocapS3Cursor {
     getFileType = () => {
         const hasChildren: boolean = this.rawCursor.hasChildren();
         const exists: boolean = this.rawCursor.getExists();
+        const parsedPath = this.parseUrlPath(this.urlPath);
+        // Special case: this happens when a user has just created an account, but hasn't uploaded anything yet.
+        // If we're in the root of our private folder, even if no files uploaded yet, always treat this as a folder.
+        if (!exists && !hasChildren && !parsedPath.isPublic && parsedPath.path === '') {
+            return "folder";
+        }
+        // Otherwise say 404
         if (this.urlError || (!exists && !hasChildren)) {
             return "not-found";
         }
@@ -202,6 +212,13 @@ class MocapS3Cursor {
             return "folder";
         }
     };
+
+    /**
+     * @returns True if the S3 index is currently refreshing
+     */
+    getIsLoading = () => {
+        return this.rawCursor.getIsLoading();
+    }
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Folder controls
@@ -236,7 +253,9 @@ class MocapS3Cursor {
      */
     getFolderContents = (of: string = '') => {
         let contents: MocapFolderEntry[] = [];
+        console.log('child folders of "' + of + '"');
         let rawFolders = this.rawCursor.getImmediateChildFolders(of);
+        console.log(rawFolders);
         let hrefPrefix = this.urlPath;
         if (!hrefPrefix.endsWith('/')) hrefPrefix += '/';
 
@@ -339,8 +358,8 @@ class MocapS3Cursor {
     getTrialStatus = (trialName: string) => {
         const markersMetadata = this.rawCursor.getChildMetadata("trials/" + trialName + "/markers.trc");
 
-        const hasIK = this.rawCursor.getExists("trials/" + trialName + "/gold_ik.mot");
-        const hasGRF = this.rawCursor.getExists("trials/" + trialName + "/grf.mot");
+        // const hasIK = this.rawCursor.getExists("trials/" + trialName + "/gold_ik.mot");
+        // const hasGRF = this.rawCursor.getExists("trials/" + trialName + "/grf.mot");
         const hasReadyToProcessFlag = this.rawCursor.getExists("trials/" + trialName + "/READY_TO_PROCESS");
         const hasProcessingFlag = this.rawCursor.getExists("trials/" + trialName + "/PROCESSING");
 

@@ -1,5 +1,5 @@
 // @flow
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useState } from "react";
 import { Container } from "react-bootstrap";
 import { Outlet } from "react-router";
 import Topbar from "./Topbar";

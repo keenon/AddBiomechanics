@@ -1,15 +1,13 @@
 // @flow
-import React, { useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import classNames from "classnames";
 
 // components
-import LanguageDropdown from "../components/LanguageDropdown";
 import ProfileDropdown from "../components/ProfileDropdown";
 
 import logo from "../assets/images/logo-black-sm.svg";
 import logoSmall from "../assets/images/logo-black-xs.svg";
-import { propTypes } from "react-bootstrap/esm/Image";
 
 type TopbarProps = {
   hideLogo?: boolean;

@@ -1,11 +1,10 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import FolderView from "./FolderView";
 import MocapSubjectView from "../mocap/MocapSubjectView";
 import { Breadcrumb, BreadcrumbItem, Spinner } from "react-bootstrap";
 import MocapS3Cursor from "../../state/MocapS3Cursor";
 import { observer } from "mobx-react-lite";
-import { autorun } from "mobx";
 
 type FileRouterProps = {
   isRootFolderPublic: boolean;
@@ -16,10 +15,13 @@ type FileRouterProps = {
 const FileRouter = observer((props: FileRouterProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  props.cursor.setUrlPath(location.pathname);
+
+  useEffect(() => {
+    props.cursor.setUrlPath(location.pathname);
+  }, [props.cursor, location.pathname]);
 
   const path = location.pathname.split('/');
-  while (path.length > 0 && (path[0] == props.linkPrefix) || (path[0] == '')) {
+  while (path.length > 0 && ((path[0] === props.linkPrefix) || (path[0] === ''))) {
     path.splice(0, 1);
   }
 
@@ -37,6 +39,7 @@ const FileRouter = observer((props: FileRouterProps) => {
         navigate("/" + props.linkPrefix);
       }}
       active={path.length === 0}
+      key="header"
     >
       {props.isRootFolderPublic ? "Public" : "My Data"}
     </BreadcrumbItem>
@@ -54,6 +57,7 @@ const FileRouter = observer((props: FileRouterProps) => {
           };
         })(linkPath)}
         active={i === path.length - 1}
+        key={"path" + i}
       >
         {path[i]}
       </BreadcrumbItem>
@@ -76,11 +80,18 @@ const FileRouter = observer((props: FileRouterProps) => {
     );
   }
   else if (type === 'not-found') {
-    body = (
-      <div>
-        404 Not Found!
-      </div>
-    );
+    if (props.cursor.getIsLoading()) {
+      body = (
+        <Spinner animation="border" />
+      );
+    }
+    else {
+      body = (
+        <div>
+          404 Not Found!
+        </div>
+      );
+    }
   }
 
   return (

@@ -1,7 +1,6 @@
 import React, { useEffect, ReactNode } from "react";
 import { Container, Row, Col, Card } from "react-bootstrap";
 import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 
 import Logo from "../../assets/images/logo-white.svg";
 
@@ -11,8 +10,6 @@ type AccountLayoutProps = {
 };
 
 const AccountLayout = ({ bottomLinks, children }: AccountLayoutProps) => {
-  const { t } = useTranslation();
-
   useEffect(() => {
     if (document.body) document.body.classList.add("authentication-bg");
 

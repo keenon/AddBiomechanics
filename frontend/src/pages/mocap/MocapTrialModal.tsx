@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Modal, Button, Spinner, Table } from "react-bootstrap";
-import RawFileDisplay from "../../components/RawFileDisplay";
 import { observer } from "mobx-react-lite";
 import MocapS3Cursor, { LargeZipJsonObject } from '../../state/MocapS3Cursor';
 import NimbleStandaloneReact from 'nimble-visualizer/dist/NimbleStandaloneReact';
@@ -81,7 +80,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
         }
         // This cleans up our log listener
         return props.cursor.subscribeToLogUpdates(trial?.key, onLogLine);
-    }, [trialNumber, show, trialStatus]);
+    }, [trialNumber, show, trialStatus, props.cursor, trial]);
 
     if (!show || trial == null) {
         return <></>;

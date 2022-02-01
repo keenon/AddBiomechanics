@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { observer } from "mobx-react-lite";
 import "./MocapView.scss";
@@ -6,17 +6,11 @@ import {
   Button,
   ButtonGroup,
   Dropdown,
-  Form,
   Table,
-  Accordion,
-  Spinner,
-  ProgressBar,
 } from "react-bootstrap";
 import DropFile from "../../components/DropFile";
 import Dropzone from "react-dropzone";
-import { useTranslation } from "react-i18next";
 import MocapTrialModal from "./MocapTrialModal";
-import { action } from "mobx";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
 
 type MocapTrialRowViewProps = {
@@ -107,7 +101,6 @@ type MocapSubjectViewProps = {
 };
 
 const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
-  const { t } = useTranslation();
   const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
   const navigate = useNavigate();
 

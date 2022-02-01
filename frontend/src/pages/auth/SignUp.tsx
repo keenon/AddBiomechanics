@@ -7,10 +7,8 @@ import {
   Link,
   useNavigate,
   useLocation,
-  createSearchParams,
-  useSearchParams,
+  createSearchParams
 } from "react-router-dom";
-import { Trans } from "react-i18next";
 import { Auth } from "aws-amplify";
 
 import VerticalForm from "../../components/VerticalForm";

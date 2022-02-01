@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Row,
@@ -6,8 +6,6 @@ import {
   Card,
   Dropdown,
   ButtonGroup,
-  Modal,
-  Button,
 } from "react-bootstrap";
 import NewFolderModal from "./file-control-modals/NewFolderModal";
 import DeleteFolderModal from "./file-control-modals/DeleteFolderModal";
@@ -25,7 +23,7 @@ const FileManager = observer((props: FileManagerProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const path = location.pathname.split('/');
-  while (path.length > 0 && (path[0] == props.linkPrefix) || (path[0] == '')) {
+  while (path.length > 0 && ((path[0] === props.linkPrefix) || (path[0] === ''))) {
     path.splice(0, 1);
   }
 

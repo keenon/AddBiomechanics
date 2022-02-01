@@ -1,17 +1,15 @@
 // @flow
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Button, Alert, Row, Col } from "react-bootstrap";
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { useTranslation } from "react-i18next";
 import {
   Link,
-  useNavigate,
   useLocation,
   createSearchParams,
   useSearchParams,
 } from "react-router-dom";
-import { Trans } from "react-i18next";
 import { Auth } from "aws-amplify";
 
 // components
@@ -45,13 +43,12 @@ const BottomLink = () => {
 
 const ConfirmUser = () => {
   const { t } = useTranslation();
-  let navigate = useNavigate();
   let location = useLocation();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [email, setEmail] = useState("");
   const [error, setError] = useState(null as null | string);
-  let [searchParams, setSearchParams] = useSearchParams();
+  let searchParams = useSearchParams()[0];
+  const emailRef = useRef(null as HTMLInputElement | null);
 
   function handleSubmit(value: { [key: string]: any }) {
     let email = value["email"] as string;
@@ -112,7 +109,7 @@ const ConfirmUser = () => {
             <Link
               to={{
                 pathname: "/login",
-                search: `?${createSearchParams({ email })}`,
+                search: `?${createSearchParams({ email: (emailRef.current != null ? emailRef.current.value : "") })}`,
               }}
               state={{ from: location.state?.from }}
             >
@@ -137,6 +134,7 @@ const ConfirmUser = () => {
             type="text"
             name="email"
             placeholder={t("Enter your email")}
+            refCallback={emailRef}
             containerClass={"mb-3"}
           />
           <FormInput

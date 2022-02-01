@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Form, ProgressBar, InputGroup, Button } from "react-bootstrap";
+import { ProgressBar } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 import MocapS3Cursor from '../state/MocapS3Cursor';
 import { humanFileSize } from '../utils';
@@ -26,13 +26,13 @@ const DropFile = observer((props: DropFileProps) => {
                 setIsUploading(false);
             }));
         }
-    }, []);
+    }, [props.cursor.rawCursor, props.path, props.uploadOnMount]);
 
     let body = <></>;
 
     if (props.cursor.dataIsReadonly()) {
         if (metadata != null) {
-            return (<a href="#" onClick={() => props.cursor.rawCursor.downloadFile(props.path)}>Download</a>);
+            return (<button onClick={() => props.cursor.rawCursor.downloadFile(props.path)}>Download</button>);
         }
         else {
             return <></>;
