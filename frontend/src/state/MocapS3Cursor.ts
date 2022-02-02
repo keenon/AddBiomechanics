@@ -151,7 +151,6 @@ class MocapS3Cursor {
         this.urlPath = urlPath;
 
         const parsedUrl = this.parseUrlPath(this.urlPath);
-        console.log("Setting url path to " + urlPath, parsedUrl);
 
         this.urlError = parsedUrl.error;
         this.rawCursor.setIndex(parsedUrl.isPublic ? this.publicS3Index : this.protectedS3Index);
@@ -220,6 +219,20 @@ class MocapS3Cursor {
         return this.rawCursor.getIsLoading();
     }
 
+    /**
+     * This returns true if there are any active network errors
+     */
+    hasNetworkErrors = () => {
+        return this.rawCursor.hasNetworkErrors();
+    };
+
+    /**
+     * @returns A list of human-readable strings describing the currently active errors.
+     */
+    getNetworkErrors = () => {
+        return this.rawCursor.getNetworkErrors();
+    };
+
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Folder controls
     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -253,9 +266,7 @@ class MocapS3Cursor {
      */
     getFolderContents = (of: string = '') => {
         let contents: MocapFolderEntry[] = [];
-        console.log('child folders of "' + of + '"');
         let rawFolders = this.rawCursor.getImmediateChildFolders(of);
-        console.log(rawFolders);
         let hrefPrefix = this.urlPath;
         if (!hrefPrefix.endsWith('/')) hrefPrefix += '/';
 

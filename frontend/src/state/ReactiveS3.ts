@@ -6,6 +6,7 @@ import {
 } from "@aws-amplify/storage";
 import { ZenObservable } from 'zen-observable-ts';
 import JSZip from 'jszip';
+import RobustMqtt from './RobustMqtt';
 
 /**
  * This strips any illegal characters from a PubSub path (or subset of a path), and returns what's left
@@ -80,9 +81,15 @@ class ReactiveJsonFile {
     pathChanged = () => {
         if (this.fileExist()) {
             this.cursor.downloadText(this.path).then((text: string) => {
-                const result = JSON.parse(text);
-                for (let key in result) {
-                    this.values.set(key, result[key]);
+                try {
+                    const result = JSON.parse(text);
+                    for (let key in result) {
+                        this.values.set(key, result[key]);
+                    }
+                }
+                catch (e) {
+                    console.error("Bad JSON format for file \"" + this.path + "\", got: \"" + text + "\"");
+                    this.values.clear();
                 }
             });
         }
@@ -154,6 +161,7 @@ class ReactiveCursor {
     children: Map<string, ReactiveFileMetadata>;
     jsonFiles: Map<string, ReactiveJsonFile>;
     loading: boolean;
+    networkErrors: string[];
 
     constructor(index: ReactiveIndex, path: string) {
         this.index = index;
@@ -161,10 +169,17 @@ class ReactiveCursor {
         this.metadata = null;
         this.children = new Map();
         this.jsonFiles = new Map();
+
         this.index.addLoadingListener(action((loading: boolean) => {
             this.loading = loading;
         }));
         this.loading = this.index.loading;
+
+        this.networkErrors = [];
+        this.index.addNetworkErrorListener(action((errors: string[]) => {
+            this.networkErrors = errors;
+            console.log("Got network error listener called: " + JSON.stringify(errors));
+        }));
 
         makeAutoObservable(this);
 
@@ -200,6 +215,20 @@ class ReactiveCursor {
      */
     getIsLoading = () => {
         return this.loading;
+    };
+
+    /**
+     * This returns true if there are any active network errors
+     */
+    hasNetworkErrors = () => {
+        return this.networkErrors.length > 0;
+    };
+
+    /**
+     * @returns A list of human-readable strings describing the currently active errors.
+     */
+    getNetworkErrors = () => {
+        return this.networkErrors;
     };
 
     /**
@@ -493,17 +522,22 @@ class ReactiveIndex {
     childrenListeners: Map<string, Array<(children: Map<string, ReactiveFileMetadata>) => void>> = new Map();
     childrenLastNotified: Map<string, Map<string, ReactiveFileMetadata>> = new Map();
 
-    // This listens for updates to the files in this folder, and then re-fetches files as we're notified of changes to them.
-    pubsubUpdateListener: ZenObservable.Subscription | null = null;
-    pubsubDeleteListener: ZenObservable.Subscription | null = null;
-    pubsubIsReconnecting: boolean = false;
-
     // We initialize as "loading", because we haven't loaded the relevant file index yet
     loading: boolean = true;
     loadingListeners: Array<(loading: boolean) => void> = [];
 
-    constructor(level: 'protected' | 'public', runNetworkSetup: boolean = true) {
+    // This holds network error messages, one per key. Individual keys identify different errors that may have independent lifetimes.
+    // For example, an upload request may fail, and then retry and eventually resolve, with the key "UPLOAD", while a websocket glitch
+    // with key "SOCKET" could happen and then resolve at any time during that process.
+    networkErrors: Map<string, string> = new Map();
+    networkErrorListeners: Array<(errors: string[]) => void> = [];
+
+    // This is a handle on the PubSub socket object we'll use
+    socket: RobustMqtt;
+
+    constructor(level: 'protected' | 'public', runNetworkSetup: boolean = true, socket: RobustMqtt) {
         this.level = level;
+        this.socket = socket;
 
         // We don't want to run network setup in our unit tests
         if (runNetworkSetup) {
@@ -518,14 +552,15 @@ class ReactiveIndex {
     setupPubsub = () => {
         if (this.level === 'public') {
             this.globalPrefix = 'public/';
-            this.registerPubSubListeners();
+            return this.registerPubSubListeners();
         }
         else if (this.level === 'protected') {
-            Auth.currentCredentials().then((credentials) => {
+            return Auth.currentCredentials().then((credentials) => {
                 this.globalPrefix = "protected/" + credentials.identityId + "/";
-                this.registerPubSubListeners();
+                return this.registerPubSubListeners();
             });
         }
+        return Promise.resolve();
     };
 
     /**
@@ -547,23 +582,34 @@ class ReactiveIndex {
         console.log("Updating '" + topic + "' with " + JSON.stringify(updatedFile));
         return new Promise(
             (resolve: (value: void) => void, reject: (reason?: any) => void) => {
-                Storage.put(path, contents, {
-                    level: this.level,
-                    progressCallback: (progress) => {
-                        progressCallback(progress.loaded / progress.total);
-                    },
-                    completeCallback: action(() => {
-                        progressCallback(1.0);
-                        PubSub.publish(topic, updatedFile).then(() => resolve());
-                    }),
-                })
-                    .then(() => {
-                        progressCallback(1.0);
-                        PubSub.publish(topic, updatedFile).then(() => resolve());
+                try {
+                    Storage.put(path, contents, {
+                        level: this.level,
+                        progressCallback: (progress) => {
+                            progressCallback(progress.loaded / progress.total);
+                        },
+                        completeCallback: action(() => {
+                            progressCallback(1.0);
+                            this.clearNetworkError("Upload");
+                            this.socket.publish(topic, JSON.stringify(updatedFile)).then(() => resolve());
+                        }),
                     })
-                    .catch((e) => {
-                        reject(e);
-                    });
+                        .then(() => {
+                            progressCallback(1.0);
+                            this.clearNetworkError("Upload");
+                            this.socket.publish(topic, JSON.stringify(updatedFile)).then(() => resolve());
+                        })
+                        .catch((e) => {
+                            this.setNetworkError("Upload", "We got an error trying to upload a file!");
+                            console.error("Error on Storage.put(), caught in .catch() handler", e);
+                            reject(e);
+                        });
+                }
+                catch (e) {
+                    this.setNetworkError("Upload", "We got an error trying to upload a file!");
+                    console.error("Error on Storage.put(), caught in catch block", e);
+                    reject(e);
+                }
             }
         );
     }
@@ -579,7 +625,13 @@ class ReactiveIndex {
         const topic = makeTopicPubSubSafe("/DELETE/" + fullPath);
         return Storage.remove(path, { level: this.level })
             .then(() => {
-                return PubSub.publish(topic, { key: fullPath });
+                this.clearNetworkError("Delete");
+                return this.socket.publish(topic, JSON.stringify({ key: fullPath }));
+            }).catch(e => {
+                this.setNetworkError("Delete", "We got an error trying to delete a file!");
+                console.log("delete() error: " + path);
+                console.log(e);
+                throw e;
             });
     }
 
@@ -590,7 +642,7 @@ class ReactiveIndex {
      * @returns a promise that resolves when the full operation is complete
      */
     deleteByPrefix = (prefix: string) => {
-        let allPromises: Promise<void[]>[] = [];
+        let allPromises: Promise<void>[] = [];
         this.files.forEach((v, path: string) => {
             if (path.startsWith(prefix)) {
                 allPromises.push(this.delete(path));
@@ -615,10 +667,16 @@ class ReactiveIndex {
         return Storage.get(path, {
             level: this.level,
         }).then((signedURL) => {
+            this.clearNetworkError("Get");
             const link = document.createElement("a");
             link.href = signedURL;
             link.target = "#";
             link.click();
+        }).catch(e => {
+            this.setNetworkError("Get", "We got an error trying to download a file!");
+            console.log("DownloadFile() error: " + path);
+            console.log(e);
+            return '';
         });
     };
 
@@ -633,6 +691,7 @@ class ReactiveIndex {
             download: true,
             cacheControl: "no-cache",
         }).then((result) => {
+            this.clearNetworkError("Get");
             if (result != null && result.Body != null) {
                 // data.Body is a Blob
                 return (result.Body as Blob).text().then((text: string) => {
@@ -643,6 +702,7 @@ class ReactiveIndex {
                 'Result of downloading "' + path + "\" didn't have a Body"
             );
         }).catch(e => {
+            this.setNetworkError("Get", "We got an error trying to download a file!");
             console.log("DownloadText() error: " + path);
             console.log(e);
             return '';
@@ -662,6 +722,7 @@ class ReactiveIndex {
             cacheControl: "no-cache",
             progressCallback
         }).then((result) => {
+            this.clearNetworkError("Get");
             const zip = new JSZip();
             if (progressCallback) progressCallback(1.0);
             if (result != null && result.Body != null) {
@@ -673,7 +734,12 @@ class ReactiveIndex {
             throw new Error(
                 'Result of downloading "' + path + "\" didn't have a Body"
             );
-        });
+        }).catch(e => {
+            this.setNetworkError("Get", "We got an error trying to download a file!");
+            console.log("DownloadZip() error: " + path);
+            console.log(e);
+            return '';
+        });;
     };
 
     /**
@@ -764,6 +830,7 @@ class ReactiveIndex {
             .then(
                 (result: S3ProviderListOutput) => {
                     this.setIsLoading(false);
+                    this.clearNetworkError("FullRefresh");
 
                     // 2. Update the set of files
 
@@ -803,6 +870,7 @@ class ReactiveIndex {
                 this.setIsLoading(false);
                 console.error('Unable to refresh index type "' + this.level + '"');
                 console.log(err);
+                this.setNetworkError("FullRefresh", "We got an error trying to load the files! Attempting to reconnect...");
             });
     };
 
@@ -810,63 +878,85 @@ class ReactiveIndex {
      * This registers a PubSub listener for live change-updates on our S3 index
      */
     registerPubSubListeners = () => {
-        if (this.pubsubUpdateListener != null && !this.pubsubUpdateListener.closed) {
-            this.pubsubUpdateListener.unsubscribe();
-        }
-        if (this.pubsubDeleteListener != null && !this.pubsubDeleteListener.closed) {
-            this.pubsubDeleteListener.unsubscribe();
-        }
-
-        this.pubsubUpdateListener = PubSub.subscribe("/UPDATE/" + this.globalPrefix + "#").subscribe({
-            next: (msg) => {
-                const globalKey: string = msg.value.key;
-                const key: string = globalKey.substring(this.globalPrefix.length);
-                const lastModified: Date = new Date(msg.value.lastModified);
-                const size: number = msg.value.size;
-                this._onReceivedPubSubUpdate({
-                    key, lastModified, size
-                });
-            },
-            error: (error) => {
-                console.error("Error reported by " + this.level + " PubSub update listener:");
-                console.error(error);
-                this.reconnectPubSub();
-            },
-            complete: () => console.log("PubSub complete()"),
+        this.socket.subscribe("/UPDATE/" + this.globalPrefix + "#", (topic: string, message: string) => {
+            const msg: any = JSON.parse(message);
+            const globalKey: string = msg.key;
+            const key: string = globalKey.substring(this.globalPrefix.length);
+            const lastModified: Date = new Date(msg.lastModified);
+            const size: number = msg.size;
+            this._onReceivedPubSubUpdate({
+                key, lastModified, size
+            });
         });
-        this.pubsubDeleteListener = PubSub.subscribe("/DELETE/" + this.globalPrefix + "#").subscribe({
-            next: (msg) => {
-                const globalKey: string = msg.value.key;
-                const key: string = globalKey.substring(this.globalPrefix.length);
-                this._onReceivedPubSubDelete({ key });
-            },
-            error: (error) => {
-                console.error("Error reported by " + this.level + " PubSub delete listener:");
-                console.error(error);
-                this.reconnectPubSub();
-            },
-            complete: () => console.log("PubSub complete()"),
+
+        this.socket.subscribe("/DELETE/" + this.globalPrefix + "#", (topic: string, message: string) => {
+            const msg: any = JSON.parse(message);
+            const globalKey: string = msg.key;
+            const key: string = globalKey.substring(this.globalPrefix.length);
+            this._onReceivedPubSubDelete({ key });
+        });
+
+        this.socket.addConnectionListener((connected) => {
+            if (!connected) {
+                this.setNetworkError("PubSub", "We got an error in PubSub! Attempting to reconnect...");
+            }
+            else {
+                this.clearNetworkError("PubSub");
+            }
         });
     };
 
     /**
-     * Attempt to reconnect to PubSub after experiencing an error
-     * 
-     * @param delaySeconds The delay to wait before issuing the reconnect
+     * @returns a list of errors currently active
      */
-    reconnectPubSub = (delaySeconds: number = 2) => {
-        if (!this.pubsubIsReconnecting) {
-            this.pubsubIsReconnecting = true;
-            console.error("Disconnecting PubSub. Will attempt to re-register PubSub listeners after " + delaySeconds + " seconds...");
-            this.pubsubUpdateListener?.unsubscribe();
-            this.pubsubDeleteListener?.unsubscribe();
-            setTimeout(() => {
-                this.pubsubIsReconnecting = false;
-                console.log("Attempting to re-register PubSub listeners after " + delaySeconds + " seconds...");
-                this.registerPubSubListeners();
-                console.log("Issuing a full refresh to figure out what we may've missed");
-                this.fullRefresh();
-            }, delaySeconds * 1000);
+    getNetworkErrorMessages = () => {
+        let errorsList: { key: string, value: string }[] = [];
+
+        this.networkErrors.forEach((value: string, key: string) => {
+            errorsList.push({ key, value });
+        });
+
+        errorsList.sort((a, b) => a.key.localeCompare(b.key));
+        return errorsList.map((a) => a.value);
+    };
+
+    /**
+     * This adds a network error listener
+     * 
+     * @param listener the listener to add
+     */
+    addNetworkErrorListener = (listener: (errors: string[]) => void) => {
+        this.networkErrorListeners.push(listener);
+    }
+
+    /**
+     * Thes raises a network error (or overwrites the message displayed to the user).
+     * 
+     * @param key The key of the error, to allow us to clear this error later
+     * @param value The user-friendly text to (optionally) display to the user
+     */
+    setNetworkError = (key: string, value: string) => {
+        console.log("Setting network error " + key + "=" + value);
+        let oldErrors = this.getNetworkErrorMessages();
+        this.networkErrors.set(key, value);
+        let newErrors = this.getNetworkErrorMessages();
+        if (JSON.stringify(newErrors) !== JSON.stringify(oldErrors)) {
+            this.networkErrorListeners.forEach(listener => listener(newErrors));
+        }
+    };
+
+    /**
+     * This resolves a network error
+     * 
+     * @param key The key of the error, must match the key in setNetworkError()
+     */
+    clearNetworkError = (key: string) => {
+        console.log("Clearing network error " + key);
+        let oldErrors = this.getNetworkErrorMessages();
+        this.networkErrors.delete(key);
+        let newErrors = this.getNetworkErrorMessages();
+        if (JSON.stringify(newErrors) !== JSON.stringify(oldErrors)) {
+            this.networkErrorListeners.forEach(listener => listener(newErrors));
         }
     };
 

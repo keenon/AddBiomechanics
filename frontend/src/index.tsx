@@ -14,14 +14,17 @@ import HorizontalLayout from "./layouts/Horizontal";
 import FileRouter from "./pages/files/FileRouter";
 import FileControlsWrapper from "./pages/files/FileControlsWrapper";
 import Welcome from "./pages/Welcome";
+import ErrorDisplay from "./layouts/ErrorDisplay";
 
 import { ReactiveIndex } from "./state/ReactiveS3";
 import MocapS3Cursor from "./state/MocapS3Cursor";
-import Amplify, { API, Auth } from "aws-amplify";
+import Amplify, { API, Auth, ClientDevice, PubSub } from "aws-amplify";
 import { AWSIoTProvider } from "@aws-amplify/pubsub";
 import awsExports from "./aws-exports";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import RequireAuth from "./pages/auth/RequireAuth";
+import RobustMqtt from "./state/RobustMqtt";
+import { MqttClient } from "mqtt";
 
 // Verify TS is configured correctly
 if (
@@ -33,8 +36,14 @@ if (
 
 Amplify.configure(awsExports);
 
-const publicIndex = new ReactiveIndex("public", false);
-const myData = new ReactiveIndex("protected", false);
+const socket: RobustMqtt = new RobustMqtt("us-west-2", "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt", {
+  clean: true,
+  keepalive: 10,
+  reconnectPeriod: -1,
+  resubscribe: false
+});
+const publicIndex = new ReactiveIndex("public", false, socket);
+const myData = new ReactiveIndex("protected", false, socket);
 const cursor = new MocapS3Cursor(publicIndex, myData);
 
 function afterLogin() {
@@ -50,17 +59,9 @@ function afterLogin() {
         .then((response) => {
           console.log("Adding PubSub plugin...");
           // Apply plugin with configuration
-          Amplify.addPluggable(
-            new AWSIoTProvider({
-              aws_pubsub_region: "us-west-2",
-              aws_pubsub_endpoint:
-                "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt",
-            })
-          );
-          console.log("Adding PubSub subscribers...");
+          socket.connect();
           publicIndex.setupPubsub();
           myData.setupPubsub();
-          console.log("Success!");
         })
         .catch((error) => {
           console.log("Got error with PostAuthAPI!");
@@ -72,21 +73,17 @@ function afterLogin() {
 
 Auth.currentAuthenticatedUser()
   .then(() => {
+    console.log("Calling afterLogin()");
     afterLogin();
   })
   .catch(() => {
     // If we're not logged in, we can set up the PubSub provider right away
     console.log("Configuring AWSIoTProvider");
     // Apply plugin with configuration
-    Amplify.addPluggable(
-      new AWSIoTProvider({
-        aws_pubsub_region: "us-west-2",
-        aws_pubsub_endpoint:
-          "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt",
-      })
-    );
     publicIndex.fullRefresh().then(() => {
+      socket.connect();
       publicIndex.setupPubsub();
+      myData.setupPubsub();
     });
   });
 
@@ -96,63 +93,65 @@ const MY_DATA_URL_PREFIX = "my_data";
 ReactDOM.render(
   <BrowserRouter>
     <Routes>
-      <Route element={<HorizontalLayout />}>
-        <Route index element={<Welcome />} />
-        <Route
-          path={"/" + PUBLIC_DATA_URL_PREFIX + "/*"}
-          element={
-            <Row>
-              <Col md="12">
-                <Card className="mt-4">
-                  <Card.Body>
-                    <FileRouter
-                      cursor={cursor}
-                      isRootFolderPublic={true}
-                      linkPrefix={PUBLIC_DATA_URL_PREFIX}
-                    />
-                  </Card.Body>
-                </Card>
-              </Col>
-            </Row>
-          }
-        ></Route>
-        <Route path={"/" + MY_DATA_URL_PREFIX + "/*"} element={<RequireAuth />}>
+      <Route element={<ErrorDisplay cursor={cursor} />}>
+        <Route element={<HorizontalLayout />}>
+          <Route index element={<Welcome />} />
           <Route
+            path={"/" + PUBLIC_DATA_URL_PREFIX + "/*"}
             element={
-              <FileControlsWrapper
-                linkPrefix={MY_DATA_URL_PREFIX}
-                cursor={cursor}
-              />
+              <Row>
+                <Col md="12">
+                  <Card className="mt-4">
+                    <Card.Body>
+                      <FileRouter
+                        cursor={cursor}
+                        isRootFolderPublic={true}
+                        linkPrefix={PUBLIC_DATA_URL_PREFIX}
+                      />
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
             }
-          >
+          ></Route>
+          <Route path={"/" + MY_DATA_URL_PREFIX + "/*"} element={<RequireAuth />}>
             <Route
-              path="*"
               element={
-                <FileRouter
-                  cursor={cursor}
-                  isRootFolderPublic={false}
+                <FileControlsWrapper
                   linkPrefix={MY_DATA_URL_PREFIX}
+                  cursor={cursor}
                 />
               }
-            ></Route>
+            >
+              <Route
+                path="*"
+                element={
+                  <FileRouter
+                    cursor={cursor}
+                    isRootFolderPublic={false}
+                    linkPrefix={MY_DATA_URL_PREFIX}
+                  />
+                }
+              ></Route>
+            </Route>
           </Route>
         </Route>
+        <Route
+          path="/login"
+          element={
+            <Login
+              onLogin={() => {
+                afterLogin();
+              }}
+            />
+          }
+        ></Route>
+        <Route path="/logout" element={<Logout />}></Route>
+        <Route path="/sign-up" element={<SignUp />}></Route>
+        <Route path="/forgot-password" element={<ForgotPassword />}></Route>
+        <Route path="/reset-password" element={<ResetPassword />}></Route>
+        <Route path="/enter-confirmation-code" element={<ConfirmUser />}></Route>
       </Route>
-      <Route
-        path="/login"
-        element={
-          <Login
-            onLogin={() => {
-              afterLogin();
-            }}
-          />
-        }
-      ></Route>
-      <Route path="/logout" element={<Logout />}></Route>
-      <Route path="/sign-up" element={<SignUp />}></Route>
-      <Route path="/forgot-password" element={<ForgotPassword />}></Route>
-      <Route path="/reset-password" element={<ResetPassword />}></Route>
-      <Route path="/enter-confirmation-code" element={<ConfirmUser />}></Route>
     </Routes>
   </BrowserRouter>,
   document.getElementById("root")

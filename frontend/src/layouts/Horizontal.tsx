@@ -1,4 +1,3 @@
-// @flow
 import React, { Suspense, useState } from "react";
 import { Container } from "react-bootstrap";
 import { Outlet } from "react-router";

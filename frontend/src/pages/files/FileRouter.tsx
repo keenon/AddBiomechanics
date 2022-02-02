@@ -69,7 +69,6 @@ const FileRouter = observer((props: FileRouterProps) => {
   //////////////////////////////////////////////////////////////
 
   const type = props.cursor.getFileType();
-  console.log("Re-rendering FileRouter");
   let body = null;
   if (type === 'folder') {
     body = <FolderView cursor={props.cursor} />;
