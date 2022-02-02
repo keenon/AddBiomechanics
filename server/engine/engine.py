@@ -90,6 +90,15 @@ def processLocalSubjectFolder(path: str):
     # fitter.setInitialIKMaxRestarts(1)
     # fitter.setIterationLimit(2)
 
+    fitter.setTriadsToTracking()
+    # This is 0.7x the values in the default code
+    fitter.setRegularizeAnatomicalMarkerOffsets(0.7)
+    # This is 1.0x the default value
+    fitter.setRegularizeTrackingMarkerOffsets(0.05)
+    # These are 2x the values in the default code
+    fitter.setMinSphereFitScore(3e-5 * 2)
+    fitter.setMinAxisFitScore(6e-5 * 2)
+
     # Create an anthropometric prior
     anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
         '/data/ANSUR_metrics.xml')
