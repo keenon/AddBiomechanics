@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Modal, Button, Spinner, Form } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
@@ -19,6 +19,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
   const [valid, setValid] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   let show =
     location.search === "?new-folder" || location.search === "?new-subject" || location.search === '?new-trial';
@@ -26,6 +27,17 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
   useEffect(() => {
     setFolderName("");
   }, [show]);
+
+  // Autofocus doesn't work inside an animated modal, so this is a fix to get autofocus anyways
+  useEffect(() => {
+    if (show && inputRef.current) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [inputRef, show]);
 
   let typeToCreate: "Folder" | "Subject" | "Trial" = "Folder";
   let icon = "";
@@ -119,6 +131,7 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
                   setValid(true);
                 }
               }}
+              ref={inputRef}
               isInvalid={!valid}
             />
             <Form.Text className="text-muted">

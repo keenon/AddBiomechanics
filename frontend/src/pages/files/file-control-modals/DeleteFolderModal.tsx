@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Modal, Button, Spinner, Form } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
@@ -17,6 +17,7 @@ const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {
   const [valid, setValid] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   let show = location.search.startsWith("?delete-folder=");
   let folderToDelete = "";
@@ -31,6 +32,18 @@ const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {
       setFolderName("");
     }
   }, [show]);
+
+  // Autofocus doesn't work inside an animated modal, so this is a fix to get autofocus anyways
+  useEffect(() => {
+    if (show && inputRef.current) {
+      console.log(inputRef.current);
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [inputRef, show]);
 
   let hideModal = () => {
     navigate({ search: "" });
@@ -83,6 +96,7 @@ const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {
                   setValid(true);
                 }
               }}
+              ref={inputRef}
               isInvalid={!valid}
             />
             <Form.Text className="text-muted">

@@ -520,6 +520,17 @@ class MocapS3Cursor {
      * @param trialName The name of the trial to mark
      */
     markTrialReadyForProcessing = (trialName: string) => {
+        let weightValue = this.subjectJson.getAttribute("massKg", 0.0);
+        if (weightValue === 0) {
+            alert("Cannot process a trial with a subject weight of 0kg");
+            return;
+        }
+        let heightValue = this.subjectJson.getAttribute("heightM", 0.0);
+        if (heightValue === 0) {
+            alert("Cannot process a trial with a subject height of 0m");
+            return;
+        }
+
         return this.rawCursor.uploadChild("trials/" + trialName + "/READY_TO_PROCESS", "");
     };
 

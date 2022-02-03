@@ -11,6 +11,7 @@ type DropFileProps = {
     path: string;
     accept: string;
     uploadOnMount?: File;
+    validateFile?: (f: File) => Promise<string | null>;
 };
 
 const DropFile = observer((props: DropFileProps) => {
@@ -62,11 +63,28 @@ const DropFile = observer((props: DropFileProps) => {
             {...props}
             onDrop={action((acceptedFiles) => {
                 if (acceptedFiles.length > 0) {
-                    setUploadProgress(0.0);
-                    setIsUploading(true);
-                    props.cursor.rawCursor.uploadChild(props.path, acceptedFiles[0], setUploadProgress).then(action(() => {
-                        setIsUploading(false);
-                    }));
+                    let errorPromise: Promise<string | null>;
+                    if (props.validateFile) {
+                        errorPromise = props.validateFile(acceptedFiles[0]);
+                    }
+                    else {
+                        errorPromise = Promise.resolve(null);
+                    }
+                    errorPromise.then((error: string | null) => {
+                        if (error != null) {
+                            alert(error);
+                        }
+                        else {
+                            setUploadProgress(0.0);
+                            setIsUploading(true);
+                            props.cursor.rawCursor.uploadChild(props.path, acceptedFiles[0], setUploadProgress).then(action(() => {
+                                setIsUploading(false);
+                            }));
+                        }
+                    });
+
+                    /*
+                    */
                 }
             })}
         >

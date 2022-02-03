@@ -1,10 +1,9 @@
 import { makeAutoObservable, action } from 'mobx';
-import { PubSub, Auth, Storage } from "aws-amplify";
+import { Auth, Storage } from "aws-amplify";
 import {
     S3ProviderListOutput,
     S3ProviderListOutputItem,
 } from "@aws-amplify/storage";
-import { ZenObservable } from 'zen-observable-ts';
 import JSZip from 'jszip';
 import RobustMqtt from './RobustMqtt';
 
@@ -65,6 +64,12 @@ class ReactiveJsonFile {
         this.changeListeners = [];
         this.pathChanged();
 
+        this.cursor.index.addLoadingListener((loading: boolean) => {
+            if (!loading) {
+                this.pathChanged();
+            }
+        });
+
         makeAutoObservable(this);
     }
 
@@ -82,6 +87,7 @@ class ReactiveJsonFile {
         if (this.fileExist()) {
             this.cursor.downloadText(this.path).then((text: string) => {
                 try {
+                    this.values.clear();
                     const result = JSON.parse(text);
                     for (let key in result) {
                         this.values.set(key, result[key]);
@@ -829,7 +835,6 @@ class ReactiveIndex {
         return Storage.list("", { level: this.level })
             .then(
                 (result: S3ProviderListOutput) => {
-                    this.setIsLoading(false);
                     this.clearNetworkError("FullRefresh");
 
                     // 2. Update the set of files
@@ -863,7 +868,9 @@ class ReactiveIndex {
                                 size
                             });
                         }
-                    })
+                    });
+
+                    this.setIsLoading(false);
                 }
             )
             .catch((err: Error) => {

@@ -18,13 +18,11 @@ import ErrorDisplay from "./layouts/ErrorDisplay";
 
 import { ReactiveIndex } from "./state/ReactiveS3";
 import MocapS3Cursor from "./state/MocapS3Cursor";
-import Amplify, { API, Auth, ClientDevice, PubSub } from "aws-amplify";
-import { AWSIoTProvider } from "@aws-amplify/pubsub";
+import Amplify, { API, Auth } from "aws-amplify";
 import awsExports from "./aws-exports";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import RequireAuth from "./pages/auth/RequireAuth";
 import RobustMqtt from "./state/RobustMqtt";
-import { MqttClient } from "mqtt";
 
 // Verify TS is configured correctly
 if (
