@@ -128,6 +128,21 @@ class RobustMqtt {
         }
       });
     }
+
+    let unsubscribe = () => {
+      this.handlers = this.handlers.filter((h) => {
+        return h.pattern !== pattern || h.handler !== handler
+      });
+
+      let stillHasPattern = this.handlers.find((h) => {
+        return h.pattern === pattern;
+      }) != null;
+
+      if (!stillHasPattern && this.currentClient != null) {
+        this.currentClient.unsubscribe(pattern);
+      }
+    };
+    return unsubscribe;
   }
 
   /**

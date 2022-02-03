@@ -42,7 +42,7 @@ const socket: RobustMqtt = new RobustMqtt("us-west-2", "wss://adup0ijwoz88i-ats.
 });
 const publicIndex = new ReactiveIndex("public", false, socket);
 const myData = new ReactiveIndex("protected", false, socket);
-const cursor = new MocapS3Cursor(publicIndex, myData);
+const cursor = new MocapS3Cursor(publicIndex, myData, socket);
 
 function afterLogin() {
   console.log("Refreshing public data...");

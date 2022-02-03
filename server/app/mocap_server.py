@@ -7,6 +7,7 @@ import sys
 import subprocess
 import uuid
 import json
+import shutil
 
 
 def absPath(path: str):
@@ -56,6 +57,7 @@ class TrialToProcess:
         self.goldIKFile = self.trialPath + 'manual_ik.mot'
         self.readyFlagFile = self.trialPath + 'READY_TO_PROCESS'
         self.processingFlagFile = self.trialPath + 'PROCESSING'
+        self.errorFlagFile = self.trialPath + 'ERROR'
         self.resultsFile = self.trialPath + '_results.json'
         self.osimResults = self.trialPath + 'osim_results.zip'
         self.previewJsonFile = self.trialPath + 'preview.json.zip'
@@ -66,71 +68,130 @@ class TrialToProcess:
         This tries to download the whole set of necessary files, launch the processor, and re-upload the results,
         while also managing the processing flag age.
         """
-        print('Processing '+str(self))
+        print('Processing Subject '+str(self.subjectPath) +
+              ', Trial '+str(self.trialPath), flush=True)
 
-        procLogTopic = str(uuid.uuid4())
+        try:
+            procLogTopic = str(uuid.uuid4())
 
-        # 1. Update the processing flag, to let people know that we're working on this. This isn't a guarantee
-        # that no other competing servers will process this at the same time (which would be harmless but
-        # inefficient), but hopefully it reduces collisions.
-        self.pushProcessingFlag(procLogTopic)
+            # 1. Update the processing flag, to let people know that we're working on this. This isn't a guarantee
+            # that no other competing servers will process this at the same time (which would be harmless but
+            # inefficient), but hopefully it reduces collisions.
+            self.pushProcessingFlag(procLogTopic)
 
-        # 2. Download the files to a tmp folder
-        path = tempfile.mkdtemp()
-        if not path.endswith('/'):
-            path += '/'
-        self.index.download(self.subjectStatusFile, path+'_subject.json')
-        self.index.download(self.markersFile, path+'markers.trc')
-        self.index.download(self.opensimFile, path+'unscaled_generic.osim')
-        if self.index.exists(self.goldIKFile):
-            self.index.download(self.goldIKFile, path+'manual_ik.mot')
-        if self.index.exists(self.goldscalesFile):
-            self.index.download(self.goldscalesFile,
-                                path+'manually_scaled.osim')
+            # 2. Download the files to a tmp folder
+            path = tempfile.mkdtemp()
+            if not path.endswith('/'):
+                path += '/'
+            self.index.download(self.subjectStatusFile, path+'_subject.json')
+            self.index.download(self.markersFile, path+'markers.trc')
+            self.index.download(self.opensimFile, path+'unscaled_generic.osim')
+            if self.index.exists(self.goldIKFile):
+                self.index.download(self.goldIKFile, path+'manual_ik.mot')
+            if self.index.exists(self.goldscalesFile):
+                self.index.download(self.goldscalesFile,
+                                    path+'manually_scaled.osim')
 
-        # 3. That download can take a while, so re-up our processing soft-lock
-        self.pushProcessingFlag(procLogTopic)
+            # 3. That download can take a while, so re-up our processing soft-lock
+            self.pushProcessingFlag(procLogTopic)
 
-        # 4. Launch a processing process
-        enginePath = absPath('../engine/engine.py')
-        print('Calling Command:\n'+enginePath+' '+path)
-        with open(path + 'log.txt', 'wb+') as logFile:
-            with subprocess.Popen([enginePath, path], stdout=subprocess.PIPE) as proc:
-                print('Process created: '+str(proc.pid))
-                for lineBytes in iter(proc.stdout.readline, b''):
-                    if lineBytes is None and proc.poll() is not None:
-                        break
-                    line = lineBytes.decode("utf-8")
-                    print('>>> '+str(line).strip())
+            # 4. Launch a processing process
+            enginePath = absPath('../engine/engine.py')
+            print('Calling Command:\n'+enginePath+' '+path, flush=True)
+            with open(path + 'log.txt', 'wb+') as logFile:
+                with subprocess.Popen([enginePath, path], stdout=subprocess.PIPE) as proc:
+                    print('Process created: '+str(proc.pid), flush=True)
+                    for lineBytes in iter(proc.stdout.readline, b''):
+                        if lineBytes is None and proc.poll() is not None:
+                            break
+                        line = lineBytes.decode("utf-8")
+                        print('>>> '+str(line).strip(), flush=True)
+                        # Send to the log
+                        logFile.write(lineBytes)
+                        # Send to PubSub
+                        logLine: Dict[str, str] = {}
+                        logLine['line'] = line
+                        logLine['timestamp'] = time.time() * 1000
+                        self.index.pubSub.sendMessage(
+                            '/LOG/'+procLogTopic, logLine)
+                    exitCode = proc.poll()
+                    line = 'exit: '+str(exitCode)
                     # Send to the log
-                    logFile.write(lineBytes)
+                    logFile.write(line.encode("utf-8"))
                     # Send to PubSub
                     logLine: Dict[str, str] = {}
                     logLine['line'] = line
                     logLine['timestamp'] = time.time() * 1000
                     self.index.pubSub.sendMessage(
                         '/LOG/'+procLogTopic, logLine)
+                    print('Process return code: '+str(exitCode), flush=True)
 
-        # 5. Upload the results back to S3
-        self.index.uploadFile(self.logfile, path + 'log.txt')
-        if os.path.exists(path + 'preview.json.zip'):
-            self.index.uploadFile(self.previewJsonFile,
-                                  path + 'preview.json.zip')
-        # 5.1. Upload the downloadable osim_results.zip file
-        self.index.uploadFile(self.osimResults, path + 'osim_results.zip')
-        # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
-        # and it starts to be able
-        if os.path.exists(path + '_results.json'):
-            self.index.uploadFile(self.resultsFile, path + '_results.json')
+            # 5. Upload the results back to S3
+            if os.path.exists(path + 'log.txt'):
+                self.index.uploadFile(self.logfile, path + 'log.txt')
+            else:
+                print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
+                      self.logfile, flush=True)
 
-        # 6. Clean up after ourselves
-        # os.rmdir(path)
+            if exitCode == 0:
+                if os.path.exists(path + 'preview.json.zip'):
+                    self.index.uploadFile(self.previewJsonFile,
+                                          path + 'preview.json.zip')
+                else:
+                    print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
+                          path + 'preview.json.zip', flush=True)
+                # 5.1. Upload the downloadable osim_results.zip file
+                if os.path.exists(path + 'osim_results.zip'):
+                    self.index.uploadFile(
+                        self.osimResults, path + 'osim_results.zip')
+                else:
+                    print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
+                          path + 'osim_results.zip', flush=True)
+                # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
+                # and it starts to be able
+                if os.path.exists(path + '_results.json'):
+                    self.index.uploadFile(
+                        self.resultsFile, path + '_results.json')
+                else:
+                    print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
+                          path + '_results.json', flush=True)
+
+                # 6. Clean up after ourselves
+                # os.rmdir(path)
+                shutil.rmtree(path, ignore_errors=True)
+            else:
+                # TODO: We should probably re-upload a copy of the whole setup that led to the error
+                # Let's upload a unique copy of the log to S3, so that we have it in case the user re-processes
+                if os.path.exists(path + 'log.txt'):
+                    self.index.uploadFile(self.trialPath +
+                                          'log_error_copy_' + str(time.time()) + '.txt', path + 'log.txt')
+                else:
+                    print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
+                          self.logfile, flush=True)
+
+                self.pushError(exitCode)
+        except Exception as e:
+            print('Caught exception in process(): {}'.format(e))
+
+            # TODO: We should probably re-upload a copy of the whole setup that led to the error
+            # Let's upload a unique copy of the log to S3, so that we have it in case the user re-processes
+            if os.path.exists(path + 'log.txt'):
+                self.index.uploadFile(self.trialPath +
+                                      'log_error_copy_' + str(time.time()) + '.txt', path + 'log.txt')
+
+            self.pushError(1)
 
     def pushProcessingFlag(self, procLogTopic: str):
         procData: Dict[str, str] = {}
         procData['logTopic'] = procLogTopic
         procData['timestamp'] = time.time() * 1000
         self.index.uploadText(self.processingFlagFile, json.dumps(procData))
+
+    def pushError(self, exitCode: int):
+        procData: Dict[str, str] = {}
+        procData['exitCode'] = str(exitCode)
+        procData['timestamp'] = time.time() * 1000
+        self.index.uploadText(self.errorFlagFile, json.dumps(procData))
 
     def shouldProcess(self) -> bool:
         # If this isn't ready, or it's already done, ignore it
@@ -152,9 +213,9 @@ class TrialToProcess:
 
     def readyToProcess(self) -> bool:
         """
-        If we've got both the markers file (at a minimum) and a 'READY_TO_PROCESS' flag, we could process this
+        If we've got both the markers file (at a minimum) and a 'READY_TO_PROCESS' flag, and no 'ERROR' flag, we could process this
         """
-        return self.index.exists(self.readyFlagFile) and self.index.exists(self.markersFile)
+        return self.index.exists(self.readyFlagFile) and self.index.exists(self.markersFile) and not self.index.exists(self.errorFlagFile)
 
     def alreadyProcessed(self) -> bool:
         """
@@ -210,7 +271,7 @@ class MocapServer:
         self.index.registerPubSub()
 
     def onChange(self):
-        print('CHANGED!')
+        print('S3 CHANGED!')
 
         shouldProcessTrials: List[TrialToProcess] = []
 
@@ -219,11 +280,11 @@ class MocapServer:
             if self.index.hasChildren(folder, ['trials/', '_subject.json']):
                 if not folder.endswith('/'):
                     folder += '/'
-                print('SUBJECT: '+str(folder))
+                # print('SUBJECT: '+str(folder))
                 trials: Dict[str, FileMetadata] = self.index.getImmediateChildren(
                     folder+'trials/')
                 for trialName in trials:
-                    print('TRIAL: '+str(trialName))
+                    # print('TRIAL: '+str(trialName))
                     trial = TrialToProcess(self.index, folder, trialName)
                     if trial.shouldProcess():
                         shouldProcessTrials.append(trial)
@@ -241,19 +302,25 @@ class MocapServer:
         While processing, this blocks, so even though the queue is updating in the background, that shouldn't change the outcome of this process.
         """
         while True:
-            if len(self.queue) > 0:
-                nextUp = self.queue[0]
-                # This will update the state of S3, which will in turn update and remove this element from our queue automatically.
-                # If it doesn't, then perhaps something went wrong and it's actually fine to process again. So the key idea is DON'T
-                # MANUALLY MANAGE THE WORK QUEUE! That happens in self.onChange()
-                nextUp.process()
-                # We need to avoid race conditions with S3 by not immediately processing the next item. Give S3 a chance to update.
+            try:
+                if len(self.queue) > 0:
+                    nextUp = self.queue[0]
+                    # This will update the state of S3, which will in turn update and remove this element from our queue automatically.
+                    # If it doesn't, then perhaps something went wrong and it's actually fine to process again. So the key idea is DON'T
+                    # MANUALLY MANAGE THE WORK QUEUE! That happens in self.onChange()
+                    nextUp.process()
+                    # We need to avoid race conditions with S3 by not immediately processing the next item. Give S3 a chance to update.
+                    print(
+                        'Sleeping for 10 seconds before attempting to process the next item...')
+                    time.sleep(10)
+                    print('Done sleeping')
+                else:
+                    time.sleep(1)
+            except Exception as e:
                 print(
-                    'Sleeping for 10 seconds before attempting to process the next item...')
+                    'Encountered an error!!! Sleeping for 10 seconds, then re-entering the processing loop')
+                print(e)
                 time.sleep(10)
-                print('Done sleeping')
-            else:
-                time.sleep(1)
 
 
 if __name__ == "__main__":

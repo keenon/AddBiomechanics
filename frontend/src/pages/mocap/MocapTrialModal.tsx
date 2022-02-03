@@ -80,7 +80,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
         }
         // This cleans up our log listener
         return props.cursor.subscribeToLogUpdates(trial?.key, onLogLine);
-    }, [trialNumber, show, trialStatus, props.cursor, trial]);
+    }, [trialNumber, show, trialStatus, trial?.key]);
 
     if (!show || trial == null) {
         return <></>;

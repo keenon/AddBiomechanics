@@ -1,6 +1,7 @@
 import { ReactiveCursor, ReactiveIndex, ReactiveJsonFile } from "./ReactiveS3";
 import { makeAutoObservable, action } from 'mobx';
 import PubSub from "@aws-amplify/pubsub";
+import RobustMqtt from "./RobustMqtt";
 
 type MocapFolderEntry = {
     type: 'folder' | 'mocap';
@@ -65,7 +66,9 @@ class MocapS3Cursor {
 
     subjectJson: ReactiveJsonFile;
 
-    constructor(publicS3Index: ReactiveIndex, protectedS3Index: ReactiveIndex) {
+    socket: RobustMqtt;
+
+    constructor(publicS3Index: ReactiveIndex, protectedS3Index: ReactiveIndex, socket: RobustMqtt) {
         const parsedUrl = this.parseUrlPath(window.location.pathname);
 
         this.dataPrefix = 'data/';
@@ -82,6 +85,8 @@ class MocapS3Cursor {
         this.showValidationControls = false;
 
         this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
+
+        this.socket = socket;
 
         makeAutoObservable(this);
     }
@@ -514,29 +519,22 @@ class MocapS3Cursor {
         if (this.getTrialStatus(trialName) !== 'processing') return () => { };
         // Otherwise, attach a log
         console.log("Subscribing to log updates for " + trialName);
-        let logListener: any[] = [];
+        let logListener: any[] = [() => { }];
         let unsubscribed: boolean[] = [false];
         this.getProcessingInfo(trialName).then((procFlagContents) => {
             // Try to avoid race conditions if we already cleaned up
             if (unsubscribed[0]) return;
 
-            logListener.push(PubSub.subscribe("/LOG/" + procFlagContents.logTopic).subscribe({
-                next: (msg) => {
-                    const logMsg: MocapProcessingLogMsg = msg.value;
-                    onLogLine(logMsg.line);
-                },
-                error: (error) => {
-                    console.error("Error reported by /LOG/" + procFlagContents.logTopic + " PubSub update listener:");
-                    console.error(error);
-                },
-                complete: () => console.log("PubSub complete()"),
-            }));
+            logListener[0] = this.socket.subscribe("/LOG/" + procFlagContents.logTopic, (topic, msg) => {
+                const logMsg: MocapProcessingLogMsg = JSON.parse(msg);
+                onLogLine(logMsg.line);
+            });
         });
 
         return () => {
             console.log("Cleaning up /LOG/# PubSub for " + trialName);
             unsubscribed[0] = true;
-            logListener[0].unsubscribe();
+            logListener[0]();
         }
     };
 
