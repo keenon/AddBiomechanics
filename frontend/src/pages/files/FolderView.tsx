@@ -18,6 +18,38 @@ const FolderView = observer((props: FolderViewProps) => {
   let rows = [];
   contents.forEach((entry) => {
     const name = entry.key;
+
+    let status: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' = 'done';
+    if (entry.type === 'folder') {
+      status = props.cursor.getFolderStatus(entry.key);
+    }
+    else if (entry.type === 'mocap') {
+      status = props.cursor.getSubjectStatus(entry.key);
+    }
+
+    let statusBadge = null;
+    if (status === "done") {
+      statusBadge = <span className="badge bg-success">Processed</span>;
+    }
+    else if (status === "error") {
+      statusBadge = <span className="badge bg-danger">Error</span>;
+    }
+    else if (status === "processing") {
+      statusBadge = <span className="badge bg-warning">Processing</span>;
+    }
+    else if (status === "could-process") {
+      if (props.cursor.canEdit()) {
+        statusBadge = <span className="badge bg-secondary">Waiting for you to process</span>;
+      }
+      else {
+        statusBadge = <span className="badge bg-secondary">Waiting for owner to process</span>;
+      }
+    }
+    else if (status === "waiting") {
+      statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
+    }
+
+
     rows.push(
       <tr key={name}>
         <td>
@@ -29,7 +61,7 @@ const FolderView = observer((props: FolderViewProps) => {
           </span>
         </td>
         <td>
-          <span className="badge bg-success">Processed</span>
+          {statusBadge}
         </td>
         <td>
           <p className="mb-0">

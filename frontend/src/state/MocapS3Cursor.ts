@@ -184,8 +184,10 @@ class MocapS3Cursor {
      * 
      * @param prefix The prefix to match to files, and if they match, delete them
      */
-    deleteByPrefix = (prefix: string) => {
-        return this.rawCursor.deleteByPrefix(prefix);
+    deleteFolder = (prefix: string) => {
+        return this.rawCursor.deleteByPrefix(prefix).then(() => {
+            return this.rawCursor.deleteChild(prefix);
+        });
     };
 
     /**
@@ -261,6 +263,51 @@ class MocapS3Cursor {
         return this.rawCursor.uploadChild(name, "");
     };
 
+    getSubjectStatus = (path: string) => {
+        let status: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' = 'done';
+        if (!path.endsWith('/')) path = path + '/';
+
+        let trials = this.getTrials(path);
+        for (let i = 0; i < trials.length; i++) {
+            let trialStatus = this.getTrialStatus(trials[i].key, path);
+            if (trialStatus === 'processing') {
+                status = 'processing';
+            }
+            if (trialStatus === 'error' && status !== 'processing') {
+                status = 'error';
+            }
+        }
+
+        return status;
+    };
+
+    getFolderStatus = (path: string) => {
+        // getTrialStatus
+        let status: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' = 'done';
+
+        if (!path.endsWith('/')) path += '/';
+
+        let contents = this.getFolderContents(path);
+        for (let i = 0; i < contents.length; i++) {
+            let childStatus: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' = 'done';
+            if (contents[i].type === 'folder') {
+                childStatus = this.getFolderStatus(path + contents[i].key);
+            }
+            else if (contents[i].type === 'mocap') {
+                childStatus = this.getSubjectStatus(path + contents[i].key);
+            }
+
+            if (childStatus === 'processing') {
+                status = 'processing';
+            }
+            if (childStatus === 'error' && status !== 'processing') {
+                status = 'error';
+            }
+        }
+
+        return status;
+    };
+
     /**
      * @returns The contents of the current folder, with useful annotations on the data
      */
@@ -323,13 +370,10 @@ class MocapS3Cursor {
      * 
      * @returns A list of all the trials that have been uploaded
      */
-    getTrials = () => {
+    getTrials = (prefix: string = '') => {
         let trials: MocapTrialEntry[] = [];
-        let rawFolders = this.rawCursor.getImmediateChildFolders("trials/");
+        let rawFolders = this.rawCursor.getImmediateChildFolders(prefix + "trials/");
         for (let i = 0; i < rawFolders.length; i++) {
-            if (this.rawCursor.childHasChildren(rawFolders[i].key, ['trials/', '_subject.json'])) {
-            }
-
             trials.push({
                 ...rawFolders[i]
             });
@@ -366,16 +410,17 @@ class MocapS3Cursor {
      * 
      * @param trialName the name of the trial to check
      */
-    getTrialStatus = (trialName: string) => {
-        const markersMetadata = this.rawCursor.getChildMetadata("trials/" + trialName + "/markers.trc");
+    getTrialStatus = (trialName: string, prefix: string = '') => {
+        const markersMetadata = this.rawCursor.getChildMetadata(prefix + "trials/" + trialName + "/markers.trc");
 
         // const hasIK = this.rawCursor.getExists("trials/" + trialName + "/gold_ik.mot");
         // const hasGRF = this.rawCursor.getExists("trials/" + trialName + "/grf.mot");
-        const hasReadyToProcessFlag = this.rawCursor.getExists("trials/" + trialName + "/READY_TO_PROCESS");
-        const hasProcessingFlag = this.rawCursor.getExists("trials/" + trialName + "/PROCESSING");
+        const hasReadyToProcessFlag = this.rawCursor.getExists(prefix + "trials/" + trialName + "/READY_TO_PROCESS");
+        const hasProcessingFlag = this.rawCursor.getExists(prefix + "trials/" + trialName + "/PROCESSING");
+        const hasErrorFlag = this.rawCursor.getExists(prefix + "trials/" + trialName + "/ERROR");
 
-        const logMetadata = this.rawCursor.getChildMetadata("trials/" + trialName + "/log.txt");
-        const resultsMetadata = this.rawCursor.getChildMetadata("trials/" + trialName + "/_results.json");
+        const logMetadata = this.rawCursor.getChildMetadata(prefix + "trials/" + trialName + "/log.txt");
+        const resultsMetadata = this.rawCursor.getChildMetadata(prefix + "trials/" + trialName + "/_results.json");
 
         if (markersMetadata == null) {
             return 'empty';
@@ -385,7 +430,10 @@ class MocapS3Cursor {
                 return 'done';
             }
             else {
-                if (hasProcessingFlag) {
+                if (hasErrorFlag) {
+                    return 'error';
+                }
+                else if (hasProcessingFlag) {
                     return 'processing';
                 }
                 else if (hasReadyToProcessFlag) {
@@ -395,6 +443,9 @@ class MocapS3Cursor {
                     return 'could-process';
                 }
             }
+        }
+        else if (hasErrorFlag) {
+            return 'error';
         }
         else if (hasProcessingFlag) {
             return 'processing';

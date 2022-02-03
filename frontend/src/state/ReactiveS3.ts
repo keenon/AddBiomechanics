@@ -493,6 +493,7 @@ class ReactiveCursor {
         else {
             totalPrefix += prefix;
         }
+        totalPrefix = ensurePathEndsWithSlash(totalPrefix);
 
         return this.index.deleteByPrefix(totalPrefix);
     };

@@ -28,6 +28,9 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   else if (status === "done") {
     statusBadge = <span className="badge bg-success">Processed</span>;
   }
+  else if (status === "error") {
+    statusBadge = <span className="badge bg-danger">Error</span>;
+  }
   else if (status === "processing") {
     statusBadge = <span className="badge bg-warning">Processing</span>;
   }
@@ -59,6 +62,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
           to={{
             search: "?show-trial=" + props.index,
           }}
+          replace
         >
           {props.name}
         </Link>
@@ -82,6 +86,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
                 <Dropdown.Item
                   onClick={() => {
                     props.cursor.rawCursor.deleteByPrefix("trials/" + props.name);
+                    props.cursor.rawCursor.deleteChild("trials/" + props.name);
                   }}
                 >
                   <i className="mdi mdi-delete me-2 text-muted vertical-middle"></i>

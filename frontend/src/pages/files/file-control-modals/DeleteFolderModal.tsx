@@ -55,7 +55,7 @@ const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {
     } else if (valid) {
       setLoading(true);
       props.cursor
-        .deleteByPrefix(folderName)
+        .deleteFolder(folderName)
         .then(() => {
           setLoading(false);
           hideModal();

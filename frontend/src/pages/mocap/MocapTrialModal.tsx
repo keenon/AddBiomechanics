@@ -91,7 +91,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
             standalone.current.dispose();
             standalone.current = null;
         }
-        navigate({ search: "" });
+        navigate({ search: "" }, { replace: true });
     };
 
 
@@ -138,6 +138,18 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                     </pre>
                 </div>
                 <Spinner animation='border' size="sm" /> {' '} Live Processing Logs
+            </div>
+        );
+    }
+    else if (trialStatus === 'error') {
+        body = (
+            <div className="MocapView">
+                <h2>Processing Server Encountered Error</h2>
+                <div>
+                    <pre>
+                        {logText}
+                    </pre>
+                </div>
             </div>
         );
     }
