@@ -446,8 +446,9 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         >
           <colgroup>
             <col style={{ width: "20%" }} />
-            <col style={{ width: ((100 - 20 - 15 - (props.cursor.canEdit() ? 15 : 0)) / 2) + "%" }} />
-            <col style={{ width: ((100 - 20 - 15 - (props.cursor.canEdit() ? 15 : 0)) / 2) + "%" }} />
+            <col style={{ width: ((100 - 20 - 15 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
+            {showValidationControls ? <col style={{ width: ((100 - 20 - 15 - (props.cursor.canEdit() ? 15 : 0)) / 3) + "%" }} /> : null}
+            <col style={{ width: ((100 - 20 - 15 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
             <col style={{ width: "15%" }} />
             {props.cursor.canEdit() ? (
               <col style={{ width: "15%" }} />
