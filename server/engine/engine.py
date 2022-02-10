@@ -167,17 +167,19 @@ def processLocalSubjectFolder(path: str):
     for i in range(len(results)):
         result = results[i]
         trialName = trialNames[i]
+        markerTimesteps = markerTrials[i]
         trialProcessingResult = trialProcessingResults[i]
         trialPath = path + 'trials/' + trialName + '/'
 
         resultIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
-            customOsim.skeleton, fitMarkers, result.poses, markerTrajectories.markerTimesteps)
+            customOsim.skeleton, fitMarkers, result.poses, markerTimesteps)
         trialProcessingResult['autoAvgRMSE'] = resultIK.averageRootMeanSquaredError
         trialProcessingResult['autoAvgMax'] = resultIK.averageMaxError
 
         # 8. Write out our result files
 
         # 8.1. Write out the result summary JSON
+        print('Writing JSON result to '+trialPath+'_results.json', flush=True)
         with open(trialPath+'_results.json', 'w') as f:
             # The frontend expects JSON in this format
             # autoAvgMax: number;
@@ -188,19 +190,22 @@ def processLocalSubjectFolder(path: str):
 
         # Write out the .mot files
         timestamps = [i * 0.001 for i in range(result.poses.shape[1])]
-        print('Writing OpenSim .mot file')
+        print('Writing OpenSim '+path+'results/' +
+              trialName+'.mot file, shape='+str(result.poses.shape), flush=True)
         nimble.biomechanics.OpenSimParser.saveMot(
             customOsim.skeleton, path + 'results/'+trialName+'.mot', timestamps, result.poses)
 
         # 8.2. Write out the animation preview
         # 8.2.1. Create the raw JSON
+        print('Saving trajectory and markers to a GUI log ' +
+              trialPath+'preview.json', flush=True)
         fitter.saveTrajectoryAndMarkersToGUI(
-            trialPath+'preview.json', result, markerTrajectories.markerTimesteps)
+            trialPath+'preview.json', result, markerTimesteps)
         # 8.2.2. Zip it up
-        print('Zipping up preview.json', flush=True)
+        print('Zipping up '+trialPath+'preview.json', flush=True)
         subprocess.run(["zip", "-r", trialPath+'preview.json.zip', trialPath +
                         'preview.json'], capture_output=True)
-        print('Finished zipping up preview.json.zip', flush=True)
+        print('Finished zipping up '+trialPath+' preview.json.zip', flush=True)
 
     print('Zipping up OpenSim files', flush=True)
     shutil.make_archive(path + 'osim_results', 'zip', path, 'results')
