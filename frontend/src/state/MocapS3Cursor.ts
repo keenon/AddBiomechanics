@@ -1,6 +1,5 @@
 import { ReactiveCursor, ReactiveIndex, ReactiveJsonFile } from "./ReactiveS3";
 import { makeAutoObservable, action } from 'mobx';
-import PubSub from "@aws-amplify/pubsub";
 import RobustMqtt from "./RobustMqtt";
 
 type MocapFolderEntry = {
@@ -60,8 +59,9 @@ class MocapS3Cursor {
     urlError: boolean;
 
     showValidationControls: boolean;
-    cachedLogFiles: Map<string, Promise<string>>;
-    cachedResultsFiles: Map<string, Promise<string>>;
+    cachedLogFile: Promise<string> | null;
+    cachedResultsFile: Promise<string> | null;
+    cachedTrialResultsFiles: Map<string, Promise<string>>;
     cachedVisulizationFiles: Map<string, LargeZipJsonObject>;
 
     subjectJson: ReactiveJsonFile;
@@ -79,8 +79,9 @@ class MocapS3Cursor {
         this.urlError = parsedUrl.error;
         this.urlPath = window.location.pathname;
 
-        this.cachedLogFiles = new Map();
-        this.cachedResultsFiles = new Map();
+        this.cachedLogFile = null;
+        this.cachedResultsFile = null;
+        this.cachedTrialResultsFiles = new Map();
         this.cachedVisulizationFiles = new Map();
         this.showValidationControls = false;
 
@@ -165,8 +166,9 @@ class MocapS3Cursor {
         this.showValidationControls = this.rawCursor.getExists("manually_scaled.osim");
 
         // Clear the cache when we move to a new url
-        this.cachedLogFiles.clear();
-        this.cachedResultsFiles.clear();
+        this.cachedLogFile = null;
+        this.cachedResultsFile = null;
+        this.cachedTrialResultsFiles.clear();
         this.cachedVisulizationFiles.clear();
     });
 
@@ -268,33 +270,55 @@ class MocapS3Cursor {
         return this.rawCursor.uploadChild(name, "");
     };
 
-    getSubjectStatus = (path: string) => {
-        let status: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' = 'done';
-        if (!path.endsWith('/')) path = path + '/';
+    getSubjectStatus = (path: string = '') => {
+        if (path !== '' && !path.endsWith('/')) path = path + '/';
 
         let trials = this.getTrials(path);
+
+        let anyTrialsMissingMarkers = false;
+
         for (let i = 0; i < trials.length; i++) {
-            let trialStatus = this.getTrialStatus(trials[i].key, path);
-            if (trialStatus === 'processing') {
-                status = 'processing';
-            }
-            if (trialStatus === 'error' && status !== 'processing') {
-                status = 'error';
+            const markersMetadata = this.rawCursor.getChildMetadata(path + "trials/" + trials[i].key + "/markers.trc");
+            if (markersMetadata == null) {
+                anyTrialsMissingMarkers = true;
             }
         }
 
-        return status;
+        const hasReadyToProcessFlag = this.rawCursor.getExists(path + "READY_TO_PROCESS");
+        const hasProcessingFlag = this.rawCursor.getExists(path + "PROCESSING");
+        const hasErrorFlag = this.rawCursor.getExists(path + "ERROR");
+
+        const logMetadata = this.rawCursor.getChildMetadata(path + "log.txt");
+        const resultsMetadata = this.rawCursor.getChildMetadata(path + "_results.json");
+
+        if (anyTrialsMissingMarkers) {
+            return 'empty';
+        }
+        else if (logMetadata != null && resultsMetadata != null) {
+            return 'done';
+        }
+        else if (hasErrorFlag) {
+            return 'error';
+        }
+        else if (hasProcessingFlag) {
+            return 'processing';
+        }
+        else if (hasReadyToProcessFlag) {
+            return 'waiting';
+        }
+        else {
+            return 'could-process';
+        }
     };
 
-    getFolderStatus = (path: string) => {
-        // getTrialStatus
+    getFolderStatus = (path: string = '') => {
         let status: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' = 'done';
 
-        if (!path.endsWith('/')) path += '/';
+        if (path !== '' && !path.endsWith('/')) path += '/';
 
         let contents = this.getFolderContents(path);
         for (let i = 0; i < contents.length; i++) {
-            let childStatus: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' = 'done';
+            let childStatus: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' | 'empty' = 'done';
             if (contents[i].type === 'folder') {
                 childStatus = this.getFolderStatus(path + contents[i].key);
             }
@@ -411,66 +435,13 @@ class MocapS3Cursor {
     };
 
     /**
-     * This figures out the status of a given trial, based on which child files exist and don't exist.
-     * 
-     * @param trialName the name of the trial to check
+     * This requests that a subject be reprocessed, by deleting the results of previous processing.
      */
-    getTrialStatus = (trialName: string, prefix: string = '') => {
-        const markersMetadata = this.rawCursor.getChildMetadata(prefix + "trials/" + trialName + "/markers.trc");
-
-        // const hasIK = this.rawCursor.getExists("trials/" + trialName + "/gold_ik.mot");
-        // const hasGRF = this.rawCursor.getExists("trials/" + trialName + "/grf.mot");
-        const hasReadyToProcessFlag = this.rawCursor.getExists(prefix + "trials/" + trialName + "/READY_TO_PROCESS");
-        const hasProcessingFlag = this.rawCursor.getExists(prefix + "trials/" + trialName + "/PROCESSING");
-        const hasErrorFlag = this.rawCursor.getExists(prefix + "trials/" + trialName + "/ERROR");
-
-        const logMetadata = this.rawCursor.getChildMetadata(prefix + "trials/" + trialName + "/log.txt");
-        const resultsMetadata = this.rawCursor.getChildMetadata(prefix + "trials/" + trialName + "/_results.json");
-
-        if (markersMetadata == null) {
-            return 'empty';
-        }
-        else if (logMetadata != null && resultsMetadata != null) {
-            if (logMetadata.lastModified > markersMetadata.lastModified) {
-                return 'done';
-            }
-            else {
-                if (hasErrorFlag) {
-                    return 'error';
-                }
-                else if (hasProcessingFlag) {
-                    return 'processing';
-                }
-                else if (hasReadyToProcessFlag) {
-                    return 'waiting';
-                }
-                else {
-                    return 'could-process';
-                }
-            }
-        }
-        else if (hasErrorFlag) {
-            return 'error';
-        }
-        else if (hasProcessingFlag) {
-            return 'processing';
-        }
-        else if (hasReadyToProcessFlag) {
-            return 'waiting';
-        }
-        else {
-            return 'could-process';
-        }
-    };
-
-    /**
-     * This requests that a trial be reprocessed, by deleting the results of previous processing.
-     * 
-     * @param trialName 
-     */
-    requestReprocessTrial = (trialName: string) => {
-        this.rawCursor.deleteChild("trials/" + trialName + "/log.txt");
-        this.rawCursor.deleteChild("trials/" + trialName + "/_results.json");
+    requestReprocessSubject = () => {
+        this.rawCursor.deleteChild("log.txt");
+        this.rawCursor.deleteChild("_results.json");
+        this.rawCursor.deleteChild("ERROR");
+        this.rawCursor.deleteChild("PROCESSING");
     };
 
     /**
@@ -499,8 +470,8 @@ class MocapS3Cursor {
     /**
      * This downloads and parses the contents of the PROCESSING flag
      */
-    getProcessingInfo = (trialName: string) => {
-        return this.rawCursor.downloadText("trials/" + trialName + "/PROCESSING").then((text: string) => {
+    getProcessingInfo = () => {
+        return this.rawCursor.downloadText("PROCESSING").then((text: string) => {
             let val: MocapProcessingFlags = JSON.parse(text);
             return val;
         })
@@ -509,19 +480,17 @@ class MocapS3Cursor {
     /**
      * This gets the PROCESSING info, attaches a PubSub listener, and returns a handle to remove it when we're done.
      * 
-     * @param trialName The name of the trial to subscribe to
      * @param onLogLine the callback when a new line of the log is received
      * @returns an unsubscribe method
      */
-    subscribeToLogUpdates = (trialName: string | undefined, onLogLine: (line: string) => void) => {
+    subscribeToLogUpdates = (onLogLine: (line: string) => void) => {
         // Do nothing if we're not PROCESSING
-        if (trialName == null) return () => { };
-        if (this.getTrialStatus(trialName) !== 'processing') return () => { };
+        if (this.getSubjectStatus() !== 'processing') return () => { };
         // Otherwise, attach a log
-        console.log("Subscribing to log updates for " + trialName);
+        console.log("Subscribing to log updates for current subject");
         let logListener: any[] = [() => { }];
         let unsubscribed: boolean[] = [false];
-        this.getProcessingInfo(trialName).then((procFlagContents) => {
+        this.getProcessingInfo().then((procFlagContents) => {
             // Try to avoid race conditions if we already cleaned up
             if (unsubscribed[0]) return;
 
@@ -532,32 +501,55 @@ class MocapS3Cursor {
         });
 
         return () => {
-            console.log("Cleaning up /LOG/# PubSub for " + trialName);
+            console.log("Cleaning up /LOG/# PubSub for current subject");
             unsubscribed[0] = true;
             logListener[0]();
         }
     };
 
     /**
-     * Gets the contents of the log.txt for this trial, as a promise
+     * @returns True if we've got a log file, false otherwise
      */
-    getLogFileText = (trialName: string) => {
-        let promise: Promise<string> | undefined = this.cachedLogFiles.get(trialName);
-        if (promise == null) {
-            promise = this.rawCursor.downloadText("trials/" + trialName + "/log.txt");
-            this.cachedLogFiles.set(trialName, promise);
+    hasLogFile = () => {
+        return this.rawCursor.hasChildren(["log.txt"]);
+    }
+
+    /**
+     * Gets the contents of the log.txt for this subject, as a promise
+     */
+    getLogFileText = () => {
+        if (this.cachedLogFile == null) {
+            this.cachedLogFile = this.rawCursor.downloadText("log.txt");
         }
-        return promise;
+        return this.cachedLogFile;
+    };
+
+    /**
+     * @returns True if we've got a results file, false otherwise
+     */
+    hasResultsFile = () => {
+        return this.rawCursor.hasChildren(["_results.json"]);
+    }
+
+    /**
+     * Gets the contents of the _results.json for this subject, as a promise
+     */
+    getResultsFileText = () => {
+        if (this.cachedResultsFile == null) {
+            console.log("Getting results file");
+            this.cachedResultsFile = this.rawCursor.downloadText("_results.json");
+        }
+        return this.cachedResultsFile;
     };
 
     /**
      * Gets the contents of the _results.json for this trial, as a promise
      */
-    getResultsFileText = (trialName: string) => {
-        let promise: Promise<string> | undefined = this.cachedResultsFiles.get(trialName);
+    getTrialResultsFileText = (trialName: string) => {
+        let promise: Promise<string> | undefined = this.cachedTrialResultsFiles.get(trialName);
         if (promise == null) {
             promise = this.rawCursor.downloadText("trials/" + trialName + "/_results.json");
-            this.cachedResultsFiles.set(trialName, promise);
+            this.cachedTrialResultsFiles.set(trialName, promise);
         }
         return promise;
     };
@@ -565,10 +557,8 @@ class MocapS3Cursor {
     /**
      * This adds the "READY_TO_PROCESS" file on the backend, which marks the trial as being fully uploaded, and
      * ready for the backend to pick up and work on.
-     * 
-     * @param trialName The name of the trial to mark
      */
-    markTrialReadyForProcessing = (trialName: string) => {
+    markReadyForProcessing = () => {
         let weightValue = this.subjectJson.getAttribute("massKg", 0.0);
         if (weightValue === 0) {
             alert("Cannot process a trial with a subject weight of 0kg");
@@ -580,24 +570,23 @@ class MocapS3Cursor {
             return;
         }
 
-        return this.rawCursor.uploadChild("trials/" + trialName + "/READY_TO_PROCESS", "");
+        return this.rawCursor.uploadChild("READY_TO_PROCESS", "");
     };
 
     /**
-     * Reurns true if there's a zip archive of the results
+     * Returns true if there's a zip archive of the results
      * 
-     * @param trialName 
      * @returns 
      */
-    hasResultsArchive = (trialName: string) => {
-        return this.rawCursor.childHasChildren("trials", [trialName + "/osim_results.zip"]);
+    hasResultsArchive = () => {
+        return this.rawCursor.hasChildren(["osim_results.zip"]);
     };
 
     /**
      * Download the zip results archive
      */
-    downloadResultsArchive = (trialName: string) => {
-        this.rawCursor.downloadFile("trials/" + trialName + "/osim_results.zip");
+    downloadResultsArchive = () => {
+        this.rawCursor.downloadFile("osim_results.zip");
     };
 }
 

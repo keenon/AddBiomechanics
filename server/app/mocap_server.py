@@ -19,57 +19,116 @@ def absPath(path: str):
 class TrialToProcess:
     index: ReactiveS3Index
 
-    subjectPath: str
     trialName: str
     trialPath: str
+
+    # Trial files
+    markersFile: str
+    goldIKFile: str
+    resultsFile: str
+    previewJsonFile: str
+
+    def __init__(self, index: ReactiveS3Index, subjectPath: str, trialName: str) -> None:
+        self.index = index
+        if not subjectPath.endswith('/'):
+            subjectPath += '/'
+        self.trialName = trialName
+        if not self.trialName.endswith('/'):
+            self.trialName += '/'
+        self.trialPath = subjectPath + 'trials/' + self.trialName
+
+        # Trial files
+        self.markersFile = self.trialPath + 'markers.trc'
+        self.goldIKFile = self.trialPath + 'manual_ik.mot'
+        self.resultsFile = self.trialPath + '_results.json'
+        self.previewJsonFile = self.trialPath + 'preview.json.zip'
+
+    def download(self, trialsFolderPath: str):
+        trialPath = trialsFolderPath + self.trialName
+        os.mkdir(trialPath)
+
+        self.index.download(self.markersFile, trialPath+'markers.trc')
+        if self.index.exists(self.goldIKFile):
+            self.index.download(self.goldIKFile, trialPath+'manual_ik.mot')
+
+    def upload(self, trialsFolderPath: str):
+        trialPath = trialsFolderPath + self.trialName
+        if os.path.exists(trialPath + '_results.json'):
+            self.index.uploadFile(
+                self.resultsFile, trialPath + '_results.json')
+        else:
+            print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
+                  trialPath + '_results.json', flush=True)
+        if os.path.exists(trialPath + 'preview.json.zip'):
+            self.index.uploadFile(self.previewJsonFile,
+                                  trialPath + 'preview.json.zip')
+        else:
+            print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
+                  trialPath + 'preview.json.zip', flush=True)
+
+    def hasMarkers(self) -> bool:
+        return self.index.exists(self.markersFile)
+
+    def latestInputTimestamp(self) -> int:
+        if not self.index.exists(self.markersFile):
+            return 0
+        uploadedTimestamp = self.index.getMetadata(
+            self.markersFile).lastModified
+        if self.index.exists(self.goldIKFile):
+            uploadedTimestamp = max(
+                uploadedTimestamp, self.index.getMetadata(self.goldIKFile).lastModified)
+        return uploadedTimestamp
+
+
+class SubjectToProcess:
+    index: ReactiveS3Index
+
+    subjectPath: str
 
     # Subject files
     subjectStatusFile: str
     opensimFile: str
     goldscalesFile: str
-
-    # Trial files
-    markersFile: str
-    goldIKFile: str
     readyFlagFile: str
     processingFlagFile: str
     resultsFile: str
-    previewJsonFile: str
     logfile: str
 
-    def __init__(self, index: ReactiveS3Index, subjectPath: str, trialName: str) -> None:
+    # Trial objects
+    trials: Dict[str, TrialToProcess]
+
+    def __init__(self, index: ReactiveS3Index, subjectPath: str) -> None:
         self.index = index
         self.subjectPath = subjectPath
         if not self.subjectPath.endswith('/'):
             self.subjectPath += '/'
-        self.trialName = trialName
-        if not self.trialName.endswith('/'):
-            self.trialName += '/'
-        self.trialPath = self.subjectPath + 'trials/' + self.trialName
 
         # Subject files
         self.subjectStatusFile = self.subjectPath + '_subject.json'
         self.opensimFile = self.subjectPath + 'unscaled_generic.osim'
         self.goldscalesFile = self.subjectPath + 'manually_scaled.osim'
 
+        self.trials = {}
+        trialFiles: Dict[str, FileMetadata] = self.index.getImmediateChildren(
+            self.subjectPath+'trials/')
+        for trialName in trialFiles:
+            self.trials[trialName] = TrialToProcess(
+                self.index, self.subjectPath, trialName)
+
         # Trial files
-        self.markersFile = self.trialPath + 'markers.trc'
-        self.goldIKFile = self.trialPath + 'manual_ik.mot'
-        self.readyFlagFile = self.trialPath + 'READY_TO_PROCESS'
-        self.processingFlagFile = self.trialPath + 'PROCESSING'
-        self.errorFlagFile = self.trialPath + 'ERROR'
-        self.resultsFile = self.trialPath + '_results.json'
-        self.osimResults = self.trialPath + 'osim_results.zip'
-        self.previewJsonFile = self.trialPath + 'preview.json.zip'
-        self.logfile = self.trialPath + 'log.txt'
+        self.readyFlagFile = self.subjectPath + 'READY_TO_PROCESS'
+        self.processingFlagFile = self.subjectPath + 'PROCESSING'
+        self.errorFlagFile = self.subjectPath + 'ERROR'
+        self.resultsFile = self.subjectPath + '_results.json'
+        self.osimResults = self.subjectPath + 'osim_results.zip'
+        self.logfile = self.subjectPath + 'log.txt'
 
     def process(self):
         """
         This tries to download the whole set of necessary files, launch the processor, and re-upload the results,
         while also managing the processing flag age.
         """
-        print('Processing Subject '+str(self.subjectPath) +
-              ', Trial '+str(self.trialPath), flush=True)
+        print('Processing Subject '+str(self.subjectPath), flush=True)
 
         try:
             procLogTopic = str(uuid.uuid4())
@@ -84,13 +143,14 @@ class TrialToProcess:
             if not path.endswith('/'):
                 path += '/'
             self.index.download(self.subjectStatusFile, path+'_subject.json')
-            self.index.download(self.markersFile, path+'markers.trc')
             self.index.download(self.opensimFile, path+'unscaled_generic.osim')
-            if self.index.exists(self.goldIKFile):
-                self.index.download(self.goldIKFile, path+'manual_ik.mot')
             if self.index.exists(self.goldscalesFile):
                 self.index.download(self.goldscalesFile,
                                     path+'manually_scaled.osim')
+            trialsFolderPath = path + 'trials/'
+            os.mkdir(trialsFolderPath)
+            for trialName in self.trials:
+                self.trials[trialName].download(trialsFolderPath)
 
             # 3. That download can take a while, so re-up our processing soft-lock
             self.pushProcessingFlag(procLogTopic)
@@ -134,12 +194,8 @@ class TrialToProcess:
                       self.logfile, flush=True)
 
             if exitCode == 0:
-                if os.path.exists(path + 'preview.json.zip'):
-                    self.index.uploadFile(self.previewJsonFile,
-                                          path + 'preview.json.zip')
-                else:
-                    print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
-                          path + 'preview.json.zip', flush=True)
+                for trialName in self.trials:
+                    self.trials[trialName].upload(trialsFolderPath)
                 # 5.1. Upload the downloadable osim_results.zip file
                 if os.path.exists(path + 'osim_results.zip'):
                     self.index.uploadFile(
@@ -157,13 +213,12 @@ class TrialToProcess:
                           path + '_results.json', flush=True)
 
                 # 6. Clean up after ourselves
-                # os.rmdir(path)
                 shutil.rmtree(path, ignore_errors=True)
             else:
                 # TODO: We should probably re-upload a copy of the whole setup that led to the error
                 # Let's upload a unique copy of the log to S3, so that we have it in case the user re-processes
                 if os.path.exists(path + 'log.txt'):
-                    self.index.uploadFile(self.trialPath +
+                    self.index.uploadFile(self.subjectPath +
                                           'log_error_copy_' + str(time.time()) + '.txt', path + 'log.txt')
                 else:
                     print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
@@ -176,7 +231,7 @@ class TrialToProcess:
             # TODO: We should probably re-upload a copy of the whole setup that led to the error
             # Let's upload a unique copy of the log to S3, so that we have it in case the user re-processes
             if os.path.exists(path + 'log.txt'):
-                self.index.uploadFile(self.trialPath +
+                self.index.uploadFile(self.subjectPath +
                                       'log_error_copy_' + str(time.time()) + '.txt', path + 'log.txt')
 
             self.pushError(1)
@@ -215,7 +270,12 @@ class TrialToProcess:
         """
         If we've got both the markers file (at a minimum) and a 'READY_TO_PROCESS' flag, and no 'ERROR' flag, we could process this
         """
-        return self.index.exists(self.readyFlagFile) and self.index.exists(self.markersFile) and not self.index.exists(self.errorFlagFile)
+        allHaveMarkers = True
+        for trialName in self.trials:
+            if not self.trials[trialName].hasMarkers():
+                allHaveMarkers = False
+                break
+        return self.index.exists(self.readyFlagFile) and allHaveMarkers and not self.index.exists(self.errorFlagFile)
 
     def alreadyProcessed(self) -> bool:
         """
@@ -244,13 +304,10 @@ class TrialToProcess:
         return True
 
     def latestInputTimestamp(self) -> int:
-        if not self.index.exists(self.markersFile):
-            return 0
-        uploadedTimestamp = self.index.getMetadata(
-            self.markersFile).lastModified
-        if self.index.exists(self.goldIKFile):
+        uploadedTimestamp = 0
+        for trialName in self.trials:
             uploadedTimestamp = max(
-                uploadedTimestamp, self.index.getMetadata(self.goldIKFile).lastModified)
+                uploadedTimestamp, self.trials[trialName].latestInputTimestamp())
         return uploadedTimestamp
 
     def __repr__(self) -> str:
@@ -262,7 +319,7 @@ class TrialToProcess:
 
 class MocapServer:
     index: ReactiveS3Index
-    queue: List[TrialToProcess]
+    queue: List[SubjectToProcess]
 
     def __init__(self) -> None:
         self.index = ReactiveS3Index()
@@ -273,27 +330,22 @@ class MocapServer:
     def onChange(self):
         print('S3 CHANGED!')
 
-        shouldProcessTrials: List[TrialToProcess] = []
+        shouldProcessSubjects: List[SubjectToProcess] = []
 
         # 1. Collect all Trials
         for folder in self.index.listAllFolders():
             if self.index.hasChildren(folder, ['trials/', '_subject.json']):
                 if not folder.endswith('/'):
                     folder += '/'
-                # print('SUBJECT: '+str(folder))
-                trials: Dict[str, FileMetadata] = self.index.getImmediateChildren(
-                    folder+'trials/')
-                for trialName in trials:
-                    # print('TRIAL: '+str(trialName))
-                    trial = TrialToProcess(self.index, folder, trialName)
-                    if trial.shouldProcess():
-                        shouldProcessTrials.append(trial)
+                subject = SubjectToProcess(self.index, folder)
+                if subject.shouldProcess():
+                    shouldProcessSubjects.append(subject)
 
         # 2. Sort Trials oldest to newest
-        shouldProcessTrials.sort(key=lambda x: x.latestInputTimestamp())
+        shouldProcessSubjects.sort(key=lambda x: x.latestInputTimestamp())
 
         # 3. Update the queue. There's another thread that busy-waits on the queue changing, that can then grab a queue entry and continue
-        self.queue = shouldProcessTrials
+        self.queue = shouldProcessSubjects
 
     def processQueueForever(self):
         """

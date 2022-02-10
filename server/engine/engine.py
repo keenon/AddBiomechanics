@@ -5,7 +5,7 @@ import os
 from nimblephysics.loader import absPath
 import json
 import time
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 import numpy as np
 import subprocess
 import shutil
@@ -25,6 +25,11 @@ def processLocalSubjectFolder(path: str):
         path += '/'
 
     processingResult: Dict[str, Any] = {}
+
+    if not os.path.exists(GEOMETRY_FOLDER_PATH):
+        print('ERROR: No folder at GEOMETRY_FOLDER_PATH=' +
+              str(GEOMETRY_FOLDER_PATH))
+        exit(1)
 
     # 1. Symlink in Geometry, if it doesn't come with the folder,
     # so we can load meshes for the visualizer
@@ -60,26 +65,46 @@ def processLocalSubjectFolder(path: str):
         goldOsim = nimble.biomechanics.OpenSimParser.parseOsim(
             path + 'manually_scaled.osim')
 
-    # 5. Load the markers file
-    markersFilePath = path + 'markers.trc'
-    requireExists(markersFilePath, 'markers file')
-    markerTrajectories: nimble.biomechanics.OpenSimTRC = nimble.biomechanics.OpenSimParser.loadTRC(
-        markersFilePath)
+    trialsFolderPath = path + 'trials/'
+    if not os.path.exists(trialsFolderPath):
+        print('ERROR: Trials folder "'+trialsFolderPath +
+              '" does not exist. Quitting.')
+        exit(1)
 
-    # 6. Load the gold .mot file, if one exists
-    if os.path.exists(path + 'manual_ik.mot') and goldOsim is not None:
-        goldMot: nimble.biomechanics.OpenSimMot = nimble.biomechanics.OpenSimParser.loadMot(
-            goldOsim.skeleton,
-            path + 'manual_ik.mot')
+    trialNames = []
+    markerTrials = []
+    trialProcessingResults: List[Dict[str, Any]] = []
 
-        originalIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
-            goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, markerTrajectories.markerTimesteps)
-        print('manually scaled average RMSE cm: ' +
-              str(originalIK.averageRootMeanSquaredError), flush=True)
-        print('manually scaled average max cm: ' +
-              str(originalIK.averageMaxError), flush=True)
-        processingResult['goldAvgRMSE'] = originalIK.averageRootMeanSquaredError
-        processingResult['goldAvgMax'] = originalIK.averageMaxError
+    for trialName in os.listdir(trialsFolderPath):
+        trialNames.append(trialName)
+        trialPath = trialsFolderPath + trialName + '/'
+        trialProcessingResult: Dict[str, Any] = {}
+
+        # Load the markers file
+        markersFilePath = trialPath + 'markers.trc'
+        requireExists(markersFilePath, 'markers file')
+        markerTrajectories: nimble.biomechanics.OpenSimTRC = nimble.biomechanics.OpenSimParser.loadTRC(
+            markersFilePath)
+        markerTrials.append(markerTrajectories.markerTimesteps)
+
+        # Load the gold .mot file, if one exists
+        if os.path.exists(trialPath + 'manual_ik.mot') and goldOsim is not None:
+            goldMot: nimble.biomechanics.OpenSimMot = nimble.biomechanics.OpenSimParser.loadMot(
+                goldOsim.skeleton,
+                trialPath + 'manual_ik.mot')
+
+            originalIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
+                goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, markerTrajectories.markerTimesteps)
+            print('manually scaled average RMSE cm: ' +
+                  str(originalIK.averageRootMeanSquaredError), flush=True)
+            print('manually scaled average max cm: ' +
+                  str(originalIK.averageMaxError), flush=True)
+            trialProcessingResult['goldAvgRMSE'] = originalIK.averageRootMeanSquaredError
+            trialProcessingResult['goldAvgMax'] = originalIK.averageMaxError
+
+        trialProcessingResults.append(trialProcessingResult)
+
+    print('Fitting trials '+str(trialNames), flush=True)
 
     # 7. Process the trial
     fitter = nimble.biomechanics.MarkerFitter(
@@ -118,26 +143,12 @@ def processLocalSubjectFolder(path: str):
     fitter.setAnthropometricPrior(anthropometrics, 0.1)
 
     # Run the kinematics pipeline
-    result: nimble.biomechanics.MarkerInitialization = fitter.runKinematicsPipeline(
-        markerTrajectories.markerTimesteps, nimble.biomechanics.InitialMarkerFitParams(), 50)
-    customOsim.skeleton.setGroupScales(result.groupScales)
+    results: List[nimble.biomechanics.MarkerInitialization] = fitter.runMultiTrialKinematicsPipeline(
+        markerTrials, nimble.biomechanics.InitialMarkerFitParams(), 50)
+
+    customOsim.skeleton.setGroupScales(results[0].groupScales)
     fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
-                                np.ndarray]] = result.updatedMarkerMap
-    resultIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
-        customOsim.skeleton, fitMarkers, result.poses, markerTrajectories.markerTimesteps)
-    processingResult['autoAvgRMSE'] = resultIK.averageRootMeanSquaredError
-    processingResult['autoAvgMax'] = resultIK.averageMaxError
-
-    # 8. Write out our result files
-
-    # 8.1. Write out the result summary JSON
-    with open(path+'_results.json', 'w') as f:
-        # The frontend expects JSON in this format
-        # autoAvgMax: number;
-        # autoAvgRMSE: number;
-        # goldAvgMax: number;
-        # goldAvgRMSE: number;
-        json.dump(processingResult, f)
+                                np.ndarray]] = results[0].updatedMarkerMap
 
     # 8.2. Write out the usable OpenSim results
 
@@ -152,33 +163,81 @@ def processLocalSubjectFolder(path: str):
     print('Scaling OpenSim files: '+command)
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
     process.wait()
-    # 8.2.3. Write out the .mot files
-    timestamps = [i * 0.001 for i in range(result.poses.shape[1])]
-    print('Writing OpenSim .mot file')
-    nimble.biomechanics.OpenSimParser.saveMot(
-        customOsim.skeleton, path + 'results/motion.mot', timestamps, result.poses)
+
+    for i in range(len(results)):
+        result = results[i]
+        trialName = trialNames[i]
+        trialProcessingResult = trialProcessingResults[i]
+        trialPath = path + 'trials/' + trialName + '/'
+
+        resultIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
+            customOsim.skeleton, fitMarkers, result.poses, markerTrajectories.markerTimesteps)
+        trialProcessingResult['autoAvgRMSE'] = resultIK.averageRootMeanSquaredError
+        trialProcessingResult['autoAvgMax'] = resultIK.averageMaxError
+
+        # 8. Write out our result files
+
+        # 8.1. Write out the result summary JSON
+        with open(trialPath+'_results.json', 'w') as f:
+            # The frontend expects JSON in this format
+            # autoAvgMax: number;
+            # autoAvgRMSE: number;
+            # goldAvgMax: number;
+            # goldAvgRMSE: number;
+            json.dump(trialProcessingResult, f)
+
+        # Write out the .mot files
+        timestamps = [i * 0.001 for i in range(result.poses.shape[1])]
+        print('Writing OpenSim .mot file')
+        nimble.biomechanics.OpenSimParser.saveMot(
+            customOsim.skeleton, path + 'results/'+trialName+'.mot', timestamps, result.poses)
+
+        # 8.2. Write out the animation preview
+        # 8.2.1. Create the raw JSON
+        fitter.saveTrajectoryAndMarkersToGUI(
+            trialPath+'preview.json', result, markerTrajectories.markerTimesteps)
+        # 8.2.2. Zip it up
+        print('Zipping up preview.json', flush=True)
+        subprocess.run(["zip", "-r", trialPath+'preview.json.zip', trialPath +
+                        'preview.json'], capture_output=True)
+        print('Finished zipping up preview.json.zip', flush=True)
+
     print('Zipping up OpenSim files', flush=True)
     shutil.make_archive(path + 'osim_results', 'zip', path, 'results')
     print('Finished outputting OpenSim files', flush=True)
 
-    # 8.2. Write out the animation preview
-    # 8.2.1. Create the raw JSON
-    fitter.saveTrajectoryAndMarkersToGUI(
-        path+'preview.json', result, markerTrajectories.markerTimesteps)
-    """
-    guiRecording = nimble.server.GUIRecording()
-    for timestep in range(result.poses.shape[1]):
-        customOsim.skeleton.setPositions(result.poses[:, timestep])
-        guiRecording.renderSkeleton(
-            customOsim.skeleton, 'result', [-1, -1, -1, -1])
-        guiRecording.saveFrame()
-    guiRecording.writeFramesJson(path+'preview.json')
-    """
-    # 8.2.2. Zip it up
-    print('Zipping up preview.json', flush=True)
-    subprocess.run(["zip", "-r", path+'preview.json.zip', path +
-                    'preview.json'], capture_output=True)
-    print('Finished zipping up preview.json.zip', flush=True)
+    # Generate the overall summary result
+    autoTotalLen = 0
+    goldTotalLen = 0
+    processingResult['autoAvgRMSE'] = 0
+    processingResult['autoAvgMax'] = 0
+    processingResult['goldAvgRMSE'] = 0
+    processingResult['goldAvgMax'] = 0
+    for i in range(len(results)):
+        trialLen = len(markerTrials[i])
+        trialProcessingResult = trialProcessingResults[i]
+        processingResult['autoAvgRMSE'] += trialProcessingResult['autoAvgRMSE'] * trialLen
+        processingResult['autoAvgMax'] += trialProcessingResult['autoAvgMax'] * trialLen
+        autoTotalLen += trialLen
+
+        if 'goldAvgRMSE' in trialProcessingResult and 'goldAvgMax' in trialProcessingResult:
+            processingResult['goldAvgRMSE'] += trialProcessingResult['goldAvgRMSE'] * trialLen
+            processingResult['goldAvgMax'] += trialProcessingResult['goldAvgMax'] * trialLen
+            goldTotalLen += trialLen
+    processingResult['autoAvgRMSE'] /= autoTotalLen
+    processingResult['autoAvgMax'] /= autoTotalLen
+    if goldTotalLen > 0:
+        processingResult['goldAvgRMSE'] /= goldTotalLen
+        processingResult['goldAvgMax'] /= goldTotalLen
+
+    # Write out the result summary JSON
+    with open(path+'_results.json', 'w') as f:
+        # The frontend expects JSON in this format
+        # autoAvgMax: number;
+        # autoAvgRMSE: number;
+        # goldAvgMax: number;
+        # goldAvgRMSE: number;
+        json.dump(processingResult, f)
 
     # counter = 0
     # while True:
@@ -194,4 +253,5 @@ if __name__ == "__main__":
     print(sys.argv)
     # processLocalSubjectFolder("/tmp/tmpmnf2siae/")
     # processLocalSubjectFolder("/tmp/tmp_287z04g")
+    # processLocalSubjectFolder("/tmp/tmp99d3lw9v/")
     processLocalSubjectFolder(sys.argv[1])

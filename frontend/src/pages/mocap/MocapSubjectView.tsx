@@ -11,7 +11,15 @@ import {
 import DropFile from "../../components/DropFile";
 import Dropzone from "react-dropzone";
 import MocapTrialModal from "./MocapTrialModal";
+import MocapLogModal from "./MocapLogModal";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
+
+type ProcessingResultsJSON = {
+  autoAvgMax: number;
+  autoAvgRMSE: number;
+  goldAvgMax: number;
+  goldAvgRMSE: number;
+};
 
 type MocapTrialRowViewProps = {
   index: number;
@@ -21,31 +29,6 @@ type MocapTrialRowViewProps = {
 };
 
 const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
-  let status = props.cursor.getTrialStatus(props.name);
-  let statusBadge = null;
-  if (status === "empty") {
-  }
-  else if (status === "done") {
-    statusBadge = <span className="badge bg-success">Processed</span>;
-  }
-  else if (status === "error") {
-    statusBadge = <span className="badge bg-danger">Error</span>;
-  }
-  else if (status === "processing") {
-    statusBadge = <span className="badge bg-warning">Processing</span>;
-  }
-  else if (status === "could-process") {
-    if (props.cursor.canEdit()) {
-      statusBadge = <Button onClick={() => props.cursor.markTrialReadyForProcessing(props.name)}>Process</Button>;
-    }
-    else {
-      statusBadge = <span className="badge bg-secondary">Waiting for owner to process</span>;
-    }
-  }
-  else if (status === "waiting") {
-    statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
-  }
-
   let manualIKRow = null;
   if (props.cursor.getShowValidationControls()) {
     manualIKRow = (
@@ -74,7 +57,6 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
       <td>
         <DropFile cursor={props.cursor} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadFiles[props.name + "_grf.mot"]} accept=".mot" />
       </td>
-      <td>{statusBadge}</td>
       {!props.cursor.canEdit() ? null : (
         <td>
           <ButtonGroup className="d-block mb-2">
@@ -323,6 +305,7 @@ function validateOpenSimFile(file: File): Promise<null | string> {
 const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
   const navigate = useNavigate();
+  const [resultsJson, setResultsJson] = useState({} as ProcessingResultsJSON);
 
   let trialViews: any[] = [];
 
@@ -398,34 +381,111 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let weightValue = props.cursor.subjectJson.getAttribute("massKg", 0.0);
   let heightValue = props.cursor.subjectJson.getAttribute("heightM", 0.0);
 
+  let status: 'done' | 'processing' | 'could-process' | 'error' | 'waiting' | 'empty' = props.cursor.getSubjectStatus();
+  let statusBadge = null;
+  let statusDetails = null;
+  if (status === "done") {
+    let download = null;
+    if (props.cursor.hasResultsArchive()) {
+      download = (
+        <div style={{ 'marginBottom': '5px' }}>
+          <Button onClick={() => props.cursor.downloadResultsArchive()}>
+            <i className="mdi mdi-download me-2 vertical-middle"></i>
+            Download OpenSim Results
+          </Button>
+        </div>
+      );
+    }
+
+    statusBadge = <span className="badge bg-success">Processed</span>;
+    statusDetails = <>
+      {download}
+      <Button variant="warning" onClick={props.cursor.requestReprocessSubject}>
+        <i className="mdi mdi-refresh me-2 vertical-middle"></i>
+        Reprocess
+      </Button>
+      <Link
+        style={{
+          marginLeft: '7px'
+        }}
+        to={{
+          search: "?logs=true"
+        }}
+        replace
+      >View Processing Logs</Link>
+    </>;
+
+    if (props.cursor.hasResultsFile()) {
+      props.cursor.getResultsFileText().then((text: string) => {
+        let results = JSON.parse(text);
+        if (JSON.stringify(resultsJson) !== JSON.stringify(results)) {
+          setResultsJson(results);
+        }
+      });
+    }
+  }
+  else if (status === "error") {
+    statusBadge = <span className="badge bg-danger">Error</span>;
+    statusDetails = <>
+      <Button variant="warning" onClick={props.cursor.requestReprocessSubject}>
+        <i className="mdi mdi-refresh me-2 vertical-middle"></i>
+        Reprocess
+      </Button>
+      <Link
+        style={{
+          marginLeft: '7px'
+        }}
+        to={{
+          search: "?logs=true"
+        }}
+        replace
+      >View Processing Logs</Link>
+    </>;
+  }
+  else if (status === "processing") {
+    statusBadge = <span className="badge bg-warning">Processing</span>;
+    statusDetails =
+      <Link
+        style={{
+          marginLeft: '7px'
+        }}
+        to={{
+          search: "?logs=true"
+        }}
+        replace
+      >View Processing Logs</Link>;
+  }
+  else if (status === "could-process") {
+    if (props.cursor.canEdit()) {
+      statusDetails = <Button onClick={props.cursor.markReadyForProcessing}>Process</Button>;
+    }
+    else {
+      statusBadge = <span className="badge bg-secondary">Waiting for owner to process</span>;
+    }
+  }
+  else if (status === "waiting") {
+    statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
+  }
+
   return (
     <div className="MocapView">
       <MocapTrialModal cursor={props.cursor} />
+      <MocapLogModal cursor={props.cursor} />
       <h3>
         <i className="mdi mdi-walk me-1 text-muted vertical-middle"></i>
         Subject: {props.cursor.getCurrentFileName()}{" "}
         {/*<span className="badge bg-secondary">{"TODO"}</span>*/}
       </h3>
-      <div>Run Comparison with Hand-Scaled Version: <input type="checkbox" checked={showValidationControls} onChange={(e) => {
-        props.cursor.setShowValidationControls(e.target.checked);
-      }} disabled={!validationControlsEnabled} /></div>
-      <div>
-        <h5>Unscaled OpenSim</h5>
-        <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} />
+      <div className="mb-15">
+        <h5>Status {statusBadge}</h5>
+        <div className="mb-15">{statusDetails}</div>
       </div>
-      {manuallyScaledOpensimUpload}
-      <h5>Anthropometrics</h5>
       <form className="row g-3">
         <div className="col-md-6">
           <label htmlFor="heightM" className="form-label">Height (m):</label>
           <input type="number" className={"form-control" + (heightValue === 0 ? " is-invalid" : "")} id="heightM" value={heightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("heightM", e.target.value);
           }} />
-          {/*
-          <div className="valid-feedback">
-            Looks good!
-          </div>
-          */}
         </div>
         <div className="col-md-6">
           <label htmlFor="weightKg" className="form-label">Weight (kg):</label>
@@ -434,8 +494,16 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           }} />
         </div>
       </form>
+      <div className="mb-15">
+        <h5>Unscaled OpenSim</h5>
+        <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} />
+      </div>
+      <div className="mb-15">Run Comparison with Hand-Scaled Version: <input type="checkbox" checked={showValidationControls} onChange={(e) => {
+        props.cursor.setShowValidationControls(e.target.checked);
+      }} disabled={!validationControlsEnabled} />
+      </div>
+      {manuallyScaledOpensimUpload}
       <div>
-        <h5>Trials</h5>
         <Table
           responsive={trials.length > 2}
           className="table table-centered table-nowrap mb-0 mt-2"
@@ -446,10 +514,9 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         >
           <colgroup>
             <col style={{ width: "20%" }} />
-            <col style={{ width: ((100 - 20 - 15 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
-            {showValidationControls ? <col style={{ width: ((100 - 20 - 15 - (props.cursor.canEdit() ? 15 : 0)) / 3) + "%" }} /> : null}
-            <col style={{ width: ((100 - 20 - 15 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
-            <col style={{ width: "15%" }} />
+            <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
+            {showValidationControls ? <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / 3) + "%" }} /> : null}
+            <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
             {props.cursor.canEdit() ? (
               <col style={{ width: "15%" }} />
             ) : null}
@@ -460,9 +527,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               <th className="border-0">Markers</th>
               {manualIkRowHeader}
               <th className="border-0">GRF</th>
-              <th className="border-0">
-                Status
-              </th>
               {props.cursor.canEdit() ? (
                 <th className="border-0">
                   Action

@@ -1,1 +1,1 @@
-nimblephysics == 0.6.6
+nimblephysics == 0.6.7

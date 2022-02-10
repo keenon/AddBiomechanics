@@ -19,7 +19,7 @@ const FolderView = observer((props: FolderViewProps) => {
   contents.forEach((entry) => {
     const name = entry.key;
 
-    let status: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' = 'done';
+    let status: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' | 'empty' = 'done';
     if (entry.type === 'folder') {
       status = props.cursor.getFolderStatus(entry.key);
     }
