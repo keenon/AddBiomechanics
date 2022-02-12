@@ -25,7 +25,11 @@ type MocapTrialRowViewProps = {
   index: number;
   name: string;
   cursor: MocapS3Cursor;
-  uploadFiles: { [key: string]: File; };
+  uploadTRC: File | undefined;
+  uploadIK: File | undefined;
+  uploadGRF: File | undefined;
+  onMultipleManualIK: (files: File[]) => void;
+  onMultipleGRF: (files: File[]) => void;
 };
 
 const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
@@ -33,10 +37,11 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   if (props.cursor.getShowValidationControls()) {
     manualIKRow = (
       <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/manual_ik.mot"} uploadOnMount={props.uploadFiles[props.name + "_ik.mot"]} accept=".mot" />
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/manual_ik.mot"} uploadOnMount={props.uploadIK} accept=".mot" onMultipleFiles={props.onMultipleManualIK} />
       </td>
     );
   }
+  console.log(props.name + "_grf.mot");
 
   return (
     <tr>
@@ -51,11 +56,11 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
         </Link>
       </td>
       <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadFiles[props.name + ".trc"]} accept=".trc" />
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc" />
       </td>
       {manualIKRow}
       <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadFiles[props.name + "_grf.mot"]} accept=".mot" />
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadGRF} accept=".mot" onMultipleFiles={props.onMultipleGRF} />
       </td>
       {!props.cursor.canEdit() ? null : (
         <td>
@@ -311,13 +316,34 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   let trials = props.cursor.getTrials();
   for (let i = 0; i < trials.length; i++) {
+    let uploadGRF = uploadFiles[trials[i].key + "_grf.mot"];
+
     trialViews.push(
       <MocapTrialRowView
         cursor={props.cursor}
         index={i}
         key={trials[i].key}
         name={trials[i].key}
-        uploadFiles={uploadFiles}
+        uploadTRC={uploadFiles[trials[i].key + ".trc"]}
+        uploadIK={uploadFiles[trials[i].key + "_ik.mot"]}
+        uploadGRF={uploadFiles[trials[i].key + "_grf.mot"]}
+        onMultipleGRF={(files: File[]) => {
+          // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
+          let updatedUploadFiles = { ...uploadFiles };
+          for (let i = 0; i < files.length; i++) {
+            updatedUploadFiles[files[i].name.replace(".mot", "_grf.mot")] = files[i];
+          }
+          setUploadFiles(updatedUploadFiles);
+        }}
+        onMultipleManualIK={(files: File[]) => {
+          console.log(files);
+          // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
+          let updatedUploadFiles = { ...uploadFiles };
+          for (let i = 0; i < files.length; i++) {
+            updatedUploadFiles[files[i].name.replace(".mot", "_ik.mot")] = files[i];
+          }
+          setUploadFiles(updatedUploadFiles);
+        }}
       />
     );
   }
@@ -330,7 +356,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             accept=".trc,.mot"
             onDrop={(acceptedFiles) => {
               // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
-              let updatedUploadFiles = uploadFiles;
+              let updatedUploadFiles = { ...uploadFiles };
               let fileNames: string[] = [];
               for (let i = 0; i < acceptedFiles.length; i++) {
                 fileNames.push(acceptedFiles[i].name);

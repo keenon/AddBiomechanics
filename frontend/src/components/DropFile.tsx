@@ -12,6 +12,7 @@ type DropFileProps = {
     accept: string;
     uploadOnMount?: File;
     validateFile?: (f: File) => Promise<string | null>;
+    onMultipleFiles?: (files: File[]) => void;
 };
 
 const DropFile = observer((props: DropFileProps) => {
@@ -62,7 +63,7 @@ const DropFile = observer((props: DropFileProps) => {
         <Dropzone
             {...props}
             onDrop={action((acceptedFiles) => {
-                if (acceptedFiles.length > 0) {
+                if (acceptedFiles.length == 1) {
                     let errorPromise: Promise<string | null>;
                     if (props.validateFile) {
                         errorPromise = props.validateFile(acceptedFiles[0]);
@@ -86,6 +87,38 @@ const DropFile = observer((props: DropFileProps) => {
                     /*
                     */
                 }
+                else if (acceptedFiles.length > 1 && props.onMultipleFiles != null) {
+                    let errorPromise: Promise<string | null>;
+                    if (props.validateFile) {
+                        let errorPromises: Promise<string | null>[] = [];
+                        for (let i = 0; i < acceptedFiles.length; i++) {
+                            errorPromises.push(props.validateFile(acceptedFiles[i]));
+                        }
+                        errorPromise = Promise.all(errorPromises).then((errors: (string | null)[]) => {
+                            for (let j = 0; j < errors.length; j++) {
+                                if (errors[j] != null) {
+                                    return acceptedFiles[j].name + ": " + errors[j];
+                                }
+                            }
+                            return null;
+                        });
+                    }
+                    else {
+                        errorPromise = Promise.resolve(null);
+                    }
+
+                    errorPromise.then((error: string | null) => {
+                        if (error != null) {
+                            alert(error);
+                        }
+                        else if (props.onMultipleFiles != null) {
+                            props.onMultipleFiles(acceptedFiles);
+                        }
+                    });
+                }
+                else if (acceptedFiles.length > 1) {
+                    alert("This input doesn't accept multiple files at once!");
+                }
             })}
         >
             {({ getRootProps, getInputProps, isDragActive }) => (
@@ -96,7 +129,7 @@ const DropFile = observer((props: DropFileProps) => {
                     </div>
                 </div>
             )}
-        </Dropzone>
+        </Dropzone >
     );
 });
 
