@@ -45,6 +45,8 @@ class ReactiveS3Index:
         """
         self.pubSub.subscribe("/UPDATE/#", self._onUpdate)
         self.pubSub.subscribe("/DELETE/#", self._onDelete)
+        # Make sure we refresh our index when our connection resumes, if our connection was interrupted
+        self.pubSub.addResumeListener(self.refreshIndex)
 
     def refreshIndex(self) -> None:
         """

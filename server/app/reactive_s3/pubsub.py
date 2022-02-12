@@ -6,6 +6,7 @@ import time
 from uuid import uuid4
 import json
 from typing import Callable, Any, Dict
+import datetime
 
 received_count = 0
 
@@ -29,6 +30,8 @@ class PubSub:
     """
     Here's a PubSub object
     """
+
+    resumeListeners = []
 
     def __init__(self):
         print('creating PubSub object')
@@ -90,18 +93,22 @@ class PubSub:
         # Wait for the async op to complete
         disconnect_future.result()
 
+    def addResumeListener(self, listener):
+        self.resumeListeners.append(listener)
+
     def _onConnectionInterrupted(self, connection, error, **kwargs):
         """
         The connection is interrupted
         """
-        print("Connection interrupted. error: {}".format(error))
+        print("Connection interrupted at {}. error: {}".format(
+            datetime.now().strftime("%H:%M:%S"), error))
 
     def _onConnectionResumed(self, connection, returnCode=None, sessionPresent=None, **kwargs):
         """
         The connection is resumed from an interrupt
         """
-        print("Connection resumed. connection: {} return_code: {} session_present: {}".format(
-            connection, returnCode, sessionPresent))
+        print("Connection resumed at {}. connection: {} return_code: {} session_present: {}".format(datetime.now().strftime("%H:%M:%S"),
+                                                                                                    connection, returnCode, sessionPresent))
 
         self.mqtt_connection = connection
 
@@ -112,6 +119,9 @@ class PubSub:
             # Cannot synchronously wait for resubscribe result because we're on the connection's event-loop thread,
             # evaluate result with a callback instead.
             resubscribeFuture.add_done_callback(self._onResubscribeComplete)
+
+        for listener in self.resumeListeners:
+            listener()
 
     def _onResubscribeComplete(self, resubscribeFuture):
         """
