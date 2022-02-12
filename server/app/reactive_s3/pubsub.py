@@ -101,13 +101,13 @@ class PubSub:
         The connection is interrupted
         """
         print("Connection interrupted at {}. error: {}".format(
-            datetime.now().strftime("%H:%M:%S"), error))
+            datetime.datetime.now().strftime("%H:%M:%S"), error))
 
     def _onConnectionResumed(self, connection, returnCode=None, sessionPresent=None, **kwargs):
         """
         The connection is resumed from an interrupt
         """
-        print("Connection resumed at {}. connection: {} return_code: {} session_present: {}".format(datetime.now().strftime("%H:%M:%S"),
+        print("Connection resumed at {}. connection: {} return_code: {} session_present: {}".format(datetime.datetime.now().strftime("%H:%M:%S"),
                                                                                                     connection, returnCode, sessionPresent))
 
         self.mqtt_connection = connection
