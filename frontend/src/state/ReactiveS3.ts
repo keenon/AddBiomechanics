@@ -6,6 +6,9 @@ import {
 } from "@aws-amplify/storage";
 import JSZip from 'jszip';
 import RobustMqtt from './RobustMqtt';
+import { Credentials, getAmplifyUserAgent } from '@aws-amplify/core';
+import { S3Client, ListObjectsV2Command, ListObjectsV2CommandOutput } from '@aws-sdk/client-s3';
+
 
 /**
  * This strips any illegal characters from a PubSub path (or subset of a path), and returns what's left
@@ -518,6 +521,8 @@ type ReactiveFileMetadata = {
 class ReactiveIndex {
     files: Map<string, ReactiveFileMetadata> = new Map();
 
+    region: string;
+    bucketName: string;
     // This is the level, in the Amplify API's, of storage this index is reflecting
     level: 'protected' | 'public';
     // This is the prefix that's getting attached (invisibly) to the paths we send to Amplify
@@ -542,7 +547,9 @@ class ReactiveIndex {
     // This is a handle on the PubSub socket object we'll use
     socket: RobustMqtt;
 
-    constructor(level: 'protected' | 'public', runNetworkSetup: boolean = true, socket: RobustMqtt) {
+    constructor(region: string, bucketName: string, level: 'protected' | 'public', runNetworkSetup: boolean = true, socket: RobustMqtt) {
+        this.region = region;
+        this.bucketName = bucketName;
         this.level = level;
         this.socket = socket;
 
@@ -831,55 +838,134 @@ class ReactiveIndex {
      * This does a complete refresh, overwriting the paths
      */
     fullRefresh = () => {
-        this.setIsLoading(true);
-        // 1. Make the remote API call to list all the objects in this bucket
-        return Storage.list("", { level: this.level })
-            .then(
-                (result: S3ProviderListOutput) => {
-                    this.clearNetworkError("FullRefresh");
+        return this.loadFolder("", false).then((result) => {
+            this.clearNetworkError("FullRefresh");
 
-                    // 2. Update the set of files
+            // 2. Update the set of files
 
-                    // 2.1. Build a map of the updated set of objects
-                    const newFiles: Map<string, S3ProviderListOutputItem> = new Map();
-                    for (let i = 0; i < result.length; i++) {
-                        const key = result[i].key;
-                        if (key != null) {
-                            newFiles.set(key, result[i]);
-                        }
-                    }
-
-                    // 2.2. For each existing key in our current files, check if it doesn't
-                    // exist in the updated set. If it doesn't, then it's been deleted.
-                    this.files.forEach((file: ReactiveFileMetadata, path: string) => {
-                        if (!newFiles.has(path)) {
-                            // This means that "path" was deleted!
-                            this._deleteFileInIndex(path);
-                        }
-                    });
-
-                    newFiles.forEach((file: S3ProviderListOutputItem, path: string) => {
-                        const key = file.key;
-                        const lastModified = file.lastModified;
-                        const size = file.size;
-                        if (key != null && lastModified != null && size != null) {
-                            this._updateFileInIndex({
-                                key,
-                                lastModified,
-                                size
-                            });
-                        }
-                    });
-
-                    this.setIsLoading(false);
+            // 2.1. Build a map of the updated set of objects
+            const newFiles: Map<string, ReactiveFileMetadata> = new Map();
+            for (let i = 0; i < result.files.length; i++) {
+                const key = result.files[i].key;
+                if (key != null) {
+                    newFiles.set(key, result.files[i]);
                 }
-            )
+            }
+
+            // 2.2. For each existing key in our current files, check if it doesn't
+            // exist in the updated set. If it doesn't, then it's been deleted.
+            this.files.forEach((file: ReactiveFileMetadata, path: string) => {
+                if (!newFiles.has(path)) {
+                    // This means that "path" was deleted!
+                    this._deleteFileInIndex(path);
+                }
+            });
+
+            newFiles.forEach((file: ReactiveFileMetadata, path: string) => {
+                this._updateFileInIndex(file);
+            });
+        })
             .catch((err: Error) => {
                 this.setIsLoading(false);
                 console.error('Unable to refresh index type "' + this.level + '"');
                 console.log(err);
                 this.setNetworkError("FullRefresh", "We got an error trying to load the files! Attempting to reconnect...");
             });
+    };
+
+
+    /**
+     * This is a replacement for Storage.load(), but with support for limiting the results to one folder level, and to doing multiple pages of calls.
+     */
+    loadFolder = async (folder: string, limitToOneFolderLevel: boolean) => {
+        this.setIsLoading(true);
+
+        if (this.level === 'public') {
+            this.globalPrefix = 'public/';
+        }
+        else if (this.level === 'protected') {
+            let credentials = await Auth.currentCredentials();
+            this.globalPrefix = "protected/" + credentials.identityId + "/";
+        }
+
+        if (folder !== '' && !folder.endsWith('/')) {
+            folder += '/';
+        }
+        let path = this.globalPrefix + folder;
+
+        const INVALID_CRED = { accessKeyId: '', secretAccessKey: '' };
+        const credentialsProvider = async () => {
+            try {
+                const credentials = await Credentials.get();
+                if (!credentials) return INVALID_CRED;
+                const cred = Credentials.shear(credentials);
+                return cred;
+            } catch (error) {
+                console.warn('credentials provider error', error);
+                return INVALID_CRED;
+            }
+        }
+
+        const s3client = new S3Client({
+            region: this.region,
+            // Using provider instead of a static credentials, so that if an upload task was in progress, but credentials gets
+            // changed or invalidated (e.g user signed out), the subsequent requests will fail.
+            credentials: credentialsProvider,
+            customUserAgent: getAmplifyUserAgent()
+        });
+
+        const bucketName = this.bucketName;
+        const globalPrefix = this.globalPrefix;
+        async function listAsync(continuationToken?: string, filesSoFar?: ReactiveFileMetadata[], foldersSoFar?: string[]): Promise<{ files: ReactiveFileMetadata[], folders: string[] }> {
+            const listObjectsCommand = new ListObjectsV2Command({
+                Bucket: bucketName,
+                Prefix: path,
+                Delimiter: limitToOneFolderLevel ? '/' : undefined,
+                MaxKeys: 1000,
+                ContinuationToken: continuationToken
+            });
+
+            const output: ListObjectsV2CommandOutput = await s3client.send(listObjectsCommand);
+
+            let files: ReactiveFileMetadata[] = filesSoFar ? [...filesSoFar] : [];
+            if (output.Contents != null && output.Contents.length > 0) {
+                for (let i = 0; i < output.Contents.length; i++) {
+                    let file = output.Contents[i];
+                    if (file.Key != null && file.LastModified != null && file.Size != null && file.Key.startsWith(globalPrefix)) {
+                        files.push({
+                            key: file.Key.substring(globalPrefix.length),
+                            lastModified: file.LastModified,
+                            size: file.Size
+                        });
+                    }
+                }
+            }
+
+            let folders: string[] = foldersSoFar ? [...foldersSoFar] : [];
+            if (output.CommonPrefixes != null && output.CommonPrefixes.length > 0) {
+                for (let i = 0; i < output.CommonPrefixes.length; i++) {
+                    let folder = output.CommonPrefixes[i];
+                    if (folder.Prefix != null && folder.Prefix.startsWith(globalPrefix)) {
+                        let folderFullPath = folder.Prefix.substring(globalPrefix.length);
+                        folders.push(folderFullPath);
+                    }
+                }
+            }
+
+            if (output.NextContinuationToken != null) {
+                return listAsync(output.NextContinuationToken, files, folders);
+            }
+
+            return {
+                files,
+                folders
+            }
+        };
+
+        return listAsync().then((results) => {
+            this.setIsLoading(false);
+            return results;
+        });
     };
 
     /**

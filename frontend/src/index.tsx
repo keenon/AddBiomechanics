@@ -40,8 +40,8 @@ const socket: RobustMqtt = new RobustMqtt("us-west-2", "wss://adup0ijwoz88i-ats.
   reconnectPeriod: -1,
   resubscribe: false
 });
-const publicIndex = new ReactiveIndex("public", false, socket);
-const myData = new ReactiveIndex("protected", false, socket);
+const publicIndex = new ReactiveIndex(awsExports.aws_user_files_s3_bucket_region, awsExports.aws_user_files_s3_bucket, "public", false, socket);
+const myData = new ReactiveIndex(awsExports.aws_user_files_s3_bucket_region, awsExports.aws_user_files_s3_bucket, "protected", false, socket);
 const cursor = new MocapS3Cursor(publicIndex, myData, socket);
 
 function afterLogin() {

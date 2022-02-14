@@ -56,7 +56,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
         </Link>
       </td>
       <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc" />
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc" required />
       </td>
       {manualIKRow}
       <td>
@@ -316,8 +316,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   let trials = props.cursor.getTrials();
   for (let i = 0; i < trials.length; i++) {
-    let uploadGRF = uploadFiles[trials[i].key + "_grf.mot"];
-
     trialViews.push(
       <MocapTrialRowView
         cursor={props.cursor}
@@ -361,6 +359,11 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               for (let i = 0; i < acceptedFiles.length; i++) {
                 fileNames.push(acceptedFiles[i].name);
                 updatedUploadFiles[acceptedFiles[i].name] = acceptedFiles[i];
+
+                if (!acceptedFiles[i].name.endsWith(".trc")) {
+                  alert("You can only bulk create trials with *.trc files. To bulk upload other types of files (like *.mot for GRF or IK) please create the trials first, then drag a group of *.mot files to one of the upload slots for the type of file you're uploading on one of your trials (doesn't matter which trial, files will be matched by name).");
+                  return;
+                }
               }
               setUploadFiles(updatedUploadFiles);
               props.cursor.bulkCreateTrials(fileNames);
@@ -491,6 +494,12 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
   else if (status === "waiting") {
     statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
+  }
+  else if (status === 'empty') {
+    statusBadge = <span className="badge bg-danger">Missing required files</span>;
+    statusDetails = <div>
+      There are trials below that are missing files required to process this subject. Either upload those files, or delete those trials.
+    </div>
   }
 
   return (

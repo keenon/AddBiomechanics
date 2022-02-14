@@ -13,6 +13,7 @@ type DropFileProps = {
     uploadOnMount?: File;
     validateFile?: (f: File) => Promise<string | null>;
     onMultipleFiles?: (files: File[]) => void;
+    required?: boolean;
 };
 
 const DropFile = observer((props: DropFileProps) => {
@@ -55,7 +56,7 @@ const DropFile = observer((props: DropFileProps) => {
             body = <>{humanFileSize(metadata.size)} on {metadata.lastModified.toDateString()}</>
         }
         else {
-            body = <><i className="text-muted dripicons-cloud-upload" style={{ marginRight: '5px' }}></i> Drop files here or click to upload</>
+            body = <><i className={(props.required ? "" : "text-muted ") + "dripicons-cloud-upload"} style={{ marginRight: '5px' }}></i> {(props.required ? <b>Required: </b> : null)} Drop files here or click to upload</>
         }
     }
 
@@ -63,7 +64,7 @@ const DropFile = observer((props: DropFileProps) => {
         <Dropzone
             {...props}
             onDrop={action((acceptedFiles) => {
-                if (acceptedFiles.length == 1) {
+                if (acceptedFiles.length === 1) {
                     let errorPromise: Promise<string | null>;
                     if (props.validateFile) {
                         errorPromise = props.validateFile(acceptedFiles[0]);
@@ -122,7 +123,7 @@ const DropFile = observer((props: DropFileProps) => {
             })}
         >
             {({ getRootProps, getInputProps, isDragActive }) => (
-                <div className={"dropzone dropzone-sm" + (metadata != null ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : '')} {...getRootProps()}>
+                <div className={"dropzone dropzone-sm" + (metadata != null ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && metadata == null) ? ' dropzone-error' : ''))} {...getRootProps()}>
                     <div className="dz-message needsclick">
                         <input {...getInputProps()} />
                         {body}

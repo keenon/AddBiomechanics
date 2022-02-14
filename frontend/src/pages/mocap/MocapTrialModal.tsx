@@ -56,7 +56,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                 }
             }).catch(() => { });
         }
-    }, [trialNumber, show, subjectStatus, trial?.key]);
+    }, [trialNumber, show, subjectStatus, trial?.key]); // note: don't depend on props.cursor, because that leads to an infinite loop in rendering
 
     if (!show || trial == null) {
         return <></>;

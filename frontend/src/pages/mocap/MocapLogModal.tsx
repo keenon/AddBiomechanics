@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Modal, Button, Spinner, Table } from "react-bootstrap";
+import { Modal, Spinner } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
-import MocapS3Cursor, { LargeZipJsonObject } from '../../state/MocapS3Cursor';
-import NimbleStandaloneReact from 'nimble-visualizer/dist/NimbleStandaloneReact';
+import MocapS3Cursor from '../../state/MocapS3Cursor';
 
 type MocapLogModalProps = {
   cursor: MocapS3Cursor;

@@ -20,7 +20,7 @@ const FileRouter = observer((props: FileRouterProps) => {
     props.cursor.setUrlPath(location.pathname);
   }, [props.cursor, location.pathname]);
 
-  const path = location.pathname.split('/');
+  const path = decodeURI(location.pathname).split('/');
   while (path.length > 0 && ((path[0] === props.linkPrefix) || (path[0] === ''))) {
     path.splice(0, 1);
   }

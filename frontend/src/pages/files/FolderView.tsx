@@ -48,6 +48,9 @@ const FolderView = observer((props: FolderViewProps) => {
     else if (status === "waiting") {
       statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
     }
+    else if (status === "empty") {
+      statusBadge = <span className="badge bg-secondary">Upload Incomplete</span>;
+    }
 
 
     rows.push(

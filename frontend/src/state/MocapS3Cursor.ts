@@ -103,6 +103,8 @@ class MocapS3Cursor {
         let path: string = '';
         let error: boolean = false;
 
+        urlPath = decodeURI(urlPath);
+
         // 1. Set an error state if the path is empty
         if (urlPath.length === 0) {
             error = true;

@@ -21,6 +21,11 @@
         }
     }
 
+    &.dropzone-error {
+        border: 2px dashed rgb(var(--bs-danger-rgb));
+        color: rgb(var(--bs-danger-rgb));
+    }
+
     &.dropzone-sm {
         padding: 5px;
         min-height: 0;
