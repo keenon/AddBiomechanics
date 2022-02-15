@@ -14,6 +14,7 @@ import HorizontalLayout from "./layouts/Horizontal";
 import FileRouter from "./pages/files/FileRouter";
 import FileControlsWrapper from "./pages/files/FileControlsWrapper";
 import Welcome from "./pages/Welcome";
+import ComingSoon from "./pages/ComingSoon";
 import ErrorDisplay from "./layouts/ErrorDisplay";
 
 import { ReactiveIndex } from "./state/ReactiveS3";
@@ -97,6 +98,8 @@ ReactDOM.render(
           <Route
             path={"/" + PUBLIC_DATA_URL_PREFIX + "/*"}
             element={
+              <ComingSoon />
+              /*
               <Row>
                 <Col md="12">
                   <Card className="mt-4">
@@ -110,6 +113,7 @@ ReactDOM.render(
                   </Card>
                 </Col>
               </Row>
+              */
             }
           ></Route>
           <Route path={"/" + MY_DATA_URL_PREFIX + "/*"} element={<RequireAuth />}>
