@@ -92,8 +92,8 @@ ReactDOM.render(
   <BrowserRouter>
     <Routes>
       <Route element={<ErrorDisplay cursor={cursor} />}>
+        <Route index element={<Welcome />} />
         <Route element={<HorizontalLayout />}>
-          <Route index element={<Welcome />} />
           <Route
             path={"/" + PUBLIC_DATA_URL_PREFIX + "/*"}
             element={
