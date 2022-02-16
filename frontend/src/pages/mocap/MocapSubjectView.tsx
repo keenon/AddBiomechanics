@@ -518,15 +518,47 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       <form className="row g-3">
         <div className="col-md-6">
           <label htmlFor="heightM" className="form-label">Height (m):</label>
-          <input type="number" className={"form-control" + (heightValue === 0 ? " is-invalid" : "")} id="heightM" value={heightValue} onChange={(e) => {
+          <input type="number" className={"form-control" + ((heightValue < 0.1 || heightValue > 3.0) ? " is-invalid" : "")} id="heightM" value={heightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("heightM", e.target.value);
           }} />
+          {(() => {
+            if (heightValue < 0.1) {
+              return (
+                <div className="invalid-feedback">
+                  Humans are generally not less than 0.1 meters tall.
+                </div>
+              );
+            }
+            else if (heightValue > 3.0) {
+              return (
+                <div className="invalid-feedback">
+                  Humans are generally not more than 3 meters tall.
+                </div>
+              );
+            }
+          })()}
         </div>
         <div className="col-md-6">
           <label htmlFor="weightKg" className="form-label">Weight (kg):</label>
-          <input type="number" className={"form-control" + (weightValue === 0 ? " is-invalid" : "")} id="weightKg" value={weightValue} onChange={(e) => {
+          <input type="number" className={"form-control" + ((weightValue < 5 || weightValue > 700) ? " is-invalid" : "")} id="weightKg" value={weightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("massKg", e.target.value);
           }} />
+          {(() => {
+            if (weightValue < 5) {
+              return (
+                <div className="invalid-feedback">
+                  Humans are generally not less than 5 kilograms.
+                </div>
+              );
+            }
+            else if (weightValue > 700) {
+              return (
+                <div className="invalid-feedback">
+                  Humans are generally not more than 700 kilograms.
+                </div>
+              );
+            }
+          })()}
         </div>
       </form>
       <div className="mb-15">

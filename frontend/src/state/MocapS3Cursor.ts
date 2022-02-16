@@ -278,6 +278,7 @@ class MocapS3Cursor {
         let trials = this.getTrials(path);
 
         let anyTrialsMissingMarkers = false;
+        const hasAnyTrials = trials.length > 0;
 
         for (let i = 0; i < trials.length; i++) {
             const markersMetadata = this.rawCursor.getChildMetadata(path + "trials/" + trials[i].key + "/markers.trc");
@@ -286,6 +287,8 @@ class MocapS3Cursor {
             }
         }
 
+        const hasOsimFile = this.rawCursor.getExists(path + "unscaled_generic.osim");
+
         const hasReadyToProcessFlag = this.rawCursor.getExists(path + "READY_TO_PROCESS");
         const hasProcessingFlag = this.rawCursor.getExists(path + "PROCESSING");
         const hasErrorFlag = this.rawCursor.getExists(path + "ERROR");
@@ -293,7 +296,7 @@ class MocapS3Cursor {
         const logMetadata = this.rawCursor.getChildMetadata(path + "log.txt");
         const resultsMetadata = this.rawCursor.getChildMetadata(path + "_results.json");
 
-        if (anyTrialsMissingMarkers) {
+        if (anyTrialsMissingMarkers || !hasOsimFile || !hasAnyTrials) {
             return 'empty';
         }
         else if (logMetadata != null && resultsMetadata != null) {

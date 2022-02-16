@@ -23,10 +23,10 @@ const BottomLink = () => {
 
   return (
     <Row className="mt-3">
-      <Col className="text-center">
-        <p className="text-muted">
+      <Col className="text-center" style={{ fontSize: "20px" }}>
+        <p>
           {t("Don't have an account?")}{" "}
-          <Link to={"/sign-up"} className="text-muted ms-1">
+          <Link to={"/sign-up"} className="ms-1">
             <b>{t("Sign Up")}</b>
           </Link>
         </p>

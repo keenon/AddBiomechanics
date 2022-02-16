@@ -1,5 +1,5 @@
 import React from "react";
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import MocapS3Cursor from '../state/MocapS3Cursor';
 import { observer } from "mobx-react-lite";
 
@@ -9,9 +9,10 @@ type ErrorDisplayProps = {
 
 const ErrorDisplay = observer(({ cursor }: ErrorDisplayProps) => {
   console.log("Rerendering ErrorDisplay");
+  let location = useLocation();
 
   let errorBanner = null;
-  if (cursor.hasNetworkErrors()) {
+  if (cursor.hasNetworkErrors() && location.pathname !== '/') {
     let errors: string[] = cursor.getNetworkErrors();
     errorBanner = <>
       <div className="error-backdrop" />

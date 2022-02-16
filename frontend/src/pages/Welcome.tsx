@@ -84,7 +84,7 @@ const Welcome = () => {
           <div className="col-md-8 align-self-center">
             <h2>About Us</h2>
             <p className="lead">
-              We're a group of passionate biomechanists and computer scientists on a mission to bring machine learning to biomechanics.
+              We're a group of passionate biomechanists and computer scientists on a mission to bring "big data" methods to biomechanics.
               The first author on this project is Keenon Werling, a CS PhD student at Stanford University.
               The professors involved in this project are <a href="https://ckllab.stanford.edu/c-karen-liu">Karen Liu</a>, <a href="https://nmbl.stanford.edu/people/scott-delp/">Scott Delp</a>, and <a href="https://engineering.stanford.edu/person/steve-collins">Steve Collins</a>.
               If you'd like to get involved, feel free to reach out to any of us!
