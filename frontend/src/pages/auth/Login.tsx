@@ -36,7 +36,7 @@ const BottomLink = () => {
 };
 
 type LoginProps = {
-  onLogin?: () => void;
+  onLogin?: (email: string) => void;
 };
 
 const Login = (props: LoginProps) => {
@@ -57,7 +57,7 @@ const Login = (props: LoginProps) => {
     Auth.signIn(email, password)
       .then(() => {
         if (props.onLogin) {
-          props.onLogin();
+          props.onLogin(email);
         }
         // Send them back to the page they tried to visit when they were
         // redirected to the login page. Use { replace: true } so we don't create

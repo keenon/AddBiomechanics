@@ -72,6 +72,7 @@ def processLocalSubjectFolder(path: str):
         exit(1)
 
     trialNames = []
+    c3dFiles = []
     markerTrials = []
     trialProcessingResults: List[Dict[str, Any]] = []
 
@@ -81,11 +82,12 @@ def processLocalSubjectFolder(path: str):
         trialProcessingResult: Dict[str, Any] = {}
 
         # Load the markers file
-        markersFilePath = trialPath + 'markers.trc'
+        markersFilePath = trialPath + 'markers.c3d'
         requireExists(markersFilePath, 'markers file')
-        markerTrajectories: nimble.biomechanics.OpenSimTRC = nimble.biomechanics.OpenSimParser.loadTRC(
+        c3dFile: nimble.biomechanics.C3D = nimble.biomechanics.C3DLoader.loadC3D(
             markersFilePath)
-        markerTrials.append(markerTrajectories.markerTimesteps)
+        c3dFiles.append(c3dFile)
+        markerTrials.append(c3dFile.markerTimesteps)
 
         # Load the gold .mot file, if one exists
         if os.path.exists(trialPath + 'manual_ik.mot') and goldOsim is not None:
@@ -94,7 +96,7 @@ def processLocalSubjectFolder(path: str):
                 trialPath + 'manual_ik.mot')
 
             originalIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
-                goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, markerTrajectories.markerTimesteps)
+                goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, c3dFile.markerTimesteps)
             print('manually scaled average RMSE cm: ' +
                   str(originalIK.averageRootMeanSquaredError), flush=True)
             print('manually scaled average max cm: ' +
@@ -167,6 +169,7 @@ def processLocalSubjectFolder(path: str):
     for i in range(len(results)):
         result = results[i]
         trialName = trialNames[i]
+        c3dFile = c3dFiles[i]
         markerTimesteps = markerTrials[i]
         trialProcessingResult = trialProcessingResults[i]
         trialPath = path + 'trials/' + trialName + '/'
@@ -200,7 +203,7 @@ def processLocalSubjectFolder(path: str):
         print('Saving trajectory and markers to a GUI log ' +
               trialPath+'preview.json', flush=True)
         fitter.saveTrajectoryAndMarkersToGUI(
-            trialPath+'preview.json', result, markerTimesteps)
+            trialPath+'preview.json', result, markerTimesteps, c3dFile)
         # 8.2.2. Zip it up
         print('Zipping up '+trialPath+'preview.json', flush=True)
         subprocess.run(["zip", "-r", trialPath+'preview.json.zip', trialPath +

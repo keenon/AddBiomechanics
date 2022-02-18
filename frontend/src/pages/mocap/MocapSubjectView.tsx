@@ -25,11 +25,9 @@ type MocapTrialRowViewProps = {
   index: number;
   name: string;
   cursor: MocapS3Cursor;
-  uploadTRC: File | undefined;
+  uploadC3D: File | undefined;
   uploadIK: File | undefined;
-  uploadGRF: File | undefined;
   onMultipleManualIK: (files: File[]) => void;
-  onMultipleGRF: (files: File[]) => void;
 };
 
 const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
@@ -56,12 +54,9 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
         </Link>
       </td>
       <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc" required />
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.c3d"} uploadOnMount={props.uploadC3D} accept=".c3d" required />
       </td>
       {manualIKRow}
-      <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadGRF} accept=".mot" onMultipleFiles={props.onMultipleGRF} />
-      </td>
       {!props.cursor.canEdit() ? null : (
         <td>
           <ButtonGroup className="d-block mb-2">
@@ -322,17 +317,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         index={i}
         key={trials[i].key}
         name={trials[i].key}
-        uploadTRC={uploadFiles[trials[i].key + ".trc"]}
+        uploadC3D={uploadFiles[trials[i].key + ".c3d"]}
         uploadIK={uploadFiles[trials[i].key + "_ik.mot"]}
-        uploadGRF={uploadFiles[trials[i].key + "_grf.mot"]}
-        onMultipleGRF={(files: File[]) => {
-          // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
-          let updatedUploadFiles = { ...uploadFiles };
-          for (let i = 0; i < files.length; i++) {
-            updatedUploadFiles[files[i].name.replace(".mot", "_grf.mot")] = files[i];
-          }
-          setUploadFiles(updatedUploadFiles);
-        }}
         onMultipleManualIK={(files: File[]) => {
           console.log(files);
           // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
@@ -351,7 +337,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         <td colSpan={6}>
           <Dropzone
             {...props}
-            accept=".trc,.mot"
+            accept=".c3d,.mot"
             onDrop={(acceptedFiles) => {
               // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
               let updatedUploadFiles = { ...uploadFiles };
@@ -360,8 +346,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                 fileNames.push(acceptedFiles[i].name);
                 updatedUploadFiles[acceptedFiles[i].name] = acceptedFiles[i];
 
-                if (!acceptedFiles[i].name.endsWith(".trc")) {
-                  alert("You can only bulk create trials with *.trc files. To bulk upload other types of files (like *.mot for GRF or IK) please create the trials first, then drag a group of *.mot files to one of the upload slots for the type of file you're uploading on one of your trials (doesn't matter which trial, files will be matched by name).");
+                if (!acceptedFiles[i].name.endsWith(".c3d")) {
+                  alert("You can only bulk create trials with *.c3d files. To bulk upload other types of files (like *.mot for IK) please create the trials first, then drag a group of *.mot files to one of the IK upload slots (doesn't matter which trial, files will be matched by name).");
                   return;
                 }
               }
@@ -375,7 +361,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                   <input {...getInputProps()} />
                   <i className="h3 text-muted dripicons-cloud-upload"></i>
                   <h5>
-                    Drop files here or click to bulk upload trials.
+                    Drop C3D files here or click to bulk upload trials.
                   </h5>
                   <span className="text-muted font-13">
                     (You can drop multiple files at once to create multiple
@@ -496,9 +482,9 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
   }
   else if (status === 'empty') {
-    statusBadge = <span className="badge bg-danger">Missing required files</span>;
+    statusBadge = <span className="badge bg-danger">Missing required data</span>;
     statusDetails = <div>
-      There are trials below that are missing files required to process this subject. Either upload those files, or delete those trials.
+      Missing data is highlighted below in red. Please input the data (or if it's a trial that's missing data, you can also delete the trial).
     </div>
   }
 
@@ -563,7 +549,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       </form>
       <div className="mb-15">
         <h5>Unscaled OpenSim</h5>
-        <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} />
+        <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} required />
       </div>
       <div className="mb-15">Run Comparison with Hand-Scaled Version: <input type="checkbox" checked={showValidationControls} onChange={(e) => {
         props.cursor.setShowValidationControls(e.target.checked);
@@ -581,9 +567,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         >
           <colgroup>
             <col style={{ width: "20%" }} />
-            <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
-            {showValidationControls ? <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / 3) + "%" }} /> : null}
-            <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
+            <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 2 : 1)) + "%" }} />
+            {showValidationControls ? <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / 2) + "%" }} /> : null}
             {props.cursor.canEdit() ? (
               <col style={{ width: "15%" }} />
             ) : null}
@@ -591,9 +576,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           <thead className="table-light">
             <tr>
               <th className="border-0" >Trial Name</th>
-              <th className="border-0">Markers</th>
+              <th className="border-0">C3D</th>
               {manualIkRowHeader}
-              <th className="border-0">GRF</th>
               {props.cursor.canEdit() ? (
                 <th className="border-0">
                   Action

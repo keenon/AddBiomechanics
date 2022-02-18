@@ -8,6 +8,7 @@ import subprocess
 import uuid
 import json
 import shutil
+import boto3
 
 
 def absPath(path: str):
@@ -38,7 +39,7 @@ class TrialToProcess:
         self.trialPath = subjectPath + 'trials/' + self.trialName
 
         # Trial files
-        self.markersFile = self.trialPath + 'markers.trc'
+        self.markersFile = self.trialPath + 'markers.c3d'
         self.goldIKFile = self.trialPath + 'manual_ik.mot'
         self.resultsFile = self.trialPath + '_results.json'
         self.previewJsonFile = self.trialPath + 'preview.json.zip'
@@ -47,7 +48,7 @@ class TrialToProcess:
         trialPath = trialsFolderPath + self.trialName
         os.mkdir(trialPath)
 
-        self.index.download(self.markersFile, trialPath+'markers.trc')
+        self.index.download(self.markersFile, trialPath+'markers.c3d')
         if self.index.exists(self.goldIKFile):
             self.index.download(self.goldIKFile, trialPath+'manual_ik.mot')
 
@@ -122,6 +123,31 @@ class SubjectToProcess:
         self.resultsFile = self.subjectPath + '_results.json'
         self.osimResults = self.subjectPath + 'osim_results.zip'
         self.logfile = self.subjectPath + 'log.txt'
+
+    def sendNotificationEmail(self, email: str, name: str, path: str):
+        ses_client = boto3.client("ses", region_name="us-west-2")
+        CHARSET = "UTF-8"
+
+        response = ses_client.send_email(
+            Destination={
+                "ToAddresses": [
+                    email,
+                ],
+            },
+            Message={
+                "Body": {
+                    "Text": {
+                        "Charset": CHARSET,
+                        "Data": "Your subject \"{0}\" has finished processing. Visit https://biomechnet.org/my_data/{1} to view and download. You can view in-browser visualizations of the uploaded trial data by clicking on each trial name.\n\nThank you for using BiomechNet!\n-BiomechNet team\n\nP.S: Do not reply to this email. To give feedback on BiomechNet, please contact the main author, Keenon Werling, directly at keenon@stanford.edu.".format(name, path),
+                    }
+                },
+                "Subject": {
+                    "Charset": CHARSET,
+                    "Data": "BiomechNet: \"{0}\" Finished Processing".format(name),
+                },
+            },
+            Source="noreply@biomechnet.org",
+        )
 
     def process(self):
         """
@@ -211,6 +237,23 @@ class SubjectToProcess:
                 else:
                     print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                           path + '_results.json', flush=True)
+
+                with open(path+'_subject.json') as subj:
+                    subjectJson = json.loads(subj.read())
+                    if 'email' in subjectJson:
+                        email = subjectJson['email']
+                        print('sending notification email to '+str(email))
+                        print('subject path: '+str(self.subjectPath))
+                        parts = self.subjectPath.split('/')
+                        print('path parts: '+str(parts))
+                        name = parts[-1]
+                        if parts[-1] == '':
+                            name = parts[-2]
+                        print('name: '+str(name))
+                        path = '/'.join(parts[3:-1]
+                                        if parts[-1] == '' else parts[3:])
+                        print('path: '+str(path))
+                        self.sendNotificationEmail(email, name, path)
 
                 # 6. Clean up after ourselves
                 shutil.rmtree(path, ignore_errors=True)

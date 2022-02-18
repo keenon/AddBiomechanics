@@ -45,7 +45,9 @@ const publicIndex = new ReactiveIndex(awsExports.aws_user_files_s3_bucket_region
 const myData = new ReactiveIndex(awsExports.aws_user_files_s3_bucket_region, awsExports.aws_user_files_s3_bucket, "protected", false, socket);
 const cursor = new MocapS3Cursor(publicIndex, myData, socket);
 
-function afterLogin() {
+function afterLogin(email: string) {
+  console.log("Logged in as " + email);
+  cursor.setUserEmail(email);
   console.log("Refreshing public data...");
   publicIndex.fullRefresh().then(() => {
     console.log("Refreshing my data...");
@@ -71,9 +73,9 @@ function afterLogin() {
 }
 
 Auth.currentAuthenticatedUser()
-  .then(() => {
+  .then((user: any) => {
     console.log("Calling afterLogin()");
-    afterLogin();
+    afterLogin(user.attributes.email);
   })
   .catch(() => {
     // If we're not logged in, we can set up the PubSub provider right away
@@ -142,8 +144,8 @@ ReactDOM.render(
           path="/login"
           element={
             <Login
-              onLogin={() => {
-                afterLogin();
+              onLogin={(email: string) => {
+                afterLogin(email);
               }}
             />
           }

@@ -87,8 +87,10 @@ class ReactiveJsonFile {
      * This gets called when the path has changed in the supporting cursor
      */
     pathChanged = () => {
+        console.log("File exists: " + this.fileExist());
         if (this.fileExist()) {
             this.cursor.downloadText(this.path).then((text: string) => {
+                console.log("Downloaded text: " + text);
                 try {
                     this.values.clear();
                     const result = JSON.parse(text);
@@ -126,14 +128,33 @@ class ReactiveJsonFile {
     };
 
     /**
+     * This uploads the contents of this file to S3
+     * 
+     * @returns A promise for when the upload is complete
+     */
+    uploadNow = () => {
+        let object: any = {};
+        this.values.forEach((v, k) => {
+            object[k] = v;
+        });
+        let json = JSON.stringify(object);
+        return this.cursor.uploadChild(this.path, json);
+    };
+
+    /**
      * This sets the value, overwriting the old value, and uploads the resulting JSON to S3 (after a short timeout, to avoid spamming with uploads if you're typing).
      * 
      * @param key 
      * @param value 
      */
-    setAttribute = (key: string, value: any) => {
+    setAttribute = (key: string, value: any, uploadImmediate?: boolean) => {
         this.values.set(key, value);
-        this.restartUploadTimer();
+        if (uploadImmediate) {
+            this.uploadNow();
+        }
+        else {
+            this.restartUploadTimer();
+        }
     };
 
     /**
@@ -146,12 +167,7 @@ class ReactiveJsonFile {
             this.pendingTimeout = null;
         }
         this.pendingTimeout = setTimeout(() => {
-            let object: any = {};
-            this.values.forEach((v, k) => {
-                object[k] = v;
-            });
-            let json = JSON.stringify(object);
-            this.cursor.uploadChild(this.path, json).then(() => {
+            this.uploadNow().then(() => {
                 // Call all the change listeners
                 this.changeListeners.forEach((listener) => listener());
             });
@@ -838,6 +854,7 @@ class ReactiveIndex {
      * This does a complete refresh, overwriting the paths
      */
     fullRefresh = () => {
+        this.setIsLoading(true);
         return this.loadFolder("", false).then((result) => {
             this.clearNetworkError("FullRefresh");
 
@@ -864,6 +881,8 @@ class ReactiveIndex {
             newFiles.forEach((file: ReactiveFileMetadata, path: string) => {
                 this._updateFileInIndex(file);
             });
+
+            this.setIsLoading(false);
         })
             .catch((err: Error) => {
                 this.setIsLoading(false);
@@ -878,7 +897,6 @@ class ReactiveIndex {
      * This is a replacement for Storage.load(), but with support for limiting the results to one folder level, and to doing multiple pages of calls.
      */
     loadFolder = async (folder: string, limitToOneFolderLevel: boolean) => {
-        this.setIsLoading(true);
 
         if (this.level === 'public') {
             this.globalPrefix = 'public/';
@@ -963,7 +981,6 @@ class ReactiveIndex {
         };
 
         return listAsync().then((results) => {
-            this.setIsLoading(false);
             return results;
         });
     };
@@ -1065,6 +1082,7 @@ class ReactiveIndex {
      * Sets the loading flag, and calls any listeners.
      */
     setIsLoading = (loading: boolean) => {
+        console.log("Setting isLoading to " + loading);
         if (loading !== this.loading) {
             this.loading = loading;
             this.loadingListeners.forEach((listener) => {

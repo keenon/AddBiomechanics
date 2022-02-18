@@ -68,6 +68,8 @@ class MocapS3Cursor {
 
     socket: RobustMqtt;
 
+    userEmail: string | null;
+
     constructor(publicS3Index: ReactiveIndex, protectedS3Index: ReactiveIndex, socket: RobustMqtt) {
         const parsedUrl = this.parseUrlPath(window.location.pathname);
 
@@ -89,7 +91,18 @@ class MocapS3Cursor {
 
         this.socket = socket;
 
+        this.userEmail = null;
+
         makeAutoObservable(this);
+    }
+
+    /**
+     * This gets called after we log in, with the email of the user.
+     * 
+     * @param email The email of the user
+     */
+    setUserEmail = (email: string) => {
+        this.userEmail = email;
     }
 
     /**
@@ -256,7 +269,7 @@ class MocapS3Cursor {
      */
     createMocapClip = (name: string) => {
         return this.rawCursor.uploadChild(name, "").then(() => {
-            this.rawCursor.uploadChild(name + "/_subject.json", "{}").then(() => {
+            this.rawCursor.uploadChild(name + "/_subject.json", JSON.stringify({ email: this.userEmail })).then(() => {
                 this.rawCursor.uploadChild(name + "/trials/", "");
             });
         });
@@ -281,7 +294,7 @@ class MocapS3Cursor {
         const hasAnyTrials = trials.length > 0;
 
         for (let i = 0; i < trials.length; i++) {
-            const markersMetadata = this.rawCursor.getChildMetadata(path + "trials/" + trials[i].key + "/markers.trc");
+            const markersMetadata = this.rawCursor.getChildMetadata(path + "trials/" + trials[i].key + "/markers.c3d");
             if (markersMetadata == null) {
                 anyTrialsMissingMarkers = true;
             }
@@ -431,8 +444,8 @@ class MocapS3Cursor {
     bulkCreateTrials = (fileNames: string[]) => {
         const progress: Promise<void>[] = [];
         for (let i = 0; i < fileNames.length; i++) {
-            if (fileNames[i].endsWith(".trc")) {
-                const file = fileNames[i].substring(0, fileNames[i].length - ".trc".length);
+            if (fileNames[i].endsWith(".c3d")) {
+                const file = fileNames[i].substring(0, fileNames[i].length - ".c3d".length);
                 progress.push(this.rawCursor.uploadChild("trials/" + file, ""));
             }
         }
@@ -574,6 +587,7 @@ class MocapS3Cursor {
             alert("Cannot process a trial with a subject height of 0m");
             return;
         }
+        this.subjectJson.setAttribute("email", this.userEmail, true);
 
         return this.rawCursor.uploadChild("READY_TO_PROCESS", "");
     };
