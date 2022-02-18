@@ -24,7 +24,7 @@ const Welcome = () => {
               transform: 'rotate(-30deg)'
             }}>Early Beta!</div>
             <h1 className="display-5 fw-bold lh-1 mb-3">Automated OpenSim <span style={{ color: 'rgb(114 124 245)' }}>Scaling &amp; Marker Registration</span></h1>
-            <p className="lead">Upload your <code>*.trc</code> or <code>*.c3d</code> marker files and <b>get an automatically scaled OpenSim model and IK done in minutes</b>. Share your data with the community with one click. Hosted by Stanford University.</p>
+            <p className="lead">Upload your <code>*.c3d</code> files and <b>get an automatically scaled OpenSim model and IK done in minutes</b>. Share your data with the community with one click. Hosted by Stanford University.</p>
             <div className="d-grid gap-2 d-md-flex justify-content-md-start">
               <a type="button" className="btn btn-primary btn-lg px-4 me-md-2" href="/my_data" onClick={(e) => {
                 e.preventDefault();

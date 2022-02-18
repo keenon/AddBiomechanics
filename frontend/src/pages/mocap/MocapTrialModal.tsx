@@ -130,20 +130,30 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                         <thead>
                             <tr>
                                 <td></td>
-                                <td>Avg. RMSE</td>
-                                <td>Avg. Max</td>
+                                <td>Avg. Marker-error RMSE</td>
+                                <td>Avg. Marker-error Max</td>
                             </tr>
                         </thead>
                         <tbody>
+                            {(() => {
+                                if (!isNaN(resultsJson.goldAvgRMSE)) {
+                                    return (
+                                        <tr>
+                                            <td>Hand-scaling Performance:</td>
+                                            <td>{(resultsJson.goldAvgRMSE * 100 ?? 0.0).toFixed(2)} cm</td>
+                                            <td>{(resultsJson.goldAvgMax * 100 ?? 0.0).toFixed(2)} cm</td>
+                                        </tr>
+                                    );
+                                }
+                            })()}
                             <tr>
-                                <td>Manual:</td>
-                                <td>{(resultsJson.goldAvgRMSE * 100 ?? 0.0).toFixed(2)} cm</td>
-                                <td>{(resultsJson.goldAvgMax * 100 ?? 0.0).toFixed(2)} cm</td>
-                            </tr>
-                            <tr>
-                                <td>Automatic:</td>
-                                <td>{(resultsJson.autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm <b>({percentImprovementRMSE.toFixed(1)}% error {percentImprovementRMSE > 0 ? 'reduction' : 'increase'})</b></td>
-                                <td>{(resultsJson.autoAvgMax * 100 ?? 0.0).toFixed(2)} cm <b>({percentImprovementMax.toFixed(1)}% error {percentImprovementMax > 0 ? 'reduction' : 'increase'})</b></td>
+                                <td>Auto-scaling Performance:</td>
+                                <td>{(resultsJson.autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm {
+                                    isNaN(percentImprovementRMSE) ? null : <b>({percentImprovementRMSE.toFixed(1)}% error {percentImprovementRMSE > 0 ? 'reduction' : 'increase'})</b>
+                                }</td>
+                                <td>{(resultsJson.autoAvgMax * 100 ?? 0.0).toFixed(2)} cm {
+                                    isNaN(percentImprovementMax) ? null : <b>({percentImprovementMax.toFixed(1)}% error {percentImprovementMax > 0 ? 'reduction' : 'increase'})</b>
+                                }</td>
                             </tr>
                         </tbody>
                     </Table>
