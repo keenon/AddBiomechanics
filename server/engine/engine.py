@@ -89,21 +89,6 @@ def processLocalSubjectFolder(path: str):
         c3dFiles.append(c3dFile)
         markerTrials.append(c3dFile.markerTimesteps)
 
-        # Load the gold .mot file, if one exists
-        if os.path.exists(trialPath + 'manual_ik.mot') and goldOsim is not None:
-            goldMot: nimble.biomechanics.OpenSimMot = nimble.biomechanics.OpenSimParser.loadMot(
-                goldOsim.skeleton,
-                trialPath + 'manual_ik.mot')
-
-            originalIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
-                goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, c3dFile.markerTimesteps)
-            print('manually scaled average RMSE cm: ' +
-                  str(originalIK.averageRootMeanSquaredError), flush=True)
-            print('manually scaled average max cm: ' +
-                  str(originalIK.averageMaxError), flush=True)
-            trialProcessingResult['goldAvgRMSE'] = originalIK.averageRootMeanSquaredError
-            trialProcessingResult['goldAvgMax'] = originalIK.averageMaxError
-
         trialProcessingResults.append(trialProcessingResult)
 
     print('Fitting trials '+str(trialNames), flush=True)
@@ -179,6 +164,28 @@ def processLocalSubjectFolder(path: str):
         trialProcessingResult['autoAvgRMSE'] = resultIK.averageRootMeanSquaredError
         trialProcessingResult['autoAvgMax'] = resultIK.averageMaxError
 
+        print('Saving trial '+str(trialName)+' results', flush=True)
+
+        print('auto scaled average RMSE cm: ' +
+              str(resultIK.averageRootMeanSquaredError), flush=True)
+        print('auto scaled average max cm: ' +
+              str(resultIK.averageMaxError), flush=True)
+
+        # Load the gold .mot file, if one exists
+        goldMot: nimble.biomechanics.OpenSimMot = None
+        if os.path.exists(trialPath + 'manual_ik.mot') and goldOsim is not None:
+            goldMot = nimble.biomechanics.OpenSimParser.loadMot(
+                goldOsim.skeleton, trialPath + 'manual_ik.mot')
+
+            originalIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
+                goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, c3dFile.markerTimesteps)
+            print('manually scaled average RMSE cm: ' +
+                  str(originalIK.averageRootMeanSquaredError), flush=True)
+            print('manually scaled average max cm: ' +
+                  str(originalIK.averageMaxError), flush=True)
+            trialProcessingResult['goldAvgRMSE'] = originalIK.averageRootMeanSquaredError
+            trialProcessingResult['goldAvgMax'] = originalIK.averageMaxError
+
         # 8. Write out our result files
 
         # 8.1. Write out the result summary JSON
@@ -200,10 +207,18 @@ def processLocalSubjectFolder(path: str):
 
         # 8.2. Write out the animation preview
         # 8.2.1. Create the raw JSON
-        print('Saving trajectory and markers to a GUI log ' +
-              trialPath+'preview.json', flush=True)
-        fitter.saveTrajectoryAndMarkersToGUI(
-            trialPath+'preview.json', result, markerTimesteps, c3dFile)
+        if (goldOsim is not None) and (goldMot is not None):
+            print('Saving trajectory, markers, and the manual IK to a GUI log ' +
+                  trialPath+'preview.json', flush=True)
+            print('goldOsim: '+str(goldOsim), flush=True)
+            print('goldMot.poses.shape: '+str(goldMot.poses.shape), flush=True)
+            fitter.saveTrajectoryAndMarkersToGUI(
+                trialPath+'preview.json', result, markerTimesteps, c3dFile, goldOsim, goldMot.poses)
+        else:
+            print('Saving trajectory and markers to a GUI log ' +
+                  trialPath+'preview.json', flush=True)
+            fitter.saveTrajectoryAndMarkersToGUI(
+                trialPath+'preview.json', result, markerTimesteps, c3dFile)
         # 8.2.2. Zip it up
         print('Zipping up '+trialPath+'preview.json', flush=True)
         subprocess.run(["zip", "-r", trialPath+'preview.json.zip', trialPath +
