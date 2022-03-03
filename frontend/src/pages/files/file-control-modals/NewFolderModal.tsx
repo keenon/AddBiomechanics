@@ -18,7 +18,6 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
   const [folderName, setFolderName] = useState("");
   const [valid, setValid] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   let show =
@@ -73,7 +72,6 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
           })
           .catch((e) => {
             setLoading(false);
-            setError(e);
           });
       }
       else if (typeToCreate === "Subject") {
@@ -85,7 +83,6 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
           })
           .catch((e) => {
             setLoading(false);
-            setError(e);
           });
       } else {
         props.cursor
@@ -96,7 +93,6 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
           })
           .catch((e) => {
             setLoading(false);
-            setError(e);
           });
       }
     }
@@ -106,9 +102,6 @@ const NewFolderModal = observer((props: NewFolderModalProps) => {
   if (loading) {
     body.push(<Spinner animation="grow" key="pending" />);
   } else {
-    if (error) {
-      body.push(<div key="error">{error}</div>);
-    }
     body.push(
       <div key="body">
         <Form noValidate validated={false} onSubmitCapture={createFolder}>

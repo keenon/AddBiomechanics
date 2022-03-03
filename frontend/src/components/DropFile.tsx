@@ -81,6 +81,8 @@ const DropFile = observer((props: DropFileProps) => {
                             setIsUploading(true);
                             props.cursor.rawCursor.uploadChild(props.path, acceptedFiles[0], setUploadProgress).then(action(() => {
                                 setIsUploading(false);
+                            })).catch(action(() => {
+                                setIsUploading(false);
                             }));
                         }
                     });
