@@ -424,6 +424,9 @@ class MocapS3Cursor {
     getTrials = (prefix: string = '') => {
         let trials: MocapTrialEntry[] = [];
         let rawFolders = this.rawCursor.getImmediateChildFolders(prefix + "trials/");
+        rawFolders.sort((a, b) => {
+            return a.key.localeCompare(b.key);
+        });
         for (let i = 0; i < rawFolders.length; i++) {
             trials.push({
                 ...rawFolders[i]
