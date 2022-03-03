@@ -8,6 +8,7 @@ import JSZip from 'jszip';
 import RobustMqtt from './RobustMqtt';
 import { Credentials, getAmplifyUserAgent } from '@aws-amplify/core';
 import { S3Client, ListObjectsV2Command, ListObjectsV2CommandOutput } from '@aws-sdk/client-s3';
+import RobustUpload from './RobustUpload';
 
 
 /**
@@ -56,6 +57,7 @@ class ReactiveJsonFile {
     cursor: ReactiveCursor;
     path: string;
     values: Map<string, any>;
+    lastUploadedValues: Map<string, any>;
     pendingTimeout: any | null;
     changeListeners: Array<() => void>;
 
@@ -63,6 +65,7 @@ class ReactiveJsonFile {
         this.cursor = cursor;
         this.path = path;
         this.values = new Map();
+        this.lastUploadedValues = new Map();
         this.pendingTimeout = null;
         this.changeListeners = [];
         this.pathChanged();
@@ -93,9 +96,11 @@ class ReactiveJsonFile {
                 console.log("Downloaded text: " + text);
                 try {
                     this.values.clear();
+                    this.lastUploadedValues.clear();
                     const result = JSON.parse(text);
                     for (let key in result) {
                         this.values.set(key, result[key]);
+                        this.lastUploadedValues.set(key, result[key]);
                     }
                 }
                 catch (e) {
@@ -138,7 +143,28 @@ class ReactiveJsonFile {
             object[k] = v;
         });
         let json = JSON.stringify(object);
-        return this.cursor.uploadChild(this.path, json);
+        console.log("Uploading object");
+        return this.cursor.uploadChild(this.path, json).then(action(() => {
+            console.log("Uploaded successfully");
+            // Update the lastUploadedValues, which we'll reset to if we 
+            this.lastUploadedValues.clear();
+            this.values.forEach((v, k) => {
+                this.lastUploadedValues.set(k, v);
+            });
+            // Call all the change listeners
+            this.changeListeners.forEach((listener) => listener());
+        })).catch(action((e) => {
+            console.error("Caught error uploading JSON, reverting to last uploaded values", e);
+
+            this.values.clear();
+            this.lastUploadedValues.forEach((v, k) => {
+                this.values.set(k, v);
+            });
+            // Call all the change listeners
+            this.changeListeners.forEach((listener) => listener());
+
+            throw e;
+        }));
     };
 
     /**
@@ -167,10 +193,7 @@ class ReactiveJsonFile {
             this.pendingTimeout = null;
         }
         this.pendingTimeout = setTimeout(() => {
-            this.uploadNow().then(() => {
-                // Call all the change listeners
-                this.changeListeners.forEach((listener) => listener());
-            });
+            this.uploadNow();
             this.pendingTimeout = null;
         }, 500);
     };
@@ -255,6 +278,13 @@ class ReactiveCursor {
     getNetworkErrors = () => {
         return this.networkErrors;
     };
+
+    /**
+     * This clears the errors displayed for the network. This could be a temporary action, if the network calls are retried and re-establish errors.
+     */
+    clearNetworkErrors = () => {
+        this.index.clearAllNetworkErrors();
+    }
 
     /**
      * This retrieves or creates an object whose job is to retrieve and store changes to a JSON file in S3.
@@ -610,26 +640,50 @@ class ReactiveIndex {
         };
         const topic = makeTopicPubSubSafe("/UPDATE/" + fullPath);
         console.log("Updating '" + topic + "' with " + JSON.stringify(updatedFile));
+        const uploadObject = new RobustUpload(this.region, this.bucketName, fullPath, contents, '');
+        return uploadObject.upload((progress) => {
+            progressCallback(progress.loaded / progress.total);
+        }).then((response: any) => {
+            console.log("S3.put() Completed callback", response);
+            progressCallback(1.0);
+            this.clearNetworkError("Upload");
+            return this.socket.publish(topic, JSON.stringify(updatedFile));
+        }).catch((e: any) => {
+            this.setNetworkError("Upload", "We got an error trying to upload data!");
+            console.error("Error on Storage.put(), caught in .errorCallback() handler", e);
+            throw e;
+        });
+
+        /*
         return new Promise(
             (resolve: (value: void) => void, reject: (reason?: any) => void) => {
                 try {
                     Storage.put(path, contents, {
                         level: this.level,
                         progressCallback: (progress) => {
+                            console.log("S3.put() Progress callback");
                             progressCallback(progress.loaded / progress.total);
                         },
-                        completeCallback: action(() => {
+                        completeCallback: action((event) => {
+                            console.log("S3.put() Completed callback", event);
                             progressCallback(1.0);
                             this.clearNetworkError("Upload");
                             this.socket.publish(topic, JSON.stringify(updatedFile)).then(() => resolve());
                         }),
+                        errorCallback: (e: any) => {
+                            this.setNetworkError("Upload", "We got an error trying to upload a file!");
+                            console.error("Error on Storage.put(), caught in .errorCallback() handler", e);
+                            reject(e);
+                        }
                     })
-                        .then(() => {
+                        .then((result) => {
+                            console.log("S3.put() Promise resolved", result);
                             progressCallback(1.0);
                             this.clearNetworkError("Upload");
                             this.socket.publish(topic, JSON.stringify(updatedFile)).then(() => resolve());
                         })
                         .catch((e) => {
+                            console.log("S3.put() Promise error");
                             this.setNetworkError("Upload", "We got an error trying to upload a file!");
                             console.error("Error on Storage.put(), caught in .catch() handler", e);
                             reject(e);
@@ -642,6 +696,7 @@ class ReactiveIndex {
                 }
             }
         );
+        */
     }
 
     /**
@@ -654,9 +709,17 @@ class ReactiveIndex {
         const fullPath = this.globalPrefix + path;
         const topic = makeTopicPubSubSafe("/DELETE/" + fullPath);
         return Storage.remove(path, { level: this.level })
-            .then(() => {
-                this.clearNetworkError("Delete");
-                return this.socket.publish(topic, JSON.stringify({ key: fullPath }));
+            .then((result) => {
+                console.log("Delete", result);
+                if (result != null && result.$metadata != null && result.$metadata.httpStatusCode != null) {
+                    this.clearNetworkError("Delete");
+                    return this.socket.publish(topic, JSON.stringify({ key: fullPath }));
+                }
+                else {
+                    this.setNetworkError("Delete", "We got an error trying to delete a file!");
+                    console.log("delete() error: " + path);
+                    throw new Error("Got an error trying to delete a file");
+                }
             }).catch(e => {
                 this.setNetworkError("Delete", "We got an error trying to delete a file!");
                 console.log("delete() error: " + path);
@@ -1050,6 +1113,18 @@ class ReactiveIndex {
         console.log("Setting network error " + key + "=" + value);
         let oldErrors = this.getNetworkErrorMessages();
         this.networkErrors.set(key, value);
+        let newErrors = this.getNetworkErrorMessages();
+        if (JSON.stringify(newErrors) !== JSON.stringify(oldErrors)) {
+            this.networkErrorListeners.forEach(listener => listener(newErrors));
+        }
+    };
+
+    /**
+     * This resolves all current network errors
+     */
+    clearAllNetworkErrors = () => {
+        let oldErrors = this.getNetworkErrorMessages();
+        this.networkErrors.clear();
         let newErrors = this.getNetworkErrorMessages();
         if (JSON.stringify(newErrors) !== JSON.stringify(oldErrors)) {
             this.networkErrorListeners.forEach(listener => listener(newErrors));

@@ -123,7 +123,7 @@ const DropFile = observer((props: DropFileProps) => {
             })}
         >
             {({ getRootProps, getInputProps, isDragActive }) => (
-                <div className={"dropzone dropzone-sm" + (metadata != null ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && metadata == null) ? ' dropzone-error' : ''))} {...getRootProps()}>
+                <div className={"dropzone dropzone-sm" + (metadata != null ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && metadata == null && !isUploading) ? ' dropzone-error' : ''))} {...getRootProps()}>
                     <div className="dz-message needsclick">
                         <input {...getInputProps()} />
                         {body}
