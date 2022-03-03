@@ -98,7 +98,7 @@ def processLocalSubjectFolder(path: str):
         customOsim.skeleton, customOsim.markersMap)
     fitter.setInitialIKSatisfactoryLoss(0.05)
     fitter.setInitialIKMaxRestarts(50)
-    fitter.setIterationLimit(300)
+    fitter.setIterationLimit(400)
     # fitter.setInitialIKMaxRestarts(1)
     # fitter.setIterationLimit(2)
 
@@ -131,7 +131,11 @@ def processLocalSubjectFolder(path: str):
 
     # Run the kinematics pipeline
     results: List[nimble.biomechanics.MarkerInitialization] = fitter.runMultiTrialKinematicsPipeline(
-        markerTrials, nimble.biomechanics.InitialMarkerFitParams(), 50)
+        markerTrials,
+        nimble.biomechanics.InitialMarkerFitParams()
+        .setMaxTrialsToUseForMultiTrialScaling(5)
+        .setMaxTimestepsToUseForMultiTrialScaling(4000),
+        150)
 
     customOsim.skeleton.setGroupScales(results[0].groupScales)
     fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
