@@ -148,12 +148,25 @@ def processLocalSubjectFolder(path: str):
     print('Outputting OpenSim files', flush=True)
     # 8.2.1. Write the XML instructions for the OpenSim scaling tool
     nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
-        customOsim.skeleton, massKg, heightM, path + 'unscaled_generic.osim', path + 'results/rescaled.osim', path + 'scaling_instructions.xml')
+        customOsim.skeleton, massKg, heightM, path + 'unscaled_generic.osim', path + 'rescaled.osim', path + 'scaling_instructions.xml')
     # 8.2.2. Call the OpenSim scaling tool
     command = 'opensim-cmd run-tool ' + path + 'scaling_instructions.xml'
     print('Scaling OpenSim files: '+command)
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
     process.wait()
+
+    # 8.2.3. Adjusting marker locations
+    print('Adjusting marker locations on scaled OpenSim file', flush=True)
+    bodyScalesMap: Dict[str, np.ndarray] = {}
+    for i in range(customOsim.skeleton.getNumBodyNodes()):
+        bodyNode: nimble.dynamics.BodyNode = customOsim.skeleton.getBodyNode(i)
+        bodyScalesMap[bodyNode.getName()] = bodyNode.getScale()
+    markerOffsetsMap: Dict[str, Tuple[str, np.ndarray]] = {}
+    for k in fitMarkers:
+        v = fitMarkers[k]
+        markerOffsetsMap[k] = (v[0].getName(), v[1])
+    nimble.biomechanics.OpenSimParser.moveOsimMarkers(
+        path + 'rescaled.osim', bodyScalesMap, markerOffsetsMap, path + 'results/rescaled.osim')
 
     for i in range(len(results)):
         result = results[i]
@@ -278,7 +291,7 @@ def processLocalSubjectFolder(path: str):
 
 if __name__ == "__main__":
     print(sys.argv)
-    # processLocalSubjectFolder("/tmp/tmpmnf2siae/")
+    # processLocalSubjectFolder("/tmp/tmpa0c7p0na")
     # processLocalSubjectFolder("/tmp/tmp_287z04g")
     # processLocalSubjectFolder("/tmp/tmp99d3lw9v/")
     processLocalSubjectFolder(sys.argv[1])
