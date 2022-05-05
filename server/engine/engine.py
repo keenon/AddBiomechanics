@@ -99,8 +99,7 @@ def processLocalSubjectFolder(path: str):
         customOsim.skeleton, customOsim.markersMap)
     fitter.setInitialIKSatisfactoryLoss(0.05)
     fitter.setInitialIKMaxRestarts(50)
-    # fitter.setIterationLimit(400)
-    fitter.setIterationLimit(20)
+    fitter.setIterationLimit(500)
     # fitter.setInitialIKMaxRestarts(1)
     # fitter.setIterationLimit(2)
 
@@ -210,7 +209,8 @@ def processLocalSubjectFolder(path: str):
             goldMot = nimble.biomechanics.OpenSimParser.loadMot(
                 goldOsim.skeleton, trialPath + 'manual_ik.mot')
 
-            shutil.copyfile(trialPath + 'manual_ik.mot', path + 'results/IK/' + trialName + '_manual_scaling_ik.mot')
+            shutil.copyfile(trialPath + 'manual_ik.mot', path +
+                            'results/IK/' + trialName + '_manual_scaling_ik.mot')
             nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
                 trialName, markerNames, "Models/manually_scaled.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_on_manual_scaling_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_on_manually_scaled_setup.xml')
 
@@ -244,7 +244,8 @@ def processLocalSubjectFolder(path: str):
             path + 'results/ForceData/'+trialName+'_grf.mot', c3dFile.timestamps, c3dFile.forcePlates)
         nimble.biomechanics.OpenSimParser.saveTRC(
             path + 'results/MarkerData/'+trialName+'.trc', c3dFile.timestamps, c3dFile.markerTimesteps)
-        shutil.copyfile(trialPath + 'markers.c3d', path + 'results/C3D/' + trialName + '.c3d')
+        shutil.copyfile(trialPath + 'markers.c3d', path +
+                        'results/C3D/' + trialName + '.c3d')
         # Save OpenSim setup files to make it easy to (re)run IK and ID on the results in OpenSim
         nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
             trialName, markerNames, "Models/autoscaled.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
@@ -252,7 +253,6 @@ def processLocalSubjectFolder(path: str):
             trialName, customOsim.skeleton, result.poses, c3dFile.forcePlates, '../ForceData/'+trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
         nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
             trialName, 'Models/autoscaled.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml')
-
 
         # 8.2. Write out the animation preview
         # 8.2.1. Create the raw JSON
@@ -275,51 +275,8 @@ def processLocalSubjectFolder(path: str):
         print('Finished zipping up '+trialPath+' preview.json.zip', flush=True)
 
     if os.path.exists(path + 'manually_scaled.osim'):
-        shutil.copyfile(path + 'manually_scaled.osim', path + 'results/Models/manually_scaled.osim')
-
-    with open(path + 'results/README.txt', 'w') as f:
-        f.write("*** This data was generated with BiomechNet (www.biomechnet.org) ***\n")
-        f.write("BiomechNet was written by Keenon Werling <keenon@cs.stanford.edu>\n")
-        f.write("\n")
-        f.write(textwrap.fill("The following trials were processed to perform automatic body scaling and marker registration:"))
-        f.write("\n\n")
-        for i in range(len(results)):
-            trialName = trialNames[i]
-            f.write(" - C3D/" + trialName+'.c3d\n')
-        f.write("\n")
-        f.write(textwrap.fill("The model file containing optimal body scaling and marker offsets is:"))
-        f.write("\n\n")
-        f.write("Models/autoscaled.osim")
-        f.write("\n\n")
-        f.write(textwrap.fill("You do not need to re-run Inverse Kinematics, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of BiomechNet, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THIS FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
-        f.write("\n\n")
-        for i in range(len(results)):
-            trialName = trialNames[i]
-            f.write(" > opensim-cmd run-tool IK/" + trialName+'_ik_setup.xml\n')
-            f.write("           This will create a results file IK/" + trialName+'_ik_by_opensim.mot\n')
-        f.write("\n\n")
-
-        if os.path.exists(path + 'manually_scaled.osim'):
-            f.write(textwrap.fill("You included a manually scaled model to compare against. That model has been copied into this folder as \"manually_scaled.osim\". You can use the automatically generated XML configuration files to run IK using your manual scaling as well. Here are the command-line commands you can run (FROM THIS FOLDER, and not including the leading \"> \") to compare IK results for each trial:"))
-            f.write("\n\n")
-            for i in range(len(results)):
-                trialName = trialNames[i]
-                f.write(" > opensim-cmd run-tool IK/" + trialName+'_ik_on_manually_scaled_setup.xml\n')
-                f.write("           This will create a results file IK/" + trialName+'_ik_on_manual_scaling_by_opensim.mot\n')
-            f.write("\n\n")
-
-        f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics is not yet fully supported by BiomechNet, and so the mapping of force-plates to feet is not perfect. The default XML files assign each force plate to the `calcn_*` body that gets closest to it during the motion trial. THIS MAY NOT BE CORRECT! That said, hopefully this is at least a useful starting point for you to edit from. The following commands should work (FROM THIS FOLDER, and not including the leading \"> \"):\n"))
-        f.write("\n\n")
-        for i in range(len(results)):
-            trialName = trialNames[i]
-            f.write(" > opensim-cmd run-tool ID/" + trialName+'_id_setup.xml\n')
-            f.write("           This will create a results file ID/" + trialName+'_id.sto\n')
-        f.write("\n\n")
-        f.write(textwrap.fill("If you encounter errors, please contact Keenon Werling at keenon@cs.stanford.edu, and I will do my best to help :)"))
-
-    print('Zipping up OpenSim files', flush=True)
-    shutil.make_archive(path + 'osim_results', 'zip', path, 'results')
-    print('Finished outputting OpenSim files', flush=True)
+        shutil.copyfile(path + 'manually_scaled.osim', path +
+                        'results/Models/manually_scaled.osim')
 
     # Generate the overall summary result
     autoTotalLen = 0
@@ -345,6 +302,68 @@ def processLocalSubjectFolder(path: str):
         processingResult['goldAvgRMSE'] /= goldTotalLen
         processingResult['goldAvgMax'] /= goldTotalLen
 
+    # Write out the README for the data
+    with open(path + 'results/README.txt', 'w') as f:
+        f.write(
+            "*** This data was generated with BiomechNet (www.biomechnet.org) ***\n")
+        f.write("BiomechNet was written by Keenon Werling <keenon@cs.stanford.edu>\n")
+        f.write("\n")
+        f.write(textwrap.fill(
+            "Automatic processing achieved the following marker errors (averaged over all frames of all trials):"))
+        f.write("\n\n")
+        f.write(" - RMSE: "+('%.2f' %
+                (processingResult['autoAvgRMSE'] * 100))+'cm, Max: '+('%.2f' % (processingResult['autoAvgMax'] * 100))+'cm')
+        f.write("\n\n")
+        f.write(textwrap.fill(
+            "The following trials were processed to perform automatic body scaling and marker registration:"))
+        f.write("\n\n")
+        for i in range(len(results)):
+            trialName = trialNames[i]
+            f.write(" - C3D/" + trialName+'.c3d (RMSE: '+('%.2f' % (trialProcessingResults[i]['autoAvgRMSE'] * 100))+'cm, Max: '+('%.2f' %
+                                                                                                                                  (trialProcessingResults[i]['autoAvgRMSE']*100))+'cm)\n')
+        f.write("\n")
+        f.write(textwrap.fill(
+            "The model file containing optimal body scaling and marker offsets is:"))
+        f.write("\n\n")
+        f.write("Models/autoscaled.osim")
+        f.write("\n\n")
+        f.write(textwrap.fill("You do not need to re-run Inverse Kinematics, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of BiomechNet, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THIS FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
+        f.write("\n\n")
+        for i in range(len(results)):
+            trialName = trialNames[i]
+            f.write(" > opensim-cmd run-tool IK/" +
+                    trialName+'_ik_setup.xml\n')
+            f.write("           This will create a results file IK/" +
+                    trialName+'_ik_by_opensim.mot\n')
+        f.write("\n\n")
+
+        if os.path.exists(path + 'manually_scaled.osim'):
+            f.write(textwrap.fill("You included a manually scaled model to compare against. That model has been copied into this folder as \"manually_scaled.osim\". You can use the automatically generated XML configuration files to run IK using your manual scaling as well. Here are the command-line commands you can run (FROM THIS FOLDER, and not including the leading \"> \") to compare IK results for each trial:"))
+            f.write("\n\n")
+            for i in range(len(results)):
+                trialName = trialNames[i]
+                f.write(" > opensim-cmd run-tool IK/" + trialName +
+                        '_ik_on_manually_scaled_setup.xml\n')
+                f.write("           This will create a results file IK/" +
+                        trialName+'_ik_on_manual_scaling_by_opensim.mot\n')
+            f.write("\n\n")
+
+        f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics is not yet fully supported by BiomechNet, and so the mapping of force-plates to feet is not perfect. The default XML files assign each force plate to the `calcn_*` body that gets closest to it during the motion trial. THIS MAY NOT BE CORRECT! That said, hopefully this is at least a useful starting point for you to edit from. The following commands should work (FROM THIS FOLDER, and not including the leading \"> \"):\n"))
+        f.write("\n\n")
+        for i in range(len(results)):
+            trialName = trialNames[i]
+            f.write(" > opensim-cmd run-tool ID/" +
+                    trialName+'_id_setup.xml\n')
+            f.write("           This will create a results file ID/" +
+                    trialName+'_id.sto\n')
+        f.write("\n\n")
+        f.write(textwrap.fill(
+            "If you encounter errors, please contact Keenon Werling at keenon@cs.stanford.edu, and I will do my best to help :)"))
+
+    print('Zipping up OpenSim files', flush=True)
+    shutil.make_archive(path + 'osim_results', 'zip', path, 'results')
+    print('Finished outputting OpenSim files', flush=True)
+
     # Write out the result summary JSON
     with open(path+'_results.json', 'w') as f:
         # The frontend expects JSON in this format
@@ -366,7 +385,7 @@ def processLocalSubjectFolder(path: str):
 
 if __name__ == "__main__":
     print(sys.argv)
-    # processLocalSubjectFolder("/tmp/tmpa0c7p0na")
+    processLocalSubjectFolder("/tmp/tmpa0c7p0na")
     # processLocalSubjectFolder("/tmp/tmp_287z04g")
     # processLocalSubjectFolder("/tmp/tmp99d3lw9v/")
-    processLocalSubjectFolder(sys.argv[1])
+    # processLocalSubjectFolder(sys.argv[1])
