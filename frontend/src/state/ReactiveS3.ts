@@ -577,6 +577,7 @@ class ReactiveIndex {
 
     metadataListeners: Map<string, Array<(metadata: ReactiveFileMetadata | null) => void>> = new Map();
 
+    childrenListenersEnabled: boolean = true;
     childrenListeners: Map<string, Array<(children: Map<string, ReactiveFileMetadata>) => void>> = new Map();
     childrenLastNotified: Map<string, Map<string, ReactiveFileMetadata>> = new Map();
 
@@ -877,9 +878,20 @@ class ReactiveIndex {
     };
 
     /**
+     * This can temporarily disable the child listeners, while we do a large number of updates to the page structure.
+     */
+    _setChildListenerUpdatesEnabled = (enabled: boolean) => {
+        this.childrenListenersEnabled = enabled;
+        if (this.childrenListenersEnabled) {
+            this._updateChildListeners();
+        }
+    }
+
+    /**
      * This goes through and computes whether we need to notify any should child listeners of changes.
      */
     _updateChildListeners = () => {
+        if (!this.childrenListenersEnabled) return;
         this.childrenListeners.forEach((listeners, key: string) => {
             let children = this.getChildren(key);
 
@@ -932,6 +944,11 @@ class ReactiveIndex {
                 }
             }
 
+            //////////////////////////////////////////////
+            // Begin a bulk change to the index
+            this._setChildListenerUpdatesEnabled(false);
+            //////////////////////////////////////////////
+
             // 2.2. For each existing key in our current files, check if it doesn't
             // exist in the updated set. If it doesn't, then it's been deleted.
             this.files.forEach((file: ReactiveFileMetadata, path: string) => {
@@ -944,6 +961,11 @@ class ReactiveIndex {
             newFiles.forEach((file: ReactiveFileMetadata, path: string) => {
                 this._updateFileInIndex(file);
             });
+
+            //////////////////////////////////////////////
+            // Register the bulk change to the index
+            this._setChildListenerUpdatesEnabled(true);
+            //////////////////////////////////////////////
 
             this.setIsLoading(false);
         })
