@@ -385,7 +385,7 @@ def processLocalSubjectFolder(path: str):
 
 if __name__ == "__main__":
     print(sys.argv)
-    processLocalSubjectFolder("/tmp/tmpa0c7p0na")
+    # processLocalSubjectFolder("/tmp/tmpa0c7p0na")
     # processLocalSubjectFolder("/tmp/tmp_287z04g")
     # processLocalSubjectFolder("/tmp/tmp99d3lw9v/")
-    # processLocalSubjectFolder(sys.argv[1])
+    processLocalSubjectFolder(sys.argv[1])
