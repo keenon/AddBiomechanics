@@ -200,7 +200,22 @@ class SubjectToProcess:
                         logLine['timestamp'] = time.time() * 1000
                         self.index.pubSub.sendMessage(
                             '/LOG/'+procLogTopic, logLine)
-                    exitCode = proc.poll()
+                    # Wait for the process to exit
+                    exitCode = 'Failed to exit after 60 seconds'
+                    for i in range(20):
+                        try:
+                            exitCode = proc.wait(timeout=3)
+                            break
+                        except e:
+                            line = 'Process has not exited!! Waiting another 3 seconds for the process to exit.'
+                            logFile.write(line)
+                            print('>>> '+line)
+                            # Send to PubSub
+                            logLine: Dict[str, str] = {}
+                            logLine['line'] = line
+                            logLine['timestamp'] = time.time() * 1000
+                            self.index.pubSub.sendMessage(
+                                '/LOG/'+procLogTopic, logLine)
                     line = 'exit: '+str(exitCode)
                     # Send to the log
                     logFile.write(line.encode("utf-8"))

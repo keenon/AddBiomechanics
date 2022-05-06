@@ -198,9 +198,9 @@ def processLocalSubjectFolder(path: str):
 
         print('Saving trial '+str(trialName)+' results', flush=True)
 
-        print('auto scaled average RMSE cm: ' +
+        print('auto scaled average RMSE m: ' +
               str(resultIK.averageRootMeanSquaredError), flush=True)
-        print('auto scaled average max cm: ' +
+        print('auto scaled average max m: ' +
               str(resultIK.averageMaxError), flush=True)
 
         # Load the gold .mot file, if one exists
