@@ -395,6 +395,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   let weightValue = props.cursor.subjectJson.getAttribute("massKg", 0.0);
   let heightValue = props.cursor.subjectJson.getAttribute("heightM", 0.0);
+  let sexValue = props.cursor.subjectJson.getAttribute("sex", "unknown");
 
   let status: 'done' | 'processing' | 'could-process' | 'error' | 'waiting' | 'empty' = props.cursor.getSubjectStatus();
   let statusBadge = null;
@@ -414,6 +415,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
     statusBadge = <span className="badge bg-success">Processed</span>;
     statusDetails = <>
+      <h4>Results: {(resultsJson.autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE</h4>
       {download}
       <Button variant="warning" onClick={props.cursor.requestReprocessSubject}>
         <i className="mdi mdi-refresh me-2 vertical-middle"></i>
@@ -502,7 +504,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         <div className="mb-15">{statusDetails}</div>
       </div>
       <form className="row g-3">
-        <div className="col-md-6">
+        <div className="col-md-4">
           <label htmlFor="heightM" className="form-label">Height (m):</label>
           <input type="number" className={"form-control" + ((heightValue < 0.1 || heightValue > 3.0) ? " is-invalid" : "")} id="heightM" value={heightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("heightM", e.target.value);
@@ -524,7 +526,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             }
           })()}
         </div>
-        <div className="col-md-6">
+        <div className="col-md-4">
           <label htmlFor="weightKg" className="form-label">Weight (kg):</label>
           <input type="number" className={"form-control" + ((weightValue < 5 || weightValue > 700) ? " is-invalid" : "")} id="weightKg" value={weightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("massKg", e.target.value);
@@ -545,6 +547,16 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               );
             }
           })()}
+        </div>
+        <div className="col-md-4">
+          <label htmlFor="weightKg" className="form-label">Biological Sex:</label>
+          <select className="form-control" id="sex" value={sexValue} onChange={(e) => {
+            props.cursor.subjectJson.setAttribute("sex", e.target.value);
+          }}>
+            <option value="unknown">Unknown</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
         </div>
       </form>
       <div className="mb-15">
