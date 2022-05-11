@@ -56,6 +56,12 @@ def processLocalSubjectFolder(path: str):
         print('!!WARNING!! No Height specified for subject. Defaulting to 1.6 m.')
         heightM = 1.6
 
+    if 'sex' in subjectJson:
+        sex = subjectJson['sex']
+    else:
+        print('!!WARNING!! No sex specified for subject. Defaulting to "unknown".')
+        sex = 'unknown'
+
     # 3. Load the unscaled Osim file, which we can then scale and format
     customOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
         path + 'unscaled_generic.osim')
@@ -118,10 +124,21 @@ def processLocalSubjectFolder(path: str):
     cols = anthropometrics.getMetricNames()
     cols.append('Heightin')
     cols.append('Weightlbs')
-    gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
-        '/data/ANSUR_II_MALE_Public.csv',
-        cols,
-        0.001)  # mm -> m
+    if sex == 'male':
+        gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
+            '/data/ANSUR_II_MALE_Public.csv',
+            cols,
+            0.001)  # mm -> m
+    elif sex == 'female':
+        gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
+            '/data/ANSUR_II_FEMALE_Public.csv',
+            cols,
+            0.001)  # mm -> m
+    else:
+        gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
+            '/data/ANSUR_II_BOTH_Public.csv',
+            cols,
+            0.001)  # mm -> m
     observedValues = {
         'Heightin': heightM * 39.37 * 0.001,
         'Weightlbs': massKg * 0.453 * 0.001,
