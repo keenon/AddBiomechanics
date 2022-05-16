@@ -268,6 +268,7 @@ class SubjectToProcess:
                         path = '/'.join(parts[3:-1]
                                         if parts[-1] == '' else parts[3:])
                         print('path: '+str(path))
+                        path = path.replace(' ', '%20')
                         self.sendNotificationEmail(email, name, path)
 
                 # 6. Clean up after ourselves

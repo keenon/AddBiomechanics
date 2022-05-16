@@ -65,6 +65,7 @@ def processLocalSubjectFolder(path: str):
     # 3. Load the unscaled Osim file, which we can then scale and format
     customOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
         path + 'unscaled_generic.osim')
+    customOsim.skeleton.autogroupSymmetricSuffixes()
 
     # 4. Load the hand-scaled Osim file, if it exists
     goldOsim: nimble.biomechanics.OpenSimFile = None
@@ -106,17 +107,24 @@ def processLocalSubjectFolder(path: str):
     fitter.setInitialIKSatisfactoryLoss(0.05)
     fitter.setInitialIKMaxRestarts(50)
     fitter.setIterationLimit(500)
+    # fitter.setIterationLimit(20)
     # fitter.setInitialIKMaxRestarts(1)
     # fitter.setIterationLimit(2)
 
-    fitter.setTriadsToTracking()
-    # This is 0.7x the values in the default code
-    fitter.setRegularizeAnatomicalMarkerOffsets(0.7)
+    if len(customOsim.anatomicalMarkers) > 0:
+        fitter.setTrackingMarkers(customOsim.trackingMarkers)
+    else:
+        print('NOTE: The input *.osim file specified no anatomical landmark markers (with <fixed>true</fixed>), so we will default to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
+        fitter.setTriadsToTracking()
+    # This is 1.0x the values in the default code
+    fitter.setRegularizeAnatomicalMarkerOffsets(10.0)
     # This is 1.0x the default value
     fitter.setRegularizeTrackingMarkerOffsets(0.05)
     # These are 2x the values in the default code
-    fitter.setMinSphereFitScore(3e-5 * 2)
-    fitter.setMinAxisFitScore(6e-5 * 2)
+    # fitter.setMinSphereFitScore(3e-5 * 2)
+    # fitter.setMinAxisFitScore(6e-5 * 2)
+    fitter.setMinSphereFitScore(0.01)
+    fitter.setMinAxisFitScore(0.001)
 
     # Create an anthropometric prior
     anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
@@ -141,7 +149,7 @@ def processLocalSubjectFolder(path: str):
             0.001)  # mm -> m
     observedValues = {
         'Heightin': heightM * 39.37 * 0.001,
-        'Weightlbs': massKg * 0.453 * 0.001,
+        'Weightlbs': massKg * 2.204 * 0.001,
     }
     gauss = gauss.condition(observedValues)
     anthropometrics.setDistribution(gauss)
@@ -176,16 +184,11 @@ def processLocalSubjectFolder(path: str):
     if not os.path.exists(path+'results/MarkerData'):
         os.mkdir(path+'results/MarkerData')
     print('Outputting OpenSim files', flush=True)
-    # 8.2.1. Write the XML instructions for the OpenSim scaling tool
-    nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
-        'Autoscaled', customOsim.skeleton, massKg, heightM, path + 'unscaled_generic.osim', path + 'rescaled.osim', path + 'scaling_instructions.xml')
-    # 8.2.2. Call the OpenSim scaling tool
-    command = 'opensim-cmd run-tool ' + path + 'scaling_instructions.xml'
-    print('Scaling OpenSim files: '+command)
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-    process.wait()
 
-    # 8.2.3. Adjusting marker locations
+    shutil.copyfile(path + 'unscaled_generic.osim', path +
+                    'results/Models/unscaled_generic.osim')
+
+    # 8.2.1. Adjusting marker locations
     print('Adjusting marker locations on scaled OpenSim file', flush=True)
     bodyScalesMap: Dict[str, np.ndarray] = {}
     for i in range(customOsim.skeleton.getNumBodyNodes()):
@@ -198,7 +201,16 @@ def processLocalSubjectFolder(path: str):
         markerOffsetsMap[k] = (v[0].getName(), v[1])
         markerNames.append(k)
     nimble.biomechanics.OpenSimParser.moveOsimMarkers(
-        path + 'rescaled.osim', bodyScalesMap, markerOffsetsMap, path + 'results/Models/autoscaled.osim')
+        path + 'unscaled_generic.osim', bodyScalesMap, markerOffsetsMap, path + 'results/Models/unscaled_markers_moved.osim')
+
+    # 8.2.2. Write the XML instructions for the OpenSim scaling tool
+    nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
+        'Autoscaled', customOsim.skeleton, massKg, heightM, 'Models/unscaled_markers_moved.osim', 'Models/autoscaled.osim', path + 'results/Models/scaling_instructions.xml')
+    # 8.2.3. Call the OpenSim scaling tool
+    command = 'cd '+path+'results && opensim-cmd run-tool ' + path + 'results/Models/scaling_instructions.xml'
+    print('Scaling OpenSim files: '+command)
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+    process.wait()
 
     for i in range(len(results)):
         result = results[i]
@@ -212,6 +224,7 @@ def processLocalSubjectFolder(path: str):
             customOsim.skeleton, fitMarkers, result.poses, markerTimesteps)
         trialProcessingResult['autoAvgRMSE'] = resultIK.averageRootMeanSquaredError
         trialProcessingResult['autoAvgMax'] = resultIK.averageMaxError
+        trialProcessingResult['markerErrors'] = resultIK.getSortedMarkerRMSE()
 
         print('Saving trial '+str(trialName)+' results', flush=True)
 
@@ -257,6 +270,8 @@ def processLocalSubjectFolder(path: str):
               trialName+'.mot file, shape='+str(result.poses.shape), flush=True)
         nimble.biomechanics.OpenSimParser.saveMot(
             customOsim.skeleton, path + 'results/IK/'+trialName+'_ik.mot', c3dFile.timestamps, result.poses)
+        resultIK.saveCSVMarkerErrorReport(
+            path + 'results/IK/'+trialName+'_ik_per_marker_error_report.csv')
         nimble.biomechanics.OpenSimParser.saveGRFMot(
             path + 'results/ForceData/'+trialName+'_grf.mot', c3dFile.timestamps, c3dFile.forcePlates)
         nimble.biomechanics.OpenSimParser.saveTRC(
@@ -337,20 +352,31 @@ def processLocalSubjectFolder(path: str):
         for i in range(len(results)):
             trialName = trialNames[i]
             f.write(" - C3D/" + trialName+'.c3d (RMSE: '+('%.2f' % (trialProcessingResults[i]['autoAvgRMSE'] * 100))+'cm, Max: '+('%.2f' %
-                                                                                                                                  (trialProcessingResults[i]['autoAvgRMSE']*100))+'cm)\n')
+                                                                                                                                  (trialProcessingResults[i]['autoAvgMax']*100))+'cm)\n')
+            for j in range(min(len(trialProcessingResults[i]['markerErrors']), 5)):
+                markerName, markerRMSE = trialProcessingResults[i]['markerErrors'][j]
+                f.write("     " + str(j+1)+" Worst Marker \"")
+                f.write(markerName)
+                f.write("\" (RMSE: "+('%.2f' % (markerRMSE * 100))+'cm)')
+                f.write('\n')
         f.write("\n")
         f.write(textwrap.fill(
             "The model file containing optimal body scaling and marker offsets is:"))
         f.write("\n\n")
         f.write("Models/autoscaled.osim")
         f.write("\n\n")
-        f.write(textwrap.fill("You do not need to re-run Inverse Kinematics, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of BiomechNet, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THIS FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
+        f.write(textwrap.fill("If you want to tweak the Scaling, you can edit \"Models/scaling_instructions.xml\" and then run (FROM THIS FOLDER, and not including the leading \"> \"):"))
+        f.write("\n\n")
+        f.write(" > opensim-cmd run-tool Models/scaling_instructions.xml\n")
+        f.write('           # This will re-generate Models/autoscaled.osim\n')
+        f.write("\n\n")
+        f.write(textwrap.fill("You do not need to re-run Inverse Kinematics unless you change scaling, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of BiomechNet, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THIS FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
         f.write("\n\n")
         for i in range(len(results)):
             trialName = trialNames[i]
             f.write(" > opensim-cmd run-tool IK/" +
                     trialName+'_ik_setup.xml\n')
-            f.write("           This will create a results file IK/" +
+            f.write("           # This will create a results file IK/" +
                     trialName+'_ik_by_opensim.mot\n')
         f.write("\n\n")
 
@@ -361,7 +387,7 @@ def processLocalSubjectFolder(path: str):
                 trialName = trialNames[i]
                 f.write(" > opensim-cmd run-tool IK/" + trialName +
                         '_ik_on_manually_scaled_setup.xml\n')
-                f.write("           This will create a results file IK/" +
+                f.write("           # This will create a results file IK/" +
                         trialName+'_ik_on_manual_scaling_by_opensim.mot\n')
             f.write("\n\n")
 
@@ -371,8 +397,17 @@ def processLocalSubjectFolder(path: str):
             trialName = trialNames[i]
             f.write(" > opensim-cmd run-tool ID/" +
                     trialName+'_id_setup.xml\n')
-            f.write("           This will create a results file ID/" +
+            f.write("           # This will create a results file ID/" +
                     trialName+'_id.sto\n')
+        f.write("\n\n")
+        f.write(textwrap.fill(
+            "The original unscaled model file is present in:"))
+        f.write("\n\n")
+        f.write("Models/unscaled_generic.osim")
+        f.write("\n\n")
+        f.write(textwrap.fill("There is also an unscaled model, with markers moved to spots found by this tool, at:"))
+        f.write("\n\n")
+        f.write("Models/unscaled_markers_moved.osim")
         f.write("\n\n")
         f.write(textwrap.fill(
             "If you encounter errors, please contact Keenon Werling at keenon@cs.stanford.edu, and I will do my best to help :)"))
