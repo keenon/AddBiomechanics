@@ -193,7 +193,8 @@ def processLocalSubjectFolder(path: str):
     bodyScalesMap: Dict[str, np.ndarray] = {}
     for i in range(customOsim.skeleton.getNumBodyNodes()):
         bodyNode: nimble.dynamics.BodyNode = customOsim.skeleton.getBodyNode(i)
-        bodyScalesMap[bodyNode.getName()] = bodyNode.getScale()
+        # Now that we adjust the markers BEFORE we rescale the body, we don't want to rescale the marker locations at all
+        bodyScalesMap[bodyNode.getName()] = [1,1,1] # bodyNode.getScale()
     markerOffsetsMap: Dict[str, Tuple[str, np.ndarray]] = {}
     markerNames: List[str] = []
     for k in fitMarkers:
