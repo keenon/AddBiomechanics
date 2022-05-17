@@ -65,6 +65,7 @@ class MocapS3Cursor {
     cachedVisulizationFiles: Map<string, LargeZipJsonObject>;
 
     subjectJson: ReactiveJsonFile;
+    resultsJson: ReactiveJsonFile;
 
     socket: RobustMqtt;
 
@@ -88,6 +89,7 @@ class MocapS3Cursor {
         this.showValidationControls = false;
 
         this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
+        this.resultsJson = this.rawCursor.getJsonFile("_results.json");
 
         this.socket = socket;
 

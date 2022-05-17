@@ -305,7 +305,6 @@ function validateOpenSimFile(file: File): Promise<null | string> {
 const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
   const navigate = useNavigate();
-  const [resultsJson, setResultsJson] = useState({} as ProcessingResultsJSON);
 
   let trialViews: any[] = [];
 
@@ -397,6 +396,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let heightValue = props.cursor.subjectJson.getAttribute("heightM", 0.0);
   let sexValue = props.cursor.subjectJson.getAttribute("sex", "unknown");
 
+  let autoAvgRMSE = props.cursor.resultsJson.getAttribute("autoAvgRMSE", 0.0);
+
   let status: 'done' | 'processing' | 'could-process' | 'error' | 'waiting' | 'empty' = props.cursor.getSubjectStatus();
   let statusBadge = null;
   let statusDetails = null;
@@ -415,7 +416,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
     statusBadge = <span className="badge bg-success">Processed</span>;
     statusDetails = <>
-      <h4>Results: {(resultsJson.autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE</h4>
+      <h4>Results: {(autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE</h4>
       {download}
       <Button variant="warning" onClick={props.cursor.requestReprocessSubject}>
         <i className="mdi mdi-refresh me-2 vertical-middle"></i>
@@ -431,15 +432,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         replace
       >View Processing Logs</Link>
     </>;
-
-    if (props.cursor.hasResultsFile()) {
-      props.cursor.getResultsFileText().then((text: string) => {
-        let results = JSON.parse(text);
-        if (JSON.stringify(resultsJson) !== JSON.stringify(results)) {
-          setResultsJson(results);
-        }
-      });
-    }
   }
   else if (status === "error") {
     statusBadge = <span className="badge bg-danger">Error</span>;
@@ -508,6 +500,10 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           <label htmlFor="heightM" className="form-label">Height (m):</label>
           <input type="number" className={"form-control" + ((heightValue < 0.1 || heightValue > 3.0) ? " is-invalid" : "")} id="heightM" value={heightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("heightM", e.target.value);
+          }} onFocus={(e) => {
+            props.cursor.subjectJson.onFocusAttribute("heightM");
+          }} onBlur={(e) => {
+            props.cursor.subjectJson.onBlurAttribute("heightM");
           }} />
           {(() => {
             if (heightValue < 0.1) {
@@ -530,6 +526,10 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           <label htmlFor="weightKg" className="form-label">Weight (kg):</label>
           <input type="number" className={"form-control" + ((weightValue < 5 || weightValue > 700) ? " is-invalid" : "")} id="weightKg" value={weightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("massKg", e.target.value);
+          }} onFocus={(e) => {
+            props.cursor.subjectJson.onFocusAttribute("massKg");
+          }} onBlur={(e) => {
+            props.cursor.subjectJson.onBlurAttribute("massKg");
           }} />
           {(() => {
             if (weightValue < 5) {
@@ -552,6 +552,10 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           <label htmlFor="weightKg" className="form-label">Biological Sex:</label>
           <select className="form-control" id="sex" value={sexValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("sex", e.target.value);
+          }} onFocus={(e) => {
+            props.cursor.subjectJson.onFocusAttribute("sex");
+          }} onBlur={(e) => {
+            props.cursor.subjectJson.onBlurAttribute("sex");
           }}>
             <option value="unknown">Unknown</option>
             <option value="male">Male</option>

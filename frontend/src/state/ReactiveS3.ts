@@ -55,8 +55,10 @@ function ensurePathEndsWithSlash(path: string): string {
 /// and re-uploading in the background.
 class ReactiveJsonFile {
     cursor: ReactiveCursor;
+    loading: boolean;
     path: string;
     values: Map<string, any>;
+    focused: Map<string, boolean>;
     lastUploadedValues: Map<string, any>;
     pendingTimeout: any | null;
     changeListeners: Array<() => void>;
@@ -65,9 +67,11 @@ class ReactiveJsonFile {
         this.cursor = cursor;
         this.path = path;
         this.values = new Map();
+        this.focused = new Map();
         this.lastUploadedValues = new Map();
         this.pendingTimeout = null;
         this.changeListeners = [];
+        this.loading = false;
         this.pathChanged();
 
         this.cursor.index.addLoadingListener((loading: boolean) => {
@@ -87,31 +91,79 @@ class ReactiveJsonFile {
     };
 
     /**
-     * This gets called when the path has changed in the supporting cursor
+     * This will do a refresh of the contents of the file from S3
      */
-    pathChanged = () => {
+    refreshFile = () => {
         console.log("File exists: " + this.fileExist());
         if (this.fileExist()) {
-            this.cursor.downloadText(this.path).then((text: string) => {
+            this.loading = true;
+            this.cursor.downloadText(this.path).then(action((text: string) => {
                 console.log("Downloaded text: " + text);
                 try {
-                    this.values.clear();
+                    let savedValues: Map<string, any> = new Map();
+                    this.focused.forEach((v, k) => {
+                        if (v) {
+                            savedValues.set(k, this.values.get(k));
+                        }
+                    });
+
+                    this.values = savedValues;
                     this.lastUploadedValues.clear();
                     const result = JSON.parse(text);
                     for (let key in result) {
-                        this.values.set(key, result[key]);
-                        this.lastUploadedValues.set(key, result[key]);
+                        if (this.focused.get(key) === true) {
+                            // Skip updating this entry
+                        }
+                        else {
+                            this.values.set(key, result[key]);
+                            this.lastUploadedValues.set(key, result[key]);
+                        }
                     }
                 }
                 catch (e) {
                     console.error("Bad JSON format for file \"" + this.path + "\", got: \"" + text + "\"");
                     this.values.clear();
                 }
-            });
+            })).finally(action(() => {
+                this.loading = false;
+            }));
         }
         else {
             this.values.clear();
         }
+    };
+
+    /**
+     * When the file changes on S3
+     */
+    onFileChanged = () => {
+        console.log("Detected file change!");
+        this.refreshFile();
+    };
+
+    /**
+     * @returns the absolute path of the file, relative to the cursor path
+     */
+    getAbsolutePath = () => {
+        let prefix = this.cursor.path;
+        if (!prefix.endsWith('/')) prefix += '/';
+        return prefix + this.path;
+    };
+
+    /**
+     * This gets called right before the path changes, and leaves a chance to clean up values
+     */
+    pathWillChange = () => {
+        this.cursor.index.removeMetadataListener(this.getAbsolutePath(), this.onFileChanged);
+    };
+
+    /**
+     * This gets called when the path has changed in the supporting cursor
+     */
+    pathChanged = () => {
+        console.log('Adding listener to: '+ this.getAbsolutePath() );
+        this.cursor.index.addMetadataListener(this.getAbsolutePath(), this.onFileChanged);
+        this.refreshFile();
     };
 
     /**
@@ -120,6 +172,20 @@ class ReactiveJsonFile {
     fileExist = () => {
         return this.cursor.getExists(this.path);
     };
+
+    /**
+     * When we have an input entry that we focus on, we don't want to auto-update that from the network, cause it feels like a bug.
+     */
+    onFocusAttribute = (key: string) => {
+        this.focused.set(key, true);
+    }
+
+    /**
+     * When we have an input entry that we stop focusing on, we want to resume auto-updating that from the network.
+     */
+    onBlurAttribute = (key: string) => {
+        this.focused.set(key, false);
+    }
 
     /**
      * @param key The key we want to retrieve
@@ -248,6 +314,7 @@ class ReactiveCursor {
         this.index.removeMetadataListener(this.path, this._metadataListener);
         this.index.removeChildrenListener(this.path, this._onChildrenListener);
 
+        this.jsonFiles.forEach((file: ReactiveJsonFile) => file.pathWillChange());
         this.path = path;
         this.metadata = this.index.getMetadata(this.path);
         this.children = this.index.getChildren(this.path);
@@ -314,9 +381,11 @@ class ReactiveCursor {
         this.index.removeMetadataListener(this.path, this._metadataListener);
         this.index.removeChildrenListener(this.path, this._onChildrenListener);
 
+        this.jsonFiles.forEach((file: ReactiveJsonFile) => file.pathWillChange());
         this.index = index;
         this.metadata = this.index.getMetadata(this.path);
         this.children = this.index.getChildren(this.path);
+        this.jsonFiles.forEach((file: ReactiveJsonFile) => file.pathChanged());
 
         // Add new listeners for changes at the current path
         this.index.addMetadataListener(this.path, this._metadataListener);
@@ -845,13 +914,13 @@ class ReactiveIndex {
      */
     _deleteFileInIndex = (path: string) => {
         this.files.delete(path);
+        // call child listeners
+        this._updateChildListeners();
         // call metadata listeners to alert them the file doesn't exist anymore
         const existListeners = this.metadataListeners.get(path) ?? [];
         for (let listener of existListeners) {
             listener(null);
         }
-        // call child listeners
-        this._updateChildListeners();
     };
 
     /**
@@ -867,13 +936,13 @@ class ReactiveIndex {
         // If the file doesn't exist, or this update has a later timestamp, update and replace
         if (existingFile == null || existingFile.lastModified < file.lastModified) {
             this.files.set(file.key, file);
+            // call child listeners
+            this._updateChildListeners();
             // call creation/update listeners
             const updateListeners = this.metadataListeners.get(file.key) ?? [];
             for (let listener of updateListeners) {
                 listener(file);
             }
-            // call child listeners
-            this._updateChildListeners();
         }
     };
 
