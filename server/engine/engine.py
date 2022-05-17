@@ -125,6 +125,8 @@ def processLocalSubjectFolder(path: str):
     # fitter.setMinAxisFitScore(6e-5 * 2)
     fitter.setMinSphereFitScore(0.01)
     fitter.setMinAxisFitScore(0.001)
+    # Default max joint weight is 0.5, so this is 2x the default value
+    fitter.setMaxJointWeight(1.0)
 
     # Create an anthropometric prior
     anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
@@ -194,7 +196,7 @@ def processLocalSubjectFolder(path: str):
     for i in range(customOsim.skeleton.getNumBodyNodes()):
         bodyNode: nimble.dynamics.BodyNode = customOsim.skeleton.getBodyNode(i)
         # Now that we adjust the markers BEFORE we rescale the body, we don't want to rescale the marker locations at all
-        bodyScalesMap[bodyNode.getName()] = [1,1,1] # bodyNode.getScale()
+        bodyScalesMap[bodyNode.getName()] = [1, 1, 1]  # bodyNode.getScale()
     markerOffsetsMap: Dict[str, Tuple[str, np.ndarray]] = {}
     markerNames: List[str] = []
     for k in fitMarkers:
@@ -208,7 +210,8 @@ def processLocalSubjectFolder(path: str):
     nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
         'Autoscaled', customOsim.skeleton, massKg, heightM, 'Models/unscaled_markers_moved.osim', 'Models/autoscaled.osim', path + 'results/Models/scaling_instructions.xml')
     # 8.2.3. Call the OpenSim scaling tool
-    command = 'cd '+path+'results && opensim-cmd run-tool ' + path + 'results/Models/scaling_instructions.xml'
+    command = 'cd '+path+'results && opensim-cmd run-tool ' + \
+        path + 'results/Models/scaling_instructions.xml'
     print('Scaling OpenSim files: '+command)
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
     process.wait()
@@ -406,7 +409,8 @@ def processLocalSubjectFolder(path: str):
         f.write("\n\n")
         f.write("Models/unscaled_generic.osim")
         f.write("\n\n")
-        f.write(textwrap.fill("There is also an unscaled model, with markers moved to spots found by this tool, at:"))
+        f.write(textwrap.fill(
+            "There is also an unscaled model, with markers moved to spots found by this tool, at:"))
         f.write("\n\n")
         f.write("Models/unscaled_markers_moved.osim")
         f.write("\n\n")
