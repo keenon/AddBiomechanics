@@ -21,9 +21,12 @@ def requireExists(path: str, reason: str):
         exit(1)
 
 
-def processLocalSubjectFolder(path: str):
+def processLocalSubjectFolder(path: str, outputName: str = None):
     if not path.endswith('/'):
         path += '/'
+
+    if outputName is None:
+        outputName = 'osim_results'
 
     processingResult: Dict[str, Any] = {}
 
@@ -111,10 +114,11 @@ def processLocalSubjectFolder(path: str):
     # fitter.setInitialIKMaxRestarts(1)
     # fitter.setIterationLimit(2)
 
-    if len(customOsim.anatomicalMarkers) > 0:
+    if len(customOsim.anatomicalMarkers) > 10:
         fitter.setTrackingMarkers(customOsim.trackingMarkers)
     else:
-        print('NOTE: The input *.osim file specified no anatomical landmark markers (with <fixed>true</fixed>), so we will default to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
+        print('NOTE: The input *.osim file specified suspiciously few ('+str(len(customOsim.anatomicalMarkers)) +
+              ', less than the minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
         fitter.setTriadsToTracking()
     # This is 1.0x the values in the default code
     fitter.setRegularizeAnatomicalMarkerOffsets(10.0)
@@ -181,8 +185,6 @@ def processLocalSubjectFolder(path: str):
         os.mkdir(path+'results/C3D')
     if not os.path.exists(path+'results/Models'):
         os.mkdir(path+'results/Models')
-    if not os.path.exists(path+'results/ForceData'):
-        os.mkdir(path+'results/ForceData')
     if not os.path.exists(path+'results/MarkerData'):
         os.mkdir(path+'results/MarkerData')
     print('Outputting OpenSim files', flush=True)
@@ -204,14 +206,14 @@ def processLocalSubjectFolder(path: str):
         markerOffsetsMap[k] = (v[0].getName(), v[1])
         markerNames.append(k)
     nimble.biomechanics.OpenSimParser.moveOsimMarkers(
-        path + 'unscaled_generic.osim', bodyScalesMap, markerOffsetsMap, path + 'results/Models/unscaled_markers_moved.osim')
+        path + 'unscaled_generic.osim', bodyScalesMap, markerOffsetsMap, path + 'results/Models/unscaled_but_with_optimized_markers.osim')
 
     # 8.2.2. Write the XML instructions for the OpenSim scaling tool
     nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
-        'Autoscaled', customOsim.skeleton, massKg, heightM, 'Models/unscaled_markers_moved.osim', 'Models/autoscaled.osim', path + 'results/Models/scaling_instructions.xml')
+        'optimized_scale_and_markers', customOsim.skeleton, massKg, heightM, 'Models/unscaled_but_with_optimized_markers.osim', 'Models/optimized_scale_and_markers.osim', path + 'results/Models/rescaling_setup.xml')
     # 8.2.3. Call the OpenSim scaling tool
     command = 'cd '+path+'results && opensim-cmd run-tool ' + \
-        path + 'results/Models/scaling_instructions.xml'
+        path + 'results/Models/rescaling_setup.xml'
     print('Scaling OpenSim files: '+command)
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
     process.wait()
@@ -240,8 +242,8 @@ def processLocalSubjectFolder(path: str):
         # Load the gold .mot file, if one exists
         goldMot: nimble.biomechanics.OpenSimMot = None
         if os.path.exists(trialPath + 'manual_ik.mot') and goldOsim is not None:
-            goldMot = nimble.biomechanics.OpenSimParser.loadMot(
-                goldOsim.skeleton, trialPath + 'manual_ik.mot')
+            goldMot = nimble.biomechanics.OpenSimParser.loadMotAtLowestMarkerRMSERotation(
+                goldOsim, trialPath + 'manual_ik.mot', c3dFile)
 
             shutil.copyfile(trialPath + 'manual_ik.mot', path +
                             'results/IK/' + trialName + '_manual_scaling_ik.mot')
@@ -277,18 +279,18 @@ def processLocalSubjectFolder(path: str):
         resultIK.saveCSVMarkerErrorReport(
             path + 'results/IK/'+trialName+'_ik_per_marker_error_report.csv')
         nimble.biomechanics.OpenSimParser.saveGRFMot(
-            path + 'results/ForceData/'+trialName+'_grf.mot', c3dFile.timestamps, c3dFile.forcePlates)
+            path + 'results/ID/'+trialName+'_grf.mot', c3dFile.timestamps, c3dFile.forcePlates)
         nimble.biomechanics.OpenSimParser.saveTRC(
             path + 'results/MarkerData/'+trialName+'.trc', c3dFile.timestamps, c3dFile.markerTimesteps)
         shutil.copyfile(trialPath + 'markers.c3d', path +
                         'results/C3D/' + trialName + '.c3d')
         # Save OpenSim setup files to make it easy to (re)run IK and ID on the results in OpenSim
         nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
-            trialName, markerNames, "Models/autoscaled.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
+            trialName, markerNames, "Models/optimized_scale_and_markers.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
         nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsForcesXMLFile(
-            trialName, customOsim.skeleton, result.poses, c3dFile.forcePlates, '../ForceData/'+trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
+            trialName, customOsim.skeleton, result.poses, c3dFile.forcePlates, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
         nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
-            trialName, 'Models/autoscaled.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml')
+            trialName, 'Models/optimized_scale_and_markers.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml')
 
         # 8.2. Write out the animation preview
         # 8.2.1. Create the raw JSON
@@ -313,6 +315,10 @@ def processLocalSubjectFolder(path: str):
     if os.path.exists(path + 'manually_scaled.osim'):
         shutil.copyfile(path + 'manually_scaled.osim', path +
                         'results/Models/manually_scaled.osim')
+
+    # Copy over the geometry files, so the model can be loaded directly in OpenSim without chasing down Geometry files somewhere else
+    shutil.copytree('/data/Geometry', path +
+                    'results/Models/Geometry')
 
     # Generate the overall summary result
     autoTotalLen = 0
@@ -367,12 +373,14 @@ def processLocalSubjectFolder(path: str):
         f.write(textwrap.fill(
             "The model file containing optimal body scaling and marker offsets is:"))
         f.write("\n\n")
-        f.write("Models/autoscaled.osim")
+        f.write("Models/optimized_scale_and_markers.osim")
         f.write("\n\n")
-        f.write(textwrap.fill("If you want to tweak the Scaling, you can edit \"Models/scaling_instructions.xml\" and then run (FROM THIS FOLDER, and not including the leading \"> \"):"))
+        f.write(textwrap.fill("This tool works by finding an optimal scaling and an optimal marker offsets at the same time."))
         f.write("\n\n")
-        f.write(" > opensim-cmd run-tool Models/scaling_instructions.xml\n")
-        f.write('           # This will re-generate Models/autoscaled.osim\n')
+        f.write(textwrap.fill("If you want to manually edit the marker offsets, you can modify the <MarkerSet> in \"Models/unscaled_but_with_optimized_markers.osim\" (by default this file contains the marker offsets found by the optimizer). If you want to tweak the Scaling, you can edit \"Models/rescaling_setup.xml\". If you change either of these files, then run (FROM THIS FOLDER, and not including the leading \"> \"):"))
+        f.write("\n\n")
+        f.write(" > opensim-cmd run-tool Models/rescaling_setup.xml\n")
+        f.write('           # This will re-generate Models/optimized_scale_and_markers.osim\n')
         f.write("\n\n")
         f.write(textwrap.fill("You do not need to re-run Inverse Kinematics unless you change scaling, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of BiomechNet, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THIS FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
         f.write("\n\n")
@@ -412,13 +420,14 @@ def processLocalSubjectFolder(path: str):
         f.write(textwrap.fill(
             "There is also an unscaled model, with markers moved to spots found by this tool, at:"))
         f.write("\n\n")
-        f.write("Models/unscaled_markers_moved.osim")
+        f.write("Models/unscaled_but_with_optimized_markers.osim")
         f.write("\n\n")
         f.write(textwrap.fill(
             "If you encounter errors, please contact Keenon Werling at keenon@cs.stanford.edu, and I will do my best to help :)"))
 
+    shutil.move(path + 'results', path + outputName)
     print('Zipping up OpenSim files', flush=True)
-    shutil.make_archive(path + 'osim_results', 'zip', path, 'results')
+    shutil.make_archive(path + outputName, 'zip', path, outputName)
     print('Finished outputting OpenSim files', flush=True)
 
     # Write out the result summary JSON
@@ -430,6 +439,7 @@ def processLocalSubjectFolder(path: str):
         # goldAvgRMSE: number;
         json.dump(processingResult, f)
 
+    print('Generated a final zip file at '+path+outputName+'.zip')
     # counter = 0
     # while True:
     #     print('[For live log demo] Counting to 10: '+str(counter), flush=True)
@@ -442,7 +452,9 @@ def processLocalSubjectFolder(path: str):
 
 if __name__ == "__main__":
     print(sys.argv)
+    # processLocalSubjectFolder("/tmp/tmpa4sqewbz", "some_user_name_results")
+    # processLocalSubjectFolder("/tmp/tmpqg3u6hdr", "some_user_name_results")
     # processLocalSubjectFolder("/tmp/tmpa0c7p0na")
     # processLocalSubjectFolder("/tmp/tmp_287z04g")
     # processLocalSubjectFolder("/tmp/tmp99d3lw9v/")
-    processLocalSubjectFolder(sys.argv[1])
+    processLocalSubjectFolder(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)

@@ -9,6 +9,7 @@ import uuid
 import json
 import shutil
 import boto3
+import threading
 
 
 def absPath(path: str):
@@ -85,6 +86,7 @@ class SubjectToProcess:
     index: ReactiveS3Index
 
     subjectPath: str
+    subjectName: str
 
     # Subject files
     subjectStatusFile: str
@@ -104,6 +106,9 @@ class SubjectToProcess:
         if not self.subjectPath.endswith('/'):
             self.subjectPath += '/'
 
+        parts = self.subjectPath.split('/')
+        self.subjectName = parts[-2]
+
         # Subject files
         self.subjectStatusFile = self.subjectPath + '_subject.json'
         self.opensimFile = self.subjectPath + 'unscaled_generic.osim'
@@ -121,7 +126,7 @@ class SubjectToProcess:
         self.processingFlagFile = self.subjectPath + 'PROCESSING'
         self.errorFlagFile = self.subjectPath + 'ERROR'
         self.resultsFile = self.subjectPath + '_results.json'
-        self.osimResults = self.subjectPath + 'osim_results.zip'
+        self.osimResults = self.subjectPath + self.subjectName + '.zip'
         self.logfile = self.subjectPath + 'log.txt'
 
     def sendNotificationEmail(self, email: str, name: str, path: str):
@@ -183,9 +188,9 @@ class SubjectToProcess:
 
             # 4. Launch a processing process
             enginePath = absPath('../engine/engine.py')
-            print('Calling Command:\n'+enginePath+' '+path, flush=True)
+            print('Calling Command:\n'+enginePath+' '+path+' '+self.subjectName, flush=True)
             with open(path + 'log.txt', 'wb+') as logFile:
-                with subprocess.Popen([enginePath, path], stdout=subprocess.PIPE) as proc:
+                with subprocess.Popen([enginePath, path, self.subjectName], stdout=subprocess.PIPE) as proc:
                     print('Process created: '+str(proc.pid), flush=True)
                     for lineBytes in iter(proc.stdout.readline, b''):
                         if lineBytes is None and proc.poll() is not None:
@@ -237,13 +242,13 @@ class SubjectToProcess:
             if exitCode == 0:
                 for trialName in self.trials:
                     self.trials[trialName].upload(trialsFolderPath)
-                # 5.1. Upload the downloadable osim_results.zip file
-                if os.path.exists(path + 'osim_results.zip'):
+                # 5.1. Upload the downloadable {self.subjectName}.zip file
+                if os.path.exists(path + self.subjectName + '.zip'):
                     self.index.uploadFile(
-                        self.osimResults, path + 'osim_results.zip')
+                        self.osimResults, path + self.subjectName + '.zip')
                 else:
                     print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
-                          path + 'osim_results.zip', flush=True)
+                          path + self.subjectName + '.zip', flush=True)
                 # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
                 # and it starts to be able
                 if os.path.exists(path + '_results.json'):
@@ -378,13 +383,19 @@ class SubjectToProcess:
 
 class MocapServer:
     index: ReactiveS3Index
+    currentlyProcessing: SubjectToProcess
     queue: List[SubjectToProcess]
 
     def __init__(self) -> None:
+        self.queue = []
+        self.currentlyProcessing = None
         self.index = ReactiveS3Index()
         self.index.addChangeListener(self.onChange)
         self.index.refreshIndex()
         self.index.registerPubSub()
+
+        t = threading.Thread(target=self.broadcastQueueForever, daemon=True)
+        t.start()
 
     def onChange(self):
         print('S3 CHANGED!')
@@ -400,11 +411,24 @@ class MocapServer:
                 if subject.shouldProcess():
                     shouldProcessSubjects.append(subject)
 
-        # 2. Sort Trials oldest to newest
+        # 2. Sort Trials oldest to newest, sort by default sorts in ascending order
         shouldProcessSubjects.sort(key=lambda x: x.latestInputTimestamp())
 
         # 3. Update the queue. There's another thread that busy-waits on the queue changing, that can then grab a queue entry and continue
         self.queue = shouldProcessSubjects
+
+    def broadcastQueueForever(self):
+        """
+        This will spin, sending out the current queue every few seconds while it's non-empty, so that waiters know
+        what jobs are in front of them in the queue.
+        """
+        while True:
+            if len(self.queue) > 0:
+                queueMsg: Dict[str, str] = {}
+                queueMsg['queue'] = [x.subjectPath for x in self.queue]
+                self.index.pubSub.sendMessage(
+                    '/PROC_QUEUE', queueMsg)
+            time.sleep(2)
 
     def processQueueForever(self):
         """
@@ -415,11 +439,17 @@ class MocapServer:
         while True:
             try:
                 if len(self.queue) > 0:
-                    nextUp = self.queue[0]
+                    self.currentlyProcessing = self.queue[0]
                     # This will update the state of S3, which will in turn update and remove this element from our queue automatically.
                     # If it doesn't, then perhaps something went wrong and it's actually fine to process again. So the key idea is DON'T
                     # MANUALLY MANAGE THE WORK QUEUE! That happens in self.onChange()
-                    nextUp.process()
+
+                    self.currentlyProcessing.process()
+                    # print("sleeping 10s to simulate that we're processing")
+                    # time.sleep(10)
+
+                    # This helps our status thread to keep track of what we're doing
+                    self.currentlyProcessing = None
                     # We need to avoid race conditions with S3 by not immediately processing the next item. Give S3 a chance to update.
                     print(
                         'Sleeping for 10 seconds before attempting to process the next item...')

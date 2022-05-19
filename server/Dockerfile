@@ -42,6 +42,10 @@ RUN aws iot attach-policy \
     --policy-name "$(cat policy_name.txt)" \
     --target "$(cat certArn.txt)"
 
+# Preinstall PyTorch, because it's huge and it's good to cache that layer
+
+RUN pip3 install torch
+
 #########################################################
 # Set up the server app
 #########################################################

@@ -67,6 +67,7 @@ function afterLogin(email: string) {
           socket.connect();
           publicIndex.setupPubsub();
           myData.setupPubsub();
+          cursor.subscribeToCloudProcessingQueueUpdates();
         })
         .catch((error) => {
           console.log("Got error with PostAuthAPI!");
@@ -89,6 +90,7 @@ Auth.currentAuthenticatedUser()
       socket.connect();
       publicIndex.setupPubsub();
       myData.setupPubsub();
+      cursor.subscribeToCloudProcessingQueueUpdates();
     });
   });
 

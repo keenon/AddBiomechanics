@@ -473,7 +473,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     }
   }
   else if (status === "waiting") {
-    statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
+    statusBadge = <span className="badge bg-secondary">Waiting for server {props.cursor.getQueueOrder()}</span>;
   }
   else if (status === 'empty') {
     statusBadge = <span className="badge bg-danger">Missing required data</span>;

@@ -1,5 +1,5 @@
 import { ReactiveCursor, ReactiveIndex, ReactiveJsonFile } from "./ReactiveS3";
-import { makeAutoObservable, action } from 'mobx';
+import { makeAutoObservable, makeObservable, observable, action } from 'mobx';
 import RobustMqtt from "./RobustMqtt";
 
 type MocapFolderEntry = {
@@ -36,16 +36,22 @@ class LargeZipJsonObject {
         this.loading = true;
         this.loadingProgress = 0.0;
 
-        makeAutoObservable(this);
+        makeObservable(this, {
+            loading: observable,
+            loadingProgress: observable
+        });
 
         rawCursor.downloadZip(path, action((progress: number) => {
             this.loadingProgress = progress;
             console.log("Loading progress: " + this.loadingProgress);
         })).then(action((result?: string) => {
-            this.loading = false;
             if (result != null) {
-                this.object = JSON.parse(result);
+                console.log("Parsing large result");
+                const parsed = JSON.parse(result);
+                console.log("Parsed large result.");
+                this.object = parsed;
             }
+            this.loading = false;
         }));
     }
 }
@@ -71,6 +77,8 @@ class MocapS3Cursor {
 
     userEmail: string | null;
 
+    cloudProcessingQueue: string[];
+
     constructor(publicS3Index: ReactiveIndex, protectedS3Index: ReactiveIndex, socket: RobustMqtt) {
         const parsedUrl = this.parseUrlPath(window.location.pathname);
 
@@ -95,6 +103,8 @@ class MocapS3Cursor {
 
         this.userEmail = null;
 
+        this.cloudProcessingQueue = [];
+
         makeAutoObservable(this);
     }
 
@@ -105,6 +115,35 @@ class MocapS3Cursor {
      */
     setUserEmail = (email: string) => {
         this.userEmail = email;
+    }
+
+    /**
+     * Subscribe to processing details.
+     */
+    subscribeToCloudProcessingQueueUpdates = () => {
+        this.socket.subscribe("/PROC_QUEUE", action((topic, msg) => {
+            const msgObj = JSON.parse(msg);
+            this.cloudProcessingQueue = msgObj['queue'];
+        }));
+    }
+
+    /**
+     * Get the order of an element in the queue.
+     */
+    getQueueOrder = (path?: string) => {
+        let fullPath = this.protectedS3Index.globalPrefix + this.rawCursor.path;
+        if (path != null) {
+            fullPath += path;
+        }
+        if (!fullPath.endsWith('/')) fullPath += '/';
+        console.log("Getting queue order for "+fullPath);
+        let index = this.cloudProcessingQueue.indexOf(fullPath);
+        if (index === -1) {
+            return '';
+        }
+        else {
+            return ': '+(index+1)+' ahead';
+        }
     }
 
     /**
@@ -607,14 +646,14 @@ class MocapS3Cursor {
      * @returns 
      */
     hasResultsArchive = () => {
-        return this.rawCursor.hasChildren(["osim_results.zip"]);
+        return this.rawCursor.hasChildren([ this.getCurrentFileName() + ".zip"]);
     };
 
     /**
      * Download the zip results archive
      */
     downloadResultsArchive = () => {
-        this.rawCursor.downloadFile("osim_results.zip");
+        this.rawCursor.downloadFile(this.getCurrentFileName() + ".zip");
     };
 }
 

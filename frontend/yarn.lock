@@ -9763,10 +9763,10 @@ nice-try@^1.0.4:
   resolved "https://registry.yarnpkg.com/nice-try/-/nice-try-1.0.5.tgz#a3378a7696ce7d223e88fc9b764bd7ef1089e366"
   integrity sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
 
-nimble-visualizer@^0.6.11:
-  version "0.6.11"
-  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.6.11.tgz#75c5530f53d106d40950365548977e7293ecef4e"
-  integrity sha512-rUnObRCRX+gHGcaJEIU9gfWrwHtYsj7hIlgjfy7EvCbBHQ7hmIuP4aMedMk0LutR6NYTP8kV1Q/Aw9iroZRSxw==
+nimble-visualizer@^0.7.4:
+  version "0.7.4"
+  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.7.4.tgz#514f448e837539d66aea1a9b8f1316b3d0cab4b0"
+  integrity sha512-NCvoEa+/vJBmDg1udw/nBfs6hWXb2Ix7T2Uj59oW3+hVs//1Q3bPTG0AWXmgrvqc6C2X0myQtrKVxNjQmHpufw==
   dependencies:
     three "^0.121.1"
 
