@@ -891,7 +891,7 @@ class ReactiveIndex {
             if (result != null && result.Body != null) {
                 // data.Body is a Blob
                 return zip.loadAsync(result.Body as Blob).then((unzipped: JSZip) => {
-                    return unzipped.file(Object.keys(unzipped.files)[0])?.async("string");
+                    return unzipped.file(Object.keys(unzipped.files)[0])?.async("uint8array");
                 });
             }
             throw new Error(
@@ -901,7 +901,7 @@ class ReactiveIndex {
             this.setNetworkError("Get", "We got an error trying to download a file!");
             console.log("DownloadZip() error: " + path);
             console.log(e);
-            return '';
+            return new Uint8Array();
         });;
     };
 

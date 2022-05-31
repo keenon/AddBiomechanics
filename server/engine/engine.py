@@ -66,9 +66,17 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         sex = 'unknown'
 
     # 3. Load the unscaled Osim file, which we can then scale and format
+    # 3.1. Rationalize CustomJoint's in the osim file
+    shutil.move(path + 'unscaled_generic.osim',
+                path + 'unscaled_generic_raw.osim')
+    nimble.biomechanics.OpenSimParser.rationalizeJoints(
+        path + 'unscaled_generic_raw.osim',
+        path + 'unscaled_generic.osim')
+    # 3.2. load the rational file
     customOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
         path + 'unscaled_generic.osim')
     customOsim.skeleton.autogroupSymmetricSuffixes()
+    customOsim.skeleton.autogroupSymmetricPrefixes("ulna", "radius")
 
     # 4. Load the hand-scaled Osim file, if it exists
     goldOsim: nimble.biomechanics.OpenSimFile = None
@@ -81,6 +89,36 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         print('ERROR: Trials folder "'+trialsFolderPath +
               '" does not exist. Quitting.')
         exit(1)
+
+    # 7. Process the trial
+    fitter = nimble.biomechanics.MarkerFitter(
+        customOsim.skeleton, customOsim.markersMap)
+    fitter.setInitialIKSatisfactoryLoss(0.05)
+    fitter.setInitialIKMaxRestarts(50)
+    fitter.setIterationLimit(500)
+    # fitter.setIterationLimit(20)
+    # fitter.setInitialIKMaxRestarts(1)
+    # fitter.setIterationLimit(2)
+
+    guessedTrackingMarkers = False
+    if len(customOsim.anatomicalMarkers) > 10:
+        fitter.setTrackingMarkers(customOsim.trackingMarkers)
+    else:
+        print('NOTE: The input *.osim file specified suspiciously few ('+str(len(customOsim.anatomicalMarkers)) +
+              ', less than the minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
+        fitter.setTriadsToTracking()
+        guessedTrackingMarkers = True
+    # This is 1.0x the values in the default code
+    fitter.setRegularizeAnatomicalMarkerOffsets(10.0)
+    # This is 1.0x the default value
+    fitter.setRegularizeTrackingMarkerOffsets(0.05)
+    # These are 2x the values in the default code
+    # fitter.setMinSphereFitScore(3e-5 * 2)
+    # fitter.setMinAxisFitScore(6e-5 * 2)
+    fitter.setMinSphereFitScore(0.01)
+    fitter.setMinAxisFitScore(0.001)
+    # Default max joint weight is 0.5, so this is 2x the default value
+    fitter.setMaxJointWeight(1.0)
 
     trialNames = []
     c3dFiles = []
@@ -97,40 +135,14 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         requireExists(markersFilePath, 'markers file')
         c3dFile: nimble.biomechanics.C3D = nimble.biomechanics.C3DLoader.loadC3D(
             markersFilePath)
+        nimble.biomechanics.C3DLoader.fixupMarkerFlips(c3dFile)
+        fitter.autorotateC3D(c3dFile)
         c3dFiles.append(c3dFile)
         markerTrials.append(c3dFile.markerTimesteps)
 
         trialProcessingResults.append(trialProcessingResult)
 
     print('Fitting trials '+str(trialNames), flush=True)
-
-    # 7. Process the trial
-    fitter = nimble.biomechanics.MarkerFitter(
-        customOsim.skeleton, customOsim.markersMap)
-    fitter.setInitialIKSatisfactoryLoss(0.05)
-    fitter.setInitialIKMaxRestarts(50)
-    fitter.setIterationLimit(500)
-    # fitter.setIterationLimit(20)
-    # fitter.setInitialIKMaxRestarts(1)
-    # fitter.setIterationLimit(2)
-
-    if len(customOsim.anatomicalMarkers) > 10:
-        fitter.setTrackingMarkers(customOsim.trackingMarkers)
-    else:
-        print('NOTE: The input *.osim file specified suspiciously few ('+str(len(customOsim.anatomicalMarkers)) +
-              ', less than the minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
-        fitter.setTriadsToTracking()
-    # This is 1.0x the values in the default code
-    fitter.setRegularizeAnatomicalMarkerOffsets(10.0)
-    # This is 1.0x the default value
-    fitter.setRegularizeTrackingMarkerOffsets(0.05)
-    # These are 2x the values in the default code
-    # fitter.setMinSphereFitScore(3e-5 * 2)
-    # fitter.setMinAxisFitScore(6e-5 * 2)
-    fitter.setMinSphereFitScore(0.01)
-    fitter.setMinAxisFitScore(0.001)
-    # Default max joint weight is 0.5, so this is 2x the default value
-    fitter.setMaxJointWeight(1.0)
 
     # Create an anthropometric prior
     anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
@@ -296,21 +308,21 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         # 8.2.1. Create the raw JSON
         if (goldOsim is not None) and (goldMot is not None):
             print('Saving trajectory, markers, and the manual IK to a GUI log ' +
-                  trialPath+'preview.json', flush=True)
+                  trialPath+'preview.bin', flush=True)
             print('goldOsim: '+str(goldOsim), flush=True)
             print('goldMot.poses.shape: '+str(goldMot.poses.shape), flush=True)
             fitter.saveTrajectoryAndMarkersToGUI(
-                trialPath+'preview.json', result, markerTimesteps, c3dFile, goldOsim, goldMot.poses)
+                trialPath+'preview.bin', result, markerTimesteps, c3dFile, goldOsim, goldMot.poses)
         else:
             print('Saving trajectory and markers to a GUI log ' +
-                  trialPath+'preview.json', flush=True)
+                  trialPath+'preview.bin', flush=True)
             fitter.saveTrajectoryAndMarkersToGUI(
-                trialPath+'preview.json', result, markerTimesteps, c3dFile)
+                trialPath+'preview.bin', result, markerTimesteps, c3dFile)
         # 8.2.2. Zip it up
-        print('Zipping up '+trialPath+'preview.json', flush=True)
-        subprocess.run(["zip", "-r", trialPath+'preview.json.zip', trialPath +
-                        'preview.json'], capture_output=True)
-        print('Finished zipping up '+trialPath+' preview.json.zip', flush=True)
+        print('Zipping up '+trialPath+'preview.bin', flush=True)
+        subprocess.run(["zip", "-r", 'preview.bin.zip',
+                       'preview.bin'], cwd=trialPath, capture_output=True)
+        print('Finished zipping up '+trialPath+'preview.bin.zip', flush=True)
 
     if os.path.exists(path + 'manually_scaled.osim'):
         shutil.copyfile(path + 'manually_scaled.osim', path +
@@ -343,6 +355,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     if goldTotalLen > 0:
         processingResult['goldAvgRMSE'] /= goldTotalLen
         processingResult['goldAvgMax'] /= goldTotalLen
+    processingResult['guessedTrackingMarkers'] = guessedTrackingMarkers
 
     # Write out the README for the data
     with open(path + 'results/README.txt', 'w') as f:
@@ -375,12 +388,14 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         f.write("\n\n")
         f.write("Models/optimized_scale_and_markers.osim")
         f.write("\n\n")
-        f.write(textwrap.fill("This tool works by finding an optimal scaling and an optimal marker offsets at the same time."))
+        f.write(textwrap.fill(
+            "This tool works by finding an optimal scaling and an optimal marker offsets at the same time."))
         f.write("\n\n")
         f.write(textwrap.fill("If you want to manually edit the marker offsets, you can modify the <MarkerSet> in \"Models/unscaled_but_with_optimized_markers.osim\" (by default this file contains the marker offsets found by the optimizer). If you want to tweak the Scaling, you can edit \"Models/rescaling_setup.xml\". If you change either of these files, then run (FROM THIS FOLDER, and not including the leading \"> \"):"))
         f.write("\n\n")
         f.write(" > opensim-cmd run-tool Models/rescaling_setup.xml\n")
-        f.write('           # This will re-generate Models/optimized_scale_and_markers.osim\n')
+        f.write(
+            '           # This will re-generate Models/optimized_scale_and_markers.osim\n')
         f.write("\n\n")
         f.write(textwrap.fill("You do not need to re-run Inverse Kinematics unless you change scaling, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of BiomechNet, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THIS FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
         f.write("\n\n")
@@ -457,4 +472,5 @@ if __name__ == "__main__":
     # processLocalSubjectFolder("/tmp/tmpa0c7p0na")
     # processLocalSubjectFolder("/tmp/tmp_287z04g")
     # processLocalSubjectFolder("/tmp/tmp99d3lw9v/")
-    processLocalSubjectFolder(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
+    processLocalSubjectFolder(
+        sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)

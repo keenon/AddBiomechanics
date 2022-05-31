@@ -28,7 +28,7 @@ class TrialToProcess:
     markersFile: str
     goldIKFile: str
     resultsFile: str
-    previewJsonFile: str
+    previewBinFile: str
 
     def __init__(self, index: ReactiveS3Index, subjectPath: str, trialName: str) -> None:
         self.index = index
@@ -43,7 +43,7 @@ class TrialToProcess:
         self.markersFile = self.trialPath + 'markers.c3d'
         self.goldIKFile = self.trialPath + 'manual_ik.mot'
         self.resultsFile = self.trialPath + '_results.json'
-        self.previewJsonFile = self.trialPath + 'preview.json.zip'
+        self.previewBinFile = self.trialPath + 'preview.bin.zip'
 
     def download(self, trialsFolderPath: str):
         trialPath = trialsFolderPath + self.trialName
@@ -61,12 +61,12 @@ class TrialToProcess:
         else:
             print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                   trialPath + '_results.json', flush=True)
-        if os.path.exists(trialPath + 'preview.json.zip'):
-            self.index.uploadFile(self.previewJsonFile,
-                                  trialPath + 'preview.json.zip')
+        if os.path.exists(trialPath + 'preview.bin.zip'):
+            self.index.uploadFile(self.previewBinFile,
+                                  trialPath + 'preview.bin.zip')
         else:
             print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
-                  trialPath + 'preview.json.zip', flush=True)
+                  trialPath + 'preview.bin.zip', flush=True)
 
     def hasMarkers(self) -> bool:
         return self.index.exists(self.markersFile)
@@ -188,7 +188,8 @@ class SubjectToProcess:
 
             # 4. Launch a processing process
             enginePath = absPath('../engine/engine.py')
-            print('Calling Command:\n'+enginePath+' '+path+' '+self.subjectName, flush=True)
+            print('Calling Command:\n'+enginePath+' ' +
+                  path+' '+self.subjectName, flush=True)
             with open(path + 'log.txt', 'wb+') as logFile:
                 with subprocess.Popen([enginePath, path, self.subjectName], stdout=subprocess.PIPE) as proc:
                     print('Process created: '+str(proc.pid), flush=True)

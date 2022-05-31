@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { observer } from "mobx-react-lite";
 import "./MocapView.scss";
 import {
@@ -31,6 +31,7 @@ type MocapTrialRowViewProps = {
 };
 
 const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
+  const navigate = useNavigate();
   let manualIKRow = null;
   if (props.cursor.getShowValidationControls()) {
     manualIKRow = (
@@ -65,6 +66,16 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
                 <i className="mdi mdi-dots-horizontal"></i>
               </Dropdown.Toggle>
               <Dropdown.Menu>
+                <Dropdown.Item
+                  onClick={() => {
+                    navigate({
+                      search: "?show-trial=" + props.index,
+                    });
+                  }}
+                >
+                  <i className="mdi mdi-eye me-2 text-muted vertical-middle"></i>
+                  Preview
+                </Dropdown.Item>
                 <Dropdown.Item
                   onClick={() => {
                     props.cursor.rawCursor.deleteByPrefix("trials/" + props.name);
@@ -397,6 +408,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let sexValue = props.cursor.subjectJson.getAttribute("sex", "unknown");
 
   let autoAvgRMSE = props.cursor.resultsJson.getAttribute("autoAvgRMSE", 0.0);
+  let guessedTrackingMarkers = props.cursor.resultsJson.getAttribute("guessedTrackingMarkers", 0.0);
 
   let status: 'done' | 'processing' | 'could-process' | 'error' | 'waiting' | 'empty' = props.cursor.getSubjectStatus();
   let statusBadge = null;
@@ -414,9 +426,48 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       );
     }
 
+    let guessedMarkersWarning = null;
+    if (guessedTrackingMarkers == true) {
+
+      let markerText = '<Marker name="RSH">';
+      markerText += '\n  <socket_parent_frame>/bodyset/torso</socket_parent_frame>';
+      markerText += '\n  <location> -0.03 0.42 0.15 </location>';
+      let markerText2 = '  <fixed>true</fixed>';
+      let markerText3 = '</Marker>';
+
+      guessedMarkersWarning = <div className="alert alert-warning">
+        <p>
+          <i className="mdi mdi-alert me-2 vertical-middle"></i>
+          <b>Warning: Results may be suboptimal!</b> The optimizer had to guess which of your markers were placed on bony landmarks, and which were not. This is probably because in the unscaled OpenSim model you uploaded, all or most of your markers were listed as <code>&lt;fixed&gt;<b>false</b>&lt;/fixed&gt;</code>, or they were all <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>.
+        </p>
+        <p>
+          You may achieve higher quality results if you specify all the markers placed on <b><i>bony landmarks (i.e. "anatomical markers")</i></b> as <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>, and all the markers placed on <b><i>soft tissue (i.e. "tracking markers")</i></b> as <code>&lt;fixed&gt;<b>false</b>&lt;/fixed&gt;</code>.
+        </p>
+        <p>Here's an example marker that's been correctly specified as <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>:
+        </p>
+        <p>
+          <code>
+            <pre style={{ marginBottom: 0 }}>
+              {markerText}
+            </pre>
+            <b><pre style={{ marginBottom: 0 }}>
+              {markerText2}
+            </pre></b>
+            <pre>
+              {markerText3}
+            </pre>
+          </code>
+        </p>
+        <p>
+          You can re-upload an updated model by drag-and-drop on top of the "Unscaled OpenSim" file, and then hit "Reprocess" (below in yellow) to fix the problem.
+        </p>
+      </div>;
+    }
+
     statusBadge = <span className="badge bg-success">Processed</span>;
     statusDetails = <>
       <h4>Results: {(autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE</h4>
+      {guessedMarkersWarning}
       {download}
       <Button variant="warning" onClick={props.cursor.requestReprocessSubject}>
         <i className="mdi mdi-refresh me-2 vertical-middle"></i>
@@ -454,15 +505,22 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   else if (status === "processing") {
     statusBadge = <span className="badge bg-warning">Processing</span>;
     statusDetails =
-      <Link
-        style={{
-          marginLeft: '7px'
-        }}
-        to={{
-          search: "?logs=true"
-        }}
-        replace
-      >View Processing Logs</Link>;
+      <>
+        <div>
+          <Link
+            style={{
+              marginLeft: '7px'
+            }}
+            to={{
+              search: "?logs=true"
+            }}
+            replace
+          >Watch Live Processing Logs</Link>
+        </div>
+        <div>
+          We'll send you an email when your data has finished processing!
+        </div>
+      </>;
   }
   else if (status === "could-process") {
     if (props.cursor.canEdit()) {
@@ -474,6 +532,9 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
   else if (status === "waiting") {
     statusBadge = <span className="badge bg-secondary">Waiting for server {props.cursor.getQueueOrder()}</span>;
+    statusDetails = <div>
+      We'll send you an email when your data has finished processing!
+    </div>
   }
   else if (status === 'empty') {
     statusBadge = <span className="badge bg-danger">Missing required data</span>;

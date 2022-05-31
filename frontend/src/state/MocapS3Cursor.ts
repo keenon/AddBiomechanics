@@ -26,7 +26,7 @@ type MocapProcessingLogMsg = {
     timestamp: number;
 }
 
-class LargeZipJsonObject {
+class LargeZipBinaryObject {
     object: any | null;
     loading: boolean;
     loadingProgress: number;
@@ -44,12 +44,10 @@ class LargeZipJsonObject {
         rawCursor.downloadZip(path, action((progress: number) => {
             this.loadingProgress = progress;
             console.log("Loading progress: " + this.loadingProgress);
-        })).then(action((result?: string) => {
+        })).then(action((result?: Uint8Array) => {
             if (result != null) {
-                console.log("Parsing large result");
-                const parsed = JSON.parse(result);
-                console.log("Parsed large result.");
-                this.object = parsed;
+                console.log("Downloaded large result");
+                this.object = result;
             }
             this.loading = false;
         }));
@@ -68,7 +66,7 @@ class MocapS3Cursor {
     cachedLogFile: Promise<string> | null;
     cachedResultsFile: Promise<string> | null;
     cachedTrialResultsFiles: Map<string, Promise<string>>;
-    cachedVisulizationFiles: Map<string, LargeZipJsonObject>;
+    cachedVisulizationFiles: Map<string, LargeZipBinaryObject>;
 
     subjectJson: ReactiveJsonFile;
     resultsJson: ReactiveJsonFile;
@@ -515,7 +513,7 @@ class MocapS3Cursor {
      * @returns true if there's a visualization file for this trial
      */
     hasTrialVisualization = (trialName: string) => {
-        return this.rawCursor.getExists('trials/' + trialName + '/preview.json.zip');
+        return this.rawCursor.getExists('trials/' + trialName + '/preview.bin.zip');
     };
 
     /**
@@ -527,7 +525,7 @@ class MocapS3Cursor {
     getTrialVisualization = (trialName: string) => {
         let visualization = this.cachedVisulizationFiles.get(trialName);
         if (visualization == null) {
-            visualization = new LargeZipJsonObject(this.rawCursor, 'trials/' + trialName + '/preview.json.zip');
+            visualization = new LargeZipBinaryObject(this.rawCursor, 'trials/' + trialName + '/preview.bin.zip');
             this.cachedVisulizationFiles.set(trialName, visualization);
         }
         return visualization;
@@ -657,5 +655,5 @@ class MocapS3Cursor {
     };
 }
 
-export { LargeZipJsonObject };
+export { LargeZipBinaryObject };
 export default MocapS3Cursor;

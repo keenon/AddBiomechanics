@@ -7492,6 +7492,11 @@ globby@^6.1.0:
     pify "^2.0.0"
     pinkie-promise "^2.0.0"
 
+google-protobuf@^3.20.1:
+  version "3.20.1"
+  resolved "https://registry.yarnpkg.com/google-protobuf/-/google-protobuf-3.20.1.tgz#1b255c2b59bcda7c399df46c65206aa3c7a0ce8b"
+  integrity sha512-XMf1+O32FjYIV3CYu6Tuh5PNbfNEU5Xu22X+Xkdb/DUexFlCzhvv7d5Iirm4AOwn8lv4al1YvIhzGrg2j9Zfzw==
+
 graceful-fs@^4.1.11, graceful-fs@^4.1.15, graceful-fs@^4.1.2, graceful-fs@^4.1.6, graceful-fs@^4.2.0, graceful-fs@^4.2.4:
   version "4.2.8"
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.8.tgz#e412b8d33f5e006593cbd3cee6df9f2cebbe802a"
@@ -9763,12 +9768,14 @@ nice-try@^1.0.4:
   resolved "https://registry.yarnpkg.com/nice-try/-/nice-try-1.0.5.tgz#a3378a7696ce7d223e88fc9b764bd7ef1089e366"
   integrity sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
 
-nimble-visualizer@^0.7.4:
-  version "0.7.4"
-  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.7.4.tgz#514f448e837539d66aea1a9b8f1316b3d0cab4b0"
-  integrity sha512-NCvoEa+/vJBmDg1udw/nBfs6hWXb2Ix7T2Uj59oW3+hVs//1Q3bPTG0AWXmgrvqc6C2X0myQtrKVxNjQmHpufw==
+nimble-visualizer@^0.8.3:
+  version "0.8.3"
+  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.8.3.tgz#628ec303ab03af3e8aa4baf6e93b487acf2f15b7"
+  integrity sha512-NKJvSMqEfbenAp4sHw4HI3eeSPpSWL6GX0tihu+hGr1PfkDACBikSEUBwhn6IbiLjQDoA6gWrh4Z73rz8TS1HA==
   dependencies:
-    three "^0.121.1"
+    google-protobuf "^3.20.1"
+    sha256-uint8array "^0.10.3"
+    three "0.121.1"
 
 nise@^1.5.2:
   version "1.5.3"
@@ -12295,6 +12302,11 @@ sha.js@^2.4.0, sha.js@^2.4.8:
     inherits "^2.0.1"
     safe-buffer "^5.0.1"
 
+sha256-uint8array@^0.10.3:
+  version "0.10.3"
+  resolved "https://registry.yarnpkg.com/sha256-uint8array/-/sha256-uint8array-0.10.3.tgz#322a91413f78f518e0b9c8f8e982cc2e629b59c7"
+  integrity sha512-SFTs87RfXVulKrhhP6B5/qcFruOKQZaKf6jY9V4PJ7NOG0qIlQP6XL4pQq5xagsuP/Wd55S7tUBJpRajEsDUEQ==
+
 shebang-command@^1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/shebang-command/-/shebang-command-1.2.0.tgz#44aac65b695b03398968c39f363fee5deafdf1ea"
@@ -13002,9 +13014,9 @@ text-table@0.2.0, text-table@^0.2.0:
   resolved "https://registry.yarnpkg.com/text-table/-/text-table-0.2.0.tgz#7f5ee823ae805207c00af2df4a84ec3fcfa570b4"
   integrity sha1-f17oI66AUgfACvLfSoTsP8+lcLQ=
 
-three@^0.121.1:
+three@0.121.1:
   version "0.121.1"
-  resolved "https://registry.npmjs.org/three/-/three-0.121.1.tgz"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.121.1.tgz#fda39cf4701d02be9c3be5c27ccea24b7a1ea59b"
   integrity sha512-+rYhNpW5W1aBdLkPQDld/GA4Sj/uOKJJKVpCAZUbpk/HZEiYRUlPt8+s+9nmxRglWmRHdBa3ERvUwqg4nmoA5w==
 
 throat@^5.0.0:

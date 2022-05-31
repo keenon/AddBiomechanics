@@ -67,6 +67,9 @@ function afterLogin(email: string) {
           socket.connect();
           publicIndex.setupPubsub();
           myData.setupPubsub();
+          myData.upload("account.json", JSON.stringify({ email }));
+          // This is just here to be convenient for a human searching through the S3 buckets manually
+          myData.upload(email.replace("@", ".AT."), JSON.stringify({ email }));
           cursor.subscribeToCloudProcessingQueueUpdates();
         })
         .catch((error) => {

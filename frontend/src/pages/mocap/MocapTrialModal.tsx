@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Modal, Table } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
-import MocapS3Cursor, { LargeZipJsonObject } from '../../state/MocapS3Cursor';
+import MocapS3Cursor, { LargeZipBinaryObject } from '../../state/MocapS3Cursor';
 import NimbleStandaloneReact from 'nimble-visualizer/dist/NimbleStandaloneReact';
 
 type MocapTrialModalProps = {
@@ -33,7 +33,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
     let trialNumber: number = 0;
     let subjectStatus = 'empty'
     let trial: MocapTrialEntry | null = null;
-    let visualization: LargeZipJsonObject | null = null;
+    let visualization: LargeZipBinaryObject | null = null;
     if (show) {
         trialNumber = parseInt(decodeURIComponent(location.search.substring("?show-trial=".length)));
         trial = props.cursor.getTrials()[trialNumber];
