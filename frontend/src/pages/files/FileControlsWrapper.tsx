@@ -37,7 +37,7 @@ const FileManager = observer((props: FileManagerProps) => {
           {/* "Create" dropdown */}
           <ButtonGroup className="d-block mb-2">
             <Dropdown>
-              <Dropdown.Toggle className="btn btn-success dropdown-toggle w-100">
+              <Dropdown.Toggle className="btn btn-primary dropdown-toggle w-100">
                 <i className="mdi mdi-plus"></i> Create New{" "}
               </Dropdown.Toggle>
               <Dropdown.Menu>

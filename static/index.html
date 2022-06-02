@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>
+    AddBiomechanics
+  </title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link href="css/bootstrap.min.css" rel="stylesheet">
+  <link href="css/custom.css" rel="stylesheet">
+  <link rel="icon" href="img/favicon.ico" />
+  <script src="js/bootstrap.bundle.min.js"></script>
+</head>
+
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">add<span class="text-primary">biomechanics</span></a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
+        aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link active" aria-current="page" href="#">Home</a>
+          </li>
+          <!--
+          <li class="nav-item">
+            <a class="nav-link" href="#">Link</a>
+          </li>
+          -->
+        </ul>
+        <form class="d-flex">
+          <a href="https://app.addbiomechanics.org" class="btn btn-primary">Go to app</a>
+        </form>
+      </div>
+    </div>
+  </nav>
+  <main role="main" class="container">
+    <div class="px-4 py-5 my-5 text-center border-bottom">
+      <img class="d-block mx-auto mb-4" src="img/logo.svg" alt="" width="150" height="150">
+      <h1 class="display-5">add<span class="text-primary">biomechanics</span></h1>
+      <div class="col-lg-6 mx-auto">
+        <p class="lead mb-4">Upload mocap files and get an optimally scaled <a
+            href="https://simtk.org/projects/opensim">OpenSim</a> model and IK back in
+          minutes.
+          Share your data with the community. Browse and download biomechanics data. Optimizer powered by <a
+            href="https://nimblephysics.org/">Nimble Differentiable Physics</a>. Hosted by Stanford University.</p>
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+          <a href="https://app.addbiomechanics.org/my_data" class="btn btn-primary btn-lg px-4 gap-3">Process Your
+            Data</a>
+          <a href="https://app.addbiomechanics.org/public_data" class="btn btn-outline-secondary btn-lg px-4">View
+            Public
+            Data</a>
+        </div>
+      </div>
+    </div>
+    <div class="px-4 pt-5 my-5 text-center border-bottom">
+      <h1 class="display-4">Save time and effort.</h1>
+      <div class="col-lg-6 mx-auto">
+        <p class="lead mb-4">Fits right into your existing motion capture pipeline, replacing labor-intensive manual
+          scaling and marker
+          registration:</p>
+      </div>
+      <div class="row d-flex flex-row">
+        <div class="col-xl-2 col-md-4 flex-fill">
+          <img src="img/HowItWorksA.svg" class="img-fluid" alt="Example image" width="240" loading="lazy">
+        </div>
+        <div class="col-xl-2 col-md-4 flex-fill">
+          <img src="img/HowItWorksB.svg" class="img-fluid" alt="Example image" width="240" loading="lazy">
+        </div>
+        <div class="col-xl-2 col-md-4 flex-fill">
+          <img src="img/HowItWorksC.svg" class="img-fluid" alt="Example image" width="240" loading="lazy">
+        </div>
+        <div class="col-xl-2 col-md-4 flex-fill">
+          <img src="img/HowItWorksD.svg" class="img-fluid" alt="Example image" width="240" loading="lazy">
+        </div>
+        <div class="col-xl-2 col-md-4 flex-fill">
+          <img src="img/HowItWorksE.svg" class="img-fluid" alt="Example image" width="240" loading="lazy">
+        </div>
+      </div>
+    </div>
+    <div class="row my-5">
+      <div class="col-sm-6 text-center">
+        <img src="img/Optimize.png" class="img-fluid" alt="Example image" width="418" loading="lazy">
+      </div>
+      <div class="col-sm-6 d-flex flex-column justify-content-center">
+        <h3 class="display-4">Optimize</h3>
+        <p>Leverage an easy-to-use yet state-of-the-art bilevel optimizer built into AddBiomechanics to find the optimal
+          scaling, marker
+          registration, and
+          inverse-kinematics on your data. Get results in minutes, and get back to analyzing your data faster.</p>
+      </div>
+    </div>
+    <div class="row my-5">
+      <div class="col-sm-6 d-flex flex-column justify-content-center">
+        <h3 class="display-4">Share</h3>
+        <p>Easily share your data with the community. It will be automatically converted to standard formats and
+          skeletons, so it's easy for other researchers to use in their studies.</p>
+      </div>
+      <div class="col-sm-6 text-center">
+        <img src="img/Upload.svg" class="img-fluid" alt="Example image" width="230" loading="lazy">
+      </div>
+    </div>
+    <div class="row my-5">
+      <div class="col-sm-6 text-center">
+        <img src="img/Download.svg" class="img-fluid" alt="Example image" width="230" loading="lazy">
+      </div>
+      <div class="col-sm-6 d-flex flex-column justify-content-center">
+        <h3 class="display-4">Download</h3>
+        <p>Create large N studies by combinding many datasets from other labs, without the usual hassle of
+          finding and cleaning all the data.</p>
+      </div>
+    </div>
+    <!--
+    <div class="px-4 pt-5 my-5 text-center border-bottom">
+      <h1 class="display-6">"ok wow. I'm pretty sure your tool is going to save me about a month of time on scaling”
+      </h1>
+      <div class="col-lg-6 mx-auto">
+        <p class="lead mb-4">- Unsolicited Comment from a Biomechanics PhD Student at Stanford
+        </p>
+      </div>
+      <div>
+        (this is not a picture of
+        her, because she asked to remain anonymous)
+      </div>
+      <div class="container">
+        <img src="img/Happy_Students.png" class="img-fluid" alt="Example image" width="1200" loading="lazy">
+      </div>
+    </div>
+    <div class="px-4 pt-5 my-5 text-center border-bottom">
+      <h1 class="display-4">Easily share <i>data you can be proud of</i> with the community.</h1>
+      <div class="col-lg-6 mx-auto">
+        <p class="lead mb-4">Biomechanics data was hard to share, because getting it into standard formats can be
+          tough, and it's hard to be confident you did a perfect job. Use AddBiomechanics, and share with confidence.
+        </p>
+      </div>
+      <div class="container">
+        <img src="img/running_2.jpeg" class="img-fluid" alt="Example image" width="1200" loading="lazy">
+      </div>
+    </div>
+    -->
+  </main>
+</body>
+
+</html>

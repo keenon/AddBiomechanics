@@ -29,7 +29,7 @@ const FolderView = observer((props: FolderViewProps) => {
 
     let statusBadge = null;
     if (status === "done") {
-      statusBadge = <span className="badge bg-success">Processed</span>;
+      statusBadge = <span className="badge bg-primary">Processed</span>;
     }
     else if (status === "error") {
       statusBadge = <span className="badge bg-danger">Error</span>;

@@ -1,9 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import logo from "../assets/images/logo-black.svg";
-import plot from "../assets/images/relative-performance-plot.png";
-import unifiedDataset from "../assets/images/public-unified-dataset.png";
-import stanford from "../assets/images/stanford.png";
+import logo from "../assets/images/logo-alone.svg";
 
 const ComingSoon = () => {
   const navigate = useNavigate();
@@ -16,7 +13,7 @@ const ComingSoon = () => {
           </div>
           <div className="col-lg-6" style={{ position: "relative" }}>
             <h1 className="display-5 fw-bold lh-1 mb-3">Coming Soon!</h1>
-            <p className="lead">We're still waiting for folks (like you!) to share data with the community. Help us construct the world's best biomechanics dataset, and enable data-driven breakthroughs in human movement science.</p>
+            <p className="lead">This section is still under construction. Help us construct the world's best biomechanics dataset, and enable data-driven breakthroughs in human movement science.</p>
             <div className="d-grid gap-2 d-md-flex justify-content-md-start">
               <a type="button" className="btn btn-primary btn-lg px-4 me-md-2" href="/my_data" onClick={(e) => {
                 e.preventDefault();

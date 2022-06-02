@@ -97,8 +97,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     fitter.setInitialIKMaxRestarts(50)
     fitter.setIterationLimit(500)
     # fitter.setIterationLimit(20)
-    # fitter.setInitialIKMaxRestarts(1)
-    # fitter.setIterationLimit(2)
+    # fitter.setInitialIKMaxRestarts(10)
 
     guessedTrackingMarkers = False
     if len(customOsim.anatomicalMarkers) > 10:
@@ -222,7 +221,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
 
     # 8.2.2. Write the XML instructions for the OpenSim scaling tool
     nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
-        'optimized_scale_and_markers', customOsim.skeleton, massKg, heightM, 'Models/unscaled_but_with_optimized_markers.osim', 'Models/optimized_scale_and_markers.osim', path + 'results/Models/rescaling_setup.xml')
+        'optimized_scale_and_markers', customOsim.skeleton, massKg, heightM, 'Models/unscaled_but_with_optimized_markers.osim', 'Unassigned', 'Models/optimized_scale_and_markers.osim', path + 'results/Models/rescaling_setup.xml')
     # 8.2.3. Call the OpenSim scaling tool
     command = 'cd '+path+'results && opensim-cmd run-tool ' + \
         path + 'results/Models/rescaling_setup.xml'

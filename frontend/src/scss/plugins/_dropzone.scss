@@ -15,6 +15,7 @@
         margin: 2rem 0;
         outline: none;
     }
+
     &.dz-started {
         .dz-message {
             display: none;
@@ -29,20 +30,21 @@
     &.dropzone-sm {
         padding: 5px;
         min-height: 0;
+
         .dz-message {
             margin: 5px 0;
         }
     }
 
     &.dropzone-replace {
-        background-color: #f0f1ff;
+        background-color: #ECF4FF;
 
         &:hover {
-            background-color: #e6e7ff;
+            background-color: #E4EFFF;
         }
 
         &.dropzone-dover {
-            background-color: #e6e7ff;
+            background-color: #E4EFFF;
         }
     }
 

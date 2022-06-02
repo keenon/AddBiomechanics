@@ -6,8 +6,8 @@ import classNames from "classnames";
 // components
 import ProfileDropdown from "../components/ProfileDropdown";
 
-import logo from "../assets/images/logo-black-sm.svg";
-import logoSmall from "../assets/images/logo-black-xs.svg";
+import logo from "../assets/images/logo-with-text.svg";
+import logoSmall from "../assets/images/logo-alone.svg";
 
 type TopbarProps = {
   hideLogo?: boolean;
@@ -20,19 +20,22 @@ const Topbar = (props: TopbarProps) => {
   const navbarCssClasses = props.navCssClasses || "";
   const containerCssClasses = !props.hideLogo ? "container-fluid" : "";
 
+  /*
+  <span style={{color: "rgba(0,0,0,.9)" }}>add</span><span className="text-primary">biomechanics</span>
+  */
   return (
     <>
       <div className={`navbar-custom ${navbarCssClasses}`}>
         <div className={containerCssClasses}>
           {!props.hideLogo && (
-            <Link to="/" className="topnav-logo">
+            <a href="https://addbiomechanics.org" className="topnav-logo">
               <span className="topnav-logo-lg">
                 <img src={logo} alt="logo" height="60" />
               </span>
               <span className="topnav-logo-sm">
                 <img src={logoSmall} alt="logo" height="60" />
               </span>
-            </Link>
+            </a>
           )}
 
           <ul className="list-unstyled topbar-menu float-end mb-0">

@@ -2,7 +2,7 @@ import React, { useEffect, ReactNode } from "react";
 import { Container, Row, Col, Card } from "react-bootstrap";
 import { Link } from "react-router-dom";
 
-import Logo from "../../assets/images/logo-white.svg";
+import Logo from "../../assets/images/logo-login.svg";
 
 type AccountLayoutProps = {
   bottomLinks?: ReactNode;

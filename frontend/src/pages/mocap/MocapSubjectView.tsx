@@ -464,7 +464,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       </div>;
     }
 
-    statusBadge = <span className="badge bg-success">Processed</span>;
+    statusBadge = <span className="badge bg-primary">Processed</span>;
     statusDetails = <>
       <h4>Results: {(autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE</h4>
       {guessedMarkersWarning}

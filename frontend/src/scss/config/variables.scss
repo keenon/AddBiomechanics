@@ -67,7 +67,7 @@ $colors: (
 // scss-docs-end colors-map
 
 // scss-docs-start theme-color-variables
-$primary: $indigo;
+$primary: #0d6efd; // $indigo;
 $secondary: $gray-700;
 $success: $green;
 $info: $cyan;
@@ -586,10 +586,8 @@ $input-btn-line-height: $line-height-base;
 
 $input-btn-focus-width: 0.2rem;
 $input-btn-focus-color-opacity: 0.25;
-$input-btn-focus-color: rgba(
-  $component-active-bg,
-  $input-btn-focus-color-opacity
-);
+$input-btn-focus-color: rgba($component-active-bg,
+    $input-btn-focus-color-opacity);
 $input-btn-focus-color: rgba($primary, 0.25);
 $input-btn-focus-box-shadow: 0 0 0 $input-btn-focus-width $input-btn-focus-color;
 
@@ -715,23 +713,15 @@ $input-height-border: $input-border-width * 2;
 
 $input-height-inner: add($input-line-height * 1em, $input-padding-y * 2);
 $input-height-inner-half: add($input-line-height * 0.5em, $input-padding-y);
-$input-height-inner-quarter: add(
-  $input-line-height * 0.25em,
-  $input-padding-y / 2
-);
+$input-height-inner-quarter: add($input-line-height * 0.25em,
+    $input-padding-y / 2);
 
-$input-height: add(
-  $input-line-height * 1em,
-  add($input-padding-y * 2, $input-height-border, false)
-);
-$input-height-sm: add(
-  $input-line-height * 1em,
-  add($input-padding-y-sm * 2, $input-height-border, false)
-);
-$input-height-lg: add(
-  $input-line-height * 1em,
-  add($input-padding-y-lg * 2, $input-height-border, false)
-);
+$input-height: add($input-line-height * 1em,
+    add($input-padding-y * 2, $input-height-border, false));
+$input-height-sm: add($input-line-height * 1em,
+    add($input-padding-y-sm * 2, $input-height-border, false));
+$input-height-lg: add($input-line-height * 1em,
+    add($input-padding-y-lg * 2, $input-height-border, false));
 
 $input-transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 // scss-docs-end form-input-variables
@@ -819,15 +809,10 @@ $form-select-bg-size: 16px 12px; // In pixels because image dimensions
 $form-select-indicator-color: $gray-800;
 $form-select-indicator: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='#{$form-select-indicator-color}' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/></svg>");
 
-$form-select-feedback-icon-padding-end: add(
-  1em * 0.75,
-  (2 * $form-select-padding-y * 0.75) + $form-select-padding-x +
-    $form-select-indicator-padding
-);
-$form-select-feedback-icon-position: center right
-  ($form-select-padding-x + $form-select-indicator-padding);
-$form-select-feedback-icon-size: $input-height-inner-half
-  $input-height-inner-half;
+$form-select-feedback-icon-padding-end: add(1em * 0.75,
+    (2 * $form-select-padding-y * 0.75) + $form-select-padding-x + $form-select-indicator-padding);
+$form-select-feedback-icon-position: center right ($form-select-padding-x + $form-select-indicator-padding);
+$form-select-feedback-icon-size: $input-height-inner-half $input-height-inner-half;
 
 $form-select-border-width: $input-border-width;
 $form-select-border-color: $input-border-color;
@@ -880,8 +865,7 @@ $form-floating-padding-y: 1rem;
 $form-floating-input-padding-t: 1.625rem;
 $form-floating-input-padding-b: 0.625rem;
 $form-floating-label-opacity: 0.65;
-$form-floating-label-transform: scale(0.85) translateY(-0.5rem)
-  translateX(0.15rem);
+$form-floating-label-transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
 $form-floating-transition: opacity 0.1s ease-in-out, transform 0.1s ease-in-out;
 // scss-docs-end form-floating-variables
 
@@ -902,12 +886,10 @@ $form-feedback-icon-invalid: url("data:image/svg+xml,<svg xmlns='http://www.w3.o
 
 // scss-docs-start form-validation-states
 $form-validation-states: (
-  "valid": (
-    "color": $form-feedback-valid-color,
+  "valid": ("color": $form-feedback-valid-color,
     "icon": $form-feedback-icon-valid,
   ),
-  "invalid": (
-    "color": $form-feedback-invalid-color,
+  "invalid": ("color": $form-feedback-invalid-color,
     "icon": $form-feedback-icon-invalid,
   ),
 );
@@ -967,7 +949,8 @@ $navbar-brand-font-size: $font-size-lg;
 // Compute the navbar-brand padding-y so the navbar-brand will have the same height as navbar-text and nav-link
 $nav-link-height: $font-size-base * $line-height-base + $nav-link-padding-y * 2;
 $navbar-brand-height: $navbar-brand-font-size * $line-height-base;
-$navbar-brand-padding-y: ($nav-link-height - $navbar-brand-height) / 2;
+$navbar-brand-padding-y: (
+  $nav-link-height - $navbar-brand-height) / 2;
 $navbar-brand-margin-end: 1rem;
 
 $navbar-toggler-padding-y: 0.25rem;
@@ -979,7 +962,8 @@ $navbar-toggler-transition: box-shadow 0.15s ease-in-out;
 // scss-docs-end navbar-variables
 
 // scss-docs-start navbar-theme-variables
-$navbar-dark-color: rgba($white, 0.55);
+$navbar-dark-color: rgba($white, 0.55
+);
 $navbar-dark-hover-color: rgba($white, 0.75);
 $navbar-dark-active-color: $white;
 $navbar-dark-disabled-color: rgba($white, 0.25);
@@ -1014,10 +998,8 @@ $dropdown-bg: $white;
 $dropdown-border-color: shade-color($light, 3%);
 $dropdown-border-radius: $border-radius;
 $dropdown-border-width: $border-width;
-$dropdown-inner-border-radius: subtract(
-  $dropdown-border-radius,
-  $dropdown-border-width
-);
+$dropdown-inner-border-radius: subtract($dropdown-border-radius,
+    $dropdown-border-width);
 $dropdown-divider-bg: $dropdown-border-color;
 $dropdown-divider-margin-y: $spacer / 3;
 $dropdown-box-shadow: $box-shadow;
@@ -1127,10 +1109,8 @@ $accordion-bg: transparent;
 $accordion-border-width: $border-width;
 $accordion-border-color: rgba($black, 0.125);
 $accordion-border-radius: $border-radius;
-$accordion-inner-border-radius: subtract(
-  $accordion-border-radius,
-  $accordion-border-width
-);
+$accordion-inner-border-radius: subtract($accordion-border-radius,
+    $accordion-border-width);
 
 $accordion-body-padding-y: $accordion-padding-y;
 $accordion-body-padding-x: $accordion-padding-x;
@@ -1193,10 +1173,8 @@ $popover-max-width: 276px;
 $popover-border-width: $border-width;
 $popover-border-color: $gray-300;
 $popover-border-radius: $border-radius-lg;
-$popover-inner-border-radius: subtract(
-  $popover-border-radius,
-  $popover-border-width
-);
+$popover-inner-border-radius: subtract($popover-border-radius,
+    $popover-border-width);
 $popover-box-shadow: $box-shadow;
 
 $popover-header-bg: $gray-100;
@@ -1264,10 +1242,8 @@ $modal-content-bg: $white;
 $modal-content-border-color: transparent;
 $modal-content-border-width: $border-width;
 $modal-content-border-radius: 0.2rem;
-$modal-content-inner-border-radius: subtract(
-  $modal-content-border-radius,
-  $modal-content-border-width
-);
+$modal-content-inner-border-radius: subtract($modal-content-border-radius,
+    $modal-content-border-width);
 $modal-content-box-shadow-xs: $box-shadow-sm;
 $modal-content-box-shadow-sm-up: $box-shadow;
 
@@ -1467,10 +1443,8 @@ $offcanvas-border-width: $modal-content-border-width;
 $offcanvas-title-line-height: $modal-title-line-height;
 $offcanvas-bg-color: $modal-content-bg;
 $offcanvas-color: $modal-content-color;
-$offcanvas-body-backdrop-color: rgba(
-  $modal-backdrop-bg,
-  $modal-backdrop-opacity
-);
+$offcanvas-body-backdrop-color: rgba($modal-backdrop-bg,
+    $modal-backdrop-opacity);
 $offcanvas-box-shadow: $modal-content-box-shadow-xs;
 // scss-docs-end offcanvas-variables
 
