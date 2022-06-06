@@ -337,8 +337,9 @@ class MocapS3Cursor {
         const hasAnyTrials = trials.length > 0;
 
         for (let i = 0; i < trials.length; i++) {
-            const markersMetadata = this.rawCursor.getChildMetadata(path + "trials/" + trials[i].key + "/markers.c3d");
-            if (markersMetadata == null) {
+            const c3dMetadata = this.rawCursor.getChildMetadata(path + "trials/" + trials[i].key + "/markers.c3d");
+            const trcMetadata = this.rawCursor.getChildMetadata(path + "trials/" + trials[i].key + "/markers.trc");
+            if (c3dMetadata == null && trcMetadata == null) {
                 anyTrialsMissingMarkers = true;
             }
         }
@@ -490,7 +491,7 @@ class MocapS3Cursor {
     bulkCreateTrials = (fileNames: string[]) => {
         const progress: Promise<void>[] = [];
         for (let i = 0; i < fileNames.length; i++) {
-            if (fileNames[i].endsWith(".c3d")) {
+            if (fileNames[i].endsWith(".c3d") || fileNames[i].endsWith(".trc")) {
                 const file = fileNames[i].substring(0, fileNames[i].length - ".c3d".length);
                 progress.push(this.rawCursor.uploadChild("trials/" + file, ""));
             }

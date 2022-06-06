@@ -134,6 +134,13 @@ class ReactiveJsonFile {
     };
 
     /**
+     * @returns True if we're loading the file AND have no contents cached. False otherwise.
+     */
+    isLoadingFirstTime = () => {
+        return this.loading && this.values.size === 0;
+    }
+
+    /**
      * When the file changes on S3
      */
     onFileChanged = () => {

@@ -25,7 +25,9 @@ class TrialToProcess:
     trialPath: str
 
     # Trial files
-    markersFile: str
+    c3dFile: str
+    trcFile: str
+    grfFile: str
     goldIKFile: str
     resultsFile: str
     previewBinFile: str
@@ -40,7 +42,9 @@ class TrialToProcess:
         self.trialPath = subjectPath + 'trials/' + self.trialName
 
         # Trial files
-        self.markersFile = self.trialPath + 'markers.c3d'
+        self.c3dFile = self.trialPath + 'markers.c3d'
+        self.trcFile = self.trialPath + 'markers.trc'
+        self.grfFile = self.trialPath + 'grf.mot'
         self.goldIKFile = self.trialPath + 'manual_ik.mot'
         self.resultsFile = self.trialPath + '_results.json'
         self.previewBinFile = self.trialPath + 'preview.bin.zip'
@@ -49,7 +53,12 @@ class TrialToProcess:
         trialPath = trialsFolderPath + self.trialName
         os.mkdir(trialPath)
 
-        self.index.download(self.markersFile, trialPath+'markers.c3d')
+        if self.index.exists(self.c3dFile):
+            self.index.download(self.c3dFile, trialPath+'markers.c3d')
+        if self.index.exists(self.trcFile):
+            self.index.download(self.trcFile, trialPath+'markers.trc')
+        if self.index.exists(self.grfFile):
+            self.index.download(self.grfFile, trialPath+'grf.mot')
         if self.index.exists(self.goldIKFile):
             self.index.download(self.goldIKFile, trialPath+'manual_ik.mot')
 
@@ -69,17 +78,28 @@ class TrialToProcess:
                   trialPath + 'preview.bin.zip', flush=True)
 
     def hasMarkers(self) -> bool:
-        return self.index.exists(self.markersFile)
+        return self.index.exists(self.c3dFile) or self.index.exists(self.trcFile)
 
     def latestInputTimestamp(self) -> int:
-        if not self.index.exists(self.markersFile):
+        if self.index.exists(self.c3dFile):
+            uploadedTimestamp = self.index.getMetadata(
+                self.c3dFile).lastModified
+            if self.index.exists(self.goldIKFile):
+                uploadedTimestamp = max(
+                    uploadedTimestamp, self.index.getMetadata(self.goldIKFile).lastModified)
+            return uploadedTimestamp
+        elif self.index.exists(self.trcFile):
+            uploadedTimestamp = self.index.getMetadata(
+                self.trcFile).lastModified
+            if self.index.exists(self.grfFile):
+                uploadedTimestamp = max(
+                    uploadedTimestamp, self.index.getMetadata(self.grfFile).lastModified)
+            if self.index.exists(self.goldIKFile):
+                uploadedTimestamp = max(
+                    uploadedTimestamp, self.index.getMetadata(self.goldIKFile).lastModified)
+            return uploadedTimestamp
+        else:
             return 0
-        uploadedTimestamp = self.index.getMetadata(
-            self.markersFile).lastModified
-        if self.index.exists(self.goldIKFile):
-            uploadedTimestamp = max(
-                uploadedTimestamp, self.index.getMetadata(self.goldIKFile).lastModified)
-        return uploadedTimestamp
 
 
 class SubjectToProcess:

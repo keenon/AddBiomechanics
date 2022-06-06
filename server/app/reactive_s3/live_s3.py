@@ -164,6 +164,7 @@ class LiveS3File:
             Body=open(filePath, 'rb'))
         self.root.pubSub.sendMessage(
             "/UPDATE/"+self.parentPath, {'path': self.path})
+        self.root.rootFolder.ensureChild(filePath.split('/'))
 
     def uploadText(self, text: str):
         """
@@ -172,6 +173,7 @@ class LiveS3File:
         self.root.s3.Object(BUCKET_NAME, self.path).put(Body=text)
         self.root.pubSub.sendMessage(
             "/UPDATE/"+self.parentPath, {'path': self.path})
+        self.root.rootFolder.ensureChild(filePath.split('/'))
 
     def uploadJSON(self, contents: Dict[str, Any]):
         """

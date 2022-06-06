@@ -120,7 +120,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     fitter.setMaxJointWeight(1.0)
 
     trialNames = []
-    c3dFiles = []
+    c3dFiles: Dict[str, nimble.biomechanics.C3D] = {}
+    trialForcePlates: List[List[nimble.biomechanics.ForcePlate]] = []
+    trialTimestamps: List[List[float]] = []
+    trialFramesPerSecond: List[int] = []
     markerTrials = []
     trialProcessingResults: List[Dict[str, Any]] = []
 
@@ -130,14 +133,40 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         trialProcessingResult: Dict[str, Any] = {}
 
         # Load the markers file
-        markersFilePath = trialPath + 'markers.c3d'
-        requireExists(markersFilePath, 'markers file')
-        c3dFile: nimble.biomechanics.C3D = nimble.biomechanics.C3DLoader.loadC3D(
-            markersFilePath)
-        nimble.biomechanics.C3DLoader.fixupMarkerFlips(c3dFile)
-        fitter.autorotateC3D(c3dFile)
-        c3dFiles.append(c3dFile)
-        markerTrials.append(c3dFile.markerTimesteps)
+        c3dFilePath = trialPath + 'markers.c3d'
+        trcFilePath = trialPath + 'markers.trc'
+
+        if os.path.exists(c3dFilePath):
+            c3dFile: nimble.biomechanics.C3D = nimble.biomechanics.C3DLoader.loadC3D(
+                c3dFilePath)
+            nimble.biomechanics.C3DLoader.fixupMarkerFlips(c3dFile)
+            fitter.autorotateC3D(c3dFile)
+            c3dFiles[trialName] = c3dFile
+            trialForcePlates.append(c3dFile.forcePlates)
+            trialTimestamps.append(c3dFile.timestamps)
+            # TODO: rever this back to c3dFile.framesPerSecond on next release
+            # trialFramesPerSecond.append(c3dFile.framesPerSecond)
+            framesPerSecond = int(round(len(c3dFile.timestamps) / ( c3dFile.timestamps[-1] - c3dFile.timestamps[0])))
+            trialFramesPerSecond.append(framesPerSecond)
+            markerTrials.append(c3dFile.markerTimesteps)
+        elif os.path.exists(trcFilePath):
+            trcFile: nimble.biomechanics.OpenSimTRC = nimble.biomechanics.OpenSimParser.loadTRC(
+                trcFilePath)
+            markerTrials.append(trcFile.markerTimesteps)
+            trialTimestamps.append(trcFile.timestamps)
+            trialFramesPerSecond.append(trcFile.framesPerSecond)
+            grfFilePath = trialPath + 'grf.mot'
+            if os.path.exists(grfFilePath):
+                forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
+                    grfFilePath)
+                trialForcePlates.append(forcePlates)
+            else:
+                print('Warning: No ground reaction forces specified for '+trialName)
+                trialForcePlates.append([])
+        else:
+            print('ERROR: No marker files exist for trial '+trialName+'. Checked both ' +
+                  c3dFilePath+' and '+trcFilePath+', neither exist. Quitting.')
+            exit(1)
 
         trialProcessingResults.append(trialProcessingResult)
 
@@ -232,7 +261,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     for i in range(len(results)):
         result = results[i]
         trialName = trialNames[i]
-        c3dFile = c3dFiles[i]
+        c3dFile = c3dFiles[trialName] if trialName in c3dFiles else None
+        forcePlates = trialForcePlates[i]
+        framesPerSecond = trialFramesPerSecond[i]
+        timestamps = trialTimestamps[i]
         markerTimesteps = markerTrials[i]
         trialProcessingResult = trialProcessingResults[i]
         trialPath = path + 'trials/' + trialName + '/'
@@ -253,8 +285,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         # Load the gold .mot file, if one exists
         goldMot: nimble.biomechanics.OpenSimMot = None
         if os.path.exists(trialPath + 'manual_ik.mot') and goldOsim is not None:
-            goldMot = nimble.biomechanics.OpenSimParser.loadMotAtLowestMarkerRMSERotation(
-                goldOsim, trialPath + 'manual_ik.mot', c3dFile)
+            if c3dFile is not None:
+                goldMot = nimble.biomechanics.OpenSimParser.loadMotAtLowestMarkerRMSERotation(
+                    goldOsim, trialPath + 'manual_ik.mot', c3dFile)
+            else:
+                goldMot = nimble.biomechanics.OpenSimParser.loadMot(
+                    goldOsim, trialPath + 'manual_ik.mot')
 
             shutil.copyfile(trialPath + 'manual_ik.mot', path +
                             'results/IK/' + trialName + '_manual_scaling_ik.mot')
@@ -262,7 +298,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                 trialName, markerNames, "Models/manually_scaled.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_on_manual_scaling_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_on_manually_scaled_setup.xml')
 
             originalIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
-                goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, c3dFile.markerTimesteps)
+                goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, markerTimesteps)
             print('manually scaled average RMSE cm: ' +
                   str(originalIK.averageRootMeanSquaredError), flush=True)
             print('manually scaled average max cm: ' +
@@ -286,20 +322,21 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         print('Writing OpenSim '+path+'results/IK/' +
               trialName+'.mot file, shape='+str(result.poses.shape), flush=True)
         nimble.biomechanics.OpenSimParser.saveMot(
-            customOsim.skeleton, path + 'results/IK/'+trialName+'_ik.mot', c3dFile.timestamps, result.poses)
+            customOsim.skeleton, path + 'results/IK/'+trialName+'_ik.mot', timestamps, result.poses)
         resultIK.saveCSVMarkerErrorReport(
             path + 'results/IK/'+trialName+'_ik_per_marker_error_report.csv')
         nimble.biomechanics.OpenSimParser.saveGRFMot(
-            path + 'results/ID/'+trialName+'_grf.mot', c3dFile.timestamps, c3dFile.forcePlates)
+            path + 'results/ID/'+trialName+'_grf.mot', timestamps, forcePlates)
         nimble.biomechanics.OpenSimParser.saveTRC(
-            path + 'results/MarkerData/'+trialName+'.trc', c3dFile.timestamps, c3dFile.markerTimesteps)
-        shutil.copyfile(trialPath + 'markers.c3d', path +
-                        'results/C3D/' + trialName + '.c3d')
+            path + 'results/MarkerData/'+trialName+'.trc', timestamps, markerTimesteps)
+        if c3dFile is not None:
+            shutil.copyfile(trialPath + 'markers.c3d', path +
+                            'results/C3D/' + trialName + '.c3d')
         # Save OpenSim setup files to make it easy to (re)run IK and ID on the results in OpenSim
         nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
             trialName, markerNames, "Models/optimized_scale_and_markers.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
         nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsForcesXMLFile(
-            trialName, customOsim.skeleton, result.poses, c3dFile.forcePlates, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
+            trialName, customOsim.skeleton, result.poses, forcePlates, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
         nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
             trialName, 'Models/optimized_scale_and_markers.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml')
 
@@ -311,12 +348,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             print('goldOsim: '+str(goldOsim), flush=True)
             print('goldMot.poses.shape: '+str(goldMot.poses.shape), flush=True)
             fitter.saveTrajectoryAndMarkersToGUI(
-                trialPath+'preview.bin', result, markerTimesteps, c3dFile, goldOsim, goldMot.poses)
+                trialPath+'preview.bin', result, markerTimesteps, framesPerSecond, forcePlates, goldOsim, goldMot.poses)
         else:
             print('Saving trajectory and markers to a GUI log ' +
                   trialPath+'preview.bin', flush=True)
             fitter.saveTrajectoryAndMarkersToGUI(
-                trialPath+'preview.bin', result, markerTimesteps, c3dFile)
+                trialPath+'preview.bin', result, markerTimesteps, framesPerSecond, forcePlates)
         # 8.2.2. Zip it up
         print('Zipping up '+trialPath+'preview.bin', flush=True)
         subprocess.run(["zip", "-r", 'preview.bin.zip',
@@ -373,8 +410,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         f.write("\n\n")
         for i in range(len(results)):
             trialName = trialNames[i]
-            f.write(" - C3D/" + trialName+'.c3d (RMSE: '+('%.2f' % (trialProcessingResults[i]['autoAvgRMSE'] * 100))+'cm, Max: '+('%.2f' %
-                                                                                                                                  (trialProcessingResults[i]['autoAvgMax']*100))+'cm)\n')
+            f.write(" - MarkerData/" + trialName+'.trc (RMSE: '+('%.2f' % (trialProcessingResults[i]['autoAvgRMSE'] * 100))+'cm, Max: '+('%.2f' %
+                                                                                                                                (trialProcessingResults[i]['autoAvgMax']*100))+'cm)\n')
             for j in range(min(len(trialProcessingResults[i]['markerErrors']), 5)):
                 markerName, markerRMSE = trialProcessingResults[i]['markerErrors'][j]
                 f.write("     " + str(j+1)+" Worst Marker \"")

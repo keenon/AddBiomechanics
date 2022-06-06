@@ -6,6 +6,7 @@ import {
   Button,
   ButtonGroup,
   Dropdown,
+  Spinner,
   Table,
 } from "react-bootstrap";
 import DropFile from "../../components/DropFile";
@@ -26,8 +27,11 @@ type MocapTrialRowViewProps = {
   name: string;
   cursor: MocapS3Cursor;
   uploadC3D: File | undefined;
+  uploadTRC: File | undefined;
+  uploadGRF: File | undefined;
   uploadIK: File | undefined;
   onMultipleManualIK: (files: File[]) => void;
+  onMultipleGRF: (files: File[]) => void;
 };
 
 const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
@@ -40,7 +44,26 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
       </td>
     );
   }
-  console.log(props.name + "_grf.mot");
+  let fileData = null;
+
+  let trcMetadata = props.cursor.rawCursor.getChildMetadata("trials/" + props.name + "/markers.trc");
+  if (trcMetadata != null || props.uploadTRC != null) {
+    fileData = <>
+      <td>
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc" required />
+      </td>
+      <td>
+        <DropFile cursor={props.cursor} text={"Upload ground reaction forces as a *.mot"} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadGRF} accept=".mot" onMultipleFiles={props.onMultipleGRF} />
+      </td>
+    </>
+  }
+  else {
+    fileData = (
+      <td colSpan={2}>
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.c3d"} uploadOnMount={props.uploadC3D} accept=".c3d" required />
+      </td>
+    );
+  }
 
   return (
     <tr>
@@ -54,9 +77,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
           {props.name}
         </Link>
       </td>
-      <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.c3d"} uploadOnMount={props.uploadC3D} accept=".c3d" required />
-      </td>
+      {fileData}
       {manualIKRow}
       {!props.cursor.canEdit() ? null : (
         <td>
@@ -315,6 +336,7 @@ function validateOpenSimFile(file: File): Promise<null | string> {
 
 const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const navigate = useNavigate();
 
   let trialViews: any[] = [];
@@ -328,13 +350,22 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         key={trials[i].key}
         name={trials[i].key}
         uploadC3D={uploadFiles[trials[i].key + ".c3d"]}
+        uploadTRC={uploadFiles[trials[i].key + ".trc"]}
+        uploadGRF={uploadFiles[trials[i].key + "_grf.mot"]}
         uploadIK={uploadFiles[trials[i].key + "_ik.mot"]}
         onMultipleManualIK={(files: File[]) => {
-          console.log(files);
           // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
           let updatedUploadFiles = { ...uploadFiles };
           for (let i = 0; i < files.length; i++) {
             updatedUploadFiles[files[i].name.replace(".mot", "_ik.mot")] = files[i];
+          }
+          setUploadFiles(updatedUploadFiles);
+        }}
+        onMultipleGRF={(files: File[]) => {
+          // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
+          let updatedUploadFiles = { ...uploadFiles };
+          for (let i = 0; i < files.length; i++) {
+            updatedUploadFiles[files[i].name.replace(".mot", "_grf.mot")] = files[i];
           }
           setUploadFiles(updatedUploadFiles);
         }}
@@ -347,7 +378,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         <td colSpan={6}>
           <Dropzone
             {...props}
-            accept=".c3d,.mot"
+            accept=".c3d,.mot,.trc"
             onDrop={(acceptedFiles) => {
               // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
               let updatedUploadFiles = { ...uploadFiles };
@@ -356,7 +387,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                 fileNames.push(acceptedFiles[i].name);
                 updatedUploadFiles[acceptedFiles[i].name] = acceptedFiles[i];
 
-                if (!acceptedFiles[i].name.endsWith(".c3d")) {
+                if (!acceptedFiles[i].name.endsWith(".c3d") && !acceptedFiles[i].name.endsWith(".trc")) {
                   alert("You can only bulk create trials with *.c3d files. To bulk upload other types of files (like *.mot for IK) please create the trials first, then drag a group of *.mot files to one of the IK upload slots (doesn't matter which trial, files will be matched by name).");
                   return;
                 }
@@ -371,7 +402,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                   <input {...getInputProps()} />
                   <i className="h3 text-muted dripicons-cloud-upload"></i>
                   <h5>
-                    Drop C3D files here or click to bulk upload trials.
+                    Drop C3D or TRC files here (or just click here) to bulk upload trials.
                   </h5>
                   <span className="text-muted font-13">
                     (You can drop multiple files at once to create multiple
@@ -543,22 +574,48 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     </div>
   }
 
-  return (
-    <div className="MocapView">
-      <MocapTrialModal cursor={props.cursor} />
-      <MocapLogModal cursor={props.cursor} />
-      <h3>
-        <i className="mdi mdi-walk me-1 text-muted vertical-middle"></i>
-        Subject: {props.cursor.getCurrentFileName()}{" "}
-        {/*<span className="badge bg-secondary">{"TODO"}</span>*/}
-      </h3>
+  let advancedOptions = null;
+  if (false) {
+    advancedOptions = <>
+      <hr />
+      <button className="btn" type="button" onClick={() => setShowAdvanced(!showAdvanced)}>
+        <i className={"mdi mdi-arrow-" + (showAdvanced ? "down" : "right") + "-drop-circle-outline me-1 text-muted vertical-middle"}></i>
+        {showAdvanced ? "Hide" : "Show"} Advanced Options
+      </button>
+      <div className={"collapse" + (showAdvanced ? " show" : "")}>
+        <h4>
+          <i className="mdi mdi-alert me-1 text-muted vertical-middle"></i>
+          Advanced Options
+        </h4>
+        <div className="card card-body">
+          Anim pariatur cliche reprehenderit, enim eiusmod high life accusamus terry richardson ad squid. Nihil anim keffiyeh helvetica, craft beer labore wes anderson cred nesciunt sapiente ea proident.
+        </div>
+      </div>
+    </>;
+  }
+
+  let header = null;
+  if (props.cursor.subjectJson.isLoadingFirstTime()) {
+    header = <>
+      <div className="mb-15">
+        <h5>Status <span className="badge bg-secondary">Loading</span></h5>
+      </div>
+      <div className="row g-3">
+        <div className="col-md-4">
+          <Spinner animation='border' />
+        </div>
+      </div>
+    </>;
+  }
+  else {
+    header = <>
       <div className="mb-15">
         <h5>Status {statusBadge}</h5>
         <div className="mb-15">{statusDetails}</div>
       </div>
       <form className="row g-3">
         <div className="col-md-4">
-          <label htmlFor="heightM" className="form-label">Height (m):</label>
+          <label htmlFor="heightM" className="form-label">Height without shoes (m):</label>
           <input type="number" className={"form-control" + ((heightValue < 0.1 || heightValue > 3.0) ? " is-invalid" : "")} id="heightM" value={heightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("heightM", e.target.value);
           }} onFocus={(e) => {
@@ -624,11 +681,24 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           </select>
         </div>
       </form>
+    </>
+  }
+
+  return (
+    <div className="MocapView">
+      <MocapTrialModal cursor={props.cursor} />
+      <MocapLogModal cursor={props.cursor} />
+      <h3>
+        <i className="mdi mdi-walk me-1 text-muted vertical-middle"></i>
+        Subject: {props.cursor.getCurrentFileName()}{" "}
+        {/*<span className="badge bg-secondary">{"TODO"}</span>*/}
+      </h3>
+      {header}
       <div className="mb-15">
         <h5>Unscaled OpenSim</h5>
         <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} required />
       </div>
-      <div className="mb-15">Run Comparison with Hand-Scaled Version: <input type="checkbox" checked={showValidationControls} onChange={(e) => {
+      <div className="mb-15">Compare optimized skeleton with hand-scaled version: <input type="checkbox" checked={showValidationControls} onChange={(e) => {
         props.cursor.setShowValidationControls(e.target.checked);
       }} disabled={!validationControlsEnabled} />
       </div>
@@ -644,8 +714,9 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         >
           <colgroup>
             <col style={{ width: "20%" }} />
-            <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 2 : 1)) + "%" }} />
-            {showValidationControls ? <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / 2) + "%" }} /> : null}
+            <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
+            <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
+            {showValidationControls ? <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / 3) + "%" }} /> : null}
             {props.cursor.canEdit() ? (
               <col style={{ width: "15%" }} />
             ) : null}
@@ -653,7 +724,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           <thead className="table-light">
             <tr>
               <th className="border-0" >Trial Name</th>
-              <th className="border-0">C3D</th>
+              <th className="border-0" colSpan={2}>Mocap File</th>
               {manualIkRowHeader}
               {props.cursor.canEdit() ? (
                 <th className="border-0">
@@ -665,6 +736,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           <tbody>{trialViews}</tbody>
         </Table>
         <Button onClick={() => navigate({ search: "?new-trial" })}>Create new trial</Button>
+        {advancedOptions}
       </div>
     </div>
   );
