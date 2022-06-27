@@ -10,6 +10,7 @@ import json
 import shutil
 import boto3
 import threading
+import argparse
 
 
 def absPath(path: str):
@@ -406,8 +407,12 @@ class MocapServer:
     index: ReactiveS3Index
     currentlyProcessing: SubjectToProcess
     queue: List[SubjectToProcess]
+    bucket: str
+    deployment: str
 
-    def __init__(self) -> None:
+    def __init__(self, bucket: str, deployment: str) -> None:
+        self.bucket = bucket
+        self.deployment = deployment
         self.queue = []
         self.currentlyProcessing = None
         self.index = ReactiveS3Index()
@@ -486,8 +491,17 @@ class MocapServer:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description='Run a mocap processing server.')
+    parser.add_argument('bucket', type=str, default="biomechanics-uploads161949-dev",
+                        help='The S3 bucket to access user data in')
+    parser.add_argument('deployment', type=str,
+                        default='DEV',
+                        help='The deployment to target (must be DEV or PROD)')
+    args = parser.parse_args()
+
     # 1. Launch a processing server
-    server = MocapServer()
+    server = MocapServer(args.bucket, args.deployment)
 
     # 2. Run forever
     server.processQueueForever()

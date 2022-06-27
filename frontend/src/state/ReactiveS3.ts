@@ -1170,6 +1170,7 @@ class ReactiveIndex {
 
         this.socket.addConnectionListener((connected) => {
             if (!connected) {
+                console.log("PubSub disconnected");
                 this.setNetworkError("PubSub", "We got an error in PubSub! Attempting to reconnect...");
             }
             else {

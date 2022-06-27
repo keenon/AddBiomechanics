@@ -62,6 +62,7 @@ type QueuedMessage = {
 class RobustMqtt {
   region: string;
   aws_pubsub_endpoint: string;
+  deployment: string;
   opts?: IClientOptions;
   handlers: Handler[] = [];
   currentClient: MqttClient | null = null;
@@ -69,9 +70,10 @@ class RobustMqtt {
   queuedMessages: QueuedMessage[] = [];
   clientReconnectNumber: number = 0;
 
-  constructor(region: string, aws_pubsub_endpoint: string, opts?: IClientOptions) {
+  constructor(region: string, aws_pubsub_endpoint: string, deployment: string, opts?: IClientOptions) {
     this.region = region;
     this.aws_pubsub_endpoint = aws_pubsub_endpoint;
+    this.deployment = deployment;
     this.opts = opts;
   }
 
@@ -87,10 +89,11 @@ class RobustMqtt {
    * @param message The message to send
    */
   publish = (topic: string, message: string, nestedResolve?: () => void, nestedReject?: (error: string) => void) => {
-    console.log("Publishing { topic=\"" + topic + "\", message=\"" + message + "\" }");
+    let fullTopic = '/' + this.deployment + topic;
+    console.log("Publishing { topic=\"" + fullTopic + "\", message=\"" + message + "\" }");
     return new Promise<void>((resolve, reject) => {
       if (this.currentClient != null) {
-        this.currentClient.publish(topic, message, (err) => {
+        this.currentClient.publish(fullTopic, message, (err) => {
           if (err) reject(err);
           else {
             console.log("Published message!");
@@ -118,6 +121,7 @@ class RobustMqtt {
    * @param handler The handler to attach to that pattern
    */
   subscribe = (pattern: string, handler: (topic: string, message: string) => void) => {
+    pattern = '/' + this.deployment + pattern;
     this.handlers.push({ pattern, handler });
 
     if (this.currentClient != null) {

@@ -6,8 +6,6 @@ import time
 import tempfile
 from typing import Dict, List, Set, Callable, Any
 
-BUCKET_NAME = 'biomechanics-uploads161949-dev'
-
 
 class FileMetadata:
     key: str
@@ -30,11 +28,15 @@ class ReactiveS3Index:
     pubSub: PubSub
     files: Dict[str, FileMetadata]
     changeListeners: List[Callable]
+    bucketName: str
+    deployment: str
 
-    def __init__(self) -> None:
+    def __init__(self, bucket: str, deployment: str) -> None:
         self.s3_low_level = boto3.client('s3', region_name='us-west-2')
         self.s3 = boto3.resource('s3', region_name='us-west-2')
-        self.bucket = self.s3.Bucket(BUCKET_NAME)
+        self.bucketName = bucket
+        self.deployment = deployment
+        self.bucket = self.s3.Bucket(self.bucketName)
         self.pubSub = PubSub()
         self.files = {}
         self.changeListeners = []
@@ -162,7 +164,7 @@ class ReactiveS3Index:
         This uploads a local file to a given spot in the bucket
         """
         print('uploading file '+localPath+' to '+bucketPath)
-        self.s3.Object(BUCKET_NAME, bucketPath).put(
+        self.s3.Object(self.bucketName, bucketPath).put(
             Body=open(localPath, 'rb'))
         self.pubSub.sendMessage(
             self.makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': os.path.getsize(localPath)})
@@ -171,7 +173,7 @@ class ReactiveS3Index:
         """
         This uploads text to the file at this path
         """
-        self.s3.Object(BUCKET_NAME, bucketPath).put(Body=text)
+        self.s3.Object(self.bucketName, bucketPath).put(Body=text)
         self.pubSub.sendMessage(
             self.makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': len(text.encode('utf-8'))})
 
@@ -188,7 +190,7 @@ class ReactiveS3Index:
         """
         if not self.exists(bucketPath):
             return bytearray()
-        self.root.s3.Object(BUCKET_NAME, bucketPath).delete()
+        self.root.s3.Object(self.bucketName, bucketPath).delete()
         self.pubSub.sendMessage(
             self.makeTopicPubSubSafe("/DELETE/"+bucketPath), {'key': bucketPath})
 
@@ -228,7 +230,7 @@ class ReactiveS3Index:
         """
         if not self.exists(bucketPath):
             return bytearray()
-        return self.root.s3.Object(BUCKET_NAME, bucketPath).get()['Body'].read()
+        return self.root.s3.Object(self.bucketName, bucketPath).get()['Body'].read()
 
     def getJSON(self, bucketPath: str) -> Dict[str, Any]:
         return json.loads(self.getText(bucketPath))

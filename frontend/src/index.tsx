@@ -35,7 +35,10 @@ if (
 
 Amplify.configure(awsExports);
 
-const socket: RobustMqtt = new RobustMqtt("us-west-2", "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt", {
+const isProd = awsExports.aws_user_files_s3_bucket.indexOf("prod") !== -1;
+console.log("Is prod: " + isProd);
+
+const socket: RobustMqtt = new RobustMqtt("us-west-2", "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt", isProd ? "PROD" : "DEV", {
   clean: true,
   keepalive: 10,
   reconnectPeriod: -1,

@@ -26,8 +26,13 @@ Licenses-permitting, we plan to make pre-translated aggregate datasets available
 ## Hosting a Processing Server
 
 1. Got into the `server` folder
-2. Run `docker build .` to build the Docker container to run the server. It's important that you rebuild the Docker container each time you boot a new server, since that sets it up with its own PubSub connection.
+2. Run `docker build -f Dockerfile.dev .` (to run a dev server) or `docker build -f Dockerfile.prod .` (to run a prod server) to build the Docker container to run the server. It's important that you rebuild the Docker container each time you boot a new server, since that sets it up with its own PubSub connection.
 3. Run the docker container you just built! That's your server. Leave it running as a process.
+
+## Switching between Dev and Prod
+By default, the main branch is pointed at the dev servers. We keep the current prod version on the `prod` branch.
+
+To switch between environments, run `amplify env checkout dev` or `amplify env checkout prod`
 
 ## Apple M1(X) Macs
 

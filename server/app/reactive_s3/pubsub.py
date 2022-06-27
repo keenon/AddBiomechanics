@@ -32,9 +32,11 @@ class PubSub:
     """
 
     resumeListeners = []
+    deployment: str
 
-    def __init__(self):
+    def __init__(self, deployment: str):
         print('creating PubSub object')
+        self.deployment = deployment
         # Spin up resources
         eventLoopGroup = io.EventLoopGroup(1)
         hostResolver = io.DefaultHostResolver(eventLoopGroup)
@@ -65,7 +67,7 @@ class PubSub:
         Subscribe to a topic
         """
         subscribeFuture, packetId = self.mqttConnection.subscribe(
-            topic=topic,
+            topic=('/' + self.deployment + topic),
             qos=mqtt.QoS.AT_MOST_ONCE,  # AT_LEAST_ONCE
             callback=callback)
         # Future.result() waits until a result is available
@@ -79,7 +81,7 @@ class PubSub:
         payloadWithTopic['topic'] = topic
         payload_json = json.dumps(payloadWithTopic)
         sendFuture, packetId = self.mqttConnection.publish(
-            topic=topic,
+            topic=('/' + self.deployment + topic),
             payload=payload_json,
             qos=mqtt.QoS.AT_LEAST_ONCE)  # AT_LEAST_ONCE
         # Future.result() waits until a result is available
