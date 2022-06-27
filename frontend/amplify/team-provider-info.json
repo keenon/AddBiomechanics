@@ -26,5 +26,34 @@
         }
       }
     }
+  },
+  "prod": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-biomechanicsfrontend-prod-83039-authRole",
+      "UnauthRoleArn": "arn:aws:iam::756193201945:role/amplify-biomechanicsfrontend-prod-83039-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::756193201945:role/amplify-biomechanicsfrontend-prod-83039-authRole",
+      "Region": "us-west-2",
+      "DeploymentBucketName": "amplify-biomechanicsfrontend-prod-83039-deployment",
+      "UnauthRoleName": "amplify-biomechanicsfrontend-prod-83039-unauthRole",
+      "StackName": "amplify-biomechanicsfrontend-prod-83039",
+      "StackId": "arn:aws:cloudformation:us-west-2:756193201945:stack/amplify-biomechanicsfrontend-prod-83039/1a1009f0-f62e-11ec-b755-0a47b4cc80cb",
+      "AmplifyAppId": "d2m3l2mk5m037f",
+      "APIGatewayAuthURL": "https://s3.amazonaws.com/amplify-biomechanicsfrontend-prod-83039-deployment/amplify-cfn-templates/api/APIGatewayAuthStack.json"
+    },
+    "categories": {
+      "auth": {
+        "biomechanicsfrontendf7e99b66": {}
+      },
+      "function": {
+        "S3Triggera674d3b7": {
+          "deploymentBucketName": "amplify-biomechanicsfrontend-prod-83039-deployment",
+          "s3Key": "amplify-builds/S3Triggera674d3b7-6c43674f36494e577a58-build.zip"
+        },
+        "PostAuthAPI": {
+          "deploymentBucketName": "amplify-biomechanicsfrontend-prod-83039-deployment",
+          "s3Key": "amplify-builds/PostAuthAPI-5364426e714745756d36-build.zip"
+        }
+      }
+    }
   }
 }
