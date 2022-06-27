@@ -124,6 +124,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     trialForcePlates: List[List[nimble.biomechanics.ForcePlate]] = []
     trialTimestamps: List[List[float]] = []
     trialFramesPerSecond: List[int] = []
+    trialMarkerSet: Dict[str, List[str]] = {}
     markerTrials = []
     trialProcessingResults: List[Dict[str, Any]] = []
 
@@ -144,10 +145,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             c3dFiles[trialName] = c3dFile
             trialForcePlates.append(c3dFile.forcePlates)
             trialTimestamps.append(c3dFile.timestamps)
-            # TODO: rever this back to c3dFile.framesPerSecond on next release
-            # trialFramesPerSecond.append(c3dFile.framesPerSecond)
-            framesPerSecond = int(round(len(c3dFile.timestamps) / ( c3dFile.timestamps[-1] - c3dFile.timestamps[0])))
-            trialFramesPerSecond.append(framesPerSecond)
+            trialFramesPerSecond.append(c3dFile.framesPerSecond)
+            trialMarkerSet[trialName] = c3dFile.markers
             markerTrials.append(c3dFile.markerTimesteps)
         elif os.path.exists(trcFilePath):
             trcFile: nimble.biomechanics.OpenSimTRC = nimble.biomechanics.OpenSimParser.loadTRC(
@@ -155,6 +154,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             markerTrials.append(trcFile.markerTimesteps)
             trialTimestamps.append(trcFile.timestamps)
             trialFramesPerSecond.append(trcFile.framesPerSecond)
+            trialMarkerSet[trialName] = list(trcFile.markerLines.keys())
             grfFilePath = trialPath + 'grf.mot'
             if os.path.exists(grfFilePath):
                 forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
@@ -171,6 +171,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         trialProcessingResults.append(trialProcessingResult)
 
     print('Fitting trials '+str(trialNames), flush=True)
+
+    trialErrorReports: List[str, nimble.biomechanics.MarkersErrorReport] = []
+    for i in range(len(trialNames)):
+        trialErrorReport = fitter.generateDataErrorsReport(markerTrials[i])
+        markerTrials[i] = trialErrorReport.markerObservationsAttemptedFixed
+        trialErrorReports.append(trialErrorReport)
 
     # Create an anthropometric prior
     anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
@@ -208,6 +214,22 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         .setMaxTrialsToUseForMultiTrialScaling(5)
         .setMaxTimestepsToUseForMultiTrialScaling(4000),
         150)
+
+    # Check for any flipped markers, now that we've done a first pass
+    anySwapped = False
+    for i in range(len(trialNames)):
+        if fitter.checkForFlippedMarkers(markerTrials[i], results[i], trialErrorReports[i]):
+            anySwapped = True
+            markerTrials[i] = trialErrorReports[i].markerObservationsAttemptedFixed
+
+    if anySwapped:
+        print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, so we have to run the whole pipeline again with unswapped markers. ********")
+        results = fitter.runMultiTrialKinematicsPipeline(
+            markerTrials,
+            nimble.biomechanics.InitialMarkerFitParams()
+            .setMaxTrialsToUseForMultiTrialScaling(5)
+            .setMaxTimestepsToUseForMultiTrialScaling(4000),
+            150)
 
     customOsim.skeleton.setGroupScales(results[0].groupScales)
     fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
@@ -290,7 +312,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                     goldOsim, trialPath + 'manual_ik.mot', c3dFile)
             else:
                 goldMot = nimble.biomechanics.OpenSimParser.loadMot(
-                    goldOsim, trialPath + 'manual_ik.mot')
+                    goldOsim.skeleton, trialPath + 'manual_ik.mot')
 
             shutil.copyfile(trialPath + 'manual_ik.mot', path +
                             'results/IK/' + trialName + '_manual_scaling_ik.mot')
@@ -392,6 +414,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         processingResult['goldAvgRMSE'] /= goldTotalLen
         processingResult['goldAvgMax'] /= goldTotalLen
     processingResult['guessedTrackingMarkers'] = guessedTrackingMarkers
+    processingResult['trialMarkerSets'] = trialMarkerSet
+    processingResult['osimMarkers'] = list(customOsim.markersMap.keys())
+
+    trialWarnings: Dict[str, List[str]] = {}
+    trialInfo: Dict[str, List[str]] = {}
+    for i in range(len(trialErrorReports)):
+        trialWarnings[trialNames[i]] = trialErrorReports[i].warnings
+        trialInfo[trialNames[i]] = trialErrorReports[i].info
+    processingResult['trialWarnings'] = trialWarnings
+    processingResult['trialInfo'] = trialInfo
 
     # Write out the README for the data
     with open(path + 'results/README.txt', 'w') as f:
@@ -411,12 +443,20 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         for i in range(len(results)):
             trialName = trialNames[i]
             f.write(" - MarkerData/" + trialName+'.trc (RMSE: '+('%.2f' % (trialProcessingResults[i]['autoAvgRMSE'] * 100))+'cm, Max: '+('%.2f' %
-                                                                                                                                (trialProcessingResults[i]['autoAvgMax']*100))+'cm)\n')
+                                                                                                                                         (trialProcessingResults[i]['autoAvgMax']*100))+'cm)\n')
             for j in range(min(len(trialProcessingResults[i]['markerErrors']), 5)):
                 markerName, markerRMSE = trialProcessingResults[i]['markerErrors'][j]
                 f.write("     " + str(j+1)+" Worst Marker \"")
                 f.write(markerName)
                 f.write("\" (RMSE: "+('%.2f' % (markerRMSE * 100))+'cm)')
+                f.write('\n')
+            for warn in trialWarnings[trialName]:
+                f.write("     >> WARNING: ")
+                f.write(warn)
+                f.write('\n')
+            for info in trialInfo[trialName]:
+                f.write("     >> INFO: ")
+                f.write(info)
                 f.write('\n')
         f.write("\n")
         f.write(textwrap.fill(
@@ -482,13 +522,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     print('Finished outputting OpenSim files', flush=True)
 
     # Write out the result summary JSON
-    with open(path+'_results.json', 'w') as f:
-        # The frontend expects JSON in this format
-        # autoAvgMax: number;
-        # autoAvgRMSE: number;
-        # goldAvgMax: number;
-        # goldAvgRMSE: number;
-        json.dump(processingResult, f)
+    try:
+        with open(path+'_results.json', 'w') as f:
+            json.dump(processingResult, f)
+    except Exception as e:
+        print('Had an error writing _results.json:', flush=True)
+        print(e, flush=True)
 
     print('Generated a final zip file at '+path+outputName+'.zip')
     # counter = 0
