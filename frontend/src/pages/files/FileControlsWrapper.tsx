@@ -10,6 +10,7 @@ import {
 import NewFolderModal from "./file-control-modals/NewFolderModal";
 import DeleteFolderModal from "./file-control-modals/DeleteFolderModal";
 import MocapS3Cursor from "../../state/MocapS3Cursor";
+import './FileControlsWrapper.scss';
 
 import { observer } from "mobx-react-lite";
 
@@ -78,36 +79,49 @@ const FileManager = observer((props: FileManagerProps) => {
         </div>
         <div className="page-aside-right">
           {/*
-                <div className="d-flex justify-content-between align-items-center">
-                  <div className="app-search">
-                    <form>
-                      <div className="mb-2 position-relative">
-                        <input
-                          type="text"
-                          className="form-control"
-                          placeholder="Search files..."
-                        />
-                        <span className="mdi mdi-magnify search-icon"></span>
-                      </div>
-                    </form>
-                  </div>
-                  <div>
-                    <button type="submit" className="btn btn-sm btn-light">
-                      <i className="mdi mdi-format-list-bulleted"></i>
-                    </button>
-                    <button type="submit" className="btn btn-sm">
-                      <i className="mdi mdi-view-grid"></i>
-                    </button>
-                    <button type="submit" className="btn btn-sm">
-                      <i className="mdi mdi-information-outline"></i>
-                    </button>
-                  </div>
+          <div className="d-flex justify-content-between align-items-center">
+            <div className="app-search">
+              <form>
+                <div className="mb-2 position-relative">
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Search files..."
+                  />
+                  <span className="mdi mdi-magnify search-icon"></span>
                 </div>
-              */}
+              </form>
+            </div>
+            <div>
+              <button type="submit" className="btn btn-sm btn-light">
+                <i className="mdi mdi-format-list-bulleted"></i>
+              </button>
+              <button type="submit" className="btn btn-sm">
+                <i className="mdi mdi-view-grid"></i>
+              </button>
+              <button type="submit" className="btn btn-sm">
+                <i className="mdi mdi-information-outline"></i>
+              </button>
+            </div>
+          </div>
+          */}
+
 
           {/*
                 <QuickAccess quickAccessFiles={quickAccessFiles} />
                 */}
+          {/*
+          <div className="d-flex justify-content-between align-items-center">
+            <div className="FileControlsWrapper-folder-description">
+              Public link: <a href="https://addbiomechanics.org/atnthoeunth/OpenCapDataset">https://addbiomechanics.org/atnthoeunth/OpenCapDataset</a>
+            </div>
+            <div>
+              <button type="submit" className="btn btn-primary">
+                <i className="mdi mdi-earth-plus"></i> Publish Folder
+              </button>
+            </div>
+          </div>
+          */}
 
           <Outlet />
         </div>
