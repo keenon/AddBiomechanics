@@ -8,6 +8,8 @@ import {
   Dropdown,
   Spinner,
   Table,
+  OverlayTrigger,
+  Tooltip
 } from "react-bootstrap";
 import DropFile from "../../components/DropFile";
 import Dropzone from "react-dropzone";
@@ -667,7 +669,20 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           })()}
         </div>
         <div className="col-md-4">
-          <label htmlFor="weightKg" className="form-label">Biological Sex:</label>
+          <label htmlFor="weightKg" className="form-label">
+            Biological Sex:
+            <OverlayTrigger
+              placement="right"
+              delay={{ show: 50, hide: 400 }}
+              overlay={(props) => (
+                <Tooltip id="button-tooltip" {...props}>
+                  We use this (in addition to height and weight) to condition the statistical prior for bone dimensions, if subject sex is available.
+                </Tooltip>
+              )}
+            >
+              <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+            </OverlayTrigger>
+          </label>
           <select className="form-control" id="sex" value={sexValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("sex", e.target.value);
           }} onFocus={(e) => {

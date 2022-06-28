@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, Alert, Row, Col } from "react-bootstrap";
+import { Button, Alert, Row, Col, Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -41,6 +41,27 @@ const SignUp = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null as null | string);
 
+  const Checkbox = (props: any) => {
+    const name = props.name;
+    const errors = props.errors;
+    const register = props.register;
+    console.log(errors);
+    return (
+      <div key={name} className="mb-3">
+        <Form.Check>
+
+          <Form.Check.Input type={'checkbox'} name={name} isInvalid={errors && name && errors[name] ? true : false} {...(register ? register(name) : {})} />
+          <Form.Check.Label>{props.children}</Form.Check.Label>
+          {errors && name && errors[name] ? (
+            <Form.Control.Feedback type="invalid">
+              {errors[name]["message"]}
+            </Form.Control.Feedback>
+          ) : null}
+        </Form.Check>
+      </div>
+    )
+  }
+
   /*
    * form validation schema
    */
@@ -52,12 +73,24 @@ const SignUp = () => {
         .required("Please enter Email")
         .email("Please enter valid Email"),
       password: yup.string().required(t("Please enter Password")),
+      data: yup.boolean().oneOf([true], "In order to use the freely hosted version you must agree to share data"),
+      tos: yup.boolean().oneOf([true], "You must accept the terms of service")
     })
   );
 
   function handleSubmit(value: { [key: string]: any }) {
     let password = value["password"] as string;
     let email = value["email"] as string;
+    let tos = value["tos"] as boolean;
+    let data = value["data"] as boolean;
+    if (!data) {
+      alert("You must agree to share uploaded data in order to use the hosted version of the tool.");
+      return;
+    }
+    if (!tos) {
+      alert("You must agree to the Terms of Service in order to use the hosted version of the tool.");
+      return;
+    }
 
     console.log("Signing up!");
     setLoading(true);
@@ -103,7 +136,7 @@ const SignUp = () => {
         <VerticalForm
           onSubmit={handleSubmit}
           resolver={schemaResolver}
-          defaultValues={{}}
+          defaultValues={{ tos: false, data: false }}
         >
           <FormInput
             label={t("Email address")}
@@ -119,12 +152,16 @@ const SignUp = () => {
             placeholder={t("Enter your password")}
             containerClass={"mb-3"}
           />
-          <FormInput
-            label={t("I accept Terms and Conditions")}
-            type="checkbox"
-            name="checkboxsignup"
-            containerClass={"mb-3 text-muted"}
-          />
+          <div className="text-center w-75 m-auto">
+            <h4 className="text-dark-50 text-center fw-bold" style={{ marginTop: '40px' }}>
+              We believe in open data
+            </h4>
+            <p className="text-muted mb-4">
+              We provide this free service in order to encourge more public sharing of human motion data, to enable data-driven breakthroughs in human motion science. <b>Any data you upload to the tool will be made <a href="/public_data" target={"_blank"}>publically available</a> under a <a href="https://creativecommons.org/licenses/by/4.0/" target={"_blank"}>CC BY 4.0</a> license.</b> If for some reason you don't want to share your data, you're welcome to look at the <a href="https://github.com/keenon/BiomechanicsNet">open source code</a> for the project and run your own private instance.
+            </p>
+          </div>
+          <Checkbox name='data'>I agree to share data I upload with the community</Checkbox>
+          <Checkbox name='tos'>I accept the <a href="https://addbiomechanics.org/tos.html" target="_blank">Terms of Service</a></Checkbox>
 
           <div className="mb-3 mb-0 text-center">
             <Button variant="primary" type="submit" disabled={loading}>
