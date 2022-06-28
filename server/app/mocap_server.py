@@ -415,7 +415,7 @@ class MocapServer:
         self.deployment = deployment
         self.queue = []
         self.currentlyProcessing = None
-        self.index = ReactiveS3Index()
+        self.index = ReactiveS3Index(bucket, deployment)
         self.index.addChangeListener(self.onChange)
         self.index.refreshIndex()
         self.index.registerPubSub()
@@ -493,9 +493,9 @@ class MocapServer:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Run a mocap processing server.')
-    parser.add_argument('bucket', type=str, default="biomechanics-uploads161949-dev",
+    parser.add_argument('--bucket', type=str, default="biomechanics-uploads161949-dev",
                         help='The S3 bucket to access user data in')
-    parser.add_argument('deployment', type=str,
+    parser.add_argument('--deployment', type=str,
                         default='DEV',
                         help='The deployment to target (must be DEV or PROD)')
     args = parser.parse_args()

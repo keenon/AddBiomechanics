@@ -557,7 +557,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
   else if (status === "could-process") {
     if (props.cursor.canEdit()) {
-      statusDetails = <Button onClick={props.cursor.markReadyForProcessing}>Process</Button>;
+      statusDetails = <Button onClick={props.cursor.markReadyForProcessing}>Process And Share</Button>;
     }
     else {
       statusBadge = <span className="badge bg-secondary">Waiting for owner to process</span>;

@@ -37,7 +37,7 @@ class ReactiveS3Index:
         self.bucketName = bucket
         self.deployment = deployment
         self.bucket = self.s3.Bucket(self.bucketName)
-        self.pubSub = PubSub()
+        self.pubSub = PubSub(deployment)
         self.files = {}
         self.changeListeners = []
 

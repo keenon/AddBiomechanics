@@ -112,6 +112,9 @@ const Login = (props: LoginProps) => {
         {error && (
           <Alert variant="danger" className="my-2">
             {error}
+            <p style={{ marginTop: '10px' }}>
+              <b>NOTE FOR STANFORD USERS:</b> We've recently split the service into a <a href="https://dev.addbiomechanics.org">development deployment</a> (for bleeding edge features) and a completely separate <a href="https://app.addbiomechanics.org">production deployment</a> (for stable use). If you've been helping to test AddBiomechanics, and you can't log in, note that all old accounts and data have been moved to the development deployment.
+            </p>
           </Alert>
         )}
 

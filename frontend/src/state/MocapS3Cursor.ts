@@ -624,10 +624,6 @@ class MocapS3Cursor {
      * ready for the backend to pick up and work on.
      */
     markReadyForProcessing = () => {
-        if (!window.confirm("Anonymized processed data will be publically accessible when processing is finished. Is that ok?")) {
-            return;
-        }
-
         let weightValue = this.subjectJson.getAttribute("massKg", 0.0);
         if (weightValue === 0) {
             alert("Cannot process a trial with a subject weight of 0kg");
