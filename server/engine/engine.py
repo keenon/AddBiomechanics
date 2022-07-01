@@ -76,6 +76,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     customOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
         path + 'unscaled_generic.osim')
     customOsim.skeleton.autogroupSymmetricSuffixes()
+    if customOsim.skeleton.getBodyNode("hand_r") is not None:
+        customOsim.skeleton.setScaleGroupUniformScaling(
+            customOsim.skeleton.getBodyNode("hand_r"))
     customOsim.skeleton.autogroupSymmetricPrefixes("ulna", "radius")
 
     # 4. Load the hand-scaled Osim file, if it exists
