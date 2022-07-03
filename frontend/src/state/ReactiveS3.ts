@@ -1,4 +1,4 @@
-import { makeAutoObservable, action } from 'mobx';
+import { makeObservable, action, observable } from 'mobx';
 import { Auth, Storage } from "aws-amplify";
 import {
     S3ProviderListOutput,
@@ -80,7 +80,11 @@ class ReactiveJsonFile {
             }
         });
 
-        makeAutoObservable(this);
+        makeObservable(this, {
+            loading: observable,
+            values: observable,
+            path: observable
+        });
     }
 
     /**
@@ -302,7 +306,13 @@ class ReactiveCursor {
             console.log("Got network error listener called: " + JSON.stringify(errors));
         }));
 
-        makeAutoObservable(this);
+        makeObservable(this, {
+            path: observable,
+            metadata: observable,
+            loading: observable,
+            children: observable,
+            networkErrors: observable
+        });
 
         this.setPath(path);
     }
@@ -886,6 +896,7 @@ class ReactiveIndex {
      * @returns a promise for the unzipped text of the file being downloaded
      */
     downloadZip = (path: string, progressCallback?: (progress: number) => void) => {
+        if (progressCallback) progressCallback(0.0);
         return Storage.get(path, {
             level: this.level,
             download: true,
@@ -895,9 +906,13 @@ class ReactiveIndex {
             this.clearNetworkError("Get");
             const zip = new JSZip();
             if (progressCallback) progressCallback(1.0);
+            console.log("Unzipping large file");
             if (result != null && result.Body != null) {
                 // data.Body is a Blob
-                return zip.loadAsync(result.Body as Blob).then((unzipped: JSZip) => {
+                return zip.loadAsync(result.Body as Blob, ((metadata: any) => {
+                    console.log(metadata);
+                }) as any).then((unzipped: JSZip) => {
+                    console.log("Unzipped!");
                     return unzipped.file(Object.keys(unzipped.files)[0])?.async("uint8array");
                 });
             }

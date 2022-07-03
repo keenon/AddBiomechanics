@@ -54,7 +54,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   if (trcMetadata != null || props.uploadTRC != null) {
     fileData = <>
       <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc" required />
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc,.sto" required />
       </td>
       <td>
         <DropFile cursor={props.cursor} text={"Upload ground reaction forces as a *.mot"} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadGRF} accept=".mot" onMultipleFiles={props.onMultipleGRF} />
@@ -396,7 +396,14 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         showViewerHint={i == 0 && showViewerHint}
         hideViewerHint={() => setShowViewerHint(false)}
         uploadC3D={uploadFiles[trials[i].key + ".c3d"]}
-        uploadTRC={uploadFiles[trials[i].key + ".trc"]}
+        uploadTRC={(() => {
+          if (trials[i].key + ".trc" in uploadFiles) {
+            return uploadFiles[trials[i].key + ".trc"];
+          }
+          else if (trials[i].key + ".sto" in uploadFiles) {
+            return uploadFiles[trials[i].key + ".sto"];
+          }
+        })()}
         uploadGRF={uploadFiles[trials[i].key + "_grf.mot"]}
         uploadIK={uploadFiles[trials[i].key + "_ik.mot"]}
         onMultipleManualIK={(files: File[]) => {
@@ -424,7 +431,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         <td colSpan={6}>
           <Dropzone
             {...props}
-            accept=".c3d,.mot,.trc"
+            accept=".c3d,.mot,.trc,.sto"
             onDrop={(acceptedFiles) => {
               // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
               let updatedUploadFiles = { ...uploadFiles };
@@ -433,8 +440,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                 fileNames.push(acceptedFiles[i].name);
                 updatedUploadFiles[acceptedFiles[i].name] = acceptedFiles[i];
 
-                if (!acceptedFiles[i].name.endsWith(".c3d") && !acceptedFiles[i].name.endsWith(".trc")) {
-                  alert("You can only bulk create trials with *.c3d files. To bulk upload other types of files (like *.mot for IK) please create the trials first, then drag a group of *.mot files to one of the IK upload slots (doesn't matter which trial, files will be matched by name).");
+                if (!acceptedFiles[i].name.endsWith(".c3d") && !acceptedFiles[i].name.endsWith(".trc") && !acceptedFiles[i].name.endsWith(".sto")) {
+                  alert("You can only bulk create trials with *.c3d, *.trc or *.sto files. To bulk upload other types of files (like *.mot for IK) please create the trials first, then drag a group of *.mot files to one of the IK upload slots (doesn't matter which trial, files will be matched by name).");
                   return;
                 }
               }
@@ -442,13 +449,15 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               props.cursor.bulkCreateTrials(fileNames);
             }}
           >
-            {({ getRootProps, getInputProps, isDragActive }) => (
-              <div className={"dropzone" + (isDragActive ? ' dropzone-hover' : '')} {...getRootProps()}>
+            {({ getRootProps, getInputProps, isDragActive }) => {
+              const rootProps = getRootProps();
+              const inputProps = getInputProps();
+              return <div className={"dropzone" + (isDragActive ? ' dropzone-hover' : '')} {...rootProps}>
                 <div className="dz-message needsclick">
-                  <input {...getInputProps()} />
+                  <input {...inputProps} />
                   <i className="h3 text-muted dripicons-cloud-upload"></i>
                   <h5>
-                    Drop C3D or TRC files here (or just click here) to bulk upload trials.
+                    Drop C3D, TRC or STO files here (or just click here) to bulk upload trials.
                   </h5>
                   <span className="text-muted font-13">
                     (You can drop multiple files at once to create multiple
@@ -456,7 +465,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                   </span>
                 </div>
               </div>
-            )}
+            }}
           </Dropzone>
         </td>
       </tr>
@@ -464,7 +473,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
 
   let showValidationControls = props.cursor.getShowValidationControls();
-  let validationControlsEnabled = props.cursor.getValidationControlsEnabled();
 
   let manuallyScaledOpensimUpload = null;
   let manualIkRowHeader = null;
@@ -711,7 +719,20 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       </div>
       <form className="row g-3">
         <div className="col-md-4">
-          <label htmlFor="heightM" className="form-label">Height without shoes (m):</label>
+          <label htmlFor="heightM" className="form-label">
+            Height without shoes (m):
+            <OverlayTrigger
+              placement="right"
+              delay={{ show: 50, hide: 400 }}
+              overlay={(props) => (
+                <Tooltip id="button-tooltip" {...props}>
+                  We use this (in addition to weight and biological sex) to condition the statistical prior for bone dimensions. Approximate values are ok.
+                </Tooltip>
+              )}
+            >
+              <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+            </OverlayTrigger>
+          </label>
           <input type="number" className={"form-control" + ((heightValue < 0.1 || heightValue > 3.0) ? " is-invalid" : "")} id="heightM" value={heightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("heightM", e.target.value);
           }} onFocus={(e) => {
@@ -737,7 +758,20 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           })()}
         </div>
         <div className="col-md-4">
-          <label htmlFor="weightKg" className="form-label">Weight (kg):</label>
+          <label htmlFor="weightKg" className="form-label">
+            Weight (kg):
+            <OverlayTrigger
+              placement="right"
+              delay={{ show: 50, hide: 400 }}
+              overlay={(props) => (
+                <Tooltip id="button-tooltip" {...props}>
+                  We use this (in addition to height and biological sex) to condition the statistical prior for bone dimensions. Approximate values are ok.
+                </Tooltip>
+              )}
+            >
+              <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+            </OverlayTrigger>
+          </label>
           <input type="number" className={"form-control" + ((weightValue < 5 || weightValue > 700) ? " is-invalid" : "")} id="weightKg" value={weightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("massKg", e.target.value);
           }} onFocus={(e) => {
@@ -809,7 +843,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       </div>
       <div className="mb-15">Compare optimized skeleton with hand-scaled version: <input type="checkbox" checked={showValidationControls} onChange={(e) => {
         props.cursor.setShowValidationControls(e.target.checked);
-      }} disabled={!validationControlsEnabled} />
+      }} />
       </div>
       {manuallyScaledOpensimUpload}
       <div>

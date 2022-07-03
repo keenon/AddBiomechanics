@@ -67,6 +67,10 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
             standalone.current.dispose();
             standalone.current = null;
         }
+        if (visualization != null) {
+            console.log("Disposing of cached visualization");
+            visualization.dispose();
+        }
         navigate({ search: "" }, { replace: true });
     };
 

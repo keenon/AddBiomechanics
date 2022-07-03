@@ -125,14 +125,16 @@ const DropFile = observer((props: DropFileProps) => {
         }
       })}
     >
-      {({ getRootProps, getInputProps, isDragActive }) => (
-        <div className={"dropzone dropzone-sm" + (metadata != null ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && metadata == null && !isUploading) ? ' dropzone-error' : ''))} {...getRootProps()}>
+      {({ getRootProps, getInputProps, isDragActive }) => {
+        const rootProps = getRootProps();
+        const inputProps = getInputProps();
+        return <div className={"dropzone dropzone-sm" + (metadata != null ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && metadata == null && !isUploading) ? ' dropzone-error' : ''))} {...rootProps}>
           <div className="dz-message needsclick">
-            <input {...getInputProps()} />
+            <input {...inputProps} />
             {body}
           </div>
         </div>
-      )}
+      }}
     </Dropzone >
   );
 });

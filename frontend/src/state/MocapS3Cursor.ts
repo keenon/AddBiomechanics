@@ -1,5 +1,5 @@
 import { ReactiveCursor, ReactiveIndex, ReactiveJsonFile } from "./ReactiveS3";
-import { makeAutoObservable, makeObservable, observable, action } from 'mobx';
+import { makeObservable, observable, action } from 'mobx';
 import RobustMqtt from "./RobustMqtt";
 
 type MocapFolderEntry = {
@@ -30,19 +30,29 @@ class LargeZipBinaryObject {
     object: any | null;
     loading: boolean;
     loadingProgress: number;
+    dispose: () => void;
 
-    constructor(rawCursor: ReactiveCursor, path: string) {
+    constructor(rawCursor: ReactiveCursor, path: string, dispose: () => void) {
         this.object = null;
         this.loading = true;
         this.loadingProgress = 0.0;
+        this.dispose = dispose;
 
         makeObservable(this, {
             loading: observable,
             loadingProgress: observable
         });
 
-        rawCursor.downloadZip(path, action((progress: number) => {
-            this.loadingProgress = progress;
+        rawCursor.downloadZip(path, action((progress: number | any) => {
+            if (progress.loaded != null && progress.total != null) {
+                this.loadingProgress = progress.loaded / progress.total;
+                if (this.loadingProgress > 1.0) {
+                    this.loadingProgress = 1.0;
+                }
+            }
+            else {
+                this.loadingProgress = progress;
+            }
             console.log("Loading progress: " + this.loadingProgress);
         })).then(action((result?: Uint8Array) => {
             if (result != null) {
@@ -103,7 +113,13 @@ class MocapS3Cursor {
 
         this.cloudProcessingQueue = [];
 
-        makeAutoObservable(this);
+        makeObservable(this, {
+            urlPath: observable,
+            dataPrefix: observable,
+            urlError: observable,
+            showValidationControls: observable,
+            userEmail: observable
+        });
     }
 
     /**
@@ -439,19 +455,20 @@ class MocapS3Cursor {
     };
 
     /**
-     * This returns true if we can control whether or not to turn on validation for our mocap subjects.
-     */
-    getValidationControlsEnabled = () => {
-        return !this.rawCursor.getExists("manually_scaled.osim");
-    };
-
-    /**
      * This shows/hides the validation controls. This only has an effect if there aren't already validation 
      * files that have been uploaded.
      * 
      * @param show 
      */
     setShowValidationControls = (show: boolean) => {
+        if (this.rawCursor.getExists("manually_scaled.osim")) {
+            if (window.confirm("Disabling comparisons will delete the manually scaled OpenSim file. Are you sure you want to do this?")) {
+                this.rawCursor.deleteChild("manually_scaled.osim");
+            }
+            else {
+                return;
+            }
+        }
         this.showValidationControls = show;
     };
 
@@ -491,7 +508,7 @@ class MocapS3Cursor {
     bulkCreateTrials = (fileNames: string[]) => {
         const progress: Promise<void>[] = [];
         for (let i = 0; i < fileNames.length; i++) {
-            if (fileNames[i].endsWith(".c3d") || fileNames[i].endsWith(".trc")) {
+            if (fileNames[i].endsWith(".c3d") || fileNames[i].endsWith(".trc") || fileNames[i].endsWith(".sto")) {
                 const file = fileNames[i].substring(0, fileNames[i].length - ".c3d".length);
                 progress.push(this.rawCursor.uploadChild("trials/" + file, ""));
             }
@@ -526,7 +543,9 @@ class MocapS3Cursor {
     getTrialVisualization = (trialName: string) => {
         let visualization = this.cachedVisulizationFiles.get(trialName);
         if (visualization == null) {
-            visualization = new LargeZipBinaryObject(this.rawCursor, 'trials/' + trialName + '/preview.bin.zip');
+            visualization = new LargeZipBinaryObject(this.rawCursor, 'trials/' + trialName + '/preview.bin.zip', () => {
+                this.cachedVisulizationFiles.delete(trialName);
+            });
             this.cachedVisulizationFiles.set(trialName, visualization);
         }
         return visualization;

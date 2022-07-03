@@ -59,11 +59,11 @@ const FileManager = observer((props: FileManagerProps) => {
           <div className="email-menu-list mt-3">
             <Link to="#">
               <i className="mdi mdi-folder-outline font-18 align-middle me-2"></i>
-              My Files
+              My Data
             </Link>
             <Link to="#">
               <i className="mdi mdi-earth font-18 align-middle me-2"></i>
-              Public Files
+              Public Data
             </Link>
           </div>
           {/*
