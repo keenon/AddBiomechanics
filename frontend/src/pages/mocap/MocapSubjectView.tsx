@@ -28,6 +28,8 @@ type MocapTrialRowViewProps = {
   index: number;
   name: string;
   cursor: MocapS3Cursor;
+  showViewerHint: boolean;
+  hideViewerHint: () => void;
   uploadC3D: File | undefined;
   uploadTRC: File | undefined;
   uploadGRF: File | undefined;
@@ -67,17 +69,56 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
     );
   }
 
-  return (
-    <tr>
-      <td>
+  let nameLink;
+  if (props.showViewerHint) {
+    nameLink =
+      <div ref={(r: HTMLDivElement | null) => {
+        if (r != null) {
+          console.log(r);
+          const rect = r.getBoundingClientRect();
+          window.scrollTo({
+            top: rect.top - 40 + window.scrollY,
+            left: rect.left + window.scrollX,
+            behavior: 'smooth'
+          });
+        }
+      }} className="MocapView__link_tip_holder">
         <Link
           to={{
             search: "?show-trial=" + props.index,
           }}
           replace
+          onClick={() => {
+            props.hideViewerHint();
+          }}
         >
           {props.name}
         </Link>
+        <div className="MocapView__link_tip">
+          <i className="mdi mdi-eye me-1 vertical-middle"></i>
+          <b>Tip:</b> Click on a trial name to view it in the 3D viewer
+        </div>
+      </div>;
+  }
+  else {
+    nameLink =
+      <Link
+        to={{
+          search: "?show-trial=" + props.index,
+        }}
+        replace
+        onClick={() => {
+          props.hideViewerHint();
+        }}
+      >
+        {props.name}
+      </Link>;
+  }
+
+  return (
+    <tr>
+      <td>
+        {nameLink}
       </td>
       {fileData}
       {manualIKRow}
@@ -339,6 +380,7 @@ function validateOpenSimFile(file: File): Promise<null | string> {
 const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showViewerHint, setShowViewerHint] = useState(false);
   const navigate = useNavigate();
 
   let trialViews: any[] = [];
@@ -351,6 +393,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         index={i}
         key={trials[i].key}
         name={trials[i].key}
+        showViewerHint={i == 0 && showViewerHint}
+        hideViewerHint={() => setShowViewerHint(false)}
         uploadC3D={uploadFiles[trials[i].key + ".c3d"]}
         uploadTRC={uploadFiles[trials[i].key + ".trc"]}
         uploadGRF={uploadFiles[trials[i].key + "_grf.mot"]}
@@ -442,6 +486,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   let autoAvgRMSE = props.cursor.resultsJson.getAttribute("autoAvgRMSE", 0.0);
   let guessedTrackingMarkers = props.cursor.resultsJson.getAttribute("guessedTrackingMarkers", 0.0);
+  let trialMarkerSets = props.cursor.resultsJson.getAttribute("trialMarkerSets", {});
+  let osimMarkers: string[] = props.cursor.resultsJson.getAttribute("osimMarkers", {});
 
   let status: 'done' | 'processing' | 'could-process' | 'error' | 'waiting' | 'empty' = props.cursor.getSubjectStatus();
   let statusBadge = null;
@@ -459,21 +505,18 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       );
     }
 
-    let guessedMarkersWarning = null;
-    if (guessedTrackingMarkers == true) {
+    let warningList = [];
 
+    if (guessedTrackingMarkers == true) {
       let markerText = '<Marker name="RSH">';
       markerText += '\n  <socket_parent_frame>/bodyset/torso</socket_parent_frame>';
       markerText += '\n  <location> -0.03 0.42 0.15 </location>';
       let markerText2 = '  <fixed>true</fixed>';
       let markerText3 = '</Marker>';
 
-      guessedMarkersWarning = <div className="alert alert-warning">
+      warningList.push(<li key='guessed_tracking'>
         <p>
-          <i className="mdi mdi-alert me-2 vertical-middle"></i>
-          <b>Warning: Results may be suboptimal!</b> The optimizer had to guess which of your markers were placed on bony landmarks, and which were not. This is probably because in the unscaled OpenSim model you uploaded, all or most of your markers were listed as <code>&lt;fixed&gt;<b>false</b>&lt;/fixed&gt;</code>, or they were all <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>.
-        </p>
-        <p>
+          The optimizer had to guess which of your markers were placed on bony landmarks, and which were not. This is probably because in the unscaled OpenSim model you uploaded, all or most of your markers were listed as <code>&lt;fixed&gt;<b>false</b>&lt;/fixed&gt;</code>, or they were all <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>.
           You may achieve higher quality results if you specify all the markers placed on <b><i>bony landmarks (i.e. "anatomical markers")</i></b> as <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>, and all the markers placed on <b><i>soft tissue (i.e. "tracking markers")</i></b> as <code>&lt;fixed&gt;<b>false</b>&lt;/fixed&gt;</code>.
         </p>
         <p>Here's an example marker that's been correctly specified as <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>:
@@ -491,8 +534,53 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             </pre>
           </code>
         </p>
+      </li>);
+    }
+
+    if (trialMarkerSets != null) {
+      let trials = Object.keys(trialMarkerSets);
+
+      let trialOnly: string[] = [];
+      let shared: string[] = [];
+
+      for (let key of trials) {
+        let trialMarkerSet: string[] = trialMarkerSets[key];
+
+        for (let tm of trialMarkerSet) {
+          if (osimMarkers.indexOf(tm) === -1) {
+            if (trialOnly.indexOf(tm) === -1) {
+              trialOnly.push(tm);
+            }
+          }
+          else {
+            if (shared.indexOf(tm) === -1) {
+              shared.push(tm);
+            }
+          }
+        }
+      }
+
+      if (trialOnly.length > 0) {
+        warningList.push(<li key={'unused-markers'}>
+          <p>There were <b><i>{trialOnly.length} markers</i></b> in the mocap file(s) that were ignored by the optimizer, because they weren't in the unscaled OpenSim model you uploaded: <b><i>{trialOnly.join(', ')}</i></b>. These appear as "Unused Markers" in the visualizer - you can mouse over them to see which one is which.</p>
+        </li>);
+      }
+    }
+
+    let guessedMarkersWarning = null;
+    if (warningList.length > 0) {
+      guessedMarkersWarning = <div className="alert alert-warning">
+        <h4><i className="mdi mdi-alert me-2 vertical-middle"></i> Warning: Results may be suboptimal!</h4>
         <p>
-          You can re-upload an updated model by drag-and-drop on top of the "Unscaled OpenSim" file, and then hit "Reprocess" (below in yellow) to fix the problem.
+          The optimizer detected some issues in the uploaded files. We can't detect everything automatically, so see our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
+        </p>
+        <hr />
+        <ul>
+          {warningList}
+        </ul>
+        <hr />
+        <p>
+          You can ignore these warnings if you are happy with your results, or you can re-upload an updated model by drag-and-drop on top of the "Unscaled OpenSim" file, and then hit "Reprocess" (below in yellow) to fix the problem.
         </p>
       </div>;
     }
@@ -502,6 +590,12 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       <h4>Results: {(autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE</h4>
       {guessedMarkersWarning}
       {download}
+      <div style={{ 'marginBottom': '5px' }}>
+        <Button variant="success" onClick={() => { setShowViewerHint(true) }}>
+          <i className="mdi mdi-eye me-2 vertical-middle"></i>
+          View Results in 3D Visualizer
+        </Button>
+      </div>
       <Button variant="warning" onClick={props.cursor.requestReprocessSubject}>
         <i className="mdi mdi-refresh me-2 vertical-middle"></i>
         Reprocess

@@ -4,4 +4,31 @@
     height: 500px;
     box-shadow: 0 0 15px 0 rgba(0, 0, 0, 0.2);
   }
+
+  .MocapView__link_tip_holder {
+    position: relative;
+  }
+
+  .MocapView__link_tip {
+    position: absolute;
+    padding: 5px 15px;
+    width: 230px;
+    top: 30px;
+    left: 0px;
+    background-color: rgba(0, 0, 0, 0.4);
+    color: white;
+    border-radius: 10px;
+
+    &::after {
+      content: " ";
+      position: absolute;
+      bottom: 100%;
+      /* At the bottom of the tooltip */
+      left: 10%;
+      margin-left: -5px;
+      border-width: 5px;
+      border-style: solid;
+      border-color: transparent transparent rgba(0, 0, 0, 0.4) transparent;
+    }
+  }
 }
