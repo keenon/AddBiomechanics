@@ -44,7 +44,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   if (props.cursor.getShowValidationControls()) {
     manualIKRow = (
       <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/manual_ik.mot"} uploadOnMount={props.uploadIK} accept=".mot" onMultipleFiles={props.onMultipleManualIK} />
+        <DropFile cursor={props.cursor} text={"Upload gold IK as a *.mot or *.sto"} path={"trials/" + props.name + "/manual_ik.mot"} uploadOnMount={props.uploadIK} accept=".mot,.sto" onMultipleFiles={props.onMultipleManualIK} />
       </td>
     );
   }
@@ -57,7 +57,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
         <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc,.sto" required />
       </td>
       <td>
-        <DropFile cursor={props.cursor} text={"Upload ground reaction forces as a *.mot"} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadGRF} accept=".mot" onMultipleFiles={props.onMultipleGRF} />
+        <DropFile cursor={props.cursor} text={"Upload ground reaction forces as a *.mot or *.sto"} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadGRF} accept=".mot,.sto" onMultipleFiles={props.onMultipleGRF} />
       </td>
     </>
   }
@@ -396,21 +396,14 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         showViewerHint={i == 0 && showViewerHint}
         hideViewerHint={() => setShowViewerHint(false)}
         uploadC3D={uploadFiles[trials[i].key + ".c3d"]}
-        uploadTRC={(() => {
-          if (trials[i].key + ".trc" in uploadFiles) {
-            return uploadFiles[trials[i].key + ".trc"];
-          }
-          else if (trials[i].key + ".sto" in uploadFiles) {
-            return uploadFiles[trials[i].key + ".sto"];
-          }
-        })()}
+        uploadTRC={uploadFiles[trials[i].key + ".trc"]}
         uploadGRF={uploadFiles[trials[i].key + "_grf.mot"]}
         uploadIK={uploadFiles[trials[i].key + "_ik.mot"]}
         onMultipleManualIK={(files: File[]) => {
           // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
           let updatedUploadFiles = { ...uploadFiles };
           for (let i = 0; i < files.length; i++) {
-            updatedUploadFiles[files[i].name.replace(".mot", "_ik.mot")] = files[i];
+            updatedUploadFiles[files[i].name.replace(".mot", "_ik.mot").replace(".sto", "_ik.mot")] = files[i];
           }
           setUploadFiles(updatedUploadFiles);
         }}
@@ -418,7 +411,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
           let updatedUploadFiles = { ...uploadFiles };
           for (let i = 0; i < files.length; i++) {
-            updatedUploadFiles[files[i].name.replace(".mot", "_grf.mot")] = files[i];
+            updatedUploadFiles[files[i].name.replace(".mot", "_grf.mot").replace(".sto", "_grf.mot")] = files[i];
           }
           setUploadFiles(updatedUploadFiles);
         }}
@@ -440,8 +433,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                 fileNames.push(acceptedFiles[i].name);
                 updatedUploadFiles[acceptedFiles[i].name] = acceptedFiles[i];
 
-                if (!acceptedFiles[i].name.endsWith(".c3d") && !acceptedFiles[i].name.endsWith(".trc") && !acceptedFiles[i].name.endsWith(".sto")) {
-                  alert("You can only bulk create trials with *.c3d, *.trc or *.sto files. To bulk upload other types of files (like *.mot for IK) please create the trials first, then drag a group of *.mot files to one of the IK upload slots (doesn't matter which trial, files will be matched by name).");
+                if (!acceptedFiles[i].name.endsWith(".c3d") && !acceptedFiles[i].name.endsWith(".trc")) {
+                  alert("You can only bulk create trials with *.c3d or *.trc files. To bulk upload other types of files (like *.mot or *.sto for IK) please create the trials first, then drag a group of *.mot or *.sto files to one of the IK upload slots (doesn't matter which trial, files will be matched by name).");
                   return;
                 }
               }
@@ -457,7 +450,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                   <input {...inputProps} />
                   <i className="h3 text-muted dripicons-cloud-upload"></i>
                   <h5>
-                    Drop C3D, TRC or STO files here (or just click here) to bulk upload trials.
+                    Drop C3D or TRC files here (or just click here) to bulk upload trials.
                   </h5>
                   <span className="text-muted font-13">
                     (You can drop multiple files at once to create multiple
