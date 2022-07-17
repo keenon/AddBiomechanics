@@ -176,10 +176,22 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     print('Fitting trials '+str(trialNames), flush=True)
 
     trialErrorReports: List[str, nimble.biomechanics.MarkersErrorReport] = []
+    anyHasTooFewMarkers = False
     for i in range(len(trialNames)):
         trialErrorReport = fitter.generateDataErrorsReport(markerTrials[i])
         markerTrials[i] = trialErrorReport.markerObservationsAttemptedFixed
         trialErrorReports.append(trialErrorReport)
+        hasEnoughMarkers = fitter.checkForEnoughMarkers(markerTrials[i])
+        if not hasEnoughMarkers:
+            print("There are fewer than 8 markers that show up in the OpenSim model and in trial " +
+                  trialNames[i], flush=True)
+            print("The markers in this trial are: " +
+                  str(trialMarkerSet[trialNames[i]]), flush=True)
+            anyHasTooFewMarkers = True
+    if anyHasTooFewMarkers:
+        print(
+            "Some trials don't match the OpenSim model's marker set. Quitting.", flush=True)
+        exit(1)
 
     # Create an anthropometric prior
     anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
