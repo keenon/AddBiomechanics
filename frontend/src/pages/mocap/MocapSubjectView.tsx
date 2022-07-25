@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { observer } from "mobx-react-lite";
 import "./MocapView.scss";
@@ -16,6 +16,7 @@ import Dropzone from "react-dropzone";
 import MocapTrialModal from "./MocapTrialModal";
 import MocapLogModal from "./MocapLogModal";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
+import TagEditor from '../../components/TagEditor';
 
 type ProcessingResultsJSON = {
   autoAvgMax: number;
@@ -44,7 +45,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   if (props.cursor.getShowValidationControls()) {
     manualIKRow = (
       <td>
-        <DropFile cursor={props.cursor} text={"Upload gold IK as a *.mot or *.sto"} path={"trials/" + props.name + "/manual_ik.mot"} uploadOnMount={props.uploadIK} accept=".mot,.sto" onMultipleFiles={props.onMultipleManualIK} />
+        <DropFile cursor={props.cursor} text={"Gold IK, *.mot or *.sto"} path={"trials/" + props.name + "/manual_ik.mot"} uploadOnMount={props.uploadIK} accept=".mot,.sto" onMultipleFiles={props.onMultipleManualIK} hideDate />
       </td>
     );
   }
@@ -54,17 +55,17 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   if (trcMetadata != null || props.uploadTRC != null) {
     fileData = <>
       <td>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc,.sto" required />
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc,.sto" hideDate required />
       </td>
       <td>
-        <DropFile cursor={props.cursor} text={"Upload ground reaction forces as a *.mot or *.sto"} path={"trials/" + props.name + "/grf.mot"} uploadOnMount={props.uploadGRF} accept=".mot,.sto" onMultipleFiles={props.onMultipleGRF} />
+        <DropFile cursor={props.cursor} text={"GRF, *.mot or *.sto"} path={"trials/" + props.name + "/grf.mot"} hideDate uploadOnMount={props.uploadGRF} accept=".mot,.sto" onMultipleFiles={props.onMultipleGRF} />
       </td>
     </>
   }
   else {
     fileData = (
       <td colSpan={2}>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.c3d"} uploadOnMount={props.uploadC3D} accept=".c3d" required />
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.c3d"} uploadOnMount={props.uploadC3D} accept=".c3d" hideDate required />
       </td>
     );
   }
@@ -115,6 +116,10 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
       </Link>;
   }
 
+  const tagsFile = props.cursor.getTrialTagFile(props.name);
+  const tagList = tagsFile.getAttribute("tags", [] as string[]);
+  const tagValues = tagsFile.getAttribute("tagValues", {} as { [key: string]: number });
+
   return (
     <tr>
       <td>
@@ -122,6 +127,24 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
       </td>
       {fileData}
       {manualIKRow}
+      <td>
+        <TagEditor isSubject={false}
+          tags={tagList}
+          onTagsChanged={(newTags) => {
+            tagsFile.setAttribute("tags", newTags);
+          }}
+          tagValues={tagValues}
+          onTagValuesChanged={(newTagValues) => {
+            tagsFile.setAttribute("tagValues", newTagValues);
+          }}
+          onFocus={() => {
+            tagsFile.onFocusAttribute("tags");
+          }}
+          onBlur={() => {
+            tagsFile.onBlurAttribute("tags");
+          }}
+        />
+      </td>
       {!props.cursor.canEdit() ? null : (
         <td>
           <ButtonGroup className="d-block mb-2">
@@ -484,10 +507,16 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let weightValue = props.cursor.subjectJson.getAttribute("massKg", 0.0);
   let heightValue = props.cursor.subjectJson.getAttribute("heightM", 0.0);
   let sexValue = props.cursor.subjectJson.getAttribute("sex", "unknown");
+  let skeletonPreset = props.cursor.subjectJson.getAttribute("skeletonPreset", props.cursor.hasModelFile() ? "custom" : "vicon");
+  let subjectTags = props.cursor.subjectJson.getAttribute("subjectTags", [] as string[]);
+  let subjectTagValues = props.cursor.subjectJson.getAttribute("subjectTagValues", {} as { [key: string]: number });
 
   let autoAvgRMSE = props.cursor.resultsJson.getAttribute("autoAvgRMSE", 0.0);
   let guessedTrackingMarkers = props.cursor.resultsJson.getAttribute("guessedTrackingMarkers", 0.0);
   let trialMarkerSets = props.cursor.resultsJson.getAttribute("trialMarkerSets", {});
+  let trialWarnings = props.cursor.resultsJson.getAttribute("trialWarnings", {});
+  let fewFramesWarning = props.cursor.resultsJson.getAttribute("fewFramesWarning", false);
+  let jointLimitsHits = props.cursor.resultsJson.getAttribute("jointLimitsHits", {});
   let osimMarkers: string[] = props.cursor.resultsJson.getAttribute("osimMarkers", {});
 
   let status: 'done' | 'processing' | 'could-process' | 'error' | 'waiting' | 'empty' = props.cursor.getSubjectStatus();
@@ -567,6 +596,41 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         </li>);
       }
     }
+    if (Object.keys(trialWarnings).length > 0) {
+      /*
+      let warningsBlocks = [];
+      for (let key in trialWarnings) {
+        warningsBlocks.push(<p key={key}>
+          <b>{key}:</b>
+          <ul>
+            {trialWarnings[key].map((v: string) => {
+              return <li key={v}>{v}</li>
+            })}
+          </ul>
+        </p>)
+      }
+      */
+      warningList.push(<li key={"markerCleanupWarnings"}>
+        <p>There were some glitches / mislabelings detected in the uploaded marker data. We've attempted to patch it with heuristics, but you may want to review by hand. See the README in the downloaded results folder for details.</p>
+      </li>);
+    }
+    if (fewFramesWarning) {
+      warningList.push(<li key={"fewFrames"}>
+        <p>The trials you uploaded didn't include very many frames! The optimizer relies on motion of the body to find optimal scalings, so you will get better results with more data from this subject.</p>
+      </li>);
+    }
+    if (Object.keys(jointLimitsHits).length > 0) {
+      let warningsBlocks = [];
+      for (let key in jointLimitsHits) {
+        warningsBlocks.push(<p key={key}>
+          <b>{key}</b> was at its limit on {jointLimitsHits[key]} frames.
+        </p>)
+      }
+      warningList.push(<li key={"fewFrames"}>
+        <p>The OpenSim skeleton hit its joint limits during the trial. This may lead to poor/jittery IK results. Here are joints to investigate:</p>
+        {warningsBlocks}
+      </li>);
+    }
 
     let guessedMarkersWarning = null;
     if (warningList.length > 0) {
@@ -581,7 +645,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         </ul>
         <hr />
         <p>
-          You can ignore these warnings if you are happy with your results, or you can re-upload an updated model by drag-and-drop on top of the "Unscaled OpenSim" file, and then hit "Reprocess" (below in yellow) to fix the problem.
+          You can ignore these warnings if you are happy with your results, or you update your data and/or your OpenSim Model and Markerset and then hit "Reprocess" (below in yellow) to fix the problem.
         </p>
       </div>;
     }
@@ -652,7 +716,10 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
   else if (status === "could-process") {
     if (props.cursor.canEdit()) {
-      statusDetails = <Button onClick={props.cursor.markReadyForProcessing}>Process And Share</Button>;
+      statusDetails = <Button onClick={() => {
+        props.cursor.subjectJson.setAttribute("skeletonPreset", skeletonPreset);
+        props.cursor.markReadyForProcessing();
+      }}>Process And Share</Button>;
     }
     else {
       statusBadge = <span className="badge bg-secondary">Waiting for owner to process</span>;
@@ -672,7 +739,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
 
   let advancedOptions = null;
-  if (false) {
+  if (true) {
     advancedOptions = <>
       <hr />
       <button className="btn" type="button" onClick={() => setShowAdvanced(!showAdvanced)}>
@@ -685,10 +752,27 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           Advanced Options
         </h4>
         <div className="card card-body">
-          Anim pariatur cliche reprehenderit, enim eiusmod high life accusamus terry richardson ad squid. Nihil anim keffiyeh helvetica, craft beer labore wes anderson cred nesciunt sapiente ea proident.
+          <div className="mb-15">
+            Use heuristics to clean up marker data: <input type="checkbox" checked disabled></input>
+          </div>
+          <div className="mb-15">Compare optimized skeleton with hand-scaled version: <input type="checkbox" checked={showValidationControls} onChange={(e) => {
+            props.cursor.setShowValidationControls(e.target.checked);
+          }} />
+          </div>
         </div>
       </div>
     </>;
+  }
+
+  let skeletonDetails = null;
+  if (skeletonPreset === 'vicon') {
+    skeletonDetails = <div className="alert alert-secondary mb-15">Rajagopal 2015 is from <a href="https://simtk.org/projects/full_body" target="_blank">here</a>. The Vicon Plug-In Gait Markerset is described <a href="https://docs.vicon.com/download/attachments/133828966/Plug-in%20Gait%20Reference%20Guide.pdf?version=2&modificationDate=1637681079000&api=v2" target="_blank">here</a>. Your data must match the marker names exactly!</div>
+  }
+  else if (skeletonPreset === 'cmu') {
+    skeletonDetails = <div className="alert alert-secondary mb-15">Rajagopal 2015 is from <a href="https://simtk.org/projects/full_body" target="_blank">here</a>. The CMU Markerset is described <a href="http://mocap.cs.cmu.edu/markerPlacementGuide.pdf" target="_blank">here</a>. Your data must match the marker names exactly!</div>
+  }
+  if (skeletonPreset === 'custom') {
+    skeletonDetails = <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} required />;
   }
 
   let header = null;
@@ -710,7 +794,24 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         <h5>Status {statusBadge}</h5>
         <div className="mb-15">{statusDetails}</div>
       </div>
-      <form className="row g-3">
+      <div className="row">
+        <label htmlFor="skeletonPreset" className="form-label">
+          OpenSim Model and Markerset:
+        </label>
+        <div className="col-md-6">
+          <select id="skeletonPreset" className="form-select mb-3" value={skeletonPreset} onChange={(e) => {
+            props.cursor.subjectJson.setAttribute("skeletonPreset", e.target.value);
+          }}>
+            <option value="vicon" selected>Rajagopal 2015, Vicon Plug-In Gait Markerset</option>
+            <option value="cmu">Rajagopal 2015, CMU Markerset</option>
+            <option value="custom">Custom OpenSim Model, Custom Markerset</option>
+          </select>
+        </div>
+        <div className="col-md-6">
+          {skeletonDetails}
+        </div>
+      </div>
+      <form className="row g-3 mb-15">
         <div className="col-md-4">
           <label htmlFor="heightM" className="form-label">
             Height without shoes (m):
@@ -817,8 +918,48 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           </select>
         </div>
       </form>
+      <div className="mb-15">
+        <label>
+          Subject Tags:
+        </label>
+        <OverlayTrigger
+          placement="right"
+          delay={{ show: 50, hide: 400 }}
+          overlay={(props) => (
+            <Tooltip id="button-tooltip" {...props}>
+              We use structured tags, instead of free form text notes, to avoid accidentally hosting Personally Identifiable Information (PII) on the platform. If you don't find the tags you need, feel free to tweet at @KeenonWerling and suggest new tags!
+            </Tooltip>
+          )}
+        >
+          <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+        </OverlayTrigger>
+        <TagEditor
+          isSubject={true}
+          tags={subjectTags}
+          onTagsChanged={(newTags) => {
+            props.cursor.subjectJson.setAttribute("subjectTags", newTags);
+          }}
+          tagValues={subjectTagValues}
+          onTagValuesChanged={(newTagValues) => {
+            props.cursor.subjectJson.setAttribute("subjectTagValues", newTagValues);
+          }}
+          onFocus={() => {
+            props.cursor.subjectJson.onFocusAttribute("subjectTags");
+          }}
+          onBlur={() => {
+            props.cursor.subjectJson.onBlurAttribute("subjectTags");
+          }}
+        />
+      </div>
     </>
   }
+
+  const nameWidth = 120;
+  const fileWidthPart1 = 100;
+  const fileWidthPart2 = 100;
+  const actionWidth = props.cursor.canEdit() ? 100 : 0;
+
+  const remainingWidth = '100%'; // 'calc(100% - ' + (nameWidth + fileWidthPart1 + fileWidthPart2 + actionWidth) + 'px)';
 
   return (
     <div className="MocapView">
@@ -830,14 +971,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         {/*<span className="badge bg-secondary">{"TODO"}</span>*/}
       </h3>
       {header}
-      <div className="mb-15">
-        <h5>Unscaled OpenSim</h5>
-        <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} required />
-      </div>
-      <div className="mb-15">Compare optimized skeleton with hand-scaled version: <input type="checkbox" checked={showValidationControls} onChange={(e) => {
-        props.cursor.setShowValidationControls(e.target.checked);
-      }} />
-      </div>
       {manuallyScaledOpensimUpload}
       <div>
         <Table
@@ -849,12 +982,13 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           }}
         >
           <colgroup>
-            <col style={{ width: "20%" }} />
-            <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
-            <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / (showValidationControls ? 3 : 2)) + "%" }} />
-            {showValidationControls ? <col style={{ width: ((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / 3) + "%" }} /> : null}
+            <col width={nameWidth + 'px'} />
+            <col width={fileWidthPart1 + 'px'} />
+            <col width={fileWidthPart2 + 'px'} />
+            <col width={remainingWidth} />
+            {showValidationControls ? <col width={((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / 4) + "%"} /> : null}
             {props.cursor.canEdit() ? (
-              <col style={{ width: "15%" }} />
+              <col width={actionWidth} />
             ) : null}
           </colgroup>
           <thead className="table-light">
@@ -862,6 +996,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               <th className="border-0" >Trial Name</th>
               <th className="border-0" colSpan={2}>Mocap File</th>
               {manualIkRowHeader}
+              <th className="border-0" >Trial Tags</th>
               {props.cursor.canEdit() ? (
                 <th className="border-0">
                   Action
@@ -874,7 +1009,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         <Button onClick={() => navigate({ search: "?new-trial" })}>Create new trial</Button>
         {advancedOptions}
       </div>
-    </div>
+    </div >
   );
 });
 

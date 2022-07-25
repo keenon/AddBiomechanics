@@ -24,6 +24,7 @@
     "react-i18next": "^11.14.0",
     "react-router-dom": "6",
     "react-scripts": "4.0.3",
+    "react-select": "^5.4.0",
     "react-transition-group": "^4.4.2",
     "yup": "^0.32.11"
   },

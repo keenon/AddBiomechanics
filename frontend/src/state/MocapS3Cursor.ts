@@ -77,6 +77,7 @@ class MocapS3Cursor {
     cachedResultsFile: Promise<string> | null;
     cachedTrialResultsFiles: Map<string, Promise<string>>;
     cachedVisulizationFiles: Map<string, LargeZipBinaryObject>;
+    cachedTrialTags: Map<string, ReactiveJsonFile>;
 
     subjectJson: ReactiveJsonFile;
     resultsJson: ReactiveJsonFile;
@@ -102,6 +103,7 @@ class MocapS3Cursor {
         this.cachedResultsFile = null;
         this.cachedTrialResultsFiles = new Map();
         this.cachedVisulizationFiles = new Map();
+        this.cachedTrialTags = new Map();
         this.showValidationControls = false;
 
         this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
@@ -240,6 +242,10 @@ class MocapS3Cursor {
         this.cachedResultsFile = null;
         this.cachedTrialResultsFiles.clear();
         this.cachedVisulizationFiles.clear();
+        this.cachedTrialTags.forEach((v,k) => {
+            this.rawCursor.deleteJsonFile("trials/"+k+"/tags.json");
+        });
+        this.cachedTrialTags.clear();
     });
 
     /**
@@ -360,6 +366,7 @@ class MocapS3Cursor {
             }
         }
 
+        const skeletonType = this.subjectJson.getAttribute("skeletonPreset", "custom");
         const hasOsimFile = this.rawCursor.getExists(path + "unscaled_generic.osim");
 
         const hasReadyToProcessFlag = this.rawCursor.getExists(path + "READY_TO_PROCESS");
@@ -369,7 +376,7 @@ class MocapS3Cursor {
         const logMetadata = this.rawCursor.getChildMetadata(path + "log.txt");
         const resultsMetadata = this.rawCursor.getChildMetadata(path + "_results.json");
 
-        if (anyTrialsMissingMarkers || !hasOsimFile || !hasAnyTrials) {
+        if (anyTrialsMissingMarkers || (skeletonType === "custom" && !hasOsimFile) || !hasAnyTrials) {
             return 'empty';
         }
         else if (logMetadata != null && resultsMetadata != null) {
@@ -522,8 +529,8 @@ class MocapS3Cursor {
     requestReprocessSubject = () => {
         this.rawCursor.deleteChild("log.txt");
         this.rawCursor.deleteChild("_results.json");
-        this.rawCursor.deleteChild("ERROR");
         this.rawCursor.deleteChild("PROCESSING");
+        this.rawCursor.deleteChild("ERROR");
     };
 
     /**
@@ -549,6 +556,21 @@ class MocapS3Cursor {
             this.cachedVisulizationFiles.set(trialName, visualization);
         }
         return visualization;
+    };
+
+    /**
+     * This either creates or retrieves a JSON file for this trial
+     * 
+     * @param trialName The trial name to retrieve
+     * @returns a promise for the downloaded and unzipped trial preview
+     */
+    getTrialTagFile = (trialName: string) => {
+        let file = this.cachedTrialTags.get(trialName);
+        if (file == null) {
+            file = this.rawCursor.getJsonFile("trials/" + trialName+ "/tags.json");
+            this.cachedTrialTags.set(trialName, file);
+        }
+        return file;
     };
 
     /**
@@ -590,6 +612,13 @@ class MocapS3Cursor {
             logListener[0]();
         }
     };
+
+    /**
+     * @returns True if we've got a custom model file, false otherwise
+     */
+    hasModelFile = () => {
+        return this.rawCursor.hasChildren(["unscaled_generic.osim"]);
+    }
 
     /**
      * @returns True if we've got a log file, false otherwise
@@ -655,7 +684,12 @@ class MocapS3Cursor {
         }
         this.subjectJson.setAttribute("email", this.userEmail, true);
 
-        return this.rawCursor.uploadChild("READY_TO_PROCESS", "");
+        if (window.confirm("Processed results will be shared with the community under a CC 3.0 License. Is that ok?")) {
+            return this.rawCursor.uploadChild("READY_TO_PROCESS", "");
+        }
+        else {
+            // Do nothing
+        }
     };
 
     /**

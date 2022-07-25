@@ -94,11 +94,15 @@ const FolderView = observer((props: FolderViewProps) => {
                         <i className="mdi mdi-pencil me-2 text-muted vertical-middle"></i>
                         Rename
                       </Dropdown.Item>
-                      <Dropdown.Item>
-                        <i className="mdi mdi-download me-2 text-muted vertical-middle"></i>
-                        Download
-                      </Dropdown.Item>
                       */}
+                  <Dropdown.Item
+                    onClick={() => {
+                      navigate(entry.href);
+                    }}
+                  >
+                    <i className="mdi mdi-eye me-2 text-muted vertical-middle"></i>
+                    View
+                  </Dropdown.Item>
                   <Dropdown.Item
                     onClick={() => {
                       navigate({ search: "?delete-folder=" + entry.key });

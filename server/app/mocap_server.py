@@ -195,7 +195,9 @@ class SubjectToProcess:
             if not path.endswith('/'):
                 path += '/'
             self.index.download(self.subjectStatusFile, path+'_subject.json')
-            self.index.download(self.opensimFile, path+'unscaled_generic.osim')
+            if self.index.exists(self.opensimFile):
+                self.index.download(self.opensimFile, path +
+                                    'unscaled_generic.osim')
             if self.index.exists(self.goldscalesFile):
                 self.index.download(self.goldscalesFile,
                                     path+'manually_scaled.osim')

@@ -65,7 +65,30 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         print('!!WARNING!! No sex specified for subject. Defaulting to "unknown".')
         sex = 'unknown'
 
+    if 'skeletonPreset' in subjectJson:
+        skeletonPreset = subjectJson['skeletonPreset']
+    else:
+        print(
+            '!!WARNING!! No skeletonPreset specified for subject. Defaulting to "custom".')
+        skeletonPreset = 'custom'
+
     # 3. Load the unscaled Osim file, which we can then scale and format
+
+    # 3.0. Check for if we're using a preset OpenSim model, and if so, then copy that in
+    if skeletonPreset == 'vicon':
+        shutil.copy('/data/PresetSkeletons/Rajagopal2015_ViconPlugInGait.osim',
+                    path + 'unscaled_generic.osim')
+    elif skeletonPreset == 'cmu':
+        shutil.copy('/data/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
+                    path + 'unscaled_generic.osim')
+    else:
+        if skeletonPreset != 'custom':
+            print('Unrecognized skeleton preset "'+str(skeletonPreset) +
+                  '"! Behaving as though this is "custom"')
+        if not os.path.exists(path + 'unscaled_generic.osim'):
+            print('We are using a custom OpenSim skeleton, and yet there is no unscaled_generic.osim file present. Quitting.')
+            exit(1)
+
     # 3.1. Rationalize CustomJoint's in the osim file
     shutil.move(path + 'unscaled_generic.osim',
                 path + 'unscaled_generic_raw.osim')
@@ -177,11 +200,15 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
 
     trialErrorReports: List[str, nimble.biomechanics.MarkersErrorReport] = []
     anyHasTooFewMarkers = False
+    totalFrames = 0
     for i in range(len(trialNames)):
+        print('Checking and repairing marker data quality on trial ' +
+              str(trialNames[i])+'. This can take a while, depending on trial length...', flush=True)
         trialErrorReport = fitter.generateDataErrorsReport(markerTrials[i])
         markerTrials[i] = trialErrorReport.markerObservationsAttemptedFixed
         trialErrorReports.append(trialErrorReport)
         hasEnoughMarkers = fitter.checkForEnoughMarkers(markerTrials[i])
+        totalFrames += len(markerTrials[i])
         if not hasEnoughMarkers:
             print("There are fewer than 8 markers that show up in the OpenSim model and in trial " +
                   trialNames[i], flush=True)
@@ -192,6 +219,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         print(
             "Some trials don't match the OpenSim model's marker set. Quitting.", flush=True)
         exit(1)
+    print('All trial markers have been cleaned up!', flush=True)
 
     # Create an anthropometric prior
     anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
@@ -262,6 +290,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         os.mkdir(path+'results/C3D')
     if not os.path.exists(path+'results/Models'):
         os.mkdir(path+'results/Models')
+    if not os.path.exists(path+'results/MuJoCo'):
+        os.mkdir(path+'results/MuJoCo')
+    if not os.path.exists(path+'results/SDF'):
+        os.mkdir(path+'results/SDF')
     if not os.path.exists(path+'results/MarkerData'):
         os.mkdir(path+'results/MarkerData')
     print('Outputting OpenSim files', flush=True)
@@ -291,9 +323,58 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     # 8.2.3. Call the OpenSim scaling tool
     command = 'cd '+path+'results && opensim-cmd run-tool ' + \
         path + 'results/Models/rescaling_setup.xml'
-    print('Scaling OpenSim files: '+command)
+    print('Scaling OpenSim files: '+command, flush=True)
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
     process.wait()
+
+    # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
+    print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
+    mergeBodiesInto: Dict[str, str] = {}
+    mergeBodiesInto['ulna_r'] = 'radius_r'
+    mergeBodiesInto['ulna_l'] = 'radius_l'
+    simplified = customOsim.skeleton.simplifySkeleton(
+        customOsim.skeleton.getName(), mergeBodiesInto)
+
+    print('Writing an SDF version of the skeleton', flush=True)
+    nimble.utils.SdfParser.writeSkeleton(
+        path + 'results/SDF/model.sdf', simplified)
+    sdfSkeleton = nimble.utils.SdfParser.readSkeleton(
+        path + 'results/SDF/model.sdf')
+    sdfConverter: nimble.biomechanics.SkeletonConverter = nimble.biomechanics.SkeletonConverter(
+        sdfSkeleton, customOsim.skeleton)
+    # Set the root orientation to be the same
+    for i in range(6):
+        sdfSkeleton.setPosition(i, customOsim.skeleton.getPosition(i))
+    # Link joints
+    for i in range(sdfSkeleton.getNumJoints()):
+        sourceJoint = sdfSkeleton.getJoint(i)
+        if customOsim.skeleton.getJoint(sourceJoint.getName()) is not None:
+            sdfConverter.linkJoints(
+                sourceJoint, customOsim.skeleton.getJoint(sourceJoint.getName()))
+    sdfConverter.createVirtualMarkers()
+
+    print('Writing a MuJoCo version of the skeleton', flush=True)
+    nimble.utils.MJCFExporter.writeSkeleton(
+        path + 'results/MuJoCo/model.xml', simplified)
+    mujocoConverter: nimble.biomechanics.SkeletonConverter = nimble.biomechanics.SkeletonConverter(
+        simplified, customOsim.skeleton)
+    # Set the root orientation to be the same
+    for i in range(6):
+        simplified.setPosition(i, customOsim.skeleton.getPosition(i))
+    # Link joints
+    for i in range(simplified.getNumJoints()):
+        sourceJoint = simplified.getJoint(i)
+        if customOsim.skeleton.getJoint(sourceJoint.getName()) is not None:
+            mujocoConverter.linkJoints(
+                sourceJoint, customOsim.skeleton.getJoint(sourceJoint.getName()))
+    mujocoConverter.createVirtualMarkers()
+
+    # Get ready to count the number of times we run up against joint limits during the IK
+    dofNames: List[str] = []
+    jointLimitsHits: Dict[str, int] = {}
+    # for i in range(customOsim.skeleton.getNumDofs()):
+    #     dofNames.append(customOsim.skeleton.getDofByIndex(i).getName())
+    #     jointLimitsHits[customOsim.skeleton.getDofByIndex(i).getName()] = 0
 
     for i in range(len(results)):
         result = results[i]
@@ -397,6 +478,36 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                        'preview.bin'], cwd=trialPath, capture_output=True)
         print('Finished zipping up '+trialPath+'preview.bin.zip', flush=True)
 
+        # 8.3. Count up the number of times we hit against joint limits
+        # tol = 0.001
+        # for t in range(result.poses.shape[1]):
+        #     thisTimestepPos = result.poses[:, t]
+        #     for i in range(customOsim.skeleton.getNumDofs()):
+        #         dof = customOsim.skeleton.getDofByIndex(i)
+        #         dofPos = thisTimestepPos[i]
+        #         if dofPos > dof.getPositionUpperLimit() - tol:
+        #             jointLimitsHits[dof.getName()] += 1
+        #         if dofPos < dof.getPositionLowerLimit() + tol:
+        #             jointLimitsHits[dof.getName()] += 1
+
+        # 8.4. Convert to SDF, and write that out
+        print('Converting '+trialName+' to SDF skeleton', flush=True)
+        convertedPoses = sdfConverter.convertMotion(result.poses)
+        print('Finished converting '+trialName +
+              ' to SDF. Writing out .mot file...', flush=True)
+        nimble.biomechanics.OpenSimParser.saveMot(
+            sdfSkeleton, path + 'results/SDF/'+trialName+'_ik.mot', timestamps, convertedPoses)
+
+        # 8.4. Convert to MuJoCo, and write that out
+        print('Converting '+trialName+' to MuJoCo skeleton', flush=True)
+        convertedPoses = mujocoConverter.convertMotion(result.poses)
+        print('Finished converting '+trialName +
+              ' to MuJoCo. Writing out .mot file...', flush=True)
+        nimble.biomechanics.OpenSimParser.saveMot(
+            simplified, path + 'results/MuJoCo/'+trialName+'_ik.mot', timestamps, convertedPoses)
+
+        print('Success! Done with '+trialName+'.', flush=True)
+
     if os.path.exists(path + 'manually_scaled.osim'):
         shutil.copyfile(path + 'manually_scaled.osim', path +
                         'results/Models/manually_scaled.osim')
@@ -404,6 +515,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     # Copy over the geometry files, so the model can be loaded directly in OpenSim without chasing down Geometry files somewhere else
     shutil.copytree('/data/Geometry', path +
                     'results/Models/Geometry')
+    # Copy over the geometry files (in a MuJoCo specific file format), so the model can be loaded directly in MuJoCo without chasing down Geometry files somewhere else
+    shutil.copytree('/data/MuJoCoGeometry', path +
+                    'results/MuJoCo/Geometry')
+    # Copy over the geometry files (in a SDF specific file format), so the model can be loaded directly in PyBullet without chasing down Geometry files somewhere else
+    shutil.copytree('/data/SDFGeometry', path +
+                    'results/SDF/Geometry')
 
     # Generate the overall summary result
     autoTotalLen = 0
@@ -434,17 +551,21 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
 
     trialWarnings: Dict[str, List[str]] = {}
     trialInfo: Dict[str, List[str]] = {}
+    markerCleanupWarnings: List[str] = []
     for i in range(len(trialErrorReports)):
         trialWarnings[trialNames[i]] = trialErrorReports[i].warnings
         trialInfo[trialNames[i]] = trialErrorReports[i].info
     processingResult['trialWarnings'] = trialWarnings
     processingResult['trialInfo'] = trialInfo
+    processingResult["fewFramesWarning"] = totalFrames < 300
+    processingResult['jointLimitsHits'] = jointLimitsHits
 
     # Write out the README for the data
     with open(path + 'results/README.txt', 'w') as f:
         f.write(
-            "*** This data was generated with BiomechNet (www.biomechnet.org) ***\n")
-        f.write("BiomechNet was written by Keenon Werling <keenon@cs.stanford.edu>\n")
+            "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
+        f.write(
+            "AddBiomechanics was written by Keenon Werling <keenon@cs.stanford.edu>\n")
         f.write("\n")
         f.write(textwrap.fill(
             "Automatic processing achieved the following marker errors (averaged over all frames of all trials):"))

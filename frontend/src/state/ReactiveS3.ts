@@ -385,6 +385,15 @@ class ReactiveCursor {
     };
 
     /**
+     * This cleans up the resources currently claimed by a JSON file.
+     * 
+     * @param path 
+     */
+    deleteJsonFile = (path: string) => {
+        this.jsonFiles.delete(path);
+    };
+
+    /**
      * Set a ReactiveIndex to back this cursor. This handles cleaning up any old listeners we 
      * had pointed at an old index, and creating new ones on the new index.
      * 

@@ -14,6 +14,7 @@ type DropFileProps = {
   validateFile?: (f: File) => Promise<string | null>;
   onMultipleFiles?: (files: File[]) => void;
   text?: string;
+  hideDate?: boolean;
   required?: boolean;
 };
 
@@ -54,7 +55,12 @@ const DropFile = observer((props: DropFileProps) => {
   }
   else {
     if (metadata != null) {
-      body = <>{humanFileSize(metadata.size)} on {metadata.lastModified.toDateString()}</>
+      if (props.hideDate) {
+        body = <>{humanFileSize(metadata.size)}</>
+      }
+      else {
+        body = <>{humanFileSize(metadata.size)} on {metadata.lastModified.toDateString()}</>
+      }
     }
     else {
       body = <><i className={(props.required ? "" : "text-muted ") + "dripicons-cloud-upload"} style={{ marginRight: '5px' }}></i> {(props.required ? <b>Required: </b> : null)} {props.text ? props.text : "Drop files here or click to upload"}</>
