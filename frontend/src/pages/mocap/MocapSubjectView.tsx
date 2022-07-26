@@ -621,14 +621,30 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     }
     if (Object.keys(jointLimitsHits).length > 0) {
       let warningsBlocks = [];
-      for (let key in jointLimitsHits) {
-        warningsBlocks.push(<p key={key}>
-          <b>{key}</b> was at its limit on {jointLimitsHits[key]} frames.
-        </p>)
+      let jointNames = Object.keys(jointLimitsHits);
+      let max = 0;
+      for (let key of jointNames) {
+        if (jointLimitsHits[key] > max) {
+          max = jointLimitsHits[key];
+        }
+      }
+
+      jointNames.sort((a: string, b: string) => {
+        return jointLimitsHits[b] - jointLimitsHits[a];
+      });
+      for (let key of jointNames) {
+        const percentage = jointLimitsHits[key] / max;
+        if (percentage > 0.0) {
+          warningsBlocks.push(<li key={key}>
+            <b>{key}</b> was at its limit on {jointLimitsHits[key]} frames.
+          </li>);
+        }
       }
       warningList.push(<li key={"fewFrames"}>
         <p>The OpenSim skeleton hit its joint limits during the trial. This may lead to poor/jittery IK results. Here are joints to investigate:</p>
-        {warningsBlocks}
+        <ul>
+          {warningsBlocks}
+        </ul>
       </li>);
     }
 
@@ -766,10 +782,10 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   let skeletonDetails = null;
   if (skeletonPreset === 'vicon') {
-    skeletonDetails = <div className="alert alert-secondary mb-15">Rajagopal 2015 is from <a href="https://simtk.org/projects/full_body" target="_blank">here</a>. The Vicon Plug-In Gait Markerset is described <a href="https://docs.vicon.com/download/attachments/133828966/Plug-in%20Gait%20Reference%20Guide.pdf?version=2&modificationDate=1637681079000&api=v2" target="_blank">here</a>. Your data must match the marker names exactly!</div>
+    skeletonDetails = <div className="alert alert-secondary mb-15">The Rajagopal 2015 skeleton is from <a href="https://simtk.org/projects/full_body" target="_blank">here</a>. The Vicon Plug-In Gait Markerset is described <a href="https://docs.vicon.com/download/attachments/133828966/Plug-in%20Gait%20Reference%20Guide.pdf?version=2&modificationDate=1637681079000&api=v2" target="_blank">here</a>. Your data must match the marker names exactly!</div>
   }
   else if (skeletonPreset === 'cmu') {
-    skeletonDetails = <div className="alert alert-secondary mb-15">Rajagopal 2015 is from <a href="https://simtk.org/projects/full_body" target="_blank">here</a>. The CMU Markerset is described <a href="http://mocap.cs.cmu.edu/markerPlacementGuide.pdf" target="_blank">here</a>. Your data must match the marker names exactly!</div>
+    skeletonDetails = <div className="alert alert-secondary mb-15">The Rajagopal 2015 skeleton is from <a href="https://simtk.org/projects/full_body" target="_blank">here</a>. The CMU Markerset is described <a href="http://mocap.cs.cmu.edu/markerPlacementGuide.pdf" target="_blank">here</a>. Your data must match the marker names exactly!</div>
   }
   if (skeletonPreset === 'custom') {
     skeletonDetails = <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} required />;
@@ -800,6 +816,12 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         </label>
         <div className="col-md-6">
           <select id="skeletonPreset" className="form-select mb-3" value={skeletonPreset} onChange={(e) => {
+            if (e.target.value === 'custom') {
+              props.cursor.markCustomOsim();
+            }
+            else {
+              props.cursor.clearCustomOsim();
+            }
             props.cursor.subjectJson.setAttribute("skeletonPreset", e.target.value);
           }}>
             <option value="vicon" selected>Rajagopal 2015, Vicon Plug-In Gait Markerset</option>
@@ -927,7 +949,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           delay={{ show: 50, hide: 400 }}
           overlay={(props) => (
             <Tooltip id="button-tooltip" {...props}>
-              We use structured tags, instead of free form text notes, to avoid accidentally hosting Personally Identifiable Information (PII) on the platform. If you don't find the tags you need, feel free to tweet at @KeenonWerling and suggest new tags!
+              We use structured tags, instead of free form text notes, to avoid accidentally hosting Personally Identifiable Information (PII) on the platform. If you don't find the tags you need, feel free to email keenon@cs.stanford.edu and suggest new tags!
             </Tooltip>
           )}
         >
@@ -996,7 +1018,20 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               <th className="border-0" >Trial Name</th>
               <th className="border-0" colSpan={2}>Mocap File</th>
               {manualIkRowHeader}
-              <th className="border-0" >Trial Tags</th>
+              <th className="border-0" >
+                Trial Tags
+                <OverlayTrigger
+                  placement="right"
+                  delay={{ show: 50, hide: 400 }}
+                  overlay={(props) => (
+                    <Tooltip id="button-tooltip" {...props}>
+                      We use structured tags, instead of free form text notes, to avoid accidentally hosting Personally Identifiable Information (PII) on the platform. If you don't find the tags you need, feel free to email keenon@cs.stanford.edu and suggest new tags!
+                    </Tooltip>
+                  )}
+                >
+                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                </OverlayTrigger>
+              </th>
               {props.cursor.canEdit() ? (
                 <th className="border-0">
                   Action

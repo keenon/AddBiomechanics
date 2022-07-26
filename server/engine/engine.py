@@ -372,9 +372,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     # Get ready to count the number of times we run up against joint limits during the IK
     dofNames: List[str] = []
     jointLimitsHits: Dict[str, int] = {}
-    # for i in range(customOsim.skeleton.getNumDofs()):
-    #     dofNames.append(customOsim.skeleton.getDofByIndex(i).getName())
-    #     jointLimitsHits[customOsim.skeleton.getDofByIndex(i).getName()] = 0
+    for i in range(customOsim.skeleton.getNumDofs()):
+        dofNames.append(customOsim.skeleton.getDofByIndex(i).getName())
+        jointLimitsHits[customOsim.skeleton.getDofByIndex(i).getName()] = 0
 
     for i in range(len(results)):
         result = results[i]
@@ -479,16 +479,18 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         print('Finished zipping up '+trialPath+'preview.bin.zip', flush=True)
 
         # 8.3. Count up the number of times we hit against joint limits
-        # tol = 0.001
-        # for t in range(result.poses.shape[1]):
-        #     thisTimestepPos = result.poses[:, t]
-        #     for i in range(customOsim.skeleton.getNumDofs()):
-        #         dof = customOsim.skeleton.getDofByIndex(i)
-        #         dofPos = thisTimestepPos[i]
-        #         if dofPos > dof.getPositionUpperLimit() - tol:
-        #             jointLimitsHits[dof.getName()] += 1
-        #         if dofPos < dof.getPositionLowerLimit() + tol:
-        #             jointLimitsHits[dof.getName()] += 1
+        tol = 0.001
+        for t in range(result.poses.shape[1]):
+            thisTimestepPos = result.poses[:, t]
+            for i in range(customOsim.skeleton.getNumDofs()):
+                dof = customOsim.skeleton.getDofByIndex(i)
+                dofPos = thisTimestepPos[i]
+                # If the joints are at least 2*tol apart
+                if dof.getPositionUpperLimit() > dof.getPositionLowerLimit() + 2 * tol:
+                    if dofPos > dof.getPositionUpperLimit() - tol:
+                        jointLimitsHits[dof.getName()] += 1
+                    if dofPos < dof.getPositionLowerLimit() + tol:
+                        jointLimitsHits[dof.getName()] += 1
 
         # 8.4. Convert to SDF, and write that out
         print('Converting '+trialName+' to SDF skeleton', flush=True)
@@ -651,6 +653,36 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         f.write("\n\n")
         f.write(textwrap.fill(
             "If you encounter errors, please contact Keenon Werling at keenon@cs.stanford.edu, and I will do my best to help :)"))
+
+    with open(path + 'results/MuJoCo/README.txt', 'w') as f:
+        f.write(
+            "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
+        f.write(
+            "AddBiomechanics was written by Keenon Werling <keenon@cs.stanford.edu>\n")
+        f.write("\n")
+        f.write(textwrap.fill(
+            "Our automatic conversion to MuJoCo is in early beta! Bug reports are welcome at keenon@cs.stanford.edu."))
+        f.write("\n\n")
+        f.write(textwrap.fill(
+            "This folder contains a MuJoCo skeleton (with simplified joints from the original OpenSim), and the joint positions over time for the skeleton."))
+        f.write("\n\n")
+        f.write(textwrap.fill(
+            "The MuJoCo skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. It's actually an open research question to approximate realistic foot-ground contact in physics engines. Instead of giving you pre-made foot colliders, you'll instead find the ground-reaction-force data, with the center-of-pressure, force direction, and torque between the feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in combination with the joint positions over time to develop your own foot colliders. Good luck!"))
+
+    with open(path + 'results/SDF/README.txt', 'w') as f:
+        f.write(
+            "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
+        f.write(
+            "AddBiomechanics was written by Keenon Werling <keenon@cs.stanford.edu>\n")
+        f.write("\n")
+        f.write(textwrap.fill(
+            "Our automatic conversion to SDF is in early beta! Bug reports are welcome at keenon@cs.stanford.edu."))
+        f.write("\n\n")
+        f.write(textwrap.fill(
+            "This folder contains a SDF skeleton that is compatible with PyBullet (with simplified joints from the original OpenSim), and the joint positions over time for the skeleton."))
+        f.write("\n\n")
+        f.write(textwrap.fill(
+            "The SDF skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. It's actually an open research question to approximate realistic foot-ground contact in physics engines. Instead of giving you pre-made foot colliders, you'll instead find the ground-reaction-force data, with the center-of-pressure, force direction, and torque between the feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in combination with the joint positions over time to develop your own foot colliders. Good luck!"))
 
     shutil.move(path + 'results', path + outputName)
     print('Zipping up OpenSim files', flush=True)

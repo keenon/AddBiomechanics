@@ -366,7 +366,8 @@ class MocapS3Cursor {
             }
         }
 
-        const skeletonType = this.subjectJson.getAttribute("skeletonPreset", "custom");
+        const hasCustomFlag = this.rawCursor.getExists(path + "CUSTOM_OSIM");
+        console.log(path + "CUSTOM_OSIM" + ": " + hasCustomFlag);
         const hasOsimFile = this.rawCursor.getExists(path + "unscaled_generic.osim");
 
         const hasReadyToProcessFlag = this.rawCursor.getExists(path + "READY_TO_PROCESS");
@@ -376,7 +377,7 @@ class MocapS3Cursor {
         const logMetadata = this.rawCursor.getChildMetadata(path + "log.txt");
         const resultsMetadata = this.rawCursor.getChildMetadata(path + "_results.json");
 
-        if (anyTrialsMissingMarkers || (skeletonType === "custom" && !hasOsimFile) || !hasAnyTrials) {
+        if (anyTrialsMissingMarkers || (hasCustomFlag && !hasOsimFile) || !hasAnyTrials) {
             return 'empty';
         }
         else if (logMetadata != null && resultsMetadata != null) {
@@ -666,6 +667,21 @@ class MocapS3Cursor {
         }
         return promise;
     };
+
+    /**
+     * This adds the "CUSTOM_OSIM" file on the backend, which marks the trial as using a custom OpenSim model, so that the validation checker can see if you're missing uploaded files.
+     */
+    markCustomOsim = () => {
+        console.log("Marking as a custom osim file");
+        return this.rawCursor.uploadChild("CUSTOM_OSIM", "");
+    }
+    
+    /**
+     * This removes the "CUSTOM_OSIM" file on the backend, which marks the trial as using a custom OpenSim model, so that the validation checker can see if you're missing uploaded files.
+     */
+    clearCustomOsim = () => {
+        return this.rawCursor.deleteChild("CUSTOM_OSIM");
+    }
 
     /**
      * This adds the "READY_TO_PROCESS" file on the backend, which marks the trial as being fully uploaded, and
