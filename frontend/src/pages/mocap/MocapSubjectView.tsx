@@ -755,6 +755,9 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
 
   let advancedOptions = null;
+  let exportSDF = props.cursor.subjectJson.getAttribute("exportSDF", false);
+  let exportMJCF = props.cursor.subjectJson.getAttribute("exportMJCF", false);
+
   if (true) {
     advancedOptions = <>
       <hr />
@@ -769,9 +772,21 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         </h4>
         <div className="card card-body">
           <div className="mb-15">
-            Use heuristics to clean up marker data: <input type="checkbox" checked disabled></input>
+            Use heuristics to clean up marker data:{" "}<input type="checkbox" checked disabled></input>
           </div>
-          <div className="mb-15">Compare optimized skeleton with hand-scaled version: <input type="checkbox" checked={showValidationControls} onChange={(e) => {
+          <div className="mb-15">
+            Export PyBullet compatible SDF files:{" "}
+            <input type="checkbox" checked={exportSDF} onChange={(e) => {
+              props.cursor.subjectJson.setAttribute("exportSDF", e.target.checked);
+            }}></input>
+          </div>
+          <div className="mb-15">
+            Export MuJoCo files:{" "}
+            <input type="checkbox" checked={exportMJCF} onChange={(e) => {
+              props.cursor.subjectJson.setAttribute("exportMJCF", e.target.checked);
+            }}></input>
+          </div>
+          <div className="mb-15">Compare optimized skeleton with hand-scaled version:{" "}<input type="checkbox" checked={showValidationControls} onChange={(e) => {
             props.cursor.setShowValidationControls(e.target.checked);
           }} />
           </div>

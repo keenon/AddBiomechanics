@@ -72,6 +72,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             '!!WARNING!! No skeletonPreset specified for subject. Defaulting to "custom".')
         skeletonPreset = 'custom'
 
+    if 'exportSDF' in subjectJson:
+        exportSDF = subjectJson['exportSDF']
+    else:
+        exportSDF = False
+
+    if 'exportMJCF' in subjectJson:
+        exportMJCF = subjectJson['exportMJCF']
+    else:
+        exportMJCF = False
+
     # 3. Load the unscaled Osim file, which we can then scale and format
 
     # 3.0. Check for if we're using a preset OpenSim model, and if so, then copy that in
@@ -290,9 +300,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         os.mkdir(path+'results/C3D')
     if not os.path.exists(path+'results/Models'):
         os.mkdir(path+'results/Models')
-    if not os.path.exists(path+'results/MuJoCo'):
+    if exportMJCF and not os.path.exists(path+'results/MuJoCo'):
         os.mkdir(path+'results/MuJoCo')
-    if not os.path.exists(path+'results/SDF'):
+    if exportSDF and not os.path.exists(path+'results/SDF'):
         os.mkdir(path+'results/SDF')
     if not os.path.exists(path+'results/MarkerData'):
         os.mkdir(path+'results/MarkerData')
@@ -328,46 +338,49 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     process.wait()
 
     # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
-    print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
-    mergeBodiesInto: Dict[str, str] = {}
-    mergeBodiesInto['ulna_r'] = 'radius_r'
-    mergeBodiesInto['ulna_l'] = 'radius_l'
-    simplified = customOsim.skeleton.simplifySkeleton(
-        customOsim.skeleton.getName(), mergeBodiesInto)
+    if exportSDF or exportMJCF:
+        print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
+        mergeBodiesInto: Dict[str, str] = {}
+        mergeBodiesInto['ulna_r'] = 'radius_r'
+        mergeBodiesInto['ulna_l'] = 'radius_l'
+        simplified = customOsim.skeleton.simplifySkeleton(
+            customOsim.skeleton.getName(), mergeBodiesInto)
 
-    print('Writing an SDF version of the skeleton', flush=True)
-    nimble.utils.SdfParser.writeSkeleton(
-        path + 'results/SDF/model.sdf', simplified)
-    sdfSkeleton = nimble.utils.SdfParser.readSkeleton(
-        path + 'results/SDF/model.sdf')
-    sdfConverter: nimble.biomechanics.SkeletonConverter = nimble.biomechanics.SkeletonConverter(
-        sdfSkeleton, customOsim.skeleton)
-    # Set the root orientation to be the same
-    for i in range(6):
-        sdfSkeleton.setPosition(i, customOsim.skeleton.getPosition(i))
-    # Link joints
-    for i in range(sdfSkeleton.getNumJoints()):
-        sourceJoint = sdfSkeleton.getJoint(i)
-        if customOsim.skeleton.getJoint(sourceJoint.getName()) is not None:
-            sdfConverter.linkJoints(
-                sourceJoint, customOsim.skeleton.getJoint(sourceJoint.getName()))
-    sdfConverter.createVirtualMarkers()
+        if exportSDF:
+            print('Writing an SDF version of the skeleton', flush=True)
+            nimble.utils.SdfParser.writeSkeleton(
+                path + 'results/SDF/model.sdf', simplified)
+            sdfSkeleton = nimble.utils.SdfParser.readSkeleton(
+                path + 'results/SDF/model.sdf')
+            sdfConverter: nimble.biomechanics.SkeletonConverter = nimble.biomechanics.SkeletonConverter(
+                sdfSkeleton, customOsim.skeleton)
+            # Set the root orientation to be the same
+            for i in range(6):
+                sdfSkeleton.setPosition(i, customOsim.skeleton.getPosition(i))
+            # Link joints
+            for i in range(sdfSkeleton.getNumJoints()):
+                sourceJoint = sdfSkeleton.getJoint(i)
+                if customOsim.skeleton.getJoint(sourceJoint.getName()) is not None:
+                    sdfConverter.linkJoints(
+                        sourceJoint, customOsim.skeleton.getJoint(sourceJoint.getName()))
+            sdfConverter.createVirtualMarkers()
 
-    print('Writing a MuJoCo version of the skeleton', flush=True)
-    nimble.utils.MJCFExporter.writeSkeleton(
-        path + 'results/MuJoCo/model.xml', simplified)
-    mujocoConverter: nimble.biomechanics.SkeletonConverter = nimble.biomechanics.SkeletonConverter(
-        simplified, customOsim.skeleton)
-    # Set the root orientation to be the same
-    for i in range(6):
-        simplified.setPosition(i, customOsim.skeleton.getPosition(i))
-    # Link joints
-    for i in range(simplified.getNumJoints()):
-        sourceJoint = simplified.getJoint(i)
-        if customOsim.skeleton.getJoint(sourceJoint.getName()) is not None:
-            mujocoConverter.linkJoints(
-                sourceJoint, customOsim.skeleton.getJoint(sourceJoint.getName()))
-    mujocoConverter.createVirtualMarkers()
+        if exportMJCF:
+            print('Writing a MuJoCo version of the skeleton', flush=True)
+            nimble.utils.MJCFExporter.writeSkeleton(
+                path + 'results/MuJoCo/model.xml', simplified)
+            mujocoConverter: nimble.biomechanics.SkeletonConverter = nimble.biomechanics.SkeletonConverter(
+                simplified, customOsim.skeleton)
+            # Set the root orientation to be the same
+            for i in range(6):
+                simplified.setPosition(i, customOsim.skeleton.getPosition(i))
+            # Link joints
+            for i in range(simplified.getNumJoints()):
+                sourceJoint = simplified.getJoint(i)
+                if customOsim.skeleton.getJoint(sourceJoint.getName()) is not None:
+                    mujocoConverter.linkJoints(
+                        sourceJoint, customOsim.skeleton.getJoint(sourceJoint.getName()))
+            mujocoConverter.createVirtualMarkers()
 
     # Get ready to count the number of times we run up against joint limits during the IK
     dofNames: List[str] = []
@@ -492,21 +505,23 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                     if dofPos < dof.getPositionLowerLimit() + tol:
                         jointLimitsHits[dof.getName()] += 1
 
-        # 8.4. Convert to SDF, and write that out
-        print('Converting '+trialName+' to SDF skeleton', flush=True)
-        convertedPoses = sdfConverter.convertMotion(result.poses)
-        print('Finished converting '+trialName +
-              ' to SDF. Writing out .mot file...', flush=True)
-        nimble.biomechanics.OpenSimParser.saveMot(
-            sdfSkeleton, path + 'results/SDF/'+trialName+'_ik.mot', timestamps, convertedPoses)
+        if exportSDF:
+            # 8.4. Convert to SDF, and write that out
+            print('Converting '+trialName+' to SDF skeleton', flush=True)
+            convertedPoses = sdfConverter.convertMotion(result.poses)
+            print('Finished converting '+trialName +
+                  ' to SDF. Writing out .mot file...', flush=True)
+            nimble.biomechanics.OpenSimParser.saveMot(
+                sdfSkeleton, path + 'results/SDF/'+trialName+'_ik.mot', timestamps, convertedPoses)
 
-        # 8.4. Convert to MuJoCo, and write that out
-        print('Converting '+trialName+' to MuJoCo skeleton', flush=True)
-        convertedPoses = mujocoConverter.convertMotion(result.poses)
-        print('Finished converting '+trialName +
-              ' to MuJoCo. Writing out .mot file...', flush=True)
-        nimble.biomechanics.OpenSimParser.saveMot(
-            simplified, path + 'results/MuJoCo/'+trialName+'_ik.mot', timestamps, convertedPoses)
+        if exportMJCF:
+            # 8.4. Convert to MuJoCo, and write that out
+            print('Converting '+trialName+' to MuJoCo skeleton', flush=True)
+            convertedPoses = mujocoConverter.convertMotion(result.poses)
+            print('Finished converting '+trialName +
+                  ' to MuJoCo. Writing out .mot file...', flush=True)
+            nimble.biomechanics.OpenSimParser.saveMot(
+                simplified, path + 'results/MuJoCo/'+trialName+'_ik.mot', timestamps, convertedPoses)
 
         print('Success! Done with '+trialName+'.', flush=True)
 
@@ -518,11 +533,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     shutil.copytree('/data/Geometry', path +
                     'results/Models/Geometry')
     # Copy over the geometry files (in a MuJoCo specific file format), so the model can be loaded directly in MuJoCo without chasing down Geometry files somewhere else
-    shutil.copytree('/data/MuJoCoGeometry', path +
-                    'results/MuJoCo/Geometry')
+    if exportMJCF:
+        shutil.copytree('/data/MuJoCoGeometry', path +
+                        'results/MuJoCo/Geometry')
     # Copy over the geometry files (in a SDF specific file format), so the model can be loaded directly in PyBullet without chasing down Geometry files somewhere else
-    shutil.copytree('/data/SDFGeometry', path +
-                    'results/SDF/Geometry')
+    if exportSDF:
+        shutil.copytree('/data/SDFGeometry', path +
+                        'results/SDF/Geometry')
 
     # Generate the overall summary result
     autoTotalLen = 0
@@ -654,35 +671,37 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         f.write(textwrap.fill(
             "If you encounter errors, please contact Keenon Werling at keenon@cs.stanford.edu, and I will do my best to help :)"))
 
-    with open(path + 'results/MuJoCo/README.txt', 'w') as f:
-        f.write(
-            "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
-        f.write(
-            "AddBiomechanics was written by Keenon Werling <keenon@cs.stanford.edu>\n")
-        f.write("\n")
-        f.write(textwrap.fill(
-            "Our automatic conversion to MuJoCo is in early beta! Bug reports are welcome at keenon@cs.stanford.edu."))
-        f.write("\n\n")
-        f.write(textwrap.fill(
-            "This folder contains a MuJoCo skeleton (with simplified joints from the original OpenSim), and the joint positions over time for the skeleton."))
-        f.write("\n\n")
-        f.write(textwrap.fill(
-            "The MuJoCo skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. It's actually an open research question to approximate realistic foot-ground contact in physics engines. Instead of giving you pre-made foot colliders, you'll instead find the ground-reaction-force data, with the center-of-pressure, force direction, and torque between the feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in combination with the joint positions over time to develop your own foot colliders. Good luck!"))
+    if exportMJCF:
+        with open(path + 'results/MuJoCo/README.txt', 'w') as f:
+            f.write(
+                "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
+            f.write(
+                "AddBiomechanics was written by Keenon Werling <keenon@cs.stanford.edu>\n")
+            f.write("\n")
+            f.write(textwrap.fill(
+                "Our automatic conversion to MuJoCo is in early beta! Bug reports are welcome at keenon@cs.stanford.edu."))
+            f.write("\n\n")
+            f.write(textwrap.fill(
+                "This folder contains a MuJoCo skeleton (with simplified joints from the original OpenSim), and the joint positions over time for the skeleton."))
+            f.write("\n\n")
+            f.write(textwrap.fill(
+                "The MuJoCo skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. It's actually an open research question to approximate realistic foot-ground contact in physics engines. Instead of giving you pre-made foot colliders, you'll instead find the ground-reaction-force data, with the center-of-pressure, force direction, and torque between the feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in combination with the joint positions over time to develop your own foot colliders. Good luck!"))
 
-    with open(path + 'results/SDF/README.txt', 'w') as f:
-        f.write(
-            "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
-        f.write(
-            "AddBiomechanics was written by Keenon Werling <keenon@cs.stanford.edu>\n")
-        f.write("\n")
-        f.write(textwrap.fill(
-            "Our automatic conversion to SDF is in early beta! Bug reports are welcome at keenon@cs.stanford.edu."))
-        f.write("\n\n")
-        f.write(textwrap.fill(
-            "This folder contains a SDF skeleton that is compatible with PyBullet (with simplified joints from the original OpenSim), and the joint positions over time for the skeleton."))
-        f.write("\n\n")
-        f.write(textwrap.fill(
-            "The SDF skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. It's actually an open research question to approximate realistic foot-ground contact in physics engines. Instead of giving you pre-made foot colliders, you'll instead find the ground-reaction-force data, with the center-of-pressure, force direction, and torque between the feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in combination with the joint positions over time to develop your own foot colliders. Good luck!"))
+    if exportSDF:
+        with open(path + 'results/SDF/README.txt', 'w') as f:
+            f.write(
+                "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
+            f.write(
+                "AddBiomechanics was written by Keenon Werling <keenon@cs.stanford.edu>\n")
+            f.write("\n")
+            f.write(textwrap.fill(
+                "Our automatic conversion to SDF is in early beta! Bug reports are welcome at keenon@cs.stanford.edu."))
+            f.write("\n\n")
+            f.write(textwrap.fill(
+                "This folder contains a SDF skeleton that is compatible with PyBullet (with simplified joints from the original OpenSim), and the joint positions over time for the skeleton."))
+            f.write("\n\n")
+            f.write(textwrap.fill(
+                "The SDF skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. It's actually an open research question to approximate realistic foot-ground contact in physics engines. Instead of giving you pre-made foot colliders, you'll instead find the ground-reaction-force data, with the center-of-pressure, force direction, and torque between the feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in combination with the joint positions over time to develop your own foot colliders. Good luck!"))
 
     shutil.move(path + 'results', path + outputName)
     print('Zipping up OpenSim files', flush=True)
