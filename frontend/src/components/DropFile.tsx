@@ -10,6 +10,7 @@ type DropFileProps = {
   cursor: MocapS3Cursor;
   path: string;
   accept: string;
+  keepFileExtension?: boolean;
   uploadOnMount?: File;
   validateFile?: (f: File) => Promise<string | null>;
   onMultipleFiles?: (files: File[]) => void;
@@ -86,7 +87,18 @@ const DropFile = observer((props: DropFileProps) => {
             else {
               setUploadProgress(0.0);
               setIsUploading(true);
-              props.cursor.rawCursor.uploadChild(props.path, acceptedFiles[0], setUploadProgress).then(action(() => {
+              let pathToUpload = props.path;
+              if (props.keepFileExtension) {
+                console.log(acceptedFiles[0].name);
+                // Default to the first accepted type
+                let extension = props.accept.split(",")[0];
+                const fileNameParts = acceptedFiles[0].name.split(".");
+                if (fileNameParts.length > 1) {
+                  extension = "." + fileNameParts[1];
+                }
+                pathToUpload = pathToUpload.split(".")[0] + extension;
+              }
+              props.cursor.rawCursor.uploadChild(pathToUpload, acceptedFiles[0], setUploadProgress).then(action(() => {
                 setIsUploading(false);
               })).catch(action(() => {
                 setIsUploading(false);

@@ -65,7 +65,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   else {
     fileData = (
       <td colSpan={2}>
-        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.c3d"} uploadOnMount={props.uploadC3D} accept=".c3d" hideDate required />
+        <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.c3d"} uploadOnMount={props.uploadC3D} accept=".c3d,.trc" hideDate required keepFileExtension />
       </td>
     );
   }
@@ -1022,8 +1022,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             <col width={nameWidth + 'px'} />
             <col width={fileWidthPart1 + 'px'} />
             <col width={fileWidthPart2 + 'px'} />
-            <col width={remainingWidth} />
             {showValidationControls ? <col width={((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / 4) + "%"} /> : null}
+            <col width={remainingWidth} />
             {props.cursor.canEdit() ? (
               <col width={actionWidth} />
             ) : null}

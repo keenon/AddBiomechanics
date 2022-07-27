@@ -28,6 +28,11 @@ function humanFileSize(bytes: number, si: boolean = true, dp: number = 1) {
         ++u;
     } while (Math.round(Math.abs(bytes) * r) / r >= thresh && u < units.length - 1);
 
+    if (bytes.toFixed(dp).length > 4) {
+        bytes /= thresh;
+        ++u;
+    }
+
 
     return bytes.toFixed(dp) + ' ' + units[u];
 }
