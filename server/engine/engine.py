@@ -10,6 +10,7 @@ import numpy as np
 import subprocess
 import shutil
 import textwrap
+import traceback
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 
@@ -337,6 +338,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
     process.wait()
 
+    # Delete the OpenSim log from running the scale tool
+    if os.path.exists(path + 'results/opensim.log'):
+        os.remove(path + 'results/opensim.log')
+
     # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
     if exportSDF or exportMJCF:
         print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
@@ -388,6 +393,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     for i in range(customOsim.skeleton.getNumDofs()):
         dofNames.append(customOsim.skeleton.getDofByIndex(i).getName())
         jointLimitsHits[customOsim.skeleton.getDofByIndex(i).getName()] = 0
+    trialJointWarnings: Dict[str, List[str]] = {}
 
     for i in range(len(results)):
         result = results[i]
@@ -492,6 +498,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         print('Finished zipping up '+trialPath+'preview.bin.zip', flush=True)
 
         # 8.3. Count up the number of times we hit against joint limits
+
+        trialJointLimitHits: Dict[str, int] = {}
+        jointLimitsFrames: Dict[str, List[int]] = {}
+        jointLimitsFramesUpperBound: Dict[str, List[bool]] = {}
+        for i in range(customOsim.skeleton.getNumDofs()):
+            dofName = customOsim.skeleton.getDofByIndex(i).getName()
+            trialJointLimitHits[dofName] = 0
+            jointLimitsFrames[dofName] = []
+            jointLimitsFramesUpperBound[dofName] = []
+
         tol = 0.001
         for t in range(result.poses.shape[1]):
             thisTimestepPos = result.poses[:, t]
@@ -502,8 +518,51 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                 if dof.getPositionUpperLimit() > dof.getPositionLowerLimit() + 2 * tol:
                     if dofPos > dof.getPositionUpperLimit() - tol:
                         jointLimitsHits[dof.getName()] += 1
+                        trialJointLimitHits[dof.getName()] += 1
+                        jointLimitsFrames[dof.getName()].append(t)
+                        jointLimitsFramesUpperBound[dof.getName()].append(True)
                     if dofPos < dof.getPositionLowerLimit() + tol:
                         jointLimitsHits[dof.getName()] += 1
+                        trialJointLimitHits[dof.getName()] += 1
+                        jointLimitsFrames[dof.getName()].append(t)
+                        jointLimitsFramesUpperBound[dof.getName()].append(
+                            False)
+
+        # 8.3.1. Sort for trial joint limits
+
+        print('Computing details about joint limit hits for the README')
+        try:
+            trialJointWarnings[trialName] = []
+            for dof in sorted(trialJointLimitHits, key=trialJointLimitHits.get, reverse=True):
+                jointHits: List[int] = jointLimitsFrames[dof]
+                jointHitsUpperBound: List[bool] = jointLimitsFramesUpperBound[dof]
+                if len(jointHits) == 0:
+                    continue
+                startBlock = jointHits[0]
+                lastBlock = jointHits[0]
+                lastUpperBound = jointHitsUpperBound[0]
+                for i in range(len(jointHits)):
+                    frame = jointHits[i]
+                    upperBound = jointHitsUpperBound[i]
+
+                    if (frame - lastBlock) <= 1 and lastUpperBound == upperBound:
+                        # If this is part of a continuous sequence of frames, we want to compress the message
+                        lastBlock = frame
+                    else:
+                        # We jumped to a new block of frames, so emit the last block
+                        if startBlock == lastBlock:  # single frame
+                            trialJointWarnings[trialName].append(
+                                dof+' hit '+('upper' if lastUpperBound else 'lower')+' bound on frame '+str(startBlock))
+                        else:
+                            trialJointWarnings[trialName].append(
+                                dof+' hit '+('upper' if lastUpperBound else 'lower')+' bound on frames '+str(startBlock)+'-'+str(lastBlock))
+                        lastBlock = frame
+                        startBlock = frame
+        except e:
+            print('Caught an error when computing trial joint limits:')
+            traceback.print_exc()
+            print('Continuing...')
+        print('Finished computing details about joint limit hits for the README')
 
         if exportSDF:
             # 8.4. Convert to SDF, and write that out
@@ -606,7 +665,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                 f.write("\" (RMSE: "+('%.2f' % (markerRMSE * 100))+'cm)')
                 f.write('\n')
             for warn in trialWarnings[trialName]:
-                f.write("     >> WARNING: ")
+                f.write("     >> MARKER WARNING: ")
+                f.write(warn)
+                f.write('\n')
+            for warn in trialJointWarnings[trialName]:
+                f.write("     >> JOINT WARNING: ")
                 f.write(warn)
                 f.write('\n')
             for info in trialInfo[trialName]:
@@ -628,7 +691,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         f.write(
             '           # This will re-generate Models/optimized_scale_and_markers.osim\n')
         f.write("\n\n")
-        f.write(textwrap.fill("You do not need to re-run Inverse Kinematics unless you change scaling, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of BiomechNet, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THIS FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
+        f.write(textwrap.fill("You do not need to re-run Inverse Kinematics unless you change scaling, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of AddBiomechanics, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THIS FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
         f.write("\n\n")
         for i in range(len(results)):
             trialName = trialNames[i]
@@ -649,7 +712,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                         trialName+'_ik_on_manual_scaling_by_opensim.mot\n')
             f.write("\n\n")
 
-        f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics is not yet fully supported by BiomechNet, and so the mapping of force-plates to feet is not perfect. The default XML files assign each force plate to the `calcn_*` body that gets closest to it during the motion trial. THIS MAY NOT BE CORRECT! That said, hopefully this is at least a useful starting point for you to edit from. The following commands should work (FROM THIS FOLDER, and not including the leading \"> \"):\n"))
+        f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics is not yet fully supported by AddBiomechanics, and so the mapping of force-plates to feet is not perfect. The default XML files assign each force plate to the `calcn_*` body that gets closest to it during the motion trial. THIS MAY NOT BE CORRECT! That said, hopefully this is at least a useful starting point for you to edit from. The following commands should work (FROM THIS FOLDER, and not including the leading \"> \"):\n"))
         f.write("\n\n")
         for i in range(len(results)):
             trialName = trialNames[i]
