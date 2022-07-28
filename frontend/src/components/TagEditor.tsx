@@ -89,6 +89,14 @@ const MultiValueLabel = (props: MultiValueGenericProps<Option>) => {
   )
 }
 
+const NoOptionsMessage = () => {
+  const formURL = "https://docs.google.com/forms/d/e/1FAIpQLScqGhozFWp-33WoO8g9WGda3bf8cm2bvcDtIM1F7jAifwcIlw/viewform?usp=sf_link";
+
+  return <div className="m-2">
+    No tags match your search. We use structured tags, instead of free form text notes, to avoid accidentally hosting Personally Identifiable Information (PII) on the platform. If you don't find the tags you need, fill out <a href={formURL} target="_blank">this form</a> (opens in a new tab) to request new tags!
+  </div>
+}
+
 type TagEditorProps = {
   isSubject: boolean,
   tags: string[],
@@ -127,7 +135,7 @@ const TagEditor = (props: TagEditorProps) => {
         isMulti
         isSearchable
         styles={customStyles}
-        components={{ MultiValueLabel }}
+        components={{ MultiValueLabel, NoOptionsMessage }}
         value={selectedOptions}
         onChange={onChange}
         onFocus={props.onFocus}
