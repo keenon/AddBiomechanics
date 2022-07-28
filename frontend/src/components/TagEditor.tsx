@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Select, { components, MultiValueGenericProps, ControlProps, MultiValue } from 'react-select';
 import './TagEditor.scss';
 
@@ -43,11 +43,16 @@ const trialOptions: Option[] = [
 
 const MultiValueLabel = (props: MultiValueGenericProps<Option>) => {
   let numberValues = (props.selectProps as any).numberValues;
+  let hideNumbers = (props.selectProps as any).hideNumbers;
   const [value, setValue] = useState(props.data.value in numberValues ? numberValues[props.data.value] : 0.0);
   const inputRef = useRef(null as any as HTMLInputElement);
 
+  useEffect(() => {
+    setValue(numberValues[props.data.value]);
+  }, [numberValues[props.data.value]])
+
   let numberInput = null;
-  if (props.data.addedNumberUnits != null) {
+  if (props.data.addedNumberUnits != null && !hideNumbers) {
     numberInput = <span>
       :<input className="TagEditor__number_input" type="number" ref={inputRef} onKeyDown={(e) => { e.stopPropagation(); }} onKeyPress={(e) => {
         e.stopPropagation();
@@ -90,8 +95,9 @@ type TagEditorProps = {
   tagValues: { [key: string]: number },
   onTagsChanged: (tags: string[]) => void,
   onTagValuesChanged: (tagValues: { [key: string]: number }) => void,
-  onFocus: () => void,
-  onBlur: () => void,
+  onFocus?: () => void,
+  onBlur?: () => void,
+  hideNumbers?: boolean
 };
 
 const TagEditor = (props: TagEditorProps) => {
@@ -130,6 +136,8 @@ const TagEditor = (props: TagEditorProps) => {
         onChangeOption={onChangeOption}
         // @ts-ignore
         numberValues={props.tagValues}
+        // @ts-ignore
+        hideNumbers={props.hideNumbers}
         options={optionList}
         noOptionsMessage={() => {
           return "No tags match your search. We use structured tags, instead of free form text notes, to avoid accidentally hosting Personally Identifiable Information (PII) on the platform. If you don't find the tags you need, feel free to tweet at @KeenonWerling and suggest new tags!";

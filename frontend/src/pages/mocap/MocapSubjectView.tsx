@@ -15,6 +15,7 @@ import DropFile from "../../components/DropFile";
 import Dropzone from "react-dropzone";
 import MocapTrialModal from "./MocapTrialModal";
 import MocapLogModal from "./MocapLogModal";
+import MocapTagModal from "./MocapTagModal";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
 import TagEditor from '../../components/TagEditor';
 
@@ -1002,6 +1003,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     <div className="MocapView">
       <MocapTrialModal cursor={props.cursor} />
       <MocapLogModal cursor={props.cursor} />
+      <MocapTagModal cursor={props.cursor} />
       <h3>
         <i className="mdi mdi-walk me-1 text-muted vertical-middle"></i>
         Subject: {props.cursor.getCurrentFileName()}{" "}
@@ -1035,6 +1037,29 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               {manualIkRowHeader}
               <th className="border-0" >
                 Trial Tags
+                <Dropdown style={{ display: 'inline-block' }}>
+                  <Dropdown.Toggle className="dropdown-toggle arrow-none btn btn-light btn-xs">
+                    <i className="mdi mdi-wrench"></i>
+                  </Dropdown.Toggle>
+                  <Dropdown.Menu>
+                    <Dropdown.Item
+                      onClick={() => {
+                        navigate({ search: "?bulk-tags=add" })
+                      }}
+                    >
+                      <i className="mdi mdi-plus me-2 text-muted vertical-middle"></i>
+                      Add tags to all
+                    </Dropdown.Item>
+                    <Dropdown.Item
+                      onClick={() => {
+                        navigate({ search: "?bulk-tags=remove" })
+                      }}
+                    >
+                      <i className="mdi mdi-minus me-2 text-muted vertical-middle"></i>
+                      Remove tags from all
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                </Dropdown>
                 <OverlayTrigger
                   placement="right"
                   delay={{ show: 50, hide: 400 }}

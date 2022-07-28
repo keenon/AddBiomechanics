@@ -83,7 +83,8 @@ class ReactiveJsonFile {
         makeObservable(this, {
             loading: observable,
             values: observable,
-            path: observable
+            path: observable,
+            getAttribute: observable
         });
     }
 
@@ -215,6 +216,7 @@ class ReactiveJsonFile {
      * @returns A promise for when the upload is complete
      */
     uploadNow = () => {
+        clearTimeout(this.pendingTimeout);
         let object: any = {};
         this.values.forEach((v, k) => {
             object[k] = v;
