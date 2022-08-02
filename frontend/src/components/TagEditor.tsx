@@ -28,6 +28,9 @@ const subjectOptions: Option[] = [
   { value: 'trans_femoral_amputation_right', label: 'Trans-femoral Amputation - Right' },
   { value: 'trans_tibial_amputation_left', label: 'Trans-tibial Amputation - Left' },
   { value: 'trans_tibial_amputation_right', label: 'Trans-tibial Amputation - Right' },
+  { value: 'osteoarthritis', label: 'Osteoarthritis' },
+  { value: 'knee_osteoarthritis_right', label: 'Knee Osteoarthritis - Right' },
+  { value: 'knee_osteoarthritis_left', label: 'Knee Osteoarthritis - Left' },
 ];
 
 const trialOptions: Option[] = [
@@ -54,6 +57,14 @@ const trialOptions: Option[] = [
   { value: 'jump', label: 'Jump' },
   { value: 'calibration', label: 'Calibration' },
   { value: 'dance', label: 'Dance' },
+  { value: 'rigid_brace_left_ankle', label: 'Brace (Rigid) - Left Ankle' },
+  { value: 'rigid_brace_right_ankle', label: 'Brace (Rigid) - Right Ankle' },
+  { value: 'rigid_brace_left_knee', label: 'Brace (Rigid) - Left Knee' },
+  { value: 'rigid_brace_right_knee', label: 'Brace (Rigid) - Right Knee' },
+  { value: 'rigid_brace_left_hip', label: 'Brace (Rigid) - Left Hip' },
+  { value: 'rigid_brace_right_hip', label: 'Brace (Rigid) - Right Hip' },
+  { value: 'pneumatic_jets_shoes', label: 'Pneumatic Jets (Shoes)' },
+  { value: 'arms_crossed', label: 'Arms Crossed' },
 ];
 
 const MultiValueLabel = (props: MultiValueGenericProps<Option>) => {
@@ -83,14 +94,14 @@ const MultiValueLabel = (props: MultiValueGenericProps<Option>) => {
         if (props.data.integer) {
           rawValue = Math.round(rawValue);
         }
-        if (props.data.min != null && rawValue < props.data.min) {
+        if ((props.data.min != null) && rawValue < props.data.min) {
           rawValue = props.data.min;
         }
-        if (props.data.max != null && rawValue > props.data.max) {
+        if ((props.data.max != null) && rawValue > props.data.max) {
           rawValue = props.data.max;
         }
         setValue(rawValue);
-        onChangeOption(props.data, value);
+        onChangeOption(props.data, rawValue);
       }} />
       {props.data.addedNumberUnits}
     </span>;
