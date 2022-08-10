@@ -294,11 +294,11 @@ class SubjectToProcess:
                         if parts[-1] == '':
                             name = parts[-2]
                         print('name: '+str(name))
-                        path = '/'.join(parts[3:-1]
-                                        if parts[-1] == '' else parts[3:])
-                        print('path: '+str(path))
-                        path = path.replace(' ', '%20')
-                        self.sendNotificationEmail(email, name, path)
+                        emailPath = '/'.join(parts[3:-1]
+                                             if parts[-1] == '' else parts[3:])
+                        print('email path: '+str(emailPath))
+                        emailPath = emailPath.replace(' ', '%20')
+                        self.sendNotificationEmail(email, name, emailPath)
 
                 # 6. Clean up after ourselves
                 shutil.rmtree(path, ignore_errors=True)

@@ -348,8 +348,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         mergeBodiesInto: Dict[str, str] = {}
         mergeBodiesInto['ulna_r'] = 'radius_r'
         mergeBodiesInto['ulna_l'] = 'radius_l'
+        customOsim.skeleton.setPositions(
+            np.zeros(customOsim.skeleton.getNumDofs()))
         simplified = customOsim.skeleton.simplifySkeleton(
             customOsim.skeleton.getName(), mergeBodiesInto)
+        simplified.setPositions(np.zeros(simplified.getNumDofs()))
 
         if exportSDF:
             print('Writing an SDF version of the skeleton', flush=True)
@@ -567,7 +570,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         if exportSDF:
             # 8.4. Convert to SDF, and write that out
             print('Converting '+trialName+' to SDF skeleton', flush=True)
-            convertedPoses = sdfConverter.convertMotion(result.poses)
+            convertedPoses = sdfConverter.convertMotion(
+                result.poses, convergenceThreshold=1e-9, maxStepCount=1000)
             print('Finished converting '+trialName +
                   ' to SDF. Writing out .mot file...', flush=True)
             nimble.biomechanics.OpenSimParser.saveMot(
@@ -576,7 +580,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         if exportMJCF:
             # 8.4. Convert to MuJoCo, and write that out
             print('Converting '+trialName+' to MuJoCo skeleton', flush=True)
-            convertedPoses = mujocoConverter.convertMotion(result.poses)
+            convertedPoses = mujocoConverter.convertMotion(
+                result.poses, convergenceThreshold=1e-9, maxStepCount=1000)
             print('Finished converting '+trialName +
                   ' to MuJoCo. Writing out .mot file...', flush=True)
             nimble.biomechanics.OpenSimParser.saveMot(
