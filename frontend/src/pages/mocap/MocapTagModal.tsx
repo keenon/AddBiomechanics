@@ -79,7 +79,7 @@ const MocapTagModal = observer((props: MocapTagModalProps) => {
         body = <>
             <div className="mb-15">
                 <TagEditor
-                    isSubject={false}
+                    tagSet='trial'
                     tags={tagList}
                     onTagsChanged={(newTags) => {
                         setTagList(newTags);

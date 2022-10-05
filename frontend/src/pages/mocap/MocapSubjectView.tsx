@@ -129,7 +129,8 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
       {fileData}
       {manualIKRow}
       <td>
-        <TagEditor isSubject={false}
+        <TagEditor
+          tagSet='trial'
           tags={tagList}
           onTagsChanged={(newTags) => {
             tagsFile.setAttribute("tags", newTags);
@@ -293,6 +294,49 @@ function getJointError(joint: Node): string | null {
     }
   }
   return null;
+}
+
+function getOpenSimBodyList(opensimFileText: string | null): string[] {
+  if (opensimFileText == null) return [];
+
+  const text: string = opensimFileText;
+  const parser = new DOMParser();
+  const xmlDoc: Document = parser.parseFromString(text, "text/xml");
+
+  let rootNode: Node = xmlDoc.getRootNode();
+  if (rootNode.nodeName === '#document') {
+    rootNode = rootNode.childNodes[0];
+  }
+
+  if (rootNode.nodeName !== "OpenSimDocument") {
+    console.error("Error getting body list! Malformed *.osim file! Root node of XML file isn't an <OpenSimDocument>, instead it's <" + rootNode.nodeName + ">");
+    return [];
+  }
+  const modelNode = getChildByType(rootNode, "Model");
+  if (modelNode == null) {
+    console.error("Error getting body list! Malformed *.osim file! There isn't a <Model> tag as a child of the <OpenSimDocument>");
+    return [];
+  }
+
+  const bodySet = getChildByType(modelNode, "BodySet");
+  if (bodySet == null) {
+    console.error("Error getting body list! This OpenSim file is missing a BodySet! No <BodySet> tag found");
+    return [];
+  }
+  const bodySetObjects = getChildByType(bodySet, "objects");
+  if (bodySetObjects == null) {
+    console.error("Error getting body list! This OpenSim file is missing an <objects> child tag inside the <BodySet> tag!");
+    return [];
+  }
+
+  let bodyNames: string[] = [];
+  const bodyNodes = getChildrenByType(bodySetObjects, "Body");
+  for (let i = 0; i < bodyNodes.length; i++) {
+    const bodyNode = bodyNodes[i];
+    const bodyName = (bodyNode as any).getAttribute('name');
+    bodyNames.push(bodyName);
+  }
+  return bodyNames;
 }
 
 function validateOpenSimFile(file: File): Promise<null | string> {
@@ -758,6 +802,11 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let advancedOptions = null;
   let exportSDF = props.cursor.subjectJson.getAttribute("exportSDF", false);
   let exportMJCF = props.cursor.subjectJson.getAttribute("exportMJCF", false);
+  let fitDynamics = props.cursor.subjectJson.getAttribute("fitDynamics", false);
+
+  let openSimText = props.cursor.customModelFile.getText();
+  const availableBodyList = getOpenSimBodyList(openSimText);
+  let footBodyNames = props.cursor.subjectJson.getAttribute("footBodyNames", []);
 
   if (true) {
     advancedOptions = <>
@@ -791,6 +840,16 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             props.cursor.setShowValidationControls(e.target.checked);
           }} />
           </div>
+          {/*
+          <div className="mb-15">
+            <div className="alert alert-warning" role="alert">
+              VERY Experimental! - Attempt to Fit Dynamics:{" "}
+              <input type="checkbox" checked={fitDynamics} onChange={(e) => {
+                props.cursor.subjectJson.setAttribute("fitDynamics", e.target.checked);
+              }}></input>
+            </div>
+          </div>
+          */}
         </div>
       </div>
     </>;
@@ -804,7 +863,48 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     skeletonDetails = <div className="alert alert-secondary mb-15">The Rajagopal 2015 skeleton is from <a href="https://simtk.org/projects/full_body" target="_blank">here</a>. The CMU Markerset is described <a href="http://mocap.cs.cmu.edu/markerPlacementGuide.pdf" target="_blank">here</a>. Your data must match the marker names exactly!</div>
   }
   if (skeletonPreset === 'custom') {
-    skeletonDetails = <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} required />;
+    skeletonDetails = <div>
+      <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} required />
+    </div>;
+  }
+
+  let footSelector = null;
+  if (fitDynamics && skeletonPreset === 'custom') {
+    footSelector = (<>
+      <div className="row mb-15">
+        <label htmlFor="weightKg" className="form-label">
+          Foot Body Names in Custom OpenSim Model:
+          <OverlayTrigger
+            placement="right"
+            delay={{ show: 50, hide: 400 }}
+            overlay={(props) => (
+              <Tooltip id="button-tooltip" {...props}>
+                We assume measured ground reaction forces goes through these bodies. The tool currently works best if you select only two bodies to serve as "feet", even if your feet are modeled as articulated bodies.
+              </Tooltip>
+            )}
+          >
+            <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+          </OverlayTrigger>
+        </label>
+        <TagEditor
+          tagSet={availableBodyList}
+          tags={footBodyNames}
+          onTagsChanged={(newTags) => {
+            props.cursor.subjectJson.setAttribute("footBodyNames", newTags);
+          }}
+          tagValues={{}}
+          onTagValuesChanged={(newTagValues) => {
+            // Do nothing
+          }}
+          onFocus={() => {
+            props.cursor.subjectJson.onFocusAttribute("footBodyNames");
+          }}
+          onBlur={() => {
+            props.cursor.subjectJson.onBlurAttribute("footBodyNames");
+          }}
+        />
+      </div>
+    </>);
   }
 
   let header = null;
@@ -849,6 +949,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           {skeletonDetails}
         </div>
       </div>
+      {footSelector}
       <form className="row g-3 mb-15">
         <div className="col-md-4">
           <label htmlFor="heightM" className="form-label">
@@ -972,7 +1073,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
         </OverlayTrigger>
         <TagEditor
-          isSubject={true}
+          tagSet='subject'
           tags={subjectTags}
           onTagsChanged={(newTags) => {
             props.cursor.subjectJson.setAttribute("subjectTags", newTags);

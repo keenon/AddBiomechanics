@@ -1,4 +1,4 @@
-import { ReactiveCursor, ReactiveIndex, ReactiveJsonFile } from "./ReactiveS3";
+import { ReactiveCursor, ReactiveIndex, ReactiveJsonFile, ReactiveTextFile } from "./ReactiveS3";
 import { makeObservable, observable, action } from 'mobx';
 import RobustMqtt from "./RobustMqtt";
 
@@ -81,6 +81,7 @@ class MocapS3Cursor {
 
     subjectJson: ReactiveJsonFile;
     resultsJson: ReactiveJsonFile;
+    customModelFile: ReactiveTextFile;
 
     socket: RobustMqtt;
 
@@ -108,6 +109,7 @@ class MocapS3Cursor {
 
         this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
         this.resultsJson = this.rawCursor.getJsonFile("_results.json");
+        this.customModelFile = this.rawCursor.getTextFile("unscaled_generic.osim");
 
         this.socket = socket;
 

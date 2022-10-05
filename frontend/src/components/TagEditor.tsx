@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import Select, { components, MultiValueGenericProps, ControlProps, MultiValue } from 'react-select';
+import Select, { components, MultiValueGenericProps, ControlProps, MultiValue, Props } from 'react-select';
 import './TagEditor.scss';
 
 type Option = {
@@ -31,6 +31,8 @@ const subjectOptions: Option[] = [
   { value: 'osteoarthritis', label: 'Osteoarthritis' },
   { value: 'knee_osteoarthritis_right', label: 'Knee Osteoarthritis - Right' },
   { value: 'knee_osteoarthritis_left', label: 'Knee Osteoarthritis - Left' },
+  { value: 'pregnant', label: 'Pregnant' },
+  { value: 'post_partum', label: 'Postpartum' },
 ];
 
 const trialOptions: Option[] = [
@@ -124,7 +126,7 @@ const NoOptionsMessage = () => {
 }
 
 type TagEditorProps = {
-  isSubject: boolean,
+  tagSet: 'subject' | 'trial' | string[],
   tags: string[],
   tagValues: { [key: string]: number },
   onTagsChanged: (tags: string[]) => void,
@@ -149,7 +151,17 @@ const TagEditor = (props: TagEditorProps) => {
     props.onTagValuesChanged(newValues);
   }
 
-  const optionList = props.isSubject ? subjectOptions : trialOptions;
+  let optionList: Option[] = [];
+  if (props.tagSet === 'subject') optionList = subjectOptions;
+  else if (props.tagSet === 'trial') optionList = trialOptions;
+  else {
+    for (let key of props.tagSet) {
+      optionList.push({
+        value: key,
+        label: key
+      });
+    }
+  }
 
   const selectedOptions = props.tags.flatMap(key => {
     return optionList.filter(o => o.value === key);

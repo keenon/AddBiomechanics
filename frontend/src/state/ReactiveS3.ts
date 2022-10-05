@@ -278,6 +278,109 @@ class ReactiveJsonFile {
     };
 }
 
+/// This is a much less sophisticated version of the ReactiveJsonFile, without support for re-uploading
+class ReactiveTextFile {
+    cursor: ReactiveCursor;
+    loading: boolean;
+    path: string;
+    text: string | null;
+
+    constructor(cursor: ReactiveCursor, path: string) {
+        this.cursor = cursor;
+        this.path = path;
+        this.loading = false;
+        this.text = null;
+
+        this.pathChanged();
+
+        this.cursor.index.addLoadingListener((loading: boolean) => {
+            if (!loading) {
+                this.pathChanged();
+            }
+        });
+
+        makeObservable(this, {
+            loading: observable,
+            path: observable,
+            text: observable,
+            getText: observable
+        });
+    }
+
+    /**
+     * @returns The text we've loaded from the backend, or null
+     */
+    getText = () => {
+        return this.text;
+    }
+
+    /**
+     * This will do a refresh of the contents of the file from S3
+     */
+    refreshFile = () => {
+        console.log("File exists: " + this.fileExist());
+        if (this.fileExist()) {
+            this.loading = true;
+            this.cursor.downloadText(this.path).then(action((text: string) => {
+                console.log("Downloaded text: " + text);
+                this.text = text;
+            })).finally(action(() => {
+                this.loading = false;
+            }));
+        }
+        else {
+            this.text = null;
+        }
+    };
+
+    /**
+     * @returns True if we're loading the file AND have no contents cached. False otherwise.
+     */
+    isLoadingFirstTime = () => {
+        return this.loading && this.text == null;
+    }
+
+    /**
+     * When the file changes on S3
+     */
+    onFileChanged = () => {
+        console.log("Detected file change!");
+        this.refreshFile();
+    };
+
+    /**
+     * @returns the absolute path of the file, relative to the cursor path
+     */
+    getAbsolutePath = () => {
+        let prefix = this.cursor.path;
+        if (!prefix.endsWith('/')) prefix += '/';
+        return prefix + this.path;
+    };
+
+    /**
+     * This gets called right before the path changes, and leaves a chance to clean up values
+     */
+    pathWillChange = () => {
+        this.cursor.index.removeMetadataListener(this.getAbsolutePath(), this.onFileChanged);
+    };
+
+    /**
+     * This gets called when the path has changed in the supporting cursor
+     */
+    pathChanged = () => {
+        console.log('Adding listener to: '+ this.getAbsolutePath() );
+        this.cursor.index.addMetadataListener(this.getAbsolutePath(), this.onFileChanged);
+        this.refreshFile();
+    };
+
+    /**
+     * @returns True if the file currently exists, false otherwise
+     */
+    fileExist = () => {
+        return this.cursor.getExists(this.path);
+    };
+}
+
 /// This is a convenience wrapper for mobx-style interaction with ReactiveS3. It's reusable, to avoid memory leaks.
 /// Ideally, users of this class create a single one, and re-use it as the GUI traverses over different paths and indexes,
 /// by calling setPath() and setIndex(). This should handle cleaning up stray listeners as it traverses, which prevents leaks.
@@ -287,6 +390,7 @@ class ReactiveCursor {
     metadata: ReactiveFileMetadata | null;
     children: Map<string, ReactiveFileMetadata>;
     jsonFiles: Map<string, ReactiveJsonFile>;
+    textFiles: Map<string, ReactiveTextFile>;
     loading: boolean;
     networkErrors: string[];
 
@@ -296,6 +400,7 @@ class ReactiveCursor {
         this.metadata = null;
         this.children = new Map();
         this.jsonFiles = new Map();
+        this.textFiles = new Map();
 
         this.index.addLoadingListener(action((loading: boolean) => {
             this.loading = loading;
@@ -334,10 +439,12 @@ class ReactiveCursor {
         this.index.removeChildrenListener(this.path, this._onChildrenListener);
 
         this.jsonFiles.forEach((file: ReactiveJsonFile) => file.pathWillChange());
+        this.textFiles.forEach((file: ReactiveTextFile) => file.pathWillChange());
         this.path = path;
         this.metadata = this.index.getMetadata(this.path);
         this.children = this.index.getChildren(this.path);
         this.jsonFiles.forEach((file: ReactiveJsonFile) => file.pathChanged());
+        this.textFiles.forEach((file: ReactiveTextFile) => file.pathChanged());
 
         // Add new listeners for changes at the current path
         this.index.addMetadataListener(this.path, this._metadataListener);
@@ -393,6 +500,29 @@ class ReactiveCursor {
      */
     deleteJsonFile = (path: string) => {
         this.jsonFiles.delete(path);
+    };
+
+    /**
+     * This retrieves or creates an object whose job is to retrieve and store changes to a text file in S3.
+     * 
+     * @param path The path of the text file object to retrieve or create
+     */
+    getTextFile = (path: string) => {
+        let file = this.textFiles.get(path);
+        if (file == null) {
+            file = new ReactiveTextFile(this, path);
+            this.textFiles.set(path, file);
+        }
+        return file;
+    };
+
+    /**
+     * This cleans up the resources currently claimed by a text file.
+     * 
+     * @param path 
+     */
+    deleteTextFile = (path: string) => {
+        this.textFiles.delete(path);
     };
 
     /**
@@ -1409,4 +1539,4 @@ class ReactiveIndex {
     }
 }
 
-export { ReactiveIndex, ReactiveCursor, ReactiveJsonFile };
+export { ReactiveIndex, ReactiveCursor, ReactiveJsonFile, ReactiveTextFile };
