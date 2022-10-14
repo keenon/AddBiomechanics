@@ -10,14 +10,14 @@ Licenses-permitting, we plan to make pre-translated aggregate datasets available
 
 ## Getting Set Up for Development (frontend)
 
-1. Download the (aws-exports-dev.js)[https://drive.google.com/file/d/1IBr3Fm-8rYeGudyWLvIEGPkdzdpR0I90/view?usp=sharing] file, rename it `aws-exports.js` and put it into the `frontend/src` folder.
+1. Download the [aws-exports-dev.js](https://drive.google.com/file/d/1IBr3Fm-8rYeGudyWLvIEGPkdzdpR0I90/view?usp=sharing) file, rename it `aws-exports.js` and put it into the `frontend/src` folder.
 2. Run `yarn start` to launch the app!
 
 ## Notes (frontend)
 
-Note: the above instructions will cause your local frontend to target the dev servers, if you would rather interact with production servers, download the (aws-exports-prod.js)[https://drive.google.com/file/d/1VZVgHHwSP-xmJW-qZeQ6U92FYWoU36aP/view?usp=sharing] file, rename it `aws-exports.js` and put it into the `frontend/src` folder.
+Note: the above instructions will cause your local frontend to target the dev servers, if you would rather interact with production servers, download the [aws-exports-prod.js](https://drive.google.com/file/d/1VZVgHHwSP-xmJW-qZeQ6U92FYWoU36aP/view?usp=sharing) file, rename it `aws-exports.js` and put it into the `frontend/src` folder.
 
-Because the app is designed to be served as a static single page application (see the wiki for details) running it locally with the appropriate `aws-exports.js` will behave exactly the same as viewing it from (dev.addbiomechanics.org)[https://dev.addbiomechanics.org] (dev servers) or (app.addbiomechanics.org)[https://app.addbiomechanics.org] (prod servers)
+Because the app is designed to be served as a static single page application (see the wiki for details) running it locally with the appropriate `aws-exports.js` will behave exactly the same as viewing it from [dev.addbiomechanics.org](https://dev.addbiomechanics.org) (dev servers) or [app.addbiomechanics.org](https://app.addbiomechanics.org) (prod servers)
 
 ## Getting Set Up For Deployment (frontend)
 
@@ -32,8 +32,8 @@ Because the app is designed to be served as a static single page application (se
 5. Run `yarn start` to launch the app!
 ## Getting Set Up For Development (server)
 
-1. Download (credentials)[https://drive.google.com/file/d/1okCCdvqaZh20gc4TG152o7yJV9_vnBtf/view?usp=sharing] into `.devcontainer/.aws/credentials` and `server/.aws/credentials`.
-2. Download (server_credentials.csv)[https://drive.google.com/file/d/1e1GrwpOm0viZhNGkw_lDNPa_cfYhJ3r3/view?usp=sharing] into `.devcontainer/server_credentials.csv` and `server/server_credentials.csv`.
+1. Download [credentials](https://drive.google.com/file/d/1okCCdvqaZh20gc4TG152o7yJV9_vnBtf/view?usp=sharing) into `.devcontainer/.aws/credentials` and `server/.aws/credentials`.
+2. Download [server_credentials.csv](https://drive.google.com/file/d/1e1GrwpOm0viZhNGkw_lDNPa_cfYhJ3r3/view?usp=sharing) into `.devcontainer/server_credentials.csv` and `server/server_credentials.csv`.
 3. Open this project in VSCode, and then use Ctrl+Shift+P and get to the command "Remote-Containers: Open Folder in Container...". Re-open this folder in a Docker container.
 4. Using a VSCode Terminal, navigate to `frontend` and execute `yarn start` to begin serving a live frontend
 
