@@ -13,7 +13,9 @@ Licenses-permitting, we plan to make pre-translated aggregate datasets available
 1. Download the (aws-exports-dev.js)[https://drive.google.com/file/d/1IBr3Fm-8rYeGudyWLvIEGPkdzdpR0I90/view?usp=sharing] file, rename it `aws-exports.js` and put it into the `frontend/src` folder.
 2. Run `yarn start` to launch the app!
 
-Note: this will cause your local frontend to target the dev servers, if you would rather interact with production servers, download the (aws-exports-prod.js)[https://drive.google.com/file/d/1VZVgHHwSP-xmJW-qZeQ6U92FYWoU36aP/view?usp=sharing] file, rename it `aws-exports.js` and put it into the `frontend/src` folder.
+## Notes (frontend)
+
+Note: the above instructions will cause your local frontend to target the dev servers, if you would rather interact with production servers, download the (aws-exports-prod.js)[https://drive.google.com/file/d/1VZVgHHwSP-xmJW-qZeQ6U92FYWoU36aP/view?usp=sharing] file, rename it `aws-exports.js` and put it into the `frontend/src` folder.
 
 Because the app is designed to be served as a static single page application (see the wiki for details) running it locally with the appropriate `aws-exports.js` will behave exactly the same as viewing it from (dev.addbiomechanics.org)[https://dev.addbiomechanics.org] (dev servers) or (app.addbiomechanics.org)[https://app.addbiomechanics.org] (prod servers)
 
