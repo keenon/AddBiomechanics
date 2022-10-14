@@ -8,16 +8,26 @@ Our goal in this project is to provide a standard format for modality-sparse hum
 
 Licenses-permitting, we plan to make pre-translated aggregate datasets available for public download.
 
-## Getting Set Up For Development (frontend)
+## Getting Set Up for Development (frontend)
 
-1. Install the Amplify CLI `npm install -g @aws-amplify/cli` (may require `sudo`, depending on your setup)
-2. From inside the `frontend` folder, run `amplify configure`, and follow the instructions to create a new IAM user for your computer (in the 'us-west-2' region)
-3. From inside the `frontend` folder, run `amplify init`
+1. Download the (aws-exports-dev.js)[https://drive.google.com/file/d/1IBr3Fm-8rYeGudyWLvIEGPkdzdpR0I90/view?usp=sharing] file, rename it `aws-exports.js` and put it into the `frontend/src` folder.
+2. Run `yarn start` to launch the app!
+
+Note: this will cause your local frontend to target the dev servers, if you would rather interact with production servers, download the (aws-exports-prod.js)[https://drive.google.com/file/d/1VZVgHHwSP-xmJW-qZeQ6U92FYWoU36aP/view?usp=sharing] file, rename it `aws-exports.js` and put it into the `frontend/src` folder.
+
+Because the app is designed to be served as a static single page application (see the wiki for details) running it locally with the appropriate `aws-exports.js` will behave exactly the same as viewing it from (dev.addbiomechanics.org)[https://dev.addbiomechanics.org] (dev servers) or (app.addbiomechanics.org)[https://app.addbiomechanics.org] (prod servers)
+
+## Getting Set Up For Deployment (frontend)
+
+1. Log in with the AddBiomechanics AWS root account on your local `aws` CLI.
+2. Install the Amplify CLI `npm install -g @aws-amplify/cli` (may require `sudo`, depending on your setup)
+3. From inside the `frontend` folder, run `amplify configure`, and follow the instructions to create a new IAM user for your computer (in the 'us-west-2' region)
+4. From inside the `frontend` folder, run `amplify init`
     a. When asked "Do you want to use an existing environment?" say YES
     b. Choose the environment "dev"
     c. Choose anything you like for your default editor
     d. Select the authentication method "AWS profile", and select the profile you created in step 2
-4. Run `yarn start` to launch the app!
+5. Run `yarn start` to launch the app!
 ## Getting Set Up For Development (server)
 
 1. Download (credentials)[https://drive.google.com/file/d/1okCCdvqaZh20gc4TG152o7yJV9_vnBtf/view?usp=sharing] into `.devcontainer/.aws/credentials` and `server/.aws/credentials`.
