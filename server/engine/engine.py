@@ -13,6 +13,7 @@ import textwrap
 import traceback
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
+DATA_FOLDER_PATH = absPath('../data')
 
 
 def requireExists(path: str, reason: str):
@@ -83,14 +84,30 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     else:
         exportMJCF = False
 
+    if 'fitDynamics' in subjectJson:
+        fitDynamics = subjectJson['fitDynamics']
+    else:
+        fitDynamics = False
+
+    if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
+        footBodyNames = ['calcn_l', 'calcn_r']
+    else:
+        if 'footBodyNames' in subjectJson:
+            footBodyNames = subjectJson['footBodyNames']
+        else:
+            footBodyNames = []
+
     # 3. Load the unscaled Osim file, which we can then scale and format
 
     # 3.0. Check for if we're using a preset OpenSim model, and if so, then copy that in
     if skeletonPreset == 'vicon':
-        shutil.copy('/data/PresetSkeletons/Rajagopal2015_ViconPlugInGait.osim',
+        shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_ViconPlugInGait.osim',
                     path + 'unscaled_generic.osim')
     elif skeletonPreset == 'cmu':
-        shutil.copy('/data/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
+        shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
+                    path + 'unscaled_generic.osim')
+    elif skeletonPreset == 'complete':
+        shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/CompleteHumanModel.osim',
                     path + 'unscaled_generic.osim')
     else:
         if skeletonPreset != 'custom':
@@ -128,33 +145,32 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         exit(1)
 
     # 7. Process the trial
-    fitter = nimble.biomechanics.MarkerFitter(
+    markerFitter = nimble.biomechanics.MarkerFitter(
         customOsim.skeleton, customOsim.markersMap)
-    fitter.setInitialIKSatisfactoryLoss(0.05)
-    fitter.setInitialIKMaxRestarts(50)
-    fitter.setIterationLimit(500)
-    # fitter.setIterationLimit(20)
-    # fitter.setInitialIKMaxRestarts(10)
+    markerFitter.setInitialIKSatisfactoryLoss(0.05)
+    markerFitter.setInitialIKMaxRestarts(50)
+    # markerFitter.setIterationLimit(20)
+    markerFitter.setIterationLimit(500)
 
     guessedTrackingMarkers = False
     if len(customOsim.anatomicalMarkers) > 10:
-        fitter.setTrackingMarkers(customOsim.trackingMarkers)
+        markerFitter.setTrackingMarkers(customOsim.trackingMarkers)
     else:
         print('NOTE: The input *.osim file specified suspiciously few ('+str(len(customOsim.anatomicalMarkers)) +
               ', less than the minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
-        fitter.setTriadsToTracking()
+        markerFitter.setTriadsToTracking()
         guessedTrackingMarkers = True
     # This is 1.0x the values in the default code
-    fitter.setRegularizeAnatomicalMarkerOffsets(10.0)
+    markerFitter.setRegularizeAnatomicalMarkerOffsets(10.0)
     # This is 1.0x the default value
-    fitter.setRegularizeTrackingMarkerOffsets(0.05)
+    markerFitter.setRegularizeTrackingMarkerOffsets(0.05)
     # These are 2x the values in the default code
     # fitter.setMinSphereFitScore(3e-5 * 2)
     # fitter.setMinAxisFitScore(6e-5 * 2)
-    fitter.setMinSphereFitScore(0.01)
-    fitter.setMinAxisFitScore(0.001)
+    markerFitter.setMinSphereFitScore(0.01)
+    markerFitter.setMinAxisFitScore(0.001)
     # Default max joint weight is 0.5, so this is 2x the default value
-    fitter.setMaxJointWeight(1.0)
+    markerFitter.setMaxJointWeight(1.0)
 
     trialNames = []
     c3dFiles: Dict[str, nimble.biomechanics.C3D] = {}
@@ -178,7 +194,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             c3dFile: nimble.biomechanics.C3D = nimble.biomechanics.C3DLoader.loadC3D(
                 c3dFilePath)
             nimble.biomechanics.C3DLoader.fixupMarkerFlips(c3dFile)
-            fitter.autorotateC3D(c3dFile)
+            markerFitter.autorotateC3D(c3dFile)
             c3dFiles[trialName] = c3dFile
             trialForcePlates.append(c3dFile.forcePlates)
             trialTimestamps.append(c3dFile.timestamps)
@@ -215,10 +231,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     for i in range(len(trialNames)):
         print('Checking and repairing marker data quality on trial ' +
               str(trialNames[i])+'. This can take a while, depending on trial length...', flush=True)
-        trialErrorReport = fitter.generateDataErrorsReport(markerTrials[i])
+        trialErrorReport = markerFitter.generateDataErrorsReport(
+            markerTrials[i], 1.0 / trialFramesPerSecond[i])
         markerTrials[i] = trialErrorReport.markerObservationsAttemptedFixed
         trialErrorReports.append(trialErrorReport)
-        hasEnoughMarkers = fitter.checkForEnoughMarkers(markerTrials[i])
+        hasEnoughMarkers = markerFitter.checkForEnoughMarkers(markerTrials[i])
         totalFrames += len(markerTrials[i])
         if not hasEnoughMarkers:
             print("There are fewer than 8 markers that show up in the OpenSim model and in trial " +
@@ -234,23 +251,23 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
 
     # Create an anthropometric prior
     anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
-        '/data/ANSUR_metrics.xml')
+        DATA_FOLDER_PATH + '/ANSUR_metrics.xml')
     cols = anthropometrics.getMetricNames()
     cols.append('Heightin')
     cols.append('Weightlbs')
     if sex == 'male':
         gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
-            '/data/ANSUR_II_MALE_Public.csv',
+            DATA_FOLDER_PATH + '/ANSUR_II_MALE_Public.csv',
             cols,
             0.001)  # mm -> m
     elif sex == 'female':
         gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
-            '/data/ANSUR_II_FEMALE_Public.csv',
+            DATA_FOLDER_PATH + '/ANSUR_II_FEMALE_Public.csv',
             cols,
             0.001)  # mm -> m
     else:
         gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
-            '/data/ANSUR_II_BOTH_Public.csv',
+            DATA_FOLDER_PATH + '/ANSUR_II_BOTH_Public.csv',
             cols,
             0.001)  # mm -> m
     observedValues = {
@@ -259,10 +276,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     }
     gauss = gauss.condition(observedValues)
     anthropometrics.setDistribution(gauss)
-    fitter.setAnthropometricPrior(anthropometrics, 0.1)
+    markerFitter.setAnthropometricPrior(anthropometrics, 0.1)
 
     # Run the kinematics pipeline
-    results: List[nimble.biomechanics.MarkerInitialization] = fitter.runMultiTrialKinematicsPipeline(
+    results: List[nimble.biomechanics.MarkerInitialization] = markerFitter.runMultiTrialKinematicsPipeline(
         markerTrials,
         nimble.biomechanics.InitialMarkerFitParams()
         .setMaxTrialsToUseForMultiTrialScaling(5)
@@ -272,13 +289,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     # Check for any flipped markers, now that we've done a first pass
     anySwapped = False
     for i in range(len(trialNames)):
-        if fitter.checkForFlippedMarkers(markerTrials[i], results[i], trialErrorReports[i]):
+        if markerFitter.checkForFlippedMarkers(markerTrials[i], results[i], trialErrorReports[i]):
             anySwapped = True
             markerTrials[i] = trialErrorReports[i].markerObservationsAttemptedFixed
 
     if anySwapped:
         print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, so we have to run the whole pipeline again with unswapped markers. ********")
-        results = fitter.runMultiTrialKinematicsPipeline(
+        results = markerFitter.runMultiTrialKinematicsPipeline(
             markerTrials,
             nimble.biomechanics.InitialMarkerFitParams()
             .setMaxTrialsToUseForMultiTrialScaling(5)
@@ -342,16 +359,91 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     if os.path.exists(path + 'results/opensim.log'):
         os.remove(path + 'results/opensim.log')
 
+    # Set up some interchangeable data structures, so that we can write out the results using the same code, regardless of whether we used dynamics or not
+    finalSkeleton = customOsim.skeleton
+    finalPoses = [result.poses for result in results]
+    finalMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
+                                  np.ndarray]] = fitMarkers
+
+    # If we've got ground reaction force data, and we enabled dynamics, then run the dynamics pipeline
+    if fitDynamics:
+        print('**** EXPERIMENTAL! Attempting to fit dynamics')
+        if len(footBodyNames) == 0:
+            print(
+                'ERROR: No foot bodies were specified, so we have to quit dynamics fitter early')
+        else:
+            # optimizedOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
+            #     path + 'results/Models/optimized_scale_and_markers.osim')
+            optimizedOsim: nimble.biomechanics.OpenSimFile = customOsim
+            optimizedOsim.skeleton.autogroupSymmetricSuffixes()
+            if optimizedOsim.skeleton.getBodyNode("hand_r") is not None:
+                optimizedOsim.skeleton.setScaleGroupUniformScaling(
+                    optimizedOsim.skeleton.getBodyNode("hand_r"))
+            optimizedOsim.skeleton.autogroupSymmetricPrefixes("ulna", "radius")
+
+            footBodies = []
+            for name in footBodyNames:
+                footBodies.append(optimizedOsim.skeleton.getBodyNode(name))
+
+            dynamicsFitter = nimble.biomechanics.DynamicsFitter(
+                optimizedOsim.skeleton, footBodies, optimizedOsim.trackingMarkers)
+            dynamicsInit = nimble.biomechanics.DynamicsFitter.createInitialization(
+                optimizedOsim.skeleton,
+                results,
+                optimizedOsim.trackingMarkers,
+                footBodies,
+                trialForcePlates,
+                trialFramesPerSecond,
+                markerTrials)
+
+            print("Initial mass: " + str(optimizedOsim.skeleton.getMass()) + " kg")
+            print("What we'd expect average ~GRF to be (Mass * 9.8): " +
+                  str(optimizedOsim.skeleton.getMass() * 9.8) + " N")
+            secondPair = dynamicsFitter.computeAverageRealForce(dynamicsInit)
+            print("Avg Force: " + str(secondPair[0]) + " N")
+            print("Avg Torque: " + str(secondPair[1]) + " Nm")
+
+            dynamicsFitter.estimateFootGroundContacts(dynamicsInit)
+            dynamicsFitter.computeAverageRealForce(dynamicsInit)
+            dynamicsFitter.setIterationLimit(200)
+            dynamicsFitter.runIPOPTOptimization(
+                dynamicsInit, 2e-2, 50, True, False, True, False, True, False, False)
+
+            dynamicsFitter.setIterationLimit(200)
+            dynamicsFitter.runSGDOptimization(
+                dynamicsInit, 2e-2, 50, True, True, True, True, False, True)
+
+            dynamicsFitter.setIterationLimit(200)
+            dynamicsFitter.runSGDOptimization(
+                dynamicsInit, 2e-2, 50, True, True, True, True, True, True)
+
+            dynamicsFitter.computePerfectGRFs(dynamicsInit)
+
+            consistent = dynamicsFitter.checkPhysicalConsistency(
+                dynamicsInit, maxAcceptableErrors=1e-3, maxTimestepsToTest=25)
+
+            print("Avg Marker RMSE: " +
+                  str(dynamicsFitter.computeAverageMarkerRMSE(dynamicsInit) * 100) + "cm")
+            pair = dynamicsFitter.computeAverageResidualForce(dynamicsInit)
+            print("Avg Residual Force: " + str(pair[0]) + " N (" + str((pair[0] /
+                  secondPair[0]) * 100) + "% of original " + str(secondPair[0]) + " N)")
+            print("Avg Residual Torque: " + str(pair[1]) + " Nm (" + str((pair[1] /
+                  secondPair[1]) * 100) + "% of original " + str(secondPair[1]) + " Nm)")
+            print("Avg CoP movement in 'perfect' GRFs: " +
+                  str(dynamicsFitter.computeAverageCOPChange(dynamicsInit)) + " m")
+            print("Avg force change in 'perfect' GRFs: " +
+                  str(dynamicsFitter.computeAverageForceMagnitudeChange(dynamicsInit)) + " N")
+
     # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
     if exportSDF or exportMJCF:
         print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
         mergeBodiesInto: Dict[str, str] = {}
         mergeBodiesInto['ulna_r'] = 'radius_r'
         mergeBodiesInto['ulna_l'] = 'radius_l'
-        customOsim.skeleton.setPositions(
-            np.zeros(customOsim.skeleton.getNumDofs()))
-        simplified = customOsim.skeleton.simplifySkeleton(
-            customOsim.skeleton.getName(), mergeBodiesInto)
+        finalSkeleton.setPositions(
+            np.zeros(finalSkeleton.getNumDofs()))
+        simplified = finalSkeleton.simplifySkeleton(
+            finalSkeleton.getName(), mergeBodiesInto)
         simplified.setPositions(np.zeros(simplified.getNumDofs()))
 
         if exportSDF:
@@ -361,16 +453,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             sdfSkeleton = nimble.utils.SdfParser.readSkeleton(
                 path + 'results/SDF/model.sdf')
             sdfConverter: nimble.biomechanics.SkeletonConverter = nimble.biomechanics.SkeletonConverter(
-                sdfSkeleton, customOsim.skeleton)
+                sdfSkeleton, finalSkeleton)
             # Set the root orientation to be the same
             for i in range(6):
-                sdfSkeleton.setPosition(i, customOsim.skeleton.getPosition(i))
+                sdfSkeleton.setPosition(i, finalSkeleton.getPosition(i))
             # Link joints
             for i in range(sdfSkeleton.getNumJoints()):
                 sourceJoint = sdfSkeleton.getJoint(i)
-                if customOsim.skeleton.getJoint(sourceJoint.getName()) is not None:
+                if finalSkeleton.getJoint(sourceJoint.getName()) is not None:
                     sdfConverter.linkJoints(
-                        sourceJoint, customOsim.skeleton.getJoint(sourceJoint.getName()))
+                        sourceJoint, finalSkeleton.getJoint(sourceJoint.getName()))
             sdfConverter.createVirtualMarkers()
 
         if exportMJCF:
@@ -378,28 +470,28 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             nimble.utils.MJCFExporter.writeSkeleton(
                 path + 'results/MuJoCo/model.xml', simplified)
             mujocoConverter: nimble.biomechanics.SkeletonConverter = nimble.biomechanics.SkeletonConverter(
-                simplified, customOsim.skeleton)
+                simplified, finalSkeleton)
             # Set the root orientation to be the same
             for i in range(6):
-                simplified.setPosition(i, customOsim.skeleton.getPosition(i))
+                simplified.setPosition(i, finalSkeleton.getPosition(i))
             # Link joints
             for i in range(simplified.getNumJoints()):
                 sourceJoint = simplified.getJoint(i)
-                if customOsim.skeleton.getJoint(sourceJoint.getName()) is not None:
+                if finalSkeleton.getJoint(sourceJoint.getName()) is not None:
                     mujocoConverter.linkJoints(
-                        sourceJoint, customOsim.skeleton.getJoint(sourceJoint.getName()))
+                        sourceJoint, finalSkeleton.getJoint(sourceJoint.getName()))
             mujocoConverter.createVirtualMarkers()
 
     # Get ready to count the number of times we run up against joint limits during the IK
     dofNames: List[str] = []
     jointLimitsHits: Dict[str, int] = {}
-    for i in range(customOsim.skeleton.getNumDofs()):
-        dofNames.append(customOsim.skeleton.getDofByIndex(i).getName())
-        jointLimitsHits[customOsim.skeleton.getDofByIndex(i).getName()] = 0
+    for i in range(finalSkeleton.getNumDofs()):
+        dofNames.append(finalSkeleton.getDofByIndex(i).getName())
+        jointLimitsHits[finalSkeleton.getDofByIndex(i).getName()] = 0
     trialJointWarnings: Dict[str, List[str]] = {}
 
-    for i in range(len(results)):
-        result = results[i]
+    for i in range(len(finalPoses)):
+        poses = finalPoses[i]
         trialName = trialNames[i]
         c3dFile = c3dFiles[trialName] if trialName in c3dFiles else None
         forcePlates = trialForcePlates[i]
@@ -410,7 +502,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         trialPath = path + 'trials/' + trialName + '/'
 
         resultIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
-            customOsim.skeleton, fitMarkers, result.poses, markerTimesteps)
+            finalSkeleton, fitMarkers, poses, markerTimesteps)
         trialProcessingResult['autoAvgRMSE'] = resultIK.averageRootMeanSquaredError
         trialProcessingResult['autoAvgMax'] = resultIK.averageMaxError
         trialProcessingResult['markerErrors'] = resultIK.getSortedMarkerRMSE()
@@ -460,9 +552,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
 
         # Write out the .mot files
         print('Writing OpenSim '+path+'results/IK/' +
-              trialName+'.mot file, shape='+str(result.poses.shape), flush=True)
+              trialName+'.mot file, shape='+str(poses.shape), flush=True)
         nimble.biomechanics.OpenSimParser.saveMot(
-            customOsim.skeleton, path + 'results/IK/'+trialName+'_ik.mot', timestamps, result.poses)
+            finalSkeleton, path + 'results/IK/'+trialName+'_ik.mot', timestamps, poses)
         resultIK.saveCSVMarkerErrorReport(
             path + 'results/IK/'+trialName+'_ik_per_marker_error_report.csv')
         nimble.biomechanics.OpenSimParser.saveGRFMot(
@@ -476,24 +568,38 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
             trialName, markerNames, "Models/optimized_scale_and_markers.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
         nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsForcesXMLFile(
-            trialName, customOsim.skeleton, result.poses, forcePlates, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
+            trialName, finalSkeleton, poses, forcePlates, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
         nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
             trialName, 'Models/optimized_scale_and_markers.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml')
 
         # 8.2. Write out the animation preview
-        # 8.2.1. Create the raw JSON
-        if (goldOsim is not None) and (goldMot is not None):
-            print('Saving trajectory, markers, and the manual IK to a GUI log ' +
+        # 8.2.1. Create the raw binary
+        if fitDynamics and dynamicsInit is not None:
+            print('Saving trajectory, markers, and dynamics to a GUI log ' +
                   trialPath+'preview.bin', flush=True)
-            print('goldOsim: '+str(goldOsim), flush=True)
-            print('goldMot.poses.shape: '+str(goldMot.poses.shape), flush=True)
-            fitter.saveTrajectoryAndMarkersToGUI(
-                trialPath+'preview.bin', result, markerTimesteps, framesPerSecond, forcePlates, goldOsim, goldMot.poses)
+            print("FPS: " + str(round(1.0 / dynamicsInit.trialTimesteps[0])))
+            dynamicsFitter.saveDynamicsToGUI(
+                trialPath+'preview.bin',
+                dynamicsInit,
+                i,
+                round(1.0 / dynamicsInit.trialTimesteps[i]))
+
+            dynamicsFitter.writeCSVData(
+                path + 'results/ID/'+trialName+'_full.csv', dynamicsInit, i)
         else:
-            print('Saving trajectory and markers to a GUI log ' +
-                  trialPath+'preview.bin', flush=True)
-            fitter.saveTrajectoryAndMarkersToGUI(
-                trialPath+'preview.bin', result, markerTimesteps, framesPerSecond, forcePlates)
+            if (goldOsim is not None) and (goldMot is not None):
+                print('Saving trajectory, markers, and the manual IK to a GUI log ' +
+                      trialPath+'preview.bin', flush=True)
+                print('goldOsim: '+str(goldOsim), flush=True)
+                print('goldMot.poses.shape: ' +
+                      str(goldMot.poses.shape), flush=True)
+                markerFitter.saveTrajectoryAndMarkersToGUI(
+                    trialPath+'preview.bin', results[i], markerTimesteps, framesPerSecond, forcePlates, goldOsim, goldMot.poses)
+            else:
+                print('Saving trajectory and markers to a GUI log ' +
+                      trialPath+'preview.bin', flush=True)
+                markerFitter.saveTrajectoryAndMarkersToGUI(
+                    trialPath+'preview.bin', results[i], markerTimesteps, framesPerSecond, forcePlates)
         # 8.2.2. Zip it up
         print('Zipping up '+trialPath+'preview.bin', flush=True)
         subprocess.run(["zip", "-r", 'preview.bin.zip',
@@ -505,17 +611,17 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         trialJointLimitHits: Dict[str, int] = {}
         jointLimitsFrames: Dict[str, List[int]] = {}
         jointLimitsFramesUpperBound: Dict[str, List[bool]] = {}
-        for i in range(customOsim.skeleton.getNumDofs()):
-            dofName = customOsim.skeleton.getDofByIndex(i).getName()
+        for i in range(finalSkeleton.getNumDofs()):
+            dofName = finalSkeleton.getDofByIndex(i).getName()
             trialJointLimitHits[dofName] = 0
             jointLimitsFrames[dofName] = []
             jointLimitsFramesUpperBound[dofName] = []
 
         tol = 0.001
-        for t in range(result.poses.shape[1]):
-            thisTimestepPos = result.poses[:, t]
-            for i in range(customOsim.skeleton.getNumDofs()):
-                dof = customOsim.skeleton.getDofByIndex(i)
+        for t in range(poses.shape[1]):
+            thisTimestepPos = poses[:, t]
+            for i in range(finalSkeleton.getNumDofs()):
+                dof = finalSkeleton.getDofByIndex(i)
                 dofPos = thisTimestepPos[i]
                 # If the joints are at least 2*tol apart
                 if dof.getPositionUpperLimit() > dof.getPositionLowerLimit() + 2 * tol:
@@ -571,7 +677,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             # 8.4. Convert to SDF, and write that out
             print('Converting '+trialName+' to SDF skeleton', flush=True)
             convertedPoses = sdfConverter.convertMotion(
-                result.poses, convergenceThreshold=1e-9, maxStepCount=1000)
+                poses, convergenceThreshold=1e-9, maxStepCount=1000)
             print('Finished converting '+trialName +
                   ' to SDF. Writing out .mot file...', flush=True)
             nimble.biomechanics.OpenSimParser.saveMot(
@@ -581,7 +687,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             # 8.4. Convert to MuJoCo, and write that out
             print('Converting '+trialName+' to MuJoCo skeleton', flush=True)
             convertedPoses = mujocoConverter.convertMotion(
-                result.poses, convergenceThreshold=1e-9, maxStepCount=1000)
+                poses, convergenceThreshold=1e-9, maxStepCount=1000)
             print('Finished converting '+trialName +
                   ' to MuJoCo. Writing out .mot file...', flush=True)
             nimble.biomechanics.OpenSimParser.saveMot(
@@ -594,15 +700,15 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                         'results/Models/manually_scaled.osim')
 
     # Copy over the geometry files, so the model can be loaded directly in OpenSim without chasing down Geometry files somewhere else
-    shutil.copytree('/data/Geometry', path +
+    shutil.copytree(DATA_FOLDER_PATH + '/Geometry', path +
                     'results/Models/Geometry')
     # Copy over the geometry files (in a MuJoCo specific file format), so the model can be loaded directly in MuJoCo without chasing down Geometry files somewhere else
     if exportMJCF:
-        shutil.copytree('/data/MuJoCoGeometry', path +
+        shutil.copytree(DATA_FOLDER_PATH + '/MuJoCoGeometry', path +
                         'results/MuJoCo/Geometry')
     # Copy over the geometry files (in a SDF specific file format), so the model can be loaded directly in PyBullet without chasing down Geometry files somewhere else
     if exportSDF:
-        shutil.copytree('/data/SDFGeometry', path +
+        shutil.copytree(DATA_FOLDER_PATH + '/SDFGeometry', path +
                         'results/SDF/Geometry')
 
     # Generate the overall summary result
@@ -630,7 +736,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         processingResult['goldAvgMax'] /= goldTotalLen
     processingResult['guessedTrackingMarkers'] = guessedTrackingMarkers
     processingResult['trialMarkerSets'] = trialMarkerSet
-    processingResult['osimMarkers'] = list(customOsim.markersMap.keys())
+    processingResult['osimMarkers'] = list(finalMarkers.keys())
 
     trialWarnings: Dict[str, List[str]] = {}
     trialInfo: Dict[str, List[str]] = {}
@@ -717,6 +823,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                         trialName+'_ik_on_manual_scaling_by_opensim.mot\n')
             f.write("\n\n")
 
+        # TODO: update the README when Inverse Dynamics is fully supported
         f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics is not yet fully supported by AddBiomechanics, and so the mapping of force-plates to feet is not perfect. The default XML files assign each force plate to the `calcn_*` body that gets closest to it during the motion trial. THIS MAY NOT BE CORRECT! That said, hopefully this is at least a useful starting point for you to edit from. The following commands should work (FROM THIS FOLDER, and not including the leading \"> \"):\n"))
         f.write("\n\n")
         for i in range(len(results)):

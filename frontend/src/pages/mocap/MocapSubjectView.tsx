@@ -840,7 +840,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             props.cursor.setShowValidationControls(e.target.checked);
           }} />
           </div>
-          {/*
           <div className="mb-15">
             <div className="alert alert-warning" role="alert">
               VERY Experimental! - Attempt to Fit Dynamics:{" "}
@@ -849,7 +848,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               }}></input>
             </div>
           </div>
-          */}
         </div>
       </div>
     </>;
@@ -861,6 +859,9 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
   else if (skeletonPreset === 'cmu') {
     skeletonDetails = <div className="alert alert-secondary mb-15">The Rajagopal 2015 skeleton is from <a href="https://simtk.org/projects/full_body" target="_blank">here</a>. The CMU Markerset is described <a href="http://mocap.cs.cmu.edu/markerPlacementGuide.pdf" target="_blank">here</a>. Your data must match the marker names exactly!</div>
+  }
+  else if (skeletonPreset === 'complete') {
+    skeletonDetails = <div className="alert alert-secondary mb-15">The DEVELOPER PREVIEW full body model is unpublished work from Keenon Werling, Carmichael Ong, and Marilyn Keller. USE AT YOUR OWN RISK!</div>
   }
   if (skeletonPreset === 'custom') {
     skeletonDetails = <div>
@@ -942,6 +943,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           }}>
             <option value="vicon" selected>Rajagopal 2015, Vicon Plug-In Gait Markerset</option>
             <option value="cmu">Rajagopal 2015, CMU Markerset</option>
+            <option value="complete">Complete Body Model 2022, DEVELOPER PREVIEW</option>
             <option value="custom">Custom OpenSim Model, Custom Markerset</option>
           </select>
         </div>

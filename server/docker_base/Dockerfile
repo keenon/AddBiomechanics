@@ -43,7 +43,7 @@ RUN git clone https://github.com/coin-or-tools/ThirdParty-Mumps.git && \
     cd ThirdParty-Mumps && \
     ./get.Mumps && \
     FC=$(which gfortran-10) ./configure && \
-    make -j14 && \
+    make -j3 && \
     make install && \
     cd .. && \
     rm -rf ThirdParty-Mumps
@@ -73,7 +73,7 @@ RUN git clone https://github.com/casadi/casadi.git && \
 RUN apt-get install -y autoconf libtool libadolc2
 
 # Install OpenSim dependencies
-RUN git clone https://github.com/opensim-org/opensim-core.git
+RUN git clone https://github.com/keenon/opensim-core.git
 RUN mkdir opensim_dependencies_build && \
     cd opensim_dependencies_build && \
     cmake ../opensim-core/dependencies \
@@ -89,11 +89,13 @@ RUN mkdir opensim_build && \
     cmake ../opensim-core \
         -DCMAKE_INSTALL_PREFIX="~/opensim_install" \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DOPENSIM_WITH_CASADI=OFF \
+        -DOPENSIM_WITH_TROPTER=OFF \
         -DBUILD_PYTHON_WRAPPING=OFF \
         -DBUILD_JAVA_WRAPPING=OFF \
         -DOPENSIM_DEPENDENCIES_DIR="~/opensim_dependencies_install" \
         -DWITH_BTK=ON && \
-    make -j3 && \
+    make -j4 && \
     make install
 
 # Test our installation
