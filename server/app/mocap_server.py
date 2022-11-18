@@ -483,6 +483,7 @@ class MocapServer:
                         'Sleeping for 10 seconds before attempting to process the next item...')
                     time.sleep(10)
                     print('Done sleeping')
+                    self.onChange()
                 else:
                     time.sleep(1)
             except Exception as e:

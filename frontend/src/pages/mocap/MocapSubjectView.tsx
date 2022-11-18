@@ -18,6 +18,7 @@ import MocapLogModal from "./MocapLogModal";
 import MocapTagModal from "./MocapTagModal";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
 import TagEditor from '../../components/TagEditor';
+import { attachEventProps } from "@aws-amplify/ui-react/lib-esm/react-component-lib/utils";
 
 type ProcessingResultsJSON = {
   autoAvgMax: number;
@@ -557,6 +558,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let subjectTagValues = props.cursor.subjectJson.getAttribute("subjectTagValues", {} as { [key: string]: number });
 
   let autoAvgRMSE = props.cursor.resultsJson.getAttribute("autoAvgRMSE", 0.0);
+  let linearResidual: number | false = props.cursor.resultsJson.getAttribute("linearResidual", false);
+  let angularResidual: number | false = props.cursor.resultsJson.getAttribute("angularResidual", false);
   let guessedTrackingMarkers = props.cursor.resultsJson.getAttribute("guessedTrackingMarkers", 0.0);
   let trialMarkerSets = props.cursor.resultsJson.getAttribute("trialMarkerSets", {});
   let trialWarnings = props.cursor.resultsJson.getAttribute("trialWarnings", {});
@@ -712,8 +715,27 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     }
 
     statusBadge = <span className="badge bg-primary">Processed</span>;
+
+    let residualText = "";
+    if (linearResidual && angularResidual) {
+      residualText += " (";
+      if (linearResidual > 10 || linearResidual < 1) {
+        residualText += linearResidual.toExponential(2);
+      }
+      else {
+        residualText += linearResidual.toFixed(2);
+      }
+      residualText += "N, ";
+      if (angularResidual > 10 || angularResidual < 1) {
+        residualText += angularResidual.toExponential(2);
+      }
+      else {
+        residualText += angularResidual.toFixed(2);
+      }
+      residualText += "Nm residuals)";
+    }
     statusDetails = <>
-      <h4>Results: {(autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE</h4>
+      <h4>Results: {(autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE {residualText}</h4>
       {guessedMarkersWarning}
       {download}
       <div style={{ 'marginBottom': '5px' }}>
@@ -803,12 +825,39 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let exportSDF = props.cursor.subjectJson.getAttribute("exportSDF", false);
   let exportMJCF = props.cursor.subjectJson.getAttribute("exportMJCF", false);
   let fitDynamics = props.cursor.subjectJson.getAttribute("fitDynamics", false);
+  let residualsToZero = props.cursor.subjectJson.getAttribute("residualsToZero", false);
+  let tuneResidualLoss = props.cursor.subjectJson.getAttribute("tuneResidualLoss", 1.0);
 
   let openSimText = props.cursor.customModelFile.getText();
   const availableBodyList = getOpenSimBodyList(openSimText);
   let footBodyNames = props.cursor.subjectJson.getAttribute("footBodyNames", []);
 
   if (true) {
+
+    let dynamicsOptions = <></>;
+    if (fitDynamics) {
+      dynamicsOptions = <>
+        <div className="card card-body">
+          <h5>Dynamics Fit Options:</h5>
+          <div className="mb-15">
+            Attempt to drive residuals to exactly zero, at the cost of more marker error:{" "}
+            <input type="checkbox" checked={residualsToZero} onChange={(e) => {
+              props.cursor.subjectJson.setAttribute("residualsToZero", e.target.checked);
+            }}></input>
+          </div>
+          <div className="mb-15">
+            Change the weight of residuals in the final optimization:{" "}
+            <input type="number" value={tuneResidualLoss} onChange={(e) => {
+              props.cursor.subjectJson.setAttribute("tuneResidualLoss", parseFloat(e.target.value));
+            }}></input>
+            <p>
+              Note: This weighting is relative to the other terms in the optimization - 1.0 is default weighting, lower will prefer optimizing other terms (mostly marker RMSE), higher will prefer optimizing residuals.
+            </p>
+          </div>
+        </div>
+      </>;
+    }
+
     advancedOptions = <>
       <hr />
       <button className="btn" type="button" onClick={() => setShowAdvanced(!showAdvanced)}>
@@ -840,14 +889,15 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             props.cursor.setShowValidationControls(e.target.checked);
           }} />
           </div>
-          <div className="mb-15">
+          <div className="">
             <div className="alert alert-warning" role="alert">
-              VERY Experimental! - Attempt to Fit Dynamics:{" "}
+              Experimental - Attempt to Fit Dynamics:{" "}
               <input type="checkbox" checked={fitDynamics} onChange={(e) => {
                 props.cursor.subjectJson.setAttribute("fitDynamics", e.target.checked);
               }}></input>
             </div>
           </div>
+          {dynamicsOptions}
         </div>
       </div>
     </>;

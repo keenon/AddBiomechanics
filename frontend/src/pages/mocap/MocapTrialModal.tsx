@@ -12,6 +12,8 @@ type MocapTrialModalProps = {
 type ProcessingResultsJSON = {
     autoAvgMax: number;
     autoAvgRMSE: number;
+    linearResidual?: number;
+    angularResidual?: number;
     goldAvgMax: number;
     goldAvgRMSE: number;
 };
@@ -124,6 +126,24 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
     else if (subjectStatus === 'done') {
         let percentImprovementRMSE = ((resultsJson.goldAvgRMSE - resultsJson.autoAvgRMSE) / resultsJson.goldAvgRMSE) * 100;
         let percentImprovementMax = ((resultsJson.goldAvgMax - resultsJson.autoAvgMax) / resultsJson.goldAvgMax) * 100;
+        let linearResidualText = "N/A";
+        let angularResidualText = "N/A";
+        if (resultsJson.linearResidual) {
+            if (resultsJson.linearResidual > 10 || resultsJson.linearResidual < 1) {
+                linearResidualText = (resultsJson.linearResidual).toExponential(2) + "N";
+            }
+            else {
+                linearResidualText = (resultsJson.linearResidual).toFixed(2) + "N";
+            }
+        }
+        if (resultsJson.angularResidual) {
+            if (resultsJson.angularResidual > 10 || resultsJson.angularResidual < 1) {
+                angularResidualText = (resultsJson.angularResidual).toExponential(2) + "Nm";
+            }
+            else {
+                angularResidualText = (resultsJson.angularResidual).toFixed(2) + "Nm";
+            }
+        }
 
         body = (
             <div className="MocapView">
@@ -136,6 +156,8 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                                 <td></td>
                                 <td>Avg. Marker-error RMSE</td>
                                 <td>Avg. Marker-error Max</td>
+                                <td>Avg. Linear Residual</td>
+                                <td>Avg. Angular Residual</td>
                             </tr>
                         </thead>
                         <tbody>
@@ -158,6 +180,8 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                                 <td>{(resultsJson.autoAvgMax * 100 ?? 0.0).toFixed(2)} cm {
                                     isNaN(percentImprovementMax) ? null : <b>({percentImprovementMax.toFixed(1)}% error {percentImprovementMax > 0 ? 'reduction' : 'increase'})</b>
                                 }</td>
+                                <td>{linearResidualText}</td>
+                                <td>{angularResidualText}</td>
                             </tr>
                         </tbody>
                     </Table>

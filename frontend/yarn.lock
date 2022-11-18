@@ -9914,10 +9914,10 @@ nice-try@^1.0.4:
   resolved "https://registry.yarnpkg.com/nice-try/-/nice-try-1.0.5.tgz#a3378a7696ce7d223e88fc9b764bd7ef1089e366"
   integrity sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
 
-nimble-visualizer@^0.8.8:
-  version "0.8.8"
-  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.8.8.tgz#bec1410740b6d175fca8205714460a002fd03014"
-  integrity sha512-YFzGOjWYVbOOE3kAdLRXL94Qt/IE06WoYCgQkAx+0FcpCAoms/TktgacOVDYUsDh7IU5Kcz3mHKNge48nwPAJQ==
+nimble-visualizer@^0.8.9:
+  version "0.8.9"
+  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.8.9.tgz#8c5796848ed63e7b47e901777935f35c39f78d0f"
+  integrity sha512-nySgIQfR9G+kFCQ39H8garjiZDRVtbw2WBZGijBJK40QFzv2X6fLdt1wbonwhGLuwTF9lyXA6cSsUB4Nyqhyrw==
   dependencies:
     google-protobuf "^3.20.1"
     sha256-uint8array "^0.10.3"

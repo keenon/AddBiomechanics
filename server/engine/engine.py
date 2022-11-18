@@ -89,6 +89,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     else:
         fitDynamics = False
 
+    if 'residualsToZero' in subjectJson:
+        residualsToZero = subjectJson['residualsToZero']
+    else:
+        residualsToZero = False
+
+    if 'tuneResidualLoss' in subjectJson:
+        tuneResidualLoss = subjectJson['tuneResidualLoss']
+    else:
+        tuneResidualLoss = 1.0
+
     if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
         footBodyNames = ['calcn_l', 'calcn_r']
     else:
@@ -306,6 +316,119 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
                                 np.ndarray]] = results[0].updatedMarkerMap
 
+    # Set up some interchangeable data structures, so that we can write out the results using the same code, regardless of whether we used dynamics or not
+    finalSkeleton = customOsim.skeleton
+    finalPoses = [result.poses for result in results]
+    finalMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
+                                  np.ndarray]] = fitMarkers
+    finalInverseDynamics = []
+
+    # If we've got ground reaction force data, and we enabled dynamics, then run the dynamics pipeline
+    if fitDynamics:
+        print('**** EXPERIMENTAL! Attempting to fit dynamics')
+        if len(footBodyNames) == 0:
+            print(
+                'ERROR: No foot bodies were specified, so we have to quit dynamics fitter early')
+        else:
+            footBodies = []
+            for name in footBodyNames:
+                foot = finalSkeleton.getBodyNode(name)
+                if foot is None:
+                    print('ERROR: foot "' + str(name) +
+                          '" not found in skeleton! Dynamics fitter will break as a result.')
+                footBodies.append(finalSkeleton.getBodyNode(name))
+
+            finalSkeleton.setGravity([0, -9.81, 0])
+            dynamicsFitter = nimble.biomechanics.DynamicsFitter(
+                finalSkeleton, footBodies, customOsim.trackingMarkers)
+            dynamicsInit = nimble.biomechanics.DynamicsFitter.createInitialization(
+                finalSkeleton,
+                results,
+                customOsim.trackingMarkers,
+                footBodies,
+                trialForcePlates,
+                trialFramesPerSecond,
+                markerTrials)
+            dynamicsFitter.estimateFootGroundContacts(dynamicsInit)
+
+            print("Initial mass: " + str(finalSkeleton.getMass()) + " kg")
+            print("What we'd expect average ~GRF to be (Mass * 9.8): " +
+                  str(finalSkeleton.getMass() * 9.8) + " N")
+            secondPair = dynamicsFitter.computeAverageRealForce(dynamicsInit)
+            print("Avg Force: " + str(secondPair[0]) + " N")
+            print("Avg Torque: " + str(secondPair[1]) + " Nm")
+
+            dynamicsFitter.smoothAccelerations(dynamicsInit)
+            dynamicsFitter.zeroLinearResidualsOnCOMTrajectory(dynamicsInit)
+            for trial in range(len(dynamicsInit.poseTrials)):
+                originalTrajectory = dynamicsInit.poseTrials[trial]
+                for i in range(30):
+                    # this holds the mass constant, and re-jigs the trajectory to try to get
+                    # the angular ACC's to match more closely what was actually observed
+                    dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
+                        dynamicsInit, trial, originalTrajectory, 1.0, 5.0, 0.1)
+
+                # successOnResiduals = dynamicsFitter.optimizeSpatialResidualsOnCOMTrajectory(
+                #     dynamicsInit, trial, 5e-6)
+                # if successOnResiduals:
+                dynamicsFitter.recalibrateForcePlates(
+                    dynamicsInit, trial)
+
+            dynamicsFitter.setIterationLimit(200)
+            dynamicsFitter.runIPOPTOptimization(
+                dynamicsInit,
+                nimble.biomechanics.DynamicsFitProblemConfig(
+                    finalSkeleton)
+                .setDefaults(True)
+                .setLinearNewtonWeight(0.01 * tuneResidualLoss)
+                .setResidualWeight(0.01 * tuneResidualLoss)
+                .setConstrainResidualsZero(False)
+                .setIncludeMasses(True)
+                .setIncludeInertias(True)
+                .setIncludeCOMs(True)
+                .setIncludeBodyScales(True)
+                .setIncludeMarkerOffsets(True)
+                .setIncludePoses(True))
+
+            # Reset force plates to 0-ish residuals, if user requests it
+            if residualsToZero:
+                for trial in range(len(dynamicsInit.poseTrials)):
+                    successOnResiduals = dynamicsFitter.optimizeSpatialResidualsOnCOMTrajectory(
+                        dynamicsInit, trial, 5e-6)
+                    if successOnResiduals:
+                        dynamicsFitter.recalibrateForcePlates(
+                            dynamicsInit, trial)
+
+            dynamicsFitter.computePerfectGRFs(dynamicsInit)
+
+            consistent = dynamicsFitter.checkPhysicalConsistency(
+                dynamicsInit, maxAcceptableErrors=1e-3, maxTimestepsToTest=25)
+
+            print("Avg Marker RMSE: " +
+                  str(dynamicsFitter.computeAverageMarkerRMSE(dynamicsInit) * 100) + "cm")
+            pair = dynamicsFitter.computeAverageResidualForce(dynamicsInit)
+            print("Avg Residual Force: " + str(pair[0]) + " N (" + str((pair[0] /
+                  secondPair[0]) * 100) + "% of original " + str(secondPair[0]) + " N)")
+            print("Avg Residual Torque: " + str(pair[1]) + " Nm (" + str((pair[1] /
+                  secondPair[1]) * 100) + "% of original " + str(secondPair[1]) + " Nm)")
+            print("Avg CoP movement in 'perfect' GRFs: " +
+                  str(dynamicsFitter.computeAverageCOPChange(dynamicsInit)) + " m")
+            print("Avg force change in 'perfect' GRFs: " +
+                  str(dynamicsFitter.computeAverageForceMagnitudeChange(dynamicsInit)) + " N")
+
+            # Write all the results back
+            for trial in range(len(dynamicsInit.poseTrials)):
+                finalInverseDynamics.append(
+                    dynamicsFitter.computeInverseDynamics(dynamicsInit, trial))
+                pair = dynamicsFitter.computeAverageTrialResidualForce(
+                    dynamicsInit, trial)
+                trialProcessingResults[trial]['linearResidual'] = pair[0]
+                trialProcessingResults[trial]['angularResidual'] = pair[1]
+                pass
+            finalPoses = dynamicsInit.poseTrials
+            finalMarkers = dynamicsInit.updatedMarkerMap
+            trialForcePlates = dynamicsInit.forcePlateTrials
+
     # 8.2. Write out the usable OpenSim results
 
     if not os.path.exists(path+'results'):
@@ -332,14 +455,14 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     # 8.2.1. Adjusting marker locations
     print('Adjusting marker locations on scaled OpenSim file', flush=True)
     bodyScalesMap: Dict[str, np.ndarray] = {}
-    for i in range(customOsim.skeleton.getNumBodyNodes()):
-        bodyNode: nimble.dynamics.BodyNode = customOsim.skeleton.getBodyNode(i)
+    for i in range(finalSkeleton.getNumBodyNodes()):
+        bodyNode: nimble.dynamics.BodyNode = finalSkeleton.getBodyNode(i)
         # Now that we adjust the markers BEFORE we rescale the body, we don't want to rescale the marker locations at all
         bodyScalesMap[bodyNode.getName()] = [1, 1, 1]  # bodyNode.getScale()
     markerOffsetsMap: Dict[str, Tuple[str, np.ndarray]] = {}
     markerNames: List[str] = []
-    for k in fitMarkers:
-        v = fitMarkers[k]
+    for k in finalMarkers:
+        v = finalMarkers[k]
         markerOffsetsMap[k] = (v[0].getName(), v[1])
         markerNames.append(k)
     nimble.biomechanics.OpenSimParser.moveOsimMarkers(
@@ -347,7 +470,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
 
     # 8.2.2. Write the XML instructions for the OpenSim scaling tool
     nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
-        'optimized_scale_and_markers', customOsim.skeleton, massKg, heightM, 'Models/unscaled_but_with_optimized_markers.osim', 'Unassigned', 'Models/optimized_scale_and_markers.osim', path + 'results/Models/rescaling_setup.xml')
+        'optimized_scale_and_markers', finalSkeleton, massKg, heightM, 'Models/unscaled_but_with_optimized_markers.osim', 'Unassigned', 'Models/optimized_scale_and_markers.osim', path + 'results/Models/rescaling_setup.xml')
     # 8.2.3. Call the OpenSim scaling tool
     command = 'cd '+path+'results && opensim-cmd run-tool ' + \
         path + 'results/Models/rescaling_setup.xml'
@@ -359,80 +482,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     if os.path.exists(path + 'results/opensim.log'):
         os.remove(path + 'results/opensim.log')
 
-    # Set up some interchangeable data structures, so that we can write out the results using the same code, regardless of whether we used dynamics or not
-    finalSkeleton = customOsim.skeleton
-    finalPoses = [result.poses for result in results]
-    finalMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
-                                  np.ndarray]] = fitMarkers
-
-    # If we've got ground reaction force data, and we enabled dynamics, then run the dynamics pipeline
-    if fitDynamics:
-        print('**** EXPERIMENTAL! Attempting to fit dynamics')
-        if len(footBodyNames) == 0:
-            print(
-                'ERROR: No foot bodies were specified, so we have to quit dynamics fitter early')
-        else:
-            # optimizedOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
-            #     path + 'results/Models/optimized_scale_and_markers.osim')
-            optimizedOsim: nimble.biomechanics.OpenSimFile = customOsim
-            optimizedOsim.skeleton.autogroupSymmetricSuffixes()
-            if optimizedOsim.skeleton.getBodyNode("hand_r") is not None:
-                optimizedOsim.skeleton.setScaleGroupUniformScaling(
-                    optimizedOsim.skeleton.getBodyNode("hand_r"))
-            optimizedOsim.skeleton.autogroupSymmetricPrefixes("ulna", "radius")
-
-            footBodies = []
-            for name in footBodyNames:
-                footBodies.append(optimizedOsim.skeleton.getBodyNode(name))
-
-            dynamicsFitter = nimble.biomechanics.DynamicsFitter(
-                optimizedOsim.skeleton, footBodies, optimizedOsim.trackingMarkers)
-            dynamicsInit = nimble.biomechanics.DynamicsFitter.createInitialization(
-                optimizedOsim.skeleton,
-                results,
-                optimizedOsim.trackingMarkers,
-                footBodies,
-                trialForcePlates,
-                trialFramesPerSecond,
-                markerTrials)
-
-            print("Initial mass: " + str(optimizedOsim.skeleton.getMass()) + " kg")
-            print("What we'd expect average ~GRF to be (Mass * 9.8): " +
-                  str(optimizedOsim.skeleton.getMass() * 9.8) + " N")
-            secondPair = dynamicsFitter.computeAverageRealForce(dynamicsInit)
-            print("Avg Force: " + str(secondPair[0]) + " N")
-            print("Avg Torque: " + str(secondPair[1]) + " Nm")
-
-            dynamicsFitter.estimateFootGroundContacts(dynamicsInit)
-            dynamicsFitter.computeAverageRealForce(dynamicsInit)
-            dynamicsFitter.setIterationLimit(200)
-            dynamicsFitter.runIPOPTOptimization(
-                dynamicsInit, 2e-2, 50, True, False, True, False, True, False, False)
-
-            dynamicsFitter.setIterationLimit(200)
-            dynamicsFitter.runSGDOptimization(
-                dynamicsInit, 2e-2, 50, True, True, True, True, False, True)
-
-            dynamicsFitter.setIterationLimit(200)
-            dynamicsFitter.runSGDOptimization(
-                dynamicsInit, 2e-2, 50, True, True, True, True, True, True)
-
-            dynamicsFitter.computePerfectGRFs(dynamicsInit)
-
-            consistent = dynamicsFitter.checkPhysicalConsistency(
-                dynamicsInit, maxAcceptableErrors=1e-3, maxTimestepsToTest=25)
-
-            print("Avg Marker RMSE: " +
-                  str(dynamicsFitter.computeAverageMarkerRMSE(dynamicsInit) * 100) + "cm")
-            pair = dynamicsFitter.computeAverageResidualForce(dynamicsInit)
-            print("Avg Residual Force: " + str(pair[0]) + " N (" + str((pair[0] /
-                  secondPair[0]) * 100) + "% of original " + str(secondPair[0]) + " N)")
-            print("Avg Residual Torque: " + str(pair[1]) + " Nm (" + str((pair[1] /
-                  secondPair[1]) * 100) + "% of original " + str(secondPair[1]) + " Nm)")
-            print("Avg CoP movement in 'perfect' GRFs: " +
-                  str(dynamicsFitter.computeAverageCOPChange(dynamicsInit)) + " m")
-            print("Avg force change in 'perfect' GRFs: " +
-                  str(dynamicsFitter.computeAverageForceMagnitudeChange(dynamicsInit)) + " N")
+    # 8.2.4. Overwrite the inertia properties of the resulting OpenSim skeleton file
+    nimble.biomechanics.OpenSimParser.replaceOsimInertia(
+        path + 'results/Models/optimized_scale_and_markers.osim', finalSkeleton, path + 'results/Models/final.osim')
 
     # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
     if exportSDF or exportMJCF:
@@ -492,6 +544,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
 
     for i in range(len(finalPoses)):
         poses = finalPoses[i]
+        forces = finalInverseDynamics[i] if i < len(
+            finalInverseDynamics) else None
         trialName = trialNames[i]
         c3dFile = c3dFiles[trialName] if trialName in c3dFiles else None
         forcePlates = trialForcePlates[i]
@@ -555,6 +609,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
               trialName+'.mot file, shape='+str(poses.shape), flush=True)
         nimble.biomechanics.OpenSimParser.saveMot(
             finalSkeleton, path + 'results/IK/'+trialName+'_ik.mot', timestamps, poses)
+        if forces is not None:
+            nimble.biomechanics.OpenSimParser.saveIDMot(
+                finalSkeleton, path + 'results/ID/'+trialName+'_id.mot', timestamps, forces)
         resultIK.saveCSVMarkerErrorReport(
             path + 'results/IK/'+trialName+'_ik_per_marker_error_report.csv')
         nimble.biomechanics.OpenSimParser.saveGRFMot(
@@ -716,6 +773,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
     goldTotalLen = 0
     processingResult['autoAvgRMSE'] = 0
     processingResult['autoAvgMax'] = 0
+    if fitDynamics:
+        processingResult['linearResidual'] = 0
+        processingResult['angularResidual'] = 0
     processingResult['goldAvgRMSE'] = 0
     processingResult['goldAvgMax'] = 0
     for i in range(len(results)):
@@ -723,6 +783,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         trialProcessingResult = trialProcessingResults[i]
         processingResult['autoAvgRMSE'] += trialProcessingResult['autoAvgRMSE'] * trialLen
         processingResult['autoAvgMax'] += trialProcessingResult['autoAvgMax'] * trialLen
+        if fitDynamics:
+            processingResult['linearResidual'] += trialProcessingResult['linearResidual'] * trialLen
+            processingResult['angularResidual'] += trialProcessingResult['angularResidual'] * trialLen
         autoTotalLen += trialLen
 
         if 'goldAvgRMSE' in trialProcessingResult and 'goldAvgMax' in trialProcessingResult:
@@ -731,6 +794,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             goldTotalLen += trialLen
     processingResult['autoAvgRMSE'] /= autoTotalLen
     processingResult['autoAvgMax'] /= autoTotalLen
+    if fitDynamics:
+        processingResult['linearResidual'] /= autoTotalLen
+        processingResult['angularResidual'] /= autoTotalLen
     if goldTotalLen > 0:
         processingResult['goldAvgRMSE'] /= goldTotalLen
         processingResult['goldAvgMax'] /= goldTotalLen

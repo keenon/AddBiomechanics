@@ -47,19 +47,25 @@ class ReactiveS3Index:
         """
         self.pubSub.subscribe("/UPDATE/#", self._onUpdate)
         self.pubSub.subscribe("/DELETE/#", self._onDelete)
+
         # Make sure we refresh our index when our connection resumes, if our connection was interrupted
-        self.pubSub.addResumeListener(self.refreshIndex)
+        #
+        # I think this is actually getting really expensive, because the connection gets interrupted A LOT and the full refresh requires a lot of downloading.
+        #
+        # self.pubSub.addResumeListener(self.refreshIndex)
 
     def refreshIndex(self) -> None:
         """
         This updates the index
         """
+        print('Doing full index refresh...')
         for object in self.bucket.objects.all():
             key: str = object.key
             lastModified: int = object.last_modified.timestamp() * 1000
             size: int = object.size
             file = FileMetadata(key, lastModified, size)
             self.files[key] = file
+        print('Full index refresh finished!')
         self._onRefresh()
 
     def listAllFolders(self) -> Set[str]:
