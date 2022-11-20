@@ -374,7 +374,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                 dynamicsFitter.recalibrateForcePlates(
                     dynamicsInit, trial)
 
-            dynamicsFitter.setIterationLimit(200)
+            maxNumTrials = 3
+
+            dynamicsFitter.setIterationLimit(500)
             dynamicsFitter.runIPOPTOptimization(
                 dynamicsInit,
                 nimble.biomechanics.DynamicsFitProblemConfig(
@@ -382,6 +384,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                 .setDefaults(True)
                 .setLinearNewtonWeight(0.01 * tuneResidualLoss)
                 .setResidualWeight(0.01 * tuneResidualLoss)
+                .setMaxNumTrials(maxNumTrials)
                 .setConstrainResidualsZero(False)
                 .setIncludeMasses(True)
                 .setIncludeInertias(True)
@@ -390,7 +393,22 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                 .setIncludeMarkerOffsets(True)
                 .setIncludePoses(True))
 
-            # Reset force plates to 0-ish residuals, if user requests it
+            # If we have more trials than we included in the main optimization, do just poses optimization for it
+            for trial in range(len(dynamicsInit.poseTrials)):
+                if trial >= maxNumTrials:
+                    dynamicsFitter.setIterationLimit(200)
+                    dynamicsFitter.runIPOPTOptimization(
+                        dynamicsInit,
+                        nimble.biomechanics.DynamicsFitProblemConfig(
+                            finalSkeleton)
+                        .setDefaults(True)
+                        .setOnlyOneTrial(trial)
+                        .setLinearNewtonWeight(0.01 * tuneResidualLoss)
+                        .setResidualWeight(0.01 * tuneResidualLoss)
+                        .setConstrainResidualsZero(False)
+                        .setIncludePoses(True))
+
+            # Specifically optimize to 0-ish residuals, if user requests it
             if residualsToZero:
                 for trial in range(len(dynamicsInit.poseTrials)):
                     successOnResiduals = dynamicsFitter.optimizeSpatialResidualsOnCOMTrajectory(
