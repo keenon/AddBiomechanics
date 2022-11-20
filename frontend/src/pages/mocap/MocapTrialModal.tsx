@@ -129,7 +129,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
         let linearResidualText = "N/A";
         let angularResidualText = "N/A";
         if (resultsJson.linearResidual) {
-            if (resultsJson.linearResidual > 10 || resultsJson.linearResidual < 1) {
+            if (resultsJson.linearResidual >= 100 || resultsJson.linearResidual < 0.1) {
                 linearResidualText = (resultsJson.linearResidual).toExponential(2) + "N";
             }
             else {
@@ -137,7 +137,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
             }
         }
         if (resultsJson.angularResidual) {
-            if (resultsJson.angularResidual > 10 || resultsJson.angularResidual < 1) {
+            if (resultsJson.angularResidual >= 100 || resultsJson.angularResidual < 0.1) {
                 angularResidualText = (resultsJson.angularResidual).toExponential(2) + "Nm";
             }
             else {
@@ -148,7 +148,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
         body = (
             <div className="MocapView">
                 <h2>Results:</h2>
-                <NimbleStandaloneReact style={{ height: '400px' }} loading={visualization?.loading ?? true} loadingProgress={visualization?.loadingProgress ?? 0.0} recording={visualization?.object ?? null} />
+                <NimbleStandaloneReact style={{ height: '500px' }} loading={visualization?.loading ?? true} loadingProgress={visualization?.loadingProgress ?? 0.0} recording={visualization?.object ?? null} />
                 <div>
                     <Table>
                         <thead>

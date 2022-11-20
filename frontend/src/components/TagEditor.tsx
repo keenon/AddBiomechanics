@@ -133,7 +133,8 @@ type TagEditorProps = {
   onTagValuesChanged: (tagValues: { [key: string]: number }) => void,
   onFocus?: () => void,
   onBlur?: () => void,
-  hideNumbers?: boolean
+  hideNumbers?: boolean,
+  error?: boolean
 };
 
 const TagEditor = (props: TagEditorProps) => {
@@ -141,8 +142,22 @@ const TagEditor = (props: TagEditorProps) => {
     props.onTagsChanged(newOptions.map(o => o.value));
   }
 
-  const customStyles = {
-    control: (styles: any) => ({ ...styles, backgroundColor: 'white', border: '1px solid rgb(222, 226, 230)' }),
+  let customStyles;
+  if (props.error) {
+    customStyles = {
+      control: (styles: any) => ({
+        ...styles,
+        borderColor: 'red',
+        '&:hover': {
+          borderColor: 'red',
+        }
+      }),
+    };
+  }
+  else {
+    customStyles = {
+      control: (styles: any) => ({ ...styles, backgroundColor: 'white', border: '1px solid rgb(222, 226, 230)' }),
+    };
   }
 
   const onChangeOption = (option: Option, newValue: number) => {

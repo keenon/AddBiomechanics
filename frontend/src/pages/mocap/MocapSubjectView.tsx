@@ -719,14 +719,14 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     let residualText = "";
     if (linearResidual && angularResidual) {
       residualText += " (";
-      if (linearResidual > 10 || linearResidual < 1) {
+      if (linearResidual >= 100 || linearResidual < 0.1) {
         residualText += linearResidual.toExponential(2);
       }
       else {
         residualText += linearResidual.toFixed(2);
       }
       residualText += "N, ";
-      if (angularResidual > 10 || angularResidual < 1) {
+      if (angularResidual >= 100 || angularResidual < 0.1) {
         residualText += angularResidual.toExponential(2);
       }
       else {
@@ -833,26 +833,34 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let footBodyNames = props.cursor.subjectJson.getAttribute("footBodyNames", []);
 
   if (true) {
-
     let dynamicsOptions = <></>;
     if (fitDynamics) {
       dynamicsOptions = <>
         <div className="card card-body">
-          <h5>Dynamics Fit Options:</h5>
+          <h5>ADVANCED: Dynamics Fit Options (defaults should already work well for most cases)</h5>
           <div className="mb-15">
-            Attempt to drive residuals to exactly zero, at the cost of more marker error:{" "}
-            <input type="checkbox" checked={residualsToZero} onChange={(e) => {
-              props.cursor.subjectJson.setAttribute("residualsToZero", e.target.checked);
-            }}></input>
-          </div>
-          <div className="mb-15">
-            Change the weight of residuals in the final optimization:{" "}
+            <p>
+              Change the weight of residuals in the main optimization (tuning joint poses, body scales, marker offsets, body COMs, body masses, and body inertia properties):{" "}
+              <br />
+              <small>
+                Note: This weighting is relative to the other terms in the optimization - 1.0 is default weighting, lower will prefer optimizing other terms (mostly marker RMSE), higher will prefer optimizing residuals.
+              </small>
+            </p>
             <input type="number" value={tuneResidualLoss} onChange={(e) => {
               props.cursor.subjectJson.setAttribute("tuneResidualLoss", parseFloat(e.target.value));
             }}></input>
+          </div>
+          <div className="mb-15">
             <p>
-              Note: This weighting is relative to the other terms in the optimization - 1.0 is default weighting, lower will prefer optimizing other terms (mostly marker RMSE), higher will prefer optimizing residuals.
+              Run a last optimization pass to attempt to drive residuals to exactly zero at the end of the optimization, at the cost of more marker error:{" "}
+              <br />
+              <small>
+                Note: This optimization is non-convex and does not always succeed, and if it does not it will return results as if you hadn't enabled it.
+              </small>
             </p>
+            <input type="checkbox" checked={residualsToZero} onChange={(e) => {
+              props.cursor.subjectJson.setAttribute("residualsToZero", e.target.checked);
+            }}></input>
           </div>
         </div>
       </>;
@@ -921,9 +929,25 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   let footSelector = null;
   if (fitDynamics && skeletonPreset === 'custom') {
+    let footErrorMessage = null;
+    if (footBodyNames.length < 2) {
+      footErrorMessage = (
+        <div className="invalid-feedback">
+          To fit dynamics to your data, please specify at least two body nodes that we can treat as "feet", and send ground reaction forces through.
+        </div>
+      );
+    }
+    else if (footBodyNames.length > 2) {
+      footErrorMessage = (
+        <div className="invalid-feedback">
+          Currently AddBiomechanics dynamics fitter only supports treating each foot as a single body segment. Please don't include multiple segments from each foot.
+        </div>
+      );
+    }
+
     footSelector = (<>
       <div className="row mb-15">
-        <label htmlFor="weightKg" className="form-label">
+        <label htmlFor="footBodyNames" className="form-label is-invalid">
           Foot Body Names in Custom OpenSim Model:
           <OverlayTrigger
             placement="right"
@@ -938,6 +962,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           </OverlayTrigger>
         </label>
         <TagEditor
+          error={footBodyNames.length != 2}
           tagSet={availableBodyList}
           tags={footBodyNames}
           onTagsChanged={(newTags) => {
@@ -954,6 +979,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             props.cursor.subjectJson.onBlurAttribute("footBodyNames");
           }}
         />
+        {footErrorMessage}
       </div>
     </>);
   }
