@@ -27,6 +27,7 @@ class FileMetadata:
 class ReactiveS3Index:
     pubSub: PubSub
     files: Dict[str, FileMetadata]
+    children: Dict[str, List[str]]
     changeListeners: List[Callable]
     bucketName: str
     deployment: str
@@ -39,6 +40,7 @@ class ReactiveS3Index:
         self.bucket = self.s3.Bucket(self.bucketName)
         self.pubSub = PubSub(deployment)
         self.files = {}
+        self.children = {}
         self.changeListeners = []
 
     def registerPubSub(self) -> None:
@@ -59,35 +61,74 @@ class ReactiveS3Index:
         This updates the index
         """
         print('Doing full index refresh...')
+        self.files.clear()
+        self.children.clear()
         for object in self.bucket.objects.all():
             key: str = object.key
             lastModified: int = object.last_modified.timestamp() * 1000
             size: int = object.size
             file = FileMetadata(key, lastModified, size)
+            self.updateChildrenOnAddFile(key)
             self.files[key] = file
         print('Full index refresh finished!')
         self._onRefresh()
+
+    def updateChildrenOnAddFile(self, path: str):
+        cursor = -1
+        subPath = ''
+        while True:
+            try:
+                cursor = path.index('/', cursor+1)
+                subPath = path[:cursor]
+                # End all files/folders with a slash
+                if len(subPath) > 0 and subPath[-1] != '/':
+                    subPath += '/'
+                if subPath not in self.children:
+                    self.children[subPath] = []
+                self.children[subPath].append(path)
+            except ValueError:
+                # the slash was not found
+                break
+
+    def updateChildrenOnRemoveFile(self, path: str):
+        cursor = -1
+        subPath = ''
+        while True:
+            try:
+                cursor = path.index('/', cursor+1)
+                subPath = path[:cursor]
+                # End all files/folders with a slash
+                if len(subPath) > 0 and subPath[-1] != '/':
+                    subPath += '/'
+                if subPath in self.children and path in self.children[subPath]:
+                    self.children[subPath].remove(path)
+                    if len(self.children[subPath]) == 0:
+                        del self.children[subPath]
+            except ValueError:
+                # the slash was not found
+                break
 
     def listAllFolders(self) -> Set[str]:
         """
         This parses the different file names, and lists all virtual folders implied by the paths, along with all real folders
         """
-        folders: Set[str] = set()
-        for path in self.files:
-            cursor = -1
-            while True:
-                try:
-                    cursor = path.index('/', cursor+1)
-                    subPath = path[:cursor]
-                    # End all files/folders with a slash
-                    if len(subPath) > 0 and subPath[-1] != '/':
-                        subPath += '/'
-                    folders.add(subPath)
-                except ValueError:
-                    # the slash was not found
-                    folders.add(path)
-                    break
-        return folders
+        return set(self.children.keys())
+        # folders: Set[str] = set()
+        # for path in self.files:
+        #     cursor = -1
+        #     while True:
+        #         try:
+        #             cursor = path.index('/', cursor+1)
+        #             subPath = path[:cursor]
+        #             # End all files/folders with a slash
+        #             if len(subPath) > 0 and subPath[-1] != '/':
+        #                 subPath += '/'
+        #             folders.add(subPath)
+        #         except ValueError:
+        #             # the slash was not found
+        #             folders.add(path)
+        #             break
+        # return folders
 
     def exists(self, path: str) -> bool:
         return path in self.files
@@ -100,10 +141,14 @@ class ReactiveS3Index:
         This returns a list of all the children of a given folder
         """
         children: Dict[str, FileMetadata] = {}
-        for path in self.files:
-            if path.startswith(folder) and path != folder:
-                subPath = path[len(folder):]
-                children[subPath] = self.files[path]
+        if folder in self.children:
+            for path in self.children[folder]:
+                if path != folder:
+                    children[path[len(folder):]] = self.files[path]
+        # for path in self.files:
+        #     if path.startswith(folder) and path != folder:
+        #         subPath = path[len(folder):]
+        #         children[subPath] = self.files[path]
         return children
 
     def getImmediateChildren(self, folder: str) -> Dict[str, FileMetadata]:
@@ -252,6 +297,7 @@ class ReactiveS3Index:
         file = FileMetadata(key, lastModified, size)
         print("onUpdate() file: "+str(file))
         self.files[key] = file
+        self.updateChildrenOnAddFile(key)
         self._onRefresh()
 
     def _onDelete(self, topic: str, payload: bytes) -> None:
@@ -263,6 +309,7 @@ class ReactiveS3Index:
         print("onDelete() key: "+str(key))
         if key in self.files:
             del self.files[key]
+            self.updateChildrenOnRemoveFile(key)
             self._onRefresh()
 
     def _onRefresh(self) -> None:

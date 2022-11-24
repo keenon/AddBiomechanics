@@ -159,7 +159,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
         customOsim.skeleton, customOsim.markersMap)
     markerFitter.setInitialIKSatisfactoryLoss(0.05)
     markerFitter.setInitialIKMaxRestarts(50)
-    # markerFitter.setIterationLimit(20)
+    # markerFitter.setIterationLimit(40)
     markerFitter.setIterationLimit(500)
 
     guessedTrackingMarkers = False
@@ -361,16 +361,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             dynamicsFitter.smoothAccelerations(dynamicsInit)
             dynamicsFitter.zeroLinearResidualsOnCOMTrajectory(dynamicsInit)
             for trial in range(len(dynamicsInit.poseTrials)):
-                originalTrajectory = dynamicsInit.poseTrials[trial]
-                for i in range(30):
+                originalTrajectory = dynamicsInit.poseTrials[trial].copy()
+                for i in range(50):
                     # this holds the mass constant, and re-jigs the trajectory to try to get
                     # the angular ACC's to match more closely what was actually observed
                     dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
-                        dynamicsInit, trial, originalTrajectory, 1.0, 5.0, 0.1)
+                        dynamicsInit, trial, originalTrajectory, 1.0, 0.1, 0.1, 40)
 
-                # successOnResiduals = dynamicsFitter.optimizeSpatialResidualsOnCOMTrajectory(
-                #     dynamicsInit, trial, 5e-6)
-                # if successOnResiduals:
                 dynamicsFitter.recalibrateForcePlates(
                     dynamicsInit, trial)
 
@@ -411,11 +408,14 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             # Specifically optimize to 0-ish residuals, if user requests it
             if residualsToZero:
                 for trial in range(len(dynamicsInit.poseTrials)):
-                    successOnResiduals = dynamicsFitter.optimizeSpatialResidualsOnCOMTrajectory(
-                        dynamicsInit, trial, 5e-6)
-                    if successOnResiduals:
-                        dynamicsFitter.recalibrateForcePlates(
-                            dynamicsInit, trial)
+                    originalTrajectory = dynamicsInit.poseTrials[trial].copy()
+                    for i in range(100):
+                        # this holds the mass constant, and re-jigs the trajectory to try to get
+                        # the angular ACC's to match more closely what was actually observed
+                        dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
+                            dynamicsInit, trial, originalTrajectory, 1.0, 0.1, 0.1)
+                    dynamicsFitter.recalibrateForcePlates(
+                        dynamicsInit, trial)
 
             dynamicsFitter.computePerfectGRFs(dynamicsInit)
 

@@ -216,6 +216,9 @@ class SubjectToProcess:
             with open(path + 'log.txt', 'wb+') as logFile:
                 with subprocess.Popen([enginePath, path, self.subjectName], stdout=subprocess.PIPE) as proc:
                     print('Process created: '+str(proc.pid), flush=True)
+
+                    unflushedLines: List[str] = []
+                    lastFlushed = time.time()
                     for lineBytes in iter(proc.stdout.readline, b''):
                         if lineBytes is None and proc.poll() is not None:
                             break
@@ -223,12 +226,22 @@ class SubjectToProcess:
                         print('>>> '+str(line).strip(), flush=True)
                         # Send to the log
                         logFile.write(lineBytes)
-                        # Send to PubSub
-                        logLine: Dict[str, str] = {}
-                        logLine['line'] = line
-                        logLine['timestamp'] = time.time() * 1000
-                        self.index.pubSub.sendMessage(
-                            '/LOG/'+procLogTopic, logLine)
+                        # Add it to the queue
+                        unflushedLines.append(line)
+
+                        now = time.time()
+                        elapsedSeconds = now - lastFlushed
+
+                        # Only flush in bulk, and only every 3 seconds
+                        if elapsedSeconds > 3.0:
+                            # Send to PubSub
+                            logLine: Dict[str, str] = {}
+                            logLine['lines'] = unflushedLines
+                            logLine['timestamp'] = now * 1000
+                            self.index.pubSub.sendMessage(
+                                '/LOG/'+procLogTopic, logLine)
+                            lastFlushed = now
+                            unflushedLines = []
                     # Wait for the process to exit
                     exitCode = 'Failed to exit after 60 seconds'
                     for i in range(20):
@@ -437,6 +450,7 @@ class MocapServer:
                     folder += '/'
                 subject = SubjectToProcess(self.index, folder)
                 if subject.shouldProcess():
+                    print('- should process: '+str(subject.subjectPath))
                     shouldProcessSubjects.append(subject)
 
         # 2. Sort Trials oldest to newest, sort by default sorts in ascending order

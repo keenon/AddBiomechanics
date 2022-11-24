@@ -22,7 +22,7 @@ type MocapProcessingFlags = {
 }
 
 type MocapProcessingLogMsg = {
-    line: string;
+    lines: string[];
     timestamp: number;
 }
 
@@ -623,8 +623,13 @@ class MocapS3Cursor {
             if (unsubscribed[0]) return;
 
             logListener[0] = this.socket.subscribe("/LOG/" + procFlagContents.logTopic, (topic, msg) => {
+                console.log(msg);
                 const logMsg: MocapProcessingLogMsg = JSON.parse(msg);
-                onLogLine(logMsg.line);
+                if (logMsg.lines) {
+                    for (let i = 0; i < logMsg.lines.length; i++) {
+                        onLogLine(logMsg.lines[i]);
+                    }
+                }
             });
         });
 
