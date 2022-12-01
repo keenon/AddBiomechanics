@@ -32,6 +32,7 @@ class TrialToProcess:
     goldIKFile: str
     resultsFile: str
     previewBinFile: str
+    plotCSVFile: str
 
     def __init__(self, index: ReactiveS3Index, subjectPath: str, trialName: str) -> None:
         self.index = index
@@ -49,6 +50,7 @@ class TrialToProcess:
         self.goldIKFile = self.trialPath + 'manual_ik.mot'
         self.resultsFile = self.trialPath + '_results.json'
         self.previewBinFile = self.trialPath + 'preview.bin.zip'
+        self.plotCSVFile = self.trialPath + 'plot.csv'
 
     def download(self, trialsFolderPath: str):
         trialPath = trialsFolderPath + self.trialName
@@ -77,6 +79,9 @@ class TrialToProcess:
         else:
             print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                   trialPath + 'preview.bin.zip', flush=True)
+        if os.path.exists(trialPath + 'plot.csv'):
+            self.index.uploadFile(self.plotCSVFile,
+                                  trialPath + 'plot.csv')
 
     def hasMarkers(self) -> bool:
         return self.index.exists(self.c3dFile) or self.index.exists(self.trcFile)

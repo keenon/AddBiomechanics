@@ -325,17 +325,17 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
 
     # If we've got ground reaction force data, and we enabled dynamics, then run the dynamics pipeline
     if fitDynamics:
-        print('**** EXPERIMENTAL! Attempting to fit dynamics')
+        print('**** EXPERIMENTAL! Attempting to fit dynamics', flush=True)
         if len(footBodyNames) == 0:
             print(
-                'ERROR: No foot bodies were specified, so we have to quit dynamics fitter early')
+                'ERROR: No foot bodies were specified, so we have to quit dynamics fitter early', flush=True)
         else:
             footBodies = []
             for name in footBodyNames:
                 foot = finalSkeleton.getBodyNode(name)
                 if foot is None:
                     print('ERROR: foot "' + str(name) +
-                          '" not found in skeleton! Dynamics fitter will break as a result.')
+                          '" not found in skeleton! Dynamics fitter will break as a result.', flush=True)
                 footBodies.append(finalSkeleton.getBodyNode(name))
 
             finalSkeleton.setGravity([0, -9.81, 0])
@@ -351,42 +351,34 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                 markerTrials)
             dynamicsFitter.estimateFootGroundContacts(dynamicsInit)
 
-            print("Initial mass: " + str(finalSkeleton.getMass()) + " kg")
+            print("Initial mass: " +
+                  str(finalSkeleton.getMass()) + " kg", flush=True)
             print("What we'd expect average ~GRF to be (Mass * 9.8): " +
-                  str(finalSkeleton.getMass() * 9.8) + " N")
+                  str(finalSkeleton.getMass() * 9.8) + " N", flush=True)
             secondPair = dynamicsFitter.computeAverageRealForce(dynamicsInit)
-            print("Avg Force: " + str(secondPair[0]) + " N")
-            print("Avg Torque: " + str(secondPair[1]) + " Nm")
+            print("Avg Force: " + str(secondPair[0]) + " N", flush=True)
+            print("Avg Torque: " + str(secondPair[1]) + " Nm", flush=True)
 
+            dynamicsFitter.boundPush(dynamicsInit)
             dynamicsFitter.smoothAccelerations(dynamicsInit)
-            dynamicsFitter.zeroLinearResidualsOnCOMTrajectory(dynamicsInit)
-            for trial in range(len(dynamicsInit.poseTrials)):
-                originalTrajectory = dynamicsInit.poseTrials[trial].copy()
-                for i in range(50):
-                    # this holds the mass constant, and re-jigs the trajectory to try to get
-                    # the angular ACC's to match more closely what was actually observed
-                    dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
-                        dynamicsInit, trial, originalTrajectory, 1.0, 0.1, 0.1, 40)
-
-                dynamicsFitter.recalibrateForcePlates(
-                    dynamicsInit, trial)
+            dynamicsFitter.timeSyncAndInitializePipeline(dynamicsInit)
 
             maxNumTrials = 3
 
             dynamicsFitter.setIterationLimit(500)
+            dynamicsFitter.setLBFGSHistoryLength(300)
             dynamicsFitter.runIPOPTOptimization(
                 dynamicsInit,
                 nimble.biomechanics.DynamicsFitProblemConfig(
                     finalSkeleton)
                 .setDefaults(True)
-                .setLinearNewtonWeight(0.01 * tuneResidualLoss)
-                .setResidualWeight(0.01 * tuneResidualLoss)
+                .setResidualWeight(4e-2 * tuneResidualLoss)
                 .setMaxNumTrials(maxNumTrials)
                 .setConstrainResidualsZero(False)
                 .setIncludeMasses(True)
-                .setIncludeInertias(True)
-                .setIncludeCOMs(True)
-                .setIncludeBodyScales(True)
+                # .setIncludeInertias(True)
+                # .setIncludeCOMs(True)
+                # .setIncludeBodyScales(True)
                 .setIncludeMarkerOffsets(True)
                 .setIncludePoses(True))
 
@@ -394,14 +386,14 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             for trial in range(len(dynamicsInit.poseTrials)):
                 if trial >= maxNumTrials:
                     dynamicsFitter.setIterationLimit(200)
+                    dynamicsFitter.setLBFGSHistoryLength(100)
                     dynamicsFitter.runIPOPTOptimization(
                         dynamicsInit,
                         nimble.biomechanics.DynamicsFitProblemConfig(
                             finalSkeleton)
                         .setDefaults(True)
                         .setOnlyOneTrial(trial)
-                        .setLinearNewtonWeight(0.01 * tuneResidualLoss)
-                        .setResidualWeight(0.01 * tuneResidualLoss)
+                        .setResidualWeight(4e-2 * tuneResidualLoss)
                         .setConstrainResidualsZero(False)
                         .setIncludePoses(True))
 
@@ -413,7 +405,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                         # this holds the mass constant, and re-jigs the trajectory to try to get
                         # the angular ACC's to match more closely what was actually observed
                         dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
-                            dynamicsInit, trial, originalTrajectory, 1.0, 0.1, 0.1)
+                            dynamicsInit, trial, originalTrajectory, 1.0, 0.5, 0.1, 0.1, 150)
                     dynamicsFitter.recalibrateForcePlates(
                         dynamicsInit, trial)
 
@@ -423,16 +415,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                 dynamicsInit, maxAcceptableErrors=1e-3, maxTimestepsToTest=25)
 
             print("Avg Marker RMSE: " +
-                  str(dynamicsFitter.computeAverageMarkerRMSE(dynamicsInit) * 100) + "cm")
+                  str(dynamicsFitter.computeAverageMarkerRMSE(dynamicsInit) * 100) + "cm", flush=True)
             pair = dynamicsFitter.computeAverageResidualForce(dynamicsInit)
             print("Avg Residual Force: " + str(pair[0]) + " N (" + str((pair[0] /
-                  secondPair[0]) * 100) + "% of original " + str(secondPair[0]) + " N)")
+                  secondPair[0]) * 100) + "% of original " + str(secondPair[0]) + " N)", flush=True)
             print("Avg Residual Torque: " + str(pair[1]) + " Nm (" + str((pair[1] /
-                  secondPair[1]) * 100) + "% of original " + str(secondPair[1]) + " Nm)")
+                  secondPair[1]) * 100) + "% of original " + str(secondPair[1]) + " Nm)", flush=True)
             print("Avg CoP movement in 'perfect' GRFs: " +
-                  str(dynamicsFitter.computeAverageCOPChange(dynamicsInit)) + " m")
+                  str(dynamicsFitter.computeAverageCOPChange(dynamicsInit)) + " m", flush=True)
             print("Avg force change in 'perfect' GRFs: " +
-                  str(dynamicsFitter.computeAverageForceMagnitudeChange(dynamicsInit)) + " N")
+                  str(dynamicsFitter.computeAverageForceMagnitudeChange(dynamicsInit)) + " N", flush=True)
 
             # Write all the results back
             for trial in range(len(dynamicsInit.poseTrials)):
@@ -659,6 +651,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                 i,
                 round(1.0 / dynamicsInit.trialTimesteps[i]))
 
+            dynamicsFitter.writeCSVData(
+                trialPath+'plot.csv', dynamicsInit, i)
             dynamicsFitter.writeCSVData(
                 path + 'results/ID/'+trialName+'_full.csv', dynamicsInit, i)
         else:
