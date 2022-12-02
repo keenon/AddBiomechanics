@@ -6,7 +6,7 @@
    fill="none"
    version="1.1"
    id="svg3712"
-   sodipodi:docname="logo-with-text2.svg"
+   sodipodi:docname="logo-with-text.svg"
    inkscape:version="1.2.1 (9c6d41e410, 2022-07-14)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -24,8 +24,8 @@
      inkscape:deskcolor="#d1d1d1"
      showgrid="false"
      inkscape:zoom="2.6209964"
-     inkscape:cx="279.09233"
-     inkscape:cy="86.417515"
+     inkscape:cx="269.55398"
+     inkscape:cy="86.417517"
      inkscape:window-width="1920"
      inkscape:window-height="1112"
      inkscape:window-x="-8"
@@ -35,12 +35,6 @@
   <g
      clip-path="url(#clip0_123_2)"
      id="g3705">
-    <path
-       fill-rule="evenodd"
-       clip-rule="evenodd"
-       d="M72.1755 144.022C108.803 144.022 138.495 115.979 138.495 81.3871C138.495 46.7949 108.803 18.7523 72.1755 18.7523C35.5484 18.7523 5.85634 46.7949 5.85634 81.3871C5.85634 115.979 35.5484 144.022 72.1755 144.022ZM72.1755 138.864C99.8493 138.864 122.283 113.625 122.283 82.4924C122.283 51.3594 99.8493 26.1211 72.1755 26.1211C44.5017 26.1211 22.0677 51.3594 22.0677 82.4924C22.0677 113.625 44.5017 138.864 72.1755 138.864Z"
-       fill="#D9D9D9"
-       id="path3661" />
     <path
        d="M42.1598 135.165L-2.3579 114L36.9324 86.15L42.1598 135.165Z"
        fill="#0D6EFD"
