@@ -76,6 +76,7 @@ class MocapS3Cursor {
     cachedLogFile: Promise<string> | null;
     cachedResultsFile: Promise<string> | null;
     cachedTrialResultsFiles: Map<string, Promise<string>>;
+    cachedTrialPlotCSV: Map<string, Promise<string>>;
     cachedVisulizationFiles: Map<string, LargeZipBinaryObject>;
     cachedTrialTags: Map<string, ReactiveJsonFile>;
 
@@ -103,6 +104,7 @@ class MocapS3Cursor {
         this.cachedLogFile = null;
         this.cachedResultsFile = null;
         this.cachedTrialResultsFiles = new Map();
+        this.cachedTrialPlotCSV = new Map();
         this.cachedVisulizationFiles = new Map();
         this.cachedTrialTags = new Map();
         this.showValidationControls = false;
@@ -243,6 +245,7 @@ class MocapS3Cursor {
         this.cachedLogFile = null;
         this.cachedResultsFile = null;
         this.cachedTrialResultsFiles.clear();
+        this.cachedTrialPlotCSV.clear();
         this.cachedVisulizationFiles.clear();
         this.cachedTrialTags.forEach((v,k) => {
             this.rawCursor.deleteJsonFile("trials/"+k+"/tags.json");
@@ -369,7 +372,6 @@ class MocapS3Cursor {
         }
 
         const hasCustomFlag = this.rawCursor.getExists(path + "CUSTOM_OSIM");
-        console.log(path + "CUSTOM_OSIM" + ": " + hasCustomFlag);
         const hasOsimFile = this.rawCursor.getExists(path + "unscaled_generic.osim");
 
         const hasReadyToProcessFlag = this.rawCursor.getExists(path + "READY_TO_PROCESS");
@@ -695,6 +697,18 @@ class MocapS3Cursor {
     };
 
     /**
+     * Gets the contents of the _results.json for this trial, as a promise
+     */
+    getTrialPlotDataCSV = (trialName: string) => {
+        let promise: Promise<string> | undefined = this.cachedTrialPlotCSV.get(trialName);
+        if (promise == null) {
+            promise = this.rawCursor.downloadText("trials/" + trialName + "/plot.csv");
+            this.cachedTrialPlotCSV.set(trialName, promise);
+        }
+        return promise;
+    };
+
+    /**
      * This adds the "CUSTOM_OSIM" file on the backend, which marks the trial as using a custom OpenSim model, so that the validation checker can see if you're missing uploaded files.
      */
     markCustomOsim = () => {
@@ -748,6 +762,13 @@ class MocapS3Cursor {
      */
     downloadResultsArchive = () => {
         this.rawCursor.downloadFile(this.getCurrentFileName() + ".zip");
+    };
+
+    /**
+     * Download the zip results archive
+     */
+    downloadTrialResultsCSV = (trialName: string) => {
+        this.rawCursor.downloadFile("trials/" + trialName + "/plot.csv");
     };
 }
 

@@ -304,7 +304,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             markerTrials[i] = trialErrorReports[i].markerObservationsAttemptedFixed
 
     if anySwapped:
-        print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, so we have to run the whole pipeline again with unswapped markers. ********")
+        print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, so we have to run the whole pipeline again with unswapped markers. ********", flush=True)
         results = markerFitter.runMultiTrialKinematicsPipeline(
             markerTrials,
             nimble.biomechanics.InitialMarkerFitParams()
@@ -325,7 +325,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
 
     # If we've got ground reaction force data, and we enabled dynamics, then run the dynamics pipeline
     if fitDynamics:
-        print('**** EXPERIMENTAL! Attempting to fit dynamics', flush=True)
+        print('******** EXPERIMENTAL! Attempting to fit dynamics... ********', flush=True)
         if len(footBodyNames) == 0:
             print(
                 'ERROR: No foot bodies were specified, so we have to quit dynamics fitter early', flush=True)
