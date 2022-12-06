@@ -14,7 +14,8 @@ import {
     Title,
     Tooltip,
     Legend,
-    ChartDataset
+    ChartDataset,
+    ChartOptions
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 
@@ -425,9 +426,50 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                 });
             }
 
-            let data = {
-                labels, datasets
-            };
+            // Get all the data for each axis in a single array
+            const axisDataMap: Map<string, number[]> = new Map();
+            for (let i = 0; i < datasets.length; i++) {
+                const yAxisID: string = (datasets[i] as any).yAxisID;
+                const data: number[] = datasets[i].data as any as number[];
+                axisDataMap.set(yAxisID, (axisDataMap.get(yAxisID) ?? []).concat(data));
+            }
+
+            // Compute the min and max percentages of range across all the datasets
+            let maxValueAsPercentageOverall = 0.0;
+            let minValueAsPercentageOverall = 0.0;
+            const axisDataRanges: Map<string, number> = new Map();
+            axisDataMap.forEach((data: number[], yAxisID: string) => {
+                let minValue = data.reduce((a, b) => {
+                    return Math.min(a, b);
+                }, 0);
+                let maxValue = data.reduce((a, b) => {
+                    return Math.max(a, b);
+                }, 0);
+                let range = maxValue - minValue;
+
+                // Reset the range to be at a nice clean power of ten number
+                let rangeFloorPowerOfTen = Math.pow(10, Math.floor(Math.log10(range)));
+                minValue = Math.min(0, rangeFloorPowerOfTen * Math.floor(minValue / rangeFloorPowerOfTen));
+                maxValue = Math.max(0, rangeFloorPowerOfTen * Math.ceil(maxValue / rangeFloorPowerOfTen));
+                range = maxValue - minValue;
+
+                const maxValueAsPercentage = maxValue / range;
+                if (maxValueAsPercentage > maxValueAsPercentageOverall) {
+                    maxValueAsPercentageOverall = maxValueAsPercentage;
+                }
+                const minValueAsPercentage = minValue / range;
+                if (minValueAsPercentage < minValueAsPercentageOverall) {
+                    minValueAsPercentageOverall = minValueAsPercentage;
+                }
+                axisDataRanges.set(yAxisID, range);
+            });
+
+            // Set the ticks on each axis so that the zero points are at the same percentage on all the datasets
+            axisDataMap.forEach((data: number[], yAxisID: string) => {
+                scales[yAxisID].min = minValueAsPercentageOverall * (axisDataRanges.get(yAxisID) ?? 0.0);
+                scales[yAxisID].max = maxValueAsPercentageOverall * (axisDataRanges.get(yAxisID) ?? 0.0);
+            });
+            console.log(scales);
 
             let options: any = {
                 scales,
@@ -467,6 +509,10 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                         }
                     }
                 }
+            };
+
+            let data = {
+                labels, datasets
             };
 
             let downloadButton = null;
