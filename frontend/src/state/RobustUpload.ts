@@ -32,7 +32,7 @@ class RobustUpload {
 
   client: S3Client;
 
-  constructor(region: string, bucket: string, key: string, body: string | Object | Blob | File, contentType: string, params?: PutObjectRequest) {
+  constructor(client: S3Client, region: string, bucket: string, key: string, body: string | Object | Blob | File, contentType: string, params?: PutObjectRequest) {
     this.region = region;
     this.bucket = bucket;
     this.key = key;
@@ -57,6 +57,7 @@ class RobustUpload {
     };
     Object.assign(this.params, params);
 
+    /*
     const INVALID_CRED = { accessKeyId: '', secretAccessKey: '' };
     const credentialsProvider = async () => {
       try {
@@ -78,6 +79,8 @@ class RobustUpload {
       customUserAgent: getAmplifyUserAgent(),
       requestHandler: new AxiosHttpHandler()
     });
+    */
+   this.client = client;
   }
 
   private isGenericObject(body: any): body is Object {

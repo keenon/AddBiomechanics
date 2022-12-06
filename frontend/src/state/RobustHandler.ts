@@ -18,7 +18,6 @@ import axios, {
   AxiosRequestConfig,
   Method,
 } from 'axios';
-// import { AWSS3ProviderUploadErrorStrings } from '@aws-amplify/storage/src/common/StorageErrorStrings';
 
 enum AWSS3ProviderUploadErrorStrings {
   UPLOAD_PAUSED_MESSAGE = 'paused',

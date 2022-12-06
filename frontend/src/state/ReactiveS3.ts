@@ -1,13 +1,10 @@
 import { makeObservable, action, observable } from 'mobx';
-import { Auth, Storage } from "aws-amplify";
-import {
-    S3ProviderListOutput,
-    S3ProviderListOutputItem,
-} from "@aws-amplify/storage";
+import { Auth } from "aws-amplify";
 import JSZip from 'jszip';
 import RobustMqtt from './RobustMqtt';
 import { Credentials, getAmplifyUserAgent } from '@aws-amplify/core';
-import { S3Client, ListObjectsV2Command, ListObjectsV2CommandOutput } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { S3Client, ListObjectsV2Command, ListObjectsV2CommandOutput, GetObjectCommand, DeleteObjectCommand, DeleteObjectCommandOutput } from '@aws-sdk/client-s3';
 import RobustUpload from './RobustUpload';
 
 
@@ -818,6 +815,8 @@ class ReactiveIndex {
     networkErrors: Map<string, string> = new Map();
     networkErrorListeners: Array<(errors: string[]) => void> = [];
 
+    s3client: S3Client;
+
     // This is a handle on the PubSub socket object we'll use
     socket: RobustMqtt;
 
@@ -832,6 +831,36 @@ class ReactiveIndex {
             this.fullRefresh();
             this.setupPubsub();
         }
+
+        if (this.level === 'public') {
+            this.globalPrefix = 'public/';
+        }
+        else if (this.level === 'protected') {
+            Auth.currentCredentials().then((credentials) => {
+                this.globalPrefix = "protected/" + credentials.identityId + "/";
+            })
+        }
+
+        const INVALID_CRED = { accessKeyId: '', secretAccessKey: '' };
+        const credentialsProvider = async () => {
+            try {
+                const credentials = await Credentials.get();
+                if (!credentials) return INVALID_CRED;
+                const cred = Credentials.shear(credentials);
+                return cred;
+            } catch (error) {
+                console.warn('credentials provider error', error);
+                return INVALID_CRED;
+            }
+        }
+
+        this.s3client = new S3Client({
+            region: this.region,
+            // Using provider instead of a static credentials, so that if an upload task was in progress, but credentials gets
+            // changed or invalidated (e.g user signed out), the subsequent requests will fail.
+            credentials: credentialsProvider,
+            customUserAgent: getAmplifyUserAgent()
+        });
     }
 
     /**
@@ -868,7 +897,7 @@ class ReactiveIndex {
         };
         const topic = makeTopicPubSubSafe("/UPDATE/" + fullPath);
         console.log("Updating '" + topic + "' with " + JSON.stringify(updatedFile));
-        const uploadObject = new RobustUpload(this.region, this.bucketName, fullPath, contents, '');
+        const uploadObject = new RobustUpload(this.s3client, this.region, this.bucketName, fullPath, contents, '');
         return uploadObject.upload((progress) => {
             progressCallback(progress.loaded / progress.total);
         }).then((response: any) => {
@@ -878,53 +907,9 @@ class ReactiveIndex {
             return this.socket.publish(topic, JSON.stringify(updatedFile));
         }).catch((e: any) => {
             this.setNetworkError("Upload", "We got an error trying to upload data!");
-            console.error("Error on Storage.put(), caught in .errorCallback() handler", e);
+            console.error("Error on RobustUpload.upload(), caught in .errorCallback() handler", e);
             throw e;
         });
-
-        /*
-        return new Promise(
-            (resolve: (value: void) => void, reject: (reason?: any) => void) => {
-                try {
-                    Storage.put(path, contents, {
-                        level: this.level,
-                        progressCallback: (progress) => {
-                            console.log("S3.put() Progress callback");
-                            progressCallback(progress.loaded / progress.total);
-                        },
-                        completeCallback: action((event) => {
-                            console.log("S3.put() Completed callback", event);
-                            progressCallback(1.0);
-                            this.clearNetworkError("Upload");
-                            this.socket.publish(topic, JSON.stringify(updatedFile)).then(() => resolve());
-                        }),
-                        errorCallback: (e: any) => {
-                            this.setNetworkError("Upload", "We got an error trying to upload a file!");
-                            console.error("Error on Storage.put(), caught in .errorCallback() handler", e);
-                            reject(e);
-                        }
-                    })
-                        .then((result) => {
-                            console.log("S3.put() Promise resolved", result);
-                            progressCallback(1.0);
-                            this.clearNetworkError("Upload");
-                            this.socket.publish(topic, JSON.stringify(updatedFile)).then(() => resolve());
-                        })
-                        .catch((e) => {
-                            console.log("S3.put() Promise error");
-                            this.setNetworkError("Upload", "We got an error trying to upload a file!");
-                            console.error("Error on Storage.put(), caught in .catch() handler", e);
-                            reject(e);
-                        });
-                }
-                catch (e) {
-                    this.setNetworkError("Upload", "We got an error trying to upload a file!");
-                    console.error("Error on Storage.put(), caught in catch block", e);
-                    reject(e);
-                }
-            }
-        );
-        */
     }
 
     /**
@@ -936,24 +921,28 @@ class ReactiveIndex {
     delete = (path: string) => {
         const fullPath = this.globalPrefix + path;
         const topic = makeTopicPubSubSafe("/DELETE/" + fullPath);
-        return Storage.remove(path, { level: this.level })
-            .then((result) => {
-                console.log("Delete", result);
-                if (result != null && result.$metadata != null && result.$metadata.httpStatusCode != null) {
-                    this.clearNetworkError("Delete");
-                    return this.socket.publish(topic, JSON.stringify({ key: fullPath }));
-                }
-                else {
-                    this.setNetworkError("Delete", "We got an error trying to delete a file!");
-                    console.log("delete() error: " + path);
-                    throw new Error("Got an error trying to delete a file");
-                }
-            }).catch(e => {
+
+        const deleteCommand = new DeleteObjectCommand({
+            Bucket: this.bucketName,
+            Key: fullPath,
+        });
+        return this.s3client.send(deleteCommand).then((result: DeleteObjectCommandOutput) => {
+            console.log("Delete", result);
+            if (result != null && result.$metadata != null && result.$metadata.httpStatusCode != null) {
+                this.clearNetworkError("Delete");
+                return this.socket.publish(topic, JSON.stringify({ key: fullPath }));
+            }
+            else {
                 this.setNetworkError("Delete", "We got an error trying to delete a file!");
                 console.log("delete() error: " + path);
-                console.log(e);
-                throw e;
-            });
+                throw new Error("Got an error trying to delete a file");
+            }
+        }).catch(e => {
+            this.setNetworkError("Delete", "We got an error trying to delete a file!");
+            console.log("delete() error: " + path);
+            console.log(e);
+            throw e;
+        });
     }
 
     /**
@@ -976,8 +965,21 @@ class ReactiveIndex {
      * @returns A signed URL that someone could use to download a file
      */
     getSignedURL = (path: string) => {
-        return Storage.get(path, {
-            level: this.level,
+        const objectCommand = new GetObjectCommand({
+            Bucket: this.bucketName,
+            Key: this.globalPrefix + path,
+        });
+        return getSignedUrl(this.s3client, objectCommand, { expiresIn: 3600 });
+    };
+
+    /**
+     * This gets a signed URL, then fetches it.
+     */
+    fetchFile = (path: string) => {
+        return this.getSignedURL(path).then((signedURL) => {
+            return fetch(signedURL, {
+                cache: 'no-cache'
+            });
         });
     };
 
@@ -985,9 +987,7 @@ class ReactiveIndex {
      * This actually downloads a file from S3, if the browser allows it
      */
     downloadFile = (path: string) => {
-        return Storage.get(path, {
-            level: this.level,
-        }).then((signedURL) => {
+        return this.getSignedURL(path).then((signedURL) => {
             this.clearNetworkError("Get");
             const link = document.createElement("a");
             link.href = signedURL;
@@ -1007,20 +1007,16 @@ class ReactiveIndex {
      * @returns A promise for the text of the file being downloaded
      */
     downloadText = (path: string) => {
-        return Storage.get(path, {
-            level: this.level,
-            download: true,
-            cacheControl: "no-cache",
-        }).then((result) => {
+        return this.fetchFile(path).then((result) => {
             this.clearNetworkError("Get");
-            if (result != null && result.Body != null) {
+            if (result != null && result.ok) {
                 // data.Body is a Blob
-                return (result.Body as Blob).text().then((text: string) => {
+                return result.text().then((text: string) => {
                     return text;
                 });
             }
             throw new Error(
-                'Result of downloading "' + path + "\" didn't have a Body"
+                'Result of downloading "' + path + "\" got status " + result.status + ": " + result.statusText
             );
         }).catch(e => {
             this.setNetworkError("Get", "We got an error trying to download a file!");
@@ -1038,19 +1034,14 @@ class ReactiveIndex {
      */
     downloadZip = (path: string, progressCallback?: (progress: number) => void) => {
         if (progressCallback) progressCallback(0.0);
-        return Storage.get(path, {
-            level: this.level,
-            download: true,
-            cacheControl: "no-cache",
-            progressCallback
-        }).then((result) => {
+        return this.fetchFile(path).then(async (result) => {
             this.clearNetworkError("Get");
             const zip = new JSZip();
             if (progressCallback) progressCallback(1.0);
             console.log("Unzipping large file");
-            if (result != null && result.Body != null) {
+            if (result != null && result.ok) {
                 // data.Body is a Blob
-                return zip.loadAsync(result.Body as Blob, ((metadata: any) => {
+                return zip.loadAsync(await result.blob(), ((metadata: any) => {
                     console.log(metadata);
                 }) as any).then((unzipped: JSZip) => {
                     console.log("Unzipped!");
@@ -1058,7 +1049,7 @@ class ReactiveIndex {
                 });
             }
             throw new Error(
-                'Result of downloading "' + path + "\" didn't have a Body"
+                'Result of downloading "' + path + "\" got status " + result.status + ": " + result.statusText
             );
         }).catch(e => {
             this.setNetworkError("Get", "We got an error trying to download a file!");
@@ -1214,43 +1205,14 @@ class ReactiveIndex {
      * This is a replacement for Storage.load(), but with support for limiting the results to one folder level, and to doing multiple pages of calls.
      */
     loadFolder = async (folder: string, limitToOneFolderLevel: boolean) => {
-
-        if (this.level === 'public') {
-            this.globalPrefix = 'public/';
-        }
-        else if (this.level === 'protected') {
-            let credentials = await Auth.currentCredentials();
-            this.globalPrefix = "protected/" + credentials.identityId + "/";
-        }
-
         if (folder !== '' && !folder.endsWith('/')) {
             folder += '/';
         }
         let path = this.globalPrefix + folder;
 
-        const INVALID_CRED = { accessKeyId: '', secretAccessKey: '' };
-        const credentialsProvider = async () => {
-            try {
-                const credentials = await Credentials.get();
-                if (!credentials) return INVALID_CRED;
-                const cred = Credentials.shear(credentials);
-                return cred;
-            } catch (error) {
-                console.warn('credentials provider error', error);
-                return INVALID_CRED;
-            }
-        }
-
-        const s3client = new S3Client({
-            region: this.region,
-            // Using provider instead of a static credentials, so that if an upload task was in progress, but credentials gets
-            // changed or invalidated (e.g user signed out), the subsequent requests will fail.
-            credentials: credentialsProvider,
-            customUserAgent: getAmplifyUserAgent()
-        });
-
         const bucketName = this.bucketName;
         const globalPrefix = this.globalPrefix;
+        const s3client = this.s3client;
         async function listAsync(continuationToken?: string, filesSoFar?: ReactiveFileMetadata[], foldersSoFar?: string[]): Promise<{ files: ReactiveFileMetadata[], folders: string[] }> {
             const listObjectsCommand = new ListObjectsV2Command({
                 Bucket: bucketName,
