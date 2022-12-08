@@ -424,7 +424,7 @@ class MocapS3Cursor {
             hrefPrefix = '/data/private/';
         }
         else if (pathParts[0] === 'protected' && pathParts.length > 0) {
-            hrefPrefix = '/data/' + encodeURIComponent(pathParts[1]) + '/';
+            hrefPrefix = '/data/' + encodeURIComponent(pathParts[1].replace("us-west-2:", "")) + '/';
         }
         else {
             console.error("Unsupported S3 path: "+this.rawCursor.path);

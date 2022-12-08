@@ -973,11 +973,31 @@ class ReactiveIndex {
     /**
      * This gets a signed URL, then fetches it.
      */
-    fetchFile = (path: string) => {
+    fetchFile = (path: string, bodyType: 'blob' | 'text', progressCallback?: (progress: number) => void) => {
         return this.getSignedURL(path).then((signedURL) => {
-            return fetch(signedURL, {
-                cache: 'no-cache'
+            return new Promise<any>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.onload = () => {
+                    resolve(xhr.response);
+                };
+                xhr.onerror = () => {
+                    reject();
+                }
+                xhr.onabort = () => {
+                    reject();
+                }
+                if (progressCallback) {
+                    xhr.onprogress = (event: any) => {
+                        progressCallback(event.loaded / event.total);
+                    }
+                }
+                xhr.responseType = bodyType;
+                xhr.open('GET', signedURL);
+                xhr.send();
             });
+            // return fetch(signedURL, {
+            //     cache: 'no-cache'
+            // });
         });
     };
 
@@ -1005,17 +1025,9 @@ class ReactiveIndex {
      * @returns A promise for the text of the file being downloaded
      */
     downloadText = (path: string) => {
-        return this.fetchFile(path).then((result) => {
+        return this.fetchFile(path, 'text').then((result) => {
             this.clearNetworkError("Get");
-            if (result != null && result.ok) {
-                // data.Body is a Blob
-                return result.text().then((text: string) => {
-                    return text;
-                });
-            }
-            throw new Error(
-                'Result of downloading "' + path + "\" got status " + result.status + ": " + result.statusText
-            );
+            return result;
         }).catch(e => {
             this.setNetworkError("Get", "We got an error trying to download a file!");
             console.log("DownloadText() error: " + path);
@@ -1032,23 +1044,18 @@ class ReactiveIndex {
      */
     downloadZip = (path: string, progressCallback?: (progress: number) => void) => {
         if (progressCallback) progressCallback(0.0);
-        return this.fetchFile(path).then(async (result) => {
+        return this.fetchFile(path, 'blob', progressCallback).then(async (result) => {
             this.clearNetworkError("Get");
             const zip = new JSZip();
             if (progressCallback) progressCallback(1.0);
             console.log("Unzipping large file");
-            if (result != null && result.ok) {
-                // data.Body is a Blob
-                return zip.loadAsync(await result.blob(), ((metadata: any) => {
-                    console.log(metadata);
-                }) as any).then((unzipped: JSZip) => {
-                    console.log("Unzipped!");
-                    return unzipped.file(Object.keys(unzipped.files)[0])?.async("uint8array");
-                });
-            }
-            throw new Error(
-                'Result of downloading "' + path + "\" got status " + result.status + ": " + result.statusText
-            );
+            // result is a Blob
+            return zip.loadAsync(result, ((metadata: any) => {
+                console.log(metadata);
+            }) as any).then((unzipped: JSZip) => {
+                console.log("Unzipped!");
+                return unzipped.file(Object.keys(unzipped.files)[0])?.async("uint8array");
+            });
         }).catch(e => {
             this.setNetworkError("Get", "We got an error trying to download a file!");
             console.log("DownloadZip() error: " + path);
