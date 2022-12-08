@@ -6,7 +6,6 @@ import MocapS3Cursor from '../../../state/MocapS3Cursor';
 
 type NewFolderModalProps = {
   cursor: MocapS3Cursor;
-  linkPrefix: string;
 };
 
 let validation = /^[a-zA-Z0-9-_ ]+$/;

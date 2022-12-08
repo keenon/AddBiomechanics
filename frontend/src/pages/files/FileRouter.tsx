@@ -5,10 +5,9 @@ import MocapSubjectView from "../mocap/MocapSubjectView";
 import { Breadcrumb, BreadcrumbItem, Spinner } from "react-bootstrap";
 import MocapS3Cursor from "../../state/MocapS3Cursor";
 import { observer } from "mobx-react-lite";
+import { parsePath } from './pathHelper';
 
 type FileRouterProps = {
-  isRootFolderPublic: boolean;
-  linkPrefix: string;
   cursor: MocapS3Cursor;
 };
 
@@ -17,36 +16,93 @@ const FileRouter = observer((props: FileRouterProps) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    props.cursor.setUrlPath(location.pathname);
-  }, [props.cursor, location.pathname]);
+    if ((location.pathname === '/data' || location.pathname === '/data/') && props.cursor.myIdentityId !== '') {
+      if (props.cursor.authenticated) {
+        navigate("/data/" + encodeURIComponent(props.cursor.myIdentityId));
+      }
+      else {
+        navigate("/login", { replace: true, state: { from: location } });
+      }
+    }
+  }, [location.pathname, props.cursor.myIdentityId]);
 
-  const path = decodeURI(location.pathname).split('/');
-  while (path.length > 0 && ((path[0] === props.linkPrefix) || (path[0] === ''))) {
-    path.splice(0, 1);
-  }
+  const path = parsePath(location.pathname, props.cursor.myIdentityId);
 
+  useEffect(() => {
+    props.cursor.setDataPath(path.dataPath);
+  }, [props.cursor, path.dataPath]);
 
   //////////////////////////////////////////////////////////////
   // Set up the breadcrumbs
   //////////////////////////////////////////////////////////////
 
   let breadcrumbs = [];
-  breadcrumbs.push(
-    <BreadcrumbItem
-      href={"/" + props.linkPrefix}
-      onClick={(e) => {
-        e.preventDefault();
-        navigate("/" + props.linkPrefix);
-      }}
-      active={path.length === 0}
-      key="header"
-    >
-      {props.isRootFolderPublic ? "Public" : "My Data"}
-    </BreadcrumbItem>
-  );
-  let linkPath = "/" + props.linkPrefix;
-  for (let i = 0; i < path.length; i++) {
-    linkPath += "/" + encodeURIComponent(path[i]);
+  let linkPath = "/data";
+  if (path.type === 'mine') {
+    linkPath += encodeURIComponent(props.cursor.myIdentityId);
+    breadcrumbs.push(
+      <BreadcrumbItem
+        href={"/data/" + encodeURIComponent(props.cursor.myIdentityId)}
+        onClick={(e) => {
+          e.preventDefault();
+          navigate("/data/" + encodeURIComponent(props.cursor.myIdentityId));
+        }}
+        active={path.parts.length === 1}
+        key="header"
+      >
+        My Data
+      </BreadcrumbItem>
+    );
+  }
+  else if (path.type === 'readonly') {
+    breadcrumbs.push(
+      <BreadcrumbItem
+        href={"/search"}
+        onClick={(e) => {
+          e.preventDefault();
+          navigate("/search");
+        }}
+        active={path.parts.length === 0}
+        key="header"
+      >
+        Search Public Data
+      </BreadcrumbItem>
+    );
+    if (path.parts.length > 0) {
+      linkPath += encodeURIComponent(path.parts[0]);
+      breadcrumbs.push(
+        <BreadcrumbItem
+          href={"/data/" + encodeURIComponent(path.parts[0])}
+          onClick={(e) => {
+            e.preventDefault();
+            navigate("/data/" + encodeURIComponent(path.parts[0]));
+          }}
+          active={path.parts.length === 1}
+          key="user"
+        >
+          User {path.parts[0]}
+        </BreadcrumbItem>
+      );
+    }
+  }
+  else if (path.type === 'private') {
+    linkPath += "private/";
+    breadcrumbs.push(
+      <BreadcrumbItem
+        href={"/data/private"}
+        onClick={(e) => {
+          e.preventDefault();
+          navigate("/data/private");
+        }}
+        active={path.parts.length === 1}
+        key="header"
+      >
+        Private Workspace
+      </BreadcrumbItem>
+    );
+  }
+  for (let i = 1; i < path.parts.length; i++) {
+    linkPath += "/" + encodeURIComponent(path.parts[i]);
     breadcrumbs.push(
       <BreadcrumbItem
         href={linkPath}
@@ -56,10 +112,10 @@ const FileRouter = observer((props: FileRouterProps) => {
             navigate(savePath);
           };
         })(linkPath)}
-        active={i === path.length - 1}
+        active={i === path.parts.length - 1}
         key={"path" + i}
       >
-        {path[i]}
+        {path.parts[i]}
       </BreadcrumbItem>
     );
   }

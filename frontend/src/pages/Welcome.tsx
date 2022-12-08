@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 
 const Welcome = () => {
   return (
-    <Navigate replace to="/my_data" />
+    <Navigate replace to="/search" />
   );
 };
 

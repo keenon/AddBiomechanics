@@ -1,5 +1,6 @@
 import { ReactiveCursor, ReactiveIndex, ReactiveJsonFile, ReactiveTextFile } from "./ReactiveS3";
 import { makeObservable, observable, action } from 'mobx';
+import { Auth } from "aws-amplify";
 import RobustMqtt from "./RobustMqtt";
 
 type MocapFolderEntry = {
@@ -65,12 +66,13 @@ class LargeZipBinaryObject {
 }
 
 class MocapS3Cursor {
-    urlPath: string;
     dataPrefix: string;
     rawCursor: ReactiveCursor;
-    publicS3Index: ReactiveIndex;
-    protectedS3Index: ReactiveIndex;
-    urlError: boolean;
+    s3Index: ReactiveIndex;
+
+    region: string;
+    myIdentityId: string;
+    authenticated: boolean;
 
     showValidationControls: boolean;
     cachedLogFile: Promise<string> | null;
@@ -90,16 +92,12 @@ class MocapS3Cursor {
 
     cloudProcessingQueue: string[];
 
-    constructor(publicS3Index: ReactiveIndex, protectedS3Index: ReactiveIndex, socket: RobustMqtt) {
-        const parsedUrl = this.parseUrlPath(window.location.pathname);
+    constructor(s3Index: ReactiveIndex, socket: RobustMqtt) {
+        this.dataPrefix = '';
 
-        this.dataPrefix = 'data/';
-
-        this.rawCursor = new ReactiveCursor(parsedUrl.isPublic ? publicS3Index : protectedS3Index, this.dataPrefix + parsedUrl.path);
-        this.publicS3Index = publicS3Index;
-        this.protectedS3Index = protectedS3Index;
-        this.urlError = parsedUrl.error;
-        this.urlPath = window.location.pathname;
+        this.region = 'us-west-2';
+        this.rawCursor = new ReactiveCursor(s3Index, 'protected/'+this.region+":"+s3Index.myIdentityId);
+        this.s3Index = s3Index;
 
         this.cachedLogFile = null;
         this.cachedResultsFile = null;
@@ -119,10 +117,16 @@ class MocapS3Cursor {
 
         this.cloudProcessingQueue = [];
 
+        this.myIdentityId = '';
+        this.authenticated = false;
+        Auth.currentCredentials().then(action((credentials) => {
+            this.authenticated = credentials.authenticated;
+            this.myIdentityId = credentials.identityId.replace("us-west-2:", "");
+        }))
+
         makeObservable(this, {
-            urlPath: observable,
+            myIdentityId: observable,
             dataPrefix: observable,
-            urlError: observable,
             showValidationControls: observable,
             userEmail: observable
         });
@@ -151,7 +155,7 @@ class MocapS3Cursor {
      * Get the order of an element in the queue.
      */
     getQueueOrder = (path?: string) => {
-        let fullPath = this.protectedS3Index.globalPrefix + this.rawCursor.path;
+        let fullPath = this.s3Index.globalPrefix + this.rawCursor.path;
         if (path != null) {
             fullPath += path;
         }
@@ -167,51 +171,10 @@ class MocapS3Cursor {
     }
 
     /**
-     * This breaks a path down into the structured data.
-     * 
-     * @param urlPath 
-     * @returns 
-     */
-    parseUrlPath = (urlPath: string) => {
-        let isPublic: boolean = true;
-        let path: string = '';
-        let error: boolean = false;
-
-        urlPath = decodeURI(urlPath);
-
-        // 1. Set an error state if the path is empty
-        if (urlPath.length === 0) {
-            error = true;
-            return { isPublic, path, error };
-        }
-        let pathParts: string[] = urlPath.split("/");
-        while (pathParts[0] === '') {
-            pathParts.splice(0, 1);
-        }
-
-        // 2. Pick which file index to use based on the first part of the path
-        if (pathParts[0] === 'public_data') {
-            isPublic = true;
-        }
-        else if (pathParts[0] === 'my_data') {
-            isPublic = false;
-        }
-        else {
-            error = true;
-        }
-
-        // 3. Use the remainder of the path to set the S3 bucket we're viewing
-        pathParts.splice(0, 1);
-        path = pathParts.join("/");
-
-        return { isPublic, path, error };
-    }
-
-    /**
      * This is a convenience method to return the current file path (not including the "my_data" / "public_data" part at the beginning)
      */
     getCurrentFilePath = () => {
-        return this.parseUrlPath(this.urlPath).path;
+        return this.rawCursor.path;
     };
 
     /**
@@ -223,20 +186,9 @@ class MocapS3Cursor {
         else return parts[parts.length - 1];
     };
 
-    /**
-     * This sets a path, which can update the state of the cursor
-     * 
-     * @param path The portion of the URL after the /, and before the ?
-     */
-    setUrlPath = action((urlPath: string) => {
-        if (urlPath === this.urlPath) return;
-        this.urlPath = urlPath;
-
-        const parsedUrl = this.parseUrlPath(this.urlPath);
-
-        this.urlError = parsedUrl.error;
-        this.rawCursor.setIndex(parsedUrl.isPublic ? this.publicS3Index : this.protectedS3Index);
-        this.rawCursor.setPath(this.dataPrefix + parsedUrl.path);
+    setDataPath = action((dataPath: string) => {
+        console.log("Setting data path to: "+dataPath);
+        this.rawCursor.setPath(dataPath);
 
         // Subject state
         this.showValidationControls = this.rawCursor.getExists("manually_scaled.osim");
@@ -257,7 +209,11 @@ class MocapS3Cursor {
      * @returns True if the cursor is pointing at readonly (i.e. public) data
      */
     dataIsReadonly = () => {
-        return this.rawCursor.index === this.publicS3Index;
+        console.log(this.rawCursor.path);
+        console.log(this.s3Index.myIdentityId);
+        const isReadonly = this.s3Index.myIdentityId === '' || this.rawCursor.path.indexOf(this.s3Index.myIdentityId) === -1;
+        console.log('isReadonly: '+isReadonly);
+        return isReadonly;
     };
 
     /**
@@ -282,16 +238,19 @@ class MocapS3Cursor {
      * This returns the type of file we're looking at, so that we can choose which viewer to display
      */
     getFileType = () => {
+        const parts = this.rawCursor.path.split('/');
+        while (parts.length > 0 && parts[parts.length - 1] === '') {
+            parts.splice(parts.length-1, 1);
+        }
         const hasChildren: boolean = this.rawCursor.hasChildren();
         const exists: boolean = this.rawCursor.getExists();
-        const parsedPath = this.parseUrlPath(this.urlPath);
         // Special case: this happens when a user has just created an account, but hasn't uploaded anything yet.
         // If we're in the root of our private folder, even if no files uploaded yet, always treat this as a folder.
-        if (!exists && !hasChildren && !parsedPath.isPublic && parsedPath.path === '') {
+        if (!exists && !hasChildren && parts.length === 3 && parts[1] === this.s3Index.myIdentityId && parts[2] === 'data') {
             return "folder";
         }
         // Otherwise say 404
-        if (this.urlError || (!exists && !hasChildren)) {
+        if (!exists && !hasChildren) {
             return "not-found";
         }
         else if (this.rawCursor.hasChildren(["_subject.json", "trials"])) {
@@ -421,6 +380,9 @@ class MocapS3Cursor {
     };
 
     getFolderStatus = (path: string = '') => {
+        // TODO
+        return 'done';
+
         let status: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' = 'done';
 
         if (path !== '' && !path.endsWith('/')) path += '/';
@@ -452,15 +414,32 @@ class MocapS3Cursor {
     getFolderContents = (of: string = '') => {
         let contents: MocapFolderEntry[] = [];
         let rawFolders = this.rawCursor.getImmediateChildFolders(of);
-        let hrefPrefix = this.urlPath;
-        if (!hrefPrefix.endsWith('/')) hrefPrefix += '/';
+
+        let hrefPrefix = '';
+        const pathParts = this.rawCursor.path.split('/');
+        while (pathParts.length > 0 && pathParts[pathParts.length-1] === '') {
+            pathParts.splice(pathParts.length-1, 1);
+        }
+        if (pathParts[0] === 'private') {
+            hrefPrefix = '/data/private/';
+        }
+        else if (pathParts[0] === 'protected' && pathParts.length > 0) {
+            hrefPrefix = '/data/' + encodeURIComponent(pathParts[1]) + '/';
+        }
+        else {
+            console.error("Unsupported S3 path: "+this.rawCursor.path);
+            return [];
+        }
+        if (pathParts.length > 3) {
+            hrefPrefix += pathParts.slice(3).join('/') + '/';
+        }
 
         for (let i = 0; i < rawFolders.length; i++) {
             let type: 'folder' | 'mocap' = 'folder';
             if (this.rawCursor.childHasChildren(rawFolders[i].key, ['trials/', '_subject.json'])) {
                 type = 'mocap';
             }
-            const href: string = hrefPrefix + rawFolders[i].key;
+            const href: string = hrefPrefix + encodeURIComponent(rawFolders[i].key);
 
             contents.push({
                 type,
@@ -740,11 +719,21 @@ class MocapS3Cursor {
         }
         this.subjectJson.setAttribute("email", this.userEmail, true);
 
-        if (window.confirm("Processed results will be shared with the community under a CC 3.0 License. Is that ok?")) {
-            return this.rawCursor.uploadChild("READY_TO_PROCESS", "");
+        if (this.rawCursor.path.indexOf("private") !== -1) {
+            if (window.confirm("Processed results will remain private, but we ask that you get approval to share your data as quickly as possible. Do you agree to make a good faith effort to share your data with the community in a timely manner?")) {
+                return this.rawCursor.uploadChild("READY_TO_PROCESS", "");
+            }
+            else {
+                // Do nothing
+            }
         }
         else {
-            // Do nothing
+            if (window.confirm("Processed results will be shared with the community under a CC 3.0 License. Is that ok?")) {
+                return this.rawCursor.uploadChild("READY_TO_PROCESS", "");
+            }
+            else {
+                // Do nothing
+            }
         }
     };
 

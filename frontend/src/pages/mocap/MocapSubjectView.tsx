@@ -133,6 +133,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
         <TagEditor
           tagSet='trial'
           tags={tagList}
+          readonly={props.cursor.dataIsReadonly()}
           onTagsChanged={(newTags) => {
             tagsFile.setAttribute("tags", newTags);
           }}
@@ -965,6 +966,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           error={footBodyNames.length != 2}
           tagSet={availableBodyList}
           tags={footBodyNames}
+          readonly={props.cursor.dataIsReadonly()}
           onTagsChanged={(newTags) => {
             props.cursor.subjectJson.setAttribute("footBodyNames", newTags);
           }}
@@ -1008,7 +1010,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           OpenSim Model and Markerset:
         </label>
         <div className="col-md-6">
-          <select id="skeletonPreset" className="form-select mb-3" value={skeletonPreset} onChange={(e) => {
+          <select id="skeletonPreset" className="form-select mb-3" value={skeletonPreset} disabled={props.cursor.dataIsReadonly()} onChange={(e) => {
             if (e.target.value === 'custom') {
               props.cursor.markCustomOsim();
             }
@@ -1044,7 +1046,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
             </OverlayTrigger>
           </label>
-          <input type="number" className={"form-control" + ((heightValue < 0.1 || heightValue > 3.0) ? " is-invalid" : "")} id="heightM" value={heightValue} onChange={(e) => {
+          <input type="number" disabled={props.cursor.dataIsReadonly()} className={"form-control" + ((heightValue < 0.1 || heightValue > 3.0) ? " is-invalid" : "")} id="heightM" value={heightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("heightM", e.target.value);
           }} onFocus={(e) => {
             props.cursor.subjectJson.onFocusAttribute("heightM");
@@ -1083,7 +1085,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
             </OverlayTrigger>
           </label>
-          <input type="number" className={"form-control" + ((weightValue < 5 || weightValue > 700) ? " is-invalid" : "")} id="weightKg" value={weightValue} onChange={(e) => {
+          <input type="number" className={"form-control" + ((weightValue < 5 || weightValue > 700) ? " is-invalid" : "")} disabled={props.cursor.dataIsReadonly()} id="weightKg" value={weightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("massKg", e.target.value);
           }} onFocus={(e) => {
             props.cursor.subjectJson.onFocusAttribute("massKg");
@@ -1122,7 +1124,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
             </OverlayTrigger>
           </label>
-          <select className="form-control" id="sex" value={sexValue} onChange={(e) => {
+          <select className="form-control" id="sex" disabled={props.cursor.dataIsReadonly()} value={sexValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("sex", e.target.value);
           }} onFocus={(e) => {
             props.cursor.subjectJson.onFocusAttribute("sex");
@@ -1153,6 +1155,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         <TagEditor
           tagSet='subject'
           tags={subjectTags}
+          readonly={props.cursor.dataIsReadonly()}
           onTagsChanged={(newTags) => {
             props.cursor.subjectJson.setAttribute("subjectTags", newTags);
           }}
@@ -1216,29 +1219,33 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               {manualIkRowHeader}
               <th className="border-0" >
                 Trial Tags
-                <Dropdown style={{ display: 'inline-block' }}>
-                  <Dropdown.Toggle className="dropdown-toggle arrow-none btn btn-light btn-xs">
-                    <i className="mdi mdi-wrench"></i>
-                  </Dropdown.Toggle>
-                  <Dropdown.Menu>
-                    <Dropdown.Item
-                      onClick={() => {
-                        navigate({ search: "?bulk-tags=add" })
-                      }}
-                    >
-                      <i className="mdi mdi-plus me-2 text-muted vertical-middle"></i>
-                      Add tags to all
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      onClick={() => {
-                        navigate({ search: "?bulk-tags=remove" })
-                      }}
-                    >
-                      <i className="mdi mdi-minus me-2 text-muted vertical-middle"></i>
-                      Remove tags from all
-                    </Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown>
+                {(() => {
+                  if (!props.cursor.dataIsReadonly()) {
+                    return (<Dropdown style={{ display: 'inline-block' }}>
+                      <Dropdown.Toggle className="dropdown-toggle arrow-none btn btn-light btn-xs">
+                        <i className="mdi mdi-wrench"></i>
+                      </Dropdown.Toggle>
+                      <Dropdown.Menu>
+                        <Dropdown.Item
+                          onClick={() => {
+                            navigate({ search: "?bulk-tags=add" })
+                          }}
+                        >
+                          <i className="mdi mdi-plus me-2 text-muted vertical-middle"></i>
+                          Add tags to all
+                        </Dropdown.Item>
+                        <Dropdown.Item
+                          onClick={() => {
+                            navigate({ search: "?bulk-tags=remove" })
+                          }}
+                        >
+                          <i className="mdi mdi-minus me-2 text-muted vertical-middle"></i>
+                          Remove tags from all
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown>);
+                  }
+                })()}
                 <OverlayTrigger
                   placement="right"
                   delay={{ show: 50, hide: 400 }}

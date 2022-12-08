@@ -2,9 +2,11 @@ import React from "react";
 import { NavLink } from "react-router-dom";
 import { Collapse } from "react-bootstrap";
 import classNames from "classnames";
+import MocapS3Cursor from '../state/MocapS3Cursor';
 
 type NavbarProps = {
   isMenuOpened?: boolean;
+  cursor: MocapS3Cursor;
 };
 
 const Navbar = (props: NavbarProps) => {
@@ -28,24 +30,24 @@ const Navbar = (props: NavbarProps) => {
                 <ul className="navbar-nav" id="main-side-menu">
                   <li className="nav-item">
                     <NavLink
-                      to={"/public_data"}
+                      to={"/search"}
                       className={({ isActive }) =>
                         "nav-item nav-link" + (isActive ? " active" : "")
                       }
                     >
-                      <i className="mdi mdi-brain me-1 vertical-middle"></i>
-                      <span>Browse Public Data</span>
+                      <i className="mdi mdi-magnify me-1 vertical-middle"></i>
+                      <span>Search Public Data</span>
                     </NavLink>
                   </li>
                   <li className="nav-item">
                     <NavLink
-                      to={"/my_data"}
+                      to={"/data"}
                       className={({ isActive }) =>
                         "nav-item nav-link" + (isActive ? " active" : "")
                       }
                     >
                       <i className="mdi mdi-run me-1 vertical-middle"></i>
-                      <span>Process and Share Data</span>
+                      <span>Process, Share and Analyze Data</span>
                     </NavLink>
                   </li>
                 </ul>

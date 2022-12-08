@@ -428,6 +428,7 @@ class ReactiveCursor {
      * @param path the new path to use
      */
     setPath = (path: string) => {
+        console.log("Setting path to: "+path);
         if (path === this.path) return;
 
         // Clean up the old listeners.
@@ -793,8 +794,10 @@ class ReactiveIndex {
 
     region: string;
     bucketName: string;
-    // This is the level, in the Amplify API's, of storage this index is reflecting
-    level: 'protected' | 'public';
+
+    authenticated: boolean = false;
+    myIdentityId: string = '';
+
     // This is the prefix that's getting attached (invisibly) to the paths we send to Amplify
     // before they get forwarded to S3
     globalPrefix: string = '';
@@ -815,15 +818,14 @@ class ReactiveIndex {
     networkErrors: Map<string, string> = new Map();
     networkErrorListeners: Array<(errors: string[]) => void> = [];
 
-    s3client: S3Client;
+    s3client: Promise<S3Client>;
 
     // This is a handle on the PubSub socket object we'll use
     socket: RobustMqtt;
 
-    constructor(region: string, bucketName: string, level: 'protected' | 'public', runNetworkSetup: boolean = true, socket: RobustMqtt) {
+    constructor(region: string, bucketName: string, runNetworkSetup: boolean = true, socket: RobustMqtt) {
         this.region = region;
         this.bucketName = bucketName;
-        this.level = level;
         this.socket = socket;
 
         // We don't want to run network setup in our unit tests
@@ -832,34 +834,38 @@ class ReactiveIndex {
             this.setupPubsub();
         }
 
-        if (this.level === 'public') {
-            this.globalPrefix = 'public/';
-        }
-        else if (this.level === 'protected') {
+        this.s3client = this.createFreshS3Client();
+    }
+
+    createFreshS3Client = () => {
+        return new Promise<S3Client>((resolve, reject) => {
             Auth.currentCredentials().then((credentials) => {
-                this.globalPrefix = "protected/" + credentials.identityId + "/";
+                console.log(credentials);
+                this.authenticated = credentials.authenticated;
+                this.myIdentityId = credentials.identityId.replace("us-west-2:", "");
+
+                const INVALID_CRED = { accessKeyId: '', secretAccessKey: '' };
+                const credentialsProvider = async () => {
+                    try {
+                        const credentials = await Credentials.get();
+                        if (!credentials) return INVALID_CRED;
+                        const cred = Credentials.shear(credentials);
+                        return cred;
+                    } catch (error) {
+                        console.warn('credentials provider error', error);
+                        return INVALID_CRED;
+                    }
+                }
+
+                // Authenticated S3 client
+                resolve(new S3Client({
+                    region: this.region,
+                    // Using provider instead of a static credentials, so that if an upload task was in progress, but credentials gets
+                    // changed or invalidated (e.g user signed out), the subsequent requests will fail.
+                    credentials: credentialsProvider,
+                    customUserAgent: getAmplifyUserAgent()
+                }));
             })
-        }
-
-        const INVALID_CRED = { accessKeyId: '', secretAccessKey: '' };
-        const credentialsProvider = async () => {
-            try {
-                const credentials = await Credentials.get();
-                if (!credentials) return INVALID_CRED;
-                const cred = Credentials.shear(credentials);
-                return cred;
-            } catch (error) {
-                console.warn('credentials provider error', error);
-                return INVALID_CRED;
-            }
-        }
-
-        this.s3client = new S3Client({
-            region: this.region,
-            // Using provider instead of a static credentials, so that if an upload task was in progress, but credentials gets
-            // changed or invalidated (e.g user signed out), the subsequent requests will fail.
-            credentials: credentialsProvider,
-            customUserAgent: getAmplifyUserAgent()
         });
     }
 
@@ -867,17 +873,7 @@ class ReactiveIndex {
      * If you call the constructor with `runNetworkSetup = false`, then you can use this method later to set up the network for this index.
      */
     setupPubsub = () => {
-        if (this.level === 'public') {
-            this.globalPrefix = 'public/';
-            return this.registerPubSubListeners();
-        }
-        else if (this.level === 'protected') {
-            return Auth.currentCredentials().then((credentials) => {
-                this.globalPrefix = "protected/" + credentials.identityId + "/";
-                return this.registerPubSubListeners();
-            });
-        }
-        return Promise.resolve();
+        return this.registerPubSubListeners();
     };
 
     /**
@@ -897,20 +893,22 @@ class ReactiveIndex {
         };
         const topic = makeTopicPubSubSafe("/UPDATE/" + fullPath);
         console.log("Updating '" + topic + "' with " + JSON.stringify(updatedFile));
-        const uploadObject = new RobustUpload(this.s3client, this.region, this.bucketName, fullPath, contents, '');
-        return uploadObject.upload((progress) => {
-            progressCallback(progress.loaded / progress.total);
-        }).then((response: any) => {
-            console.log("S3.put() Completed callback", response);
-            progressCallback(1.0);
-            this.clearNetworkError("Upload");
-            return this.socket.publish(topic, JSON.stringify(updatedFile));
-        }).catch((e: any) => {
-            this.setNetworkError("Upload", "We got an error trying to upload data!");
-            console.error("Error on RobustUpload.upload(), caught in .errorCallback() handler", e);
-            throw e;
+        return this.s3client.then((client) => {
+            const uploadObject = new RobustUpload(client, this.region, this.bucketName, fullPath, contents, '');
+            uploadObject.upload((progress) => {
+                progressCallback(progress.loaded / progress.total);
+            }).then((response: any) => {
+                console.log("S3.put() Completed callback", response);
+                progressCallback(1.0);
+                this.clearNetworkError("Upload");
+                return this.socket.publish(topic, JSON.stringify(updatedFile));
+            }).catch((e: any) => {
+                this.setNetworkError("Upload", "We got an error trying to upload data!");
+                console.error("Error on RobustUpload.upload(), caught in .errorCallback() handler", e);
+                throw e;
+            });
         });
-    }
+        }
 
     /**
      * This attempts to delete a file in S3, and notify PubSub of having done so.
@@ -926,7 +924,7 @@ class ReactiveIndex {
             Bucket: this.bucketName,
             Key: fullPath,
         });
-        return this.s3client.send(deleteCommand).then((result: DeleteObjectCommandOutput) => {
+        return this.s3client.then(client => client.send(deleteCommand).then((result: DeleteObjectCommandOutput) => {
             console.log("Delete", result);
             if (result != null && result.$metadata != null && result.$metadata.httpStatusCode != null) {
                 this.clearNetworkError("Delete");
@@ -942,7 +940,7 @@ class ReactiveIndex {
             console.log("delete() error: " + path);
             console.log(e);
             throw e;
-        });
+        }));
     }
 
     /**
@@ -969,7 +967,7 @@ class ReactiveIndex {
             Bucket: this.bucketName,
             Key: this.globalPrefix + path,
         });
-        return getSignedUrl(this.s3client, objectCommand, { expiresIn: 3600 });
+        return this.s3client.then(client => getSignedUrl(client, objectCommand, { expiresIn: 3600 }));
     };
 
     /**
@@ -1151,21 +1149,35 @@ class ReactiveIndex {
     /**
      * This does a complete refresh, overwriting the paths
      */
-    fullRefresh = () => {
+    fullRefresh = async (recreateClient: boolean = true) => {
         this.setIsLoading(true);
-        return this.loadFolder("", false).then((result) => {
+
+        if (recreateClient) {
+            this.s3client = this.createFreshS3Client();
+            // Wait for the client to establish, which updates this.myIdentityId
+            await this.s3client;
+        }
+
+        let paths = ['protected/'];
+        if (this.authenticated && this.myIdentityId !== '') {
+            paths.push('private/'+this.region+':'+this.myIdentityId+'/');
+        }
+
+        return Promise.all(paths.map(path => this.loadFolder(path, false))).then((results) => {
             this.clearNetworkError("FullRefresh");
 
             // 2. Update the set of files
 
             // 2.1. Build a map of the updated set of objects
             const newFiles: Map<string, ReactiveFileMetadata> = new Map();
-            for (let i = 0; i < result.files.length; i++) {
-                const key = result.files[i].key;
-                if (key != null) {
-                    newFiles.set(key, result.files[i]);
+            results.forEach((result) => {
+                for (let i = 0; i < result.files.length; i++) {
+                    const key = result.files[i].key;
+                    if (key != null) {
+                        newFiles.set(key, result.files[i]);
+                    }
                 }
-            }
+            });
 
             //////////////////////////////////////////////
             // Begin a bulk change to the index
@@ -1194,7 +1206,7 @@ class ReactiveIndex {
         })
             .catch((err: Error) => {
                 this.setIsLoading(false);
-                console.error('Unable to refresh index type "' + this.level + '"');
+                console.error('Unable to refresh index');
                 console.log(err);
                 this.setNetworkError("FullRefresh", "We got an error trying to load the files! Attempting to reconnect...");
             });
@@ -1222,7 +1234,8 @@ class ReactiveIndex {
                 ContinuationToken: continuationToken
             });
 
-            const output: ListObjectsV2CommandOutput = await s3client.send(listObjectsCommand);
+            const client = await s3client;
+            const output: ListObjectsV2CommandOutput = await client.send(listObjectsCommand);
 
             let files: ReactiveFileMetadata[] = filesSoFar ? [...filesSoFar] : [];
             if (output.Contents != null && output.Contents.length > 0) {

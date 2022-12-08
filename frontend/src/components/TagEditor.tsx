@@ -134,7 +134,8 @@ type TagEditorProps = {
   onFocus?: () => void,
   onBlur?: () => void,
   hideNumbers?: boolean,
-  error?: boolean
+  error?: boolean,
+  readonly: boolean
 };
 
 const TagEditor = (props: TagEditorProps) => {
@@ -152,6 +153,11 @@ const TagEditor = (props: TagEditorProps) => {
           borderColor: 'red',
         }
       }),
+    };
+  }
+  else if (props.readonly) {
+    customStyles = {
+      control: (styles: any) => ({ ...styles, backgroundColor: '#eef2f7', border: '1px solid rgb(222, 226, 230)' })
     };
   }
   else {
@@ -183,10 +189,11 @@ const TagEditor = (props: TagEditorProps) => {
   });
 
   return (
-    <div className="TagEditor">
+    <div className={"TagEditor"}>
       <Select
         isMulti
         isSearchable
+        isDisabled={props.readonly}
         styles={customStyles}
         components={{ MultiValueLabel, NoOptionsMessage }}
         value={selectedOptions}

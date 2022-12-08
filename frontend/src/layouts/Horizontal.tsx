@@ -4,6 +4,7 @@ import { Outlet } from "react-router";
 import Topbar from "./Topbar";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import MocapS3Cursor from '../state/MocapS3Cursor';
 
 // TODO:
 // code splitting and lazy loading
@@ -18,9 +19,10 @@ const loading = () => <div className="text-center"></div>;
 
 type HorizontalLayoutProps = {
   children?: any;
+  cursor: MocapS3Cursor;
 };
 
-const HorizontalLayout = ({ children }: HorizontalLayoutProps) => {
+const HorizontalLayout = ({ cursor, children }: HorizontalLayoutProps) => {
   const [isMenuOpened, setIsMenuOpened] = useState(false);
 
   /**
@@ -48,7 +50,7 @@ const HorizontalLayout = ({ children }: HorizontalLayoutProps) => {
               navCssClasses="topnav-navbar"
             />
 
-            <Navbar isMenuOpened={isMenuOpened} />
+            <Navbar cursor={cursor} isMenuOpened={isMenuOpened} />
 
             <Container fluid>
               <Outlet />

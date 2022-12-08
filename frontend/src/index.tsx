@@ -14,9 +14,8 @@ import HorizontalLayout from "./layouts/Horizontal";
 import FileRouter from "./pages/files/FileRouter";
 import FileControlsWrapper from "./pages/files/FileControlsWrapper";
 import Welcome from "./pages/Welcome";
-import ComingSoon from "./pages/ComingSoon";
+import SearchView from "./pages/search/SearchView";
 import ErrorDisplay from "./layouts/ErrorDisplay";
-
 import { ReactiveIndex } from "./state/ReactiveS3";
 import MocapS3Cursor from "./state/MocapS3Cursor";
 import Amplify, { API, Auth } from "aws-amplify";
@@ -44,42 +43,40 @@ const socket: RobustMqtt = new RobustMqtt("us-west-2", "wss://adup0ijwoz88i-ats.
   reconnectPeriod: -1,
   resubscribe: false
 });
-const publicIndex = new ReactiveIndex(awsExports.aws_user_files_s3_bucket_region, awsExports.aws_user_files_s3_bucket, "public", false, socket);
-const myData = new ReactiveIndex(awsExports.aws_user_files_s3_bucket_region, awsExports.aws_user_files_s3_bucket, "protected", false, socket);
+const s3Index = new ReactiveIndex(awsExports.aws_user_files_s3_bucket_region, awsExports.aws_user_files_s3_bucket, false, socket);
 
-publicIndex.setIsLoading(true);
-myData.setIsLoading(true);
+s3Index.setIsLoading(true);
 
-const cursor = new MocapS3Cursor(publicIndex, myData, socket);
+const cursor = new MocapS3Cursor(s3Index, socket);
 
 function afterLogin(email: string) {
   console.log("Logged in as " + email);
   cursor.setUserEmail(email);
-  console.log("Refreshing public data...");
-  publicIndex.fullRefresh().then(() => {
-    console.log("Refreshing my data...");
-    myData.fullRefresh().then(() => {
-      console.log("Running PostAuthAPI...");
-      // If we're logged in, there's extra steps we have to do to ensure that
-      // our account has rights to IOT, so we have to make an extra call to
-      // the backend before we set up PubSub
-      API.post("PostAuthAPI", "/", {})
-        .then((response) => {
-          console.log("Adding PubSub plugin...");
-          // Apply plugin with configuration
-          socket.connect();
-          publicIndex.setupPubsub();
-          myData.setupPubsub();
-          myData.upload("account.json", JSON.stringify({ email }));
-          // This is just here to be convenient for a human searching through the S3 buckets manually
-          myData.upload(email.replace("@", ".AT."), JSON.stringify({ email }));
-          cursor.subscribeToCloudProcessingQueueUpdates();
-        })
-        .catch((error) => {
-          console.log("Got error with PostAuthAPI!");
-          console.log(error.response);
-        });
-    })
+  console.log("Refreshing S3 data...");
+  s3Index.fullRefresh(true).then(() => {
+    console.log("Running PostAuthAPI...");
+    // If we're logged in, there's extra steps we have to do to ensure that
+    // our account has rights to IOT, so we have to make an extra call to
+    // the backend before we set up PubSub
+    API.post("PostAuthAPI", "/", {})
+      .then((response) => {
+        console.log("Adding PubSub plugin...");
+        // Apply plugin with configuration
+        socket.connect();
+        s3Index.setupPubsub();
+
+        if (s3Index.authenticated) {
+          s3Index.upload("protected/" + s3Index.region + ":" + s3Index.myIdentityId + "/account.json", JSON.stringify({ email }));
+          // // This is just here to be convenient for a human searching through the S3 buckets manually
+          s3Index.upload("protected/" + s3Index.region + ":" + s3Index.myIdentityId + "/" + email.replace("@", ".AT."), JSON.stringify({ email }));
+        }
+
+        cursor.subscribeToCloudProcessingQueueUpdates();
+      })
+      .catch((error) => {
+        console.log("Got error with PostAuthAPI!");
+        console.log(error.response);
+      });
   })
 }
 
@@ -92,61 +89,36 @@ Auth.currentAuthenticatedUser()
     // If we're not logged in, we can set up the PubSub provider right away
     console.log("Configuring AWSIoTProvider");
     // Apply plugin with configuration
-    publicIndex.fullRefresh().then(() => {
+    s3Index.fullRefresh().then(() => {
       socket.connect();
-      publicIndex.setupPubsub();
-      myData.setupPubsub();
+      s3Index.setupPubsub();
       cursor.subscribeToCloudProcessingQueueUpdates();
     });
   });
 
-const PUBLIC_DATA_URL_PREFIX = "public_data";
-const MY_DATA_URL_PREFIX = "my_data";
 
 ReactDOM.render(
   <BrowserRouter>
     <Routes>
       <Route element={<ErrorDisplay cursor={cursor} />}>
         <Route index element={<Welcome />} />
-        <Route element={<HorizontalLayout />}>
+        <Route element={<HorizontalLayout cursor={cursor} />}>
           <Route
-            path={"/" + PUBLIC_DATA_URL_PREFIX + "/*"}
+            path={"/search/*"}
             element={
-              <ComingSoon />
-              /*
-              <Row>
-                <Col md="12">
-                  <Card className="mt-4">
-                    <Card.Body>
-                      <FileRouter
-                        cursor={cursor}
-                        isRootFolderPublic={true}
-                        linkPrefix={PUBLIC_DATA_URL_PREFIX}
-                      />
-                    </Card.Body>
-                  </Card>
-                </Col>
-              </Row>
-              */
+              <SearchView cursor={cursor} />
             }
           ></Route>
-          <Route path={"/" + MY_DATA_URL_PREFIX + "/*"} element={<RequireAuth />}>
+          <Route path={"/data/*"}>
             <Route
               element={
-                <FileControlsWrapper
-                  linkPrefix={MY_DATA_URL_PREFIX}
-                  cursor={cursor}
-                />
+                <FileControlsWrapper cursor={cursor} />
               }
             >
               <Route
                 path="*"
                 element={
-                  <FileRouter
-                    cursor={cursor}
-                    isRootFolderPublic={false}
-                    linkPrefix={MY_DATA_URL_PREFIX}
-                  />
+                  <FileRouter cursor={cursor} />
                 }
               ></Route>
             </Route>

@@ -81,6 +81,7 @@ const MocapTagModal = observer((props: MocapTagModalProps) => {
                 <TagEditor
                     tagSet='trial'
                     tags={tagList}
+                    readonly={props.cursor.dataIsReadonly()}
                     onTagsChanged={(newTags) => {
                         setTagList(newTags);
                     }}

@@ -6,7 +6,6 @@ import MocapS3Cursor from '../../../state/MocapS3Cursor';
 
 type DeleteFolderModalProps = {
   cursor: MocapS3Cursor;
-  linkPrefix: string;
 };
 
 const DeleteFolderModal = observer((props: DeleteFolderModalProps) => {

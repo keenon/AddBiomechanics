@@ -13,57 +13,96 @@ import MocapS3Cursor from "../../state/MocapS3Cursor";
 import './FileControlsWrapper.scss';
 
 import { observer } from "mobx-react-lite";
+import { parsePath } from './pathHelper';
 
 type FileManagerProps = {
   cursor: MocapS3Cursor;
-  linkPrefix: string;
 };
 
 // FileManager
 const FileManager = observer((props: FileManagerProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const path = location.pathname.split('/');
-  while (path.length > 0 && ((path[0] === props.linkPrefix) || (path[0] === ''))) {
-    path.splice(0, 1);
-  }
+
+  const path = parsePath(location.pathname, props.cursor.myIdentityId);
 
   const type = props.cursor.getFileType();
 
   let body = <Outlet />;
-  if (type === "folder") {
+  if (type === "folder" && props.cursor.authenticated) {
+    let dropdown = null;
+    if (path.type === 'mine' || path.type === 'private') {
+      dropdown = (
+        <ButtonGroup className="d-block mb-2">
+          <Dropdown>
+            <Dropdown.Toggle className="btn btn-primary dropdown-toggle w-100">
+              <i className="mdi mdi-plus"></i> Create New{" "}
+            </Dropdown.Toggle>
+            <Dropdown.Menu>
+              <Dropdown.Item
+                onClick={() => navigate({ search: "?new-folder" })}
+              >
+                <i className="mdi mdi-folder-plus-outline me-1"></i> Folder
+              </Dropdown.Item>
+              <Dropdown.Item
+                onClick={() => navigate({ search: "?new-subject" })}
+              >
+                <i className="mdi mdi-run me-1"></i> Subject
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
+        </ButtonGroup>
+      );
+    }
+
+    let securityNotice = <div>{path.type}</div>;
+    if (path.type === 'mine') {
+      securityNotice = (
+        <div className="d-flex justify-content-between align-items-center">
+          <div className="FileControlsWrapper-folder-description">
+            This folder is accessible to anyone who has the link (<a href={window.location.href}>{window.location.href}</a>), but is not searchable.
+          </div>
+          {/*
+          <div>
+            <button type="submit" className="btn btn-primary">
+              <i className="mdi mdi-earth-plus"></i> Make Searchable
+            </button>
+          </div>
+          */}
+        </div>
+      );
+    }
+    else if (path.type === 'private') {
+      securityNotice = (
+        <div className="d-flex justify-content-between align-items-center">
+          <div className="FileControlsWrapper-folder-description">
+            <p>
+              This folder is password protected and only accessible from your account.{' '} <i className="mdi mdi-lock-outline font-18 align-middle me-2"></i>
+            </p>
+            <p>
+              <b>Please try not to use this area:</b> AddBiomechanics is a community effort to create a big public dataset that everyone can benefit from! When you upload here, you're not sharing your data with the community. We understand that getting IRB approvals to share de-identified data publicly takes time, so you can use this area in the meantime. We don't limit your use of this area, but we ask that you make a good faith effort to share your data as soon as you can.
+            </p>
+            <p>
+              If we see you using this area a lot, we'll reach out by email to see if we can help with your data-sharing approval process.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     body = (
       <>
         <div className="page-aside-left">
-          {/* "Create" dropdown */}
-          <ButtonGroup className="d-block mb-2">
-            <Dropdown>
-              <Dropdown.Toggle className="btn btn-primary dropdown-toggle w-100">
-                <i className="mdi mdi-plus"></i> Create New{" "}
-              </Dropdown.Toggle>
-              <Dropdown.Menu>
-                <Dropdown.Item
-                  onClick={() => navigate({ search: "?new-folder" })}
-                >
-                  <i className="mdi mdi-folder-plus-outline me-1"></i> Folder
-                </Dropdown.Item>
-                <Dropdown.Item
-                  onClick={() => navigate({ search: "?new-subject" })}
-                >
-                  <i className="mdi mdi-run me-1"></i> Subject
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown>
-          </ButtonGroup>
+          {dropdown}
           {/* Left side nav links */}
           <div className="email-menu-list mt-3">
-            <Link to="#">
+            <Link to={"/data/" + encodeURIComponent(props.cursor.myIdentityId)}>
               <i className="mdi mdi-folder-outline font-18 align-middle me-2"></i>
               My Data
             </Link>
-            <Link to="#">
-              <i className="mdi mdi-earth font-18 align-middle me-2"></i>
-              Public Data
+            <Link to="/data/private">
+              <i className="mdi mdi-lock-outline font-18 align-middle me-2"></i>
+              Private Workspace
             </Link>
           </div>
           {/*
@@ -110,6 +149,7 @@ const FileManager = observer((props: FileManagerProps) => {
           {/*
                 <QuickAccess quickAccessFiles={quickAccessFiles} />
                 */}
+          {securityNotice}
           {/*
           <div className="d-flex justify-content-between align-items-center">
             <div className="FileControlsWrapper-folder-description">
