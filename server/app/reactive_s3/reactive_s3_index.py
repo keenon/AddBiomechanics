@@ -142,9 +142,17 @@ class ReactiveS3Index:
         """
         children: Dict[str, FileMetadata] = {}
         if folder in self.children:
+            toRemove = []
             for path in self.children[folder]:
                 if path != folder:
-                    children[path[len(folder):]] = self.files[path]
+                    if path in self.files:
+                        children[path[len(folder):]] = self.files[path]
+                    else:
+                        print('DATA SYNCHRONIZATION ISSUE: '+path +
+                              ' in children['+folder+'], but not in files. Removing from children['+folder+']', flush=True)
+                        toRemove.append(path)
+            for path in toRemove:
+                self.children[folder].remove(path)
         # for path in self.files:
         #     if path.startswith(folder) and path != folder:
         #         subPath = path[len(folder):]
@@ -308,8 +316,8 @@ class ReactiveS3Index:
         key: str = body['key']
         print("onDelete() key: "+str(key))
         if key in self.files:
-            del self.files[key]
             self.updateChildrenOnRemoveFile(key)
+            del self.files[key]
             self._onRefresh()
 
     def _onRefresh(self) -> None:
