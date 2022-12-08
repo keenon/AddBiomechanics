@@ -6,32 +6,7 @@
    fill="none"
    version="1.1"
    id="svg3712"
-   sodipodi:docname="logo-with-text.svg"
-   inkscape:version="1.2.1 (9c6d41e410, 2022-07-14)"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:xlink="http://www.w3.org/1999/xlink"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
-  <sodipodi:namedview
-     id="namedview3714"
-     pagecolor="#ffffff"
-     bordercolor="#000000"
-     borderopacity="0.25"
-     inkscape:showpageshadow="2"
-     inkscape:pageopacity="0.0"
-     inkscape:pagecheckerboard="0"
-     inkscape:deskcolor="#d1d1d1"
-     showgrid="false"
-     inkscape:zoom="2.6209964"
-     inkscape:cx="269.55398"
-     inkscape:cy="86.417517"
-     inkscape:window-width="1920"
-     inkscape:window-height="1112"
-     inkscape:window-x="-8"
-     inkscape:window-y="-8"
-     inkscape:window-maximized="1"
-     inkscape:current-layer="g3705" />
+   xmlns="http://www.w3.org/2000/svg">
   <g
      clip-path="url(#clip0_123_2)"
      id="g3705">
@@ -131,7 +106,7 @@
      id="defs3710">
     <linearGradient
        id="linearGradient7061"
-       inkscape:swatch="solid">
+       >
       <stop
          style="stop-color:#00000f;stop-opacity:1;"
          offset="0"
@@ -146,8 +121,6 @@
          id="rect3707" />
     </clipPath>
     <linearGradient
-       inkscape:collect="always"
-       xlink:href="#linearGradient7061"
        id="linearGradient7063"
        x1="-8.400841"
        y1="79.931436"

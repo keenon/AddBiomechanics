@@ -80,7 +80,7 @@ const FileManager = observer((props: FileManagerProps) => {
               This folder is password protected and only accessible from your account.{' '} <i className="mdi mdi-lock-outline font-18 align-middle me-2"></i>
             </p>
             <p>
-              <b>Please try not to use this area:</b> AddBiomechanics is a community effort to create a big public dataset that everyone can benefit from! When you upload here, you're not sharing your data with the community. We understand that getting IRB approvals to share de-identified data publicly takes time, so you can use this area in the meantime. We don't limit your use of this area, but we ask that you make a good faith effort to share your data as soon as you can.
+              <b>Honor system:</b> AddBiomechanics is a community effort to create a huge public dataset that everyone can benefit from! When you upload here, you're not sharing your data with the community. We understand that getting IRB approvals to share de-identified data publicly takes time, so you can use this area in the meantime. We don't limit your use of this area, but we ask that you make a good faith effort to share your data as soon as you can.
             </p>
             <p>
               If we see you using this area a lot, we'll reach out by email to see if we can help with your data-sharing approval process.
