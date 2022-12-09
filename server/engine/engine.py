@@ -365,7 +365,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
 
             maxNumTrials = 3
 
-            dynamicsFitter.setIterationLimit(500)
+            dynamicsFitter.setIterationLimit(200)
             dynamicsFitter.setLBFGSHistoryLength(300)
             dynamicsFitter.runIPOPTOptimization(
                 dynamicsInit,

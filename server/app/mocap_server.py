@@ -464,9 +464,13 @@ class MocapServer:
             "/PING/"+self.serverId, self.onPingReceived)
         self.index.pubSub.subscribe("/PONG/#", self.onPongReceived)
 
-        t = threading.Thread(
+        cleanUpThread = threading.Thread(
             target=self.cleanUpOtherDeadServersForever, daemon=True)
-        t.start()
+        cleanUpThread.start()
+
+        periodicRefreshThread = threading.Thread(
+            target=self.periodicallyRefreshForever, daemon=True)
+        periodicRefreshThread.start()
 
     def onChange(self):
         print('S3 CHANGED!')
@@ -580,6 +584,15 @@ class MocapServer:
                               's < death interval '+str(deathIntervalSeconds)+'s, so still alive', flush=True)
 
             time.sleep(pingIntervalSeconds)
+
+    def periodicallyRefreshForever(self):
+        """
+        This periodically refreshes the S3 index (every 30 minutes) just in case we missed anything
+        """
+        while True:
+            time.sleep(30 * 60 * 60)
+            print('Cueing an every ten minutes refresh', flush=True)
+            self.index.refreshIndex()
 
     def processQueueForever(self):
         """

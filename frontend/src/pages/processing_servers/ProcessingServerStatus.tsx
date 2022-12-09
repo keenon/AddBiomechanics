@@ -6,6 +6,7 @@ import {
   Card,
   Badge,
   Table,
+  OverlayTrigger, Tooltip,
   Alert, Button
 } from "react-bootstrap";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
@@ -229,10 +230,23 @@ const ProcessingServerStatus = observer((props: ProcessingServerStatusProps) => 
         FAQ: <b>Help! My job is stuck in "Waiting for server", but it's not showing up in the work queue.</b>
       </p>
       <p>
-        Unfortunately, this is a known issue. We're working to resolve it more robustly, but for now there are two solutions.
+        Unfortunately, this is a known issue. We're working to resolve it more robustly, but for now there are three possible solutions.
         <ol>
+          <li>Wait 30 minutes.
+            <OverlayTrigger
+              placement="right"
+              delay={{ show: 50, hide: 400 }}
+              overlay={(props) => (
+                <Tooltip id="button-tooltip" {...props}>
+                  <b>Why might this help?</b> We send shortcut messages to the processing servers right when you hit "Process" to tell them to start your job, but sometimes those messages get dropped. The processing server does a full refresh of the index every 30 minutes, at which point it should pick up your job.
+                </Tooltip>
+              )}
+            >
+              <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+            </OverlayTrigger>
+          </li>
           <li>Create a new subject (with a new name), upload the data to that subject, and try processing it instead.</li>
-          <li>Email keenon@cs.stanford.edu (or reach him on Slack, if you're a Stanford student) and ask him to restart the processing servers.</li>
+          <li>If all else fails, email keenon@cs.stanford.edu (or reach him on Slack, if you're a Stanford student) and ask him to restart the processing servers.</li>
         </ol>
       </p>
     </div>

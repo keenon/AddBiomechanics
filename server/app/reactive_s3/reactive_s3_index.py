@@ -5,6 +5,7 @@ import json
 import time
 import tempfile
 from typing import Dict, List, Set, Callable, Any
+import threading
 
 
 class FileMetadata:
@@ -31,10 +32,12 @@ class ReactiveS3Index:
     changeListeners: List[Callable]
     bucketName: str
     deployment: str
+    lock: threading.Lock
 
     def __init__(self, bucket: str, deployment: str) -> None:
         self.s3_low_level = boto3.client('s3', region_name='us-west-2')
         self.s3 = boto3.resource('s3', region_name='us-west-2')
+        self.lock = threading.Lock()
         self.bucketName = bucket
         self.deployment = deployment
         self.bucket = self.s3.Bucket(self.bucketName)
@@ -60,6 +63,7 @@ class ReactiveS3Index:
         """
         This updates the index
         """
+        self.lock.acquire()
         print('Doing full index refresh...')
         self.files.clear()
         self.children.clear()
@@ -71,6 +75,7 @@ class ReactiveS3Index:
             self.updateChildrenOnAddFile(key)
             self.files[key] = file
         print('Full index refresh finished!')
+        self.lock.release()
         self._onRefresh()
 
     def updateChildrenOnAddFile(self, path: str):
@@ -298,6 +303,7 @@ class ReactiveS3Index:
         """
         We received a PubSub message telling us a file was created
         """
+        self.lock.acquire()
         body = json.loads(payload)
         key: str = body['key']
         lastModified: int = body['lastModified']
@@ -306,18 +312,24 @@ class ReactiveS3Index:
         print("onUpdate() file: "+str(file))
         self.files[key] = file
         self.updateChildrenOnAddFile(key)
+        self.lock.release()
         self._onRefresh()
 
     def _onDelete(self, topic: str, payload: bytes) -> None:
         """
         We received a PubSub message telling us a file was deleted
         """
+        self.lock.acquire()
         body = json.loads(payload)
         key: str = body['key']
         print("onDelete() key: "+str(key))
+        anyDeleted = False
         if key in self.files:
             self.updateChildrenOnRemoveFile(key)
             del self.files[key]
+            anyDeleted = True
+        self.lock.release()
+        if anyDeleted:
             self._onRefresh()
 
     def _onRefresh(self) -> None:
