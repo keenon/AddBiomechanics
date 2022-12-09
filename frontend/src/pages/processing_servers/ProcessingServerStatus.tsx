@@ -176,7 +176,7 @@ const ProcessingServerDetails = observer((props: ProcessingServerDetailsProps) =
         </tr>;
       }
     });
-    let queueDiv = <p><b>Status:</b> Idle</p>;
+    let queueDiv = <p>{props.serverId} - <b>Available for new jobs</b></p>;
     if (queueRendered != null && queueRendered.length > 0) {
       queueDiv =
         <p>
