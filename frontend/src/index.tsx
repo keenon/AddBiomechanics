@@ -15,6 +15,7 @@ import FileRouter from "./pages/files/FileRouter";
 import FileControlsWrapper from "./pages/files/FileControlsWrapper";
 import Welcome from "./pages/Welcome";
 import SearchView from "./pages/search/SearchView";
+import ProcessingServerStatus from "./pages/processing_servers/ProcessingServerStatus";
 import ErrorDisplay from "./layouts/ErrorDisplay";
 import { ReactiveIndex } from "./state/ReactiveS3";
 import MocapS3Cursor from "./state/MocapS3Cursor";
@@ -71,7 +72,7 @@ function afterLogin(email: string) {
           s3Index.upload("protected/" + s3Index.region + ":" + s3Index.myIdentityId + "/" + email.replace("@", ".AT."), JSON.stringify({ email }));
         }
 
-        cursor.subscribeToCloudProcessingQueueUpdates();
+        cursor.subscribeToCloudProcessingServerPongs();
       })
       .catch((error) => {
         console.log("Got error with PostAuthAPI!");
@@ -92,7 +93,7 @@ Auth.currentAuthenticatedUser()
     s3Index.fullRefresh().then(() => {
       socket.connect();
       s3Index.setupPubsub();
-      cursor.subscribeToCloudProcessingQueueUpdates();
+      cursor.subscribeToCloudProcessingServerPongs();
     });
   });
 
@@ -107,6 +108,12 @@ ReactDOM.render(
             path={"/search/*"}
             element={
               <SearchView cursor={cursor} />
+            }
+          ></Route>
+          <Route
+            path={"/server_status/*"}
+            element={
+              <ProcessingServerStatus cursor={cursor} />
             }
           ></Route>
           <Route path={"/data/*"}>

@@ -236,12 +236,12 @@ class ReactiveS3Index:
         self.pubSub.sendMessage(
             self.makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': len(text.encode('utf-8'))})
 
-    def uploadJSON(self, contents: Dict[str, Any]):
+    def uploadJSON(self, bucketPath: str, contents: Dict[str, Any]):
         """
         This uploads JSON back to S3
         """
         j = json.dumps(contents)
-        self.uploadText(j)
+        self.uploadText(bucketPath, j)
 
     def delete(self, bucketPath: str):
         """
@@ -249,7 +249,7 @@ class ReactiveS3Index:
         """
         if not self.exists(bucketPath):
             return bytearray()
-        self.root.s3.Object(self.bucketName, bucketPath).delete()
+        self.s3.Object(self.bucketName, bucketPath).delete()
         self.pubSub.sendMessage(
             self.makeTopicPubSubSafe("/DELETE/"+bucketPath), {'key': bucketPath})
 

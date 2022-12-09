@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../../assets/images/logo-alone.svg";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
+import './SearchView.scss';
 
 type SearchViewProps = {
   cursor: MocapS3Cursor;

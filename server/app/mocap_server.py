@@ -211,6 +211,8 @@ class SubjectToProcess:
             for trialName in self.trials:
                 self.trials[trialName].download(trialsFolderPath)
 
+            print('Done downloading, ready to process', flush=True)
+
             # 3. That download can take a while, so re-up our processing soft-lock
             self.pushProcessingFlag(procLogTopic)
 
@@ -365,12 +367,15 @@ class SubjectToProcess:
         # allowed to crash without finishing processing, so they're supposed to re-up their lock
         # on the PROCESSING file every minute or so. If they don't, then this is once again up for
         # grabs, and other servers can take it.
-        processLockTimestamp = self.index.getMetadata(
-            self.processingFlagFile).lastModified
-        currentTimestamp = time.time() * 1000
-        lockAge = currentTimestamp - processLockTimestamp
-        # If the lock is older than 60 seconds, this is probably good to go
-        return lockAge > 60000
+        # processLockTimestamp = self.index.getMetadata(
+        #     self.processingFlagFile).lastModified
+        # currentTimestamp = time.time() * 1000
+        # lockAge = currentTimestamp - processLockTimestamp
+        # # If the lock is older than 60 seconds, this is probably good to go
+        # return lockAge > 60000
+
+        # Don't pick up a file that already has a processing flag, cause timesteps are too unreliable
+        return False
 
     def readyToProcess(self) -> bool:
         """
@@ -430,17 +435,37 @@ class MocapServer:
     bucket: str
     deployment: str
 
+    # Status reporting quantities
+    serverId: str
+    lastUploadedStatusStr: str
+    lastUploadedStatusTimestamp: float
+    lastSeenPong: Dict[str, float]
+
     def __init__(self, bucket: str, deployment: str) -> None:
         self.bucket = bucket
         self.deployment = deployment
         self.queue = []
         self.currentlyProcessing = None
+
+        # Set up for status reporting
+        self.serverId = str(uuid.uuid4())
+        print('Booting as server ID: '+self.serverId)
+        self.lastUploadedStatusStr = ''
+        self.lastUploadedStatusTimestamp = 0
+        self.lastSeenPong = {}
+
+        # Set up index
         self.index = ReactiveS3Index(bucket, deployment)
         self.index.addChangeListener(self.onChange)
         self.index.refreshIndex()
         self.index.registerPubSub()
+        # Subscribe to pings on the index
+        self.index.pubSub.subscribe(
+            "/PING/"+self.serverId, self.onPingReceived)
+        self.index.pubSub.subscribe("/PONG/#", self.onPongReceived)
 
-        t = threading.Thread(target=self.broadcastQueueForever, daemon=True)
+        t = threading.Thread(
+            target=self.cleanUpOtherDeadServersForever, daemon=True)
         t.start()
 
     def onChange(self):
@@ -464,18 +489,97 @@ class MocapServer:
         # 3. Update the queue. There's another thread that busy-waits on the queue changing, that can then grab a queue entry and continue
         self.queue = shouldProcessSubjects
 
-    def broadcastQueueForever(self):
+        # 4. Update status file. Do this on another thread, to avoid deadlocking with the pubsub service when this is being called
+        # inside a callback from a message, and then wants to send its own message out about updating the status file.
+        t = threading.Thread(
+            target=self.updateStatusFile, daemon=True)
+        t.start()
+
+    def onPingReceived(self, topic: str, payload: bytes):
         """
-        This will spin, sending out the current queue every few seconds while it's non-empty, so that waiters know
-        what jobs are in front of them in the queue.
+        This responds to liveness requests
         """
+        print('Received liveness ping as '+self.serverId)
+        # Reply with a pong on another thread, to avoid deadlocking the MQTT service (it doesn't like if you send a message from inside
+        # a message callback)
+        t = threading.Thread(
+            target=self.sendPong, daemon=True)
+        t.start()
+
+    def sendPong(self):
+        print('Sending liveness pong as '+self.serverId)
+        self.index.pubSub.sendMessage(
+            '/PONG/'+self.serverId, {})
+
+    def onPongReceived(self, topic: str, payload: bytes):
+        """
+        This observes liveness responses, and notes the time so we can see how long it's been since a response
+        """
+        serverReporting: str = topic.replace(
+            '/PONG/', '').replace('/DEV', '').replace('/PROD', '')
+        print('Got pong from '+serverReporting)
+        self.lastSeenPong[serverReporting] = time.time()
+
+    def updateStatusFile(self):
+        """
+        This writes an updated version of our status file to S3, if anything has changed since our last write
+        """
+        status: Dict[str, Any] = {}
+        if self.currentlyProcessing is not None:
+            status['currently_processing'] = self.currentlyProcessing.subjectPath
+        else:
+            status['currently_processing'] = 'none'
+        status['job_queue'] = [x.subjectPath for x in self.queue]
+        statusStr: str = json.dumps(status)
+
+        currentTimestamp = time.time()
+        elapsedSinceUpload = currentTimestamp - self.lastUploadedStatusTimestamp
+
+        if (statusStr != self.lastUploadedStatusStr) or (elapsedSinceUpload > 60):
+            self.lastUploadedStatusStr = statusStr
+            self.lastUploadedStatusTimestamp = currentTimestamp
+            self.index.uploadText(
+                'protected/server_status/'+self.serverId, statusStr)
+            print('Uploaded updated status file: \n' + statusStr)
+
+    def cleanUpOtherDeadServersForever(self):
+        """
+        This will spin, pinging anyone else whose server status files are still online at intervals, 
+        and cleaning up servers that haven't responded for more than a configured timeout.
+        """
+        pingIntervalSeconds = 30
+        deathIntervalSeconds = 60
+
         while True:
-            if len(self.queue) > 0:
-                queueMsg: Dict[str, str] = {}
-                queueMsg['queue'] = [x.subjectPath for x in self.queue]
-                self.index.pubSub.sendMessage(
-                    '/PROC_QUEUE', queueMsg)
-            time.sleep(2)
+            statusFiles: Dict[str, FileMetadata] = self.index.getImmediateChildren(
+                "protected/server_status/")
+
+            print('Sending liveness pings', flush=True)
+            # Send out pings
+            for k in statusFiles:
+                if k == self.serverId:
+                    pass
+                else:
+                    # Send a ping, which will get an asynchronous response which will eventually update self.lastSeenPong[k]
+                    self.index.pubSub.sendMessage('/PING/'+k, {})
+
+            # Check for death
+            for k in statusFiles:
+                if k == self.serverId:
+                    pass
+                else:
+                    if k not in self.lastSeenPong:
+                        self.lastSeenPong[k] = time.time()
+                    timeSincePong = time.time() - self.lastSeenPong[k]
+                    if timeSincePong > deathIntervalSeconds:
+                        print('Detected dead server: '+str(k), flush=True)
+                        self.index.delete('protected/server_status/'+k)
+                        print('Cleaned up status file for: '+str(k), flush=True)
+                    else:
+                        print('Server '+str(k)+' seen within '+str(timeSincePong) +
+                              's < death interval '+str(deathIntervalSeconds)+'s, so still alive', flush=True)
+
+            time.sleep(pingIntervalSeconds)
 
     def processQueueForever(self):
         """
@@ -487,6 +591,8 @@ class MocapServer:
             try:
                 if len(self.queue) > 0:
                     self.currentlyProcessing = self.queue[0]
+                    self.updateStatusFile()
+
                     # This will update the state of S3, which will in turn update and remove this element from our queue automatically.
                     # If it doesn't, then perhaps something went wrong and it's actually fine to process again. So the key idea is DON'T
                     # MANUALLY MANAGE THE WORK QUEUE! That happens in self.onChange()
@@ -497,6 +603,8 @@ class MocapServer:
 
                     # This helps our status thread to keep track of what we're doing
                     self.currentlyProcessing = None
+                    self.updateStatusFile()
+
                     # We need to avoid race conditions with S3 by not immediately processing the next item. Give S3 a chance to update.
                     print(
                         'Sleeping for 10 seconds before attempting to process the next item...')

@@ -33,10 +33,12 @@ class PubSub:
 
     resumeListeners = []
     deployment: str
+    lock: threading.Lock
 
     def __init__(self, deployment: str):
         print('creating PubSub object')
         self.deployment = deployment
+        self.lock = threading.Lock()
         # Spin up resources
         eventLoopGroup = io.EventLoopGroup(1)
         hostResolver = io.DefaultHostResolver(eventLoopGroup)
@@ -66,34 +68,40 @@ class PubSub:
         """
         Subscribe to a topic
         """
+        self.lock.acquire()
         subscribeFuture, packetId = self.mqttConnection.subscribe(
             topic=('/' + self.deployment + topic),
             qos=mqtt.QoS.AT_MOST_ONCE,  # AT_LEAST_ONCE
             callback=callback)
         # Future.result() waits until a result is available
         subscribeFuture.result()
+        self.lock.release()
 
     def sendMessage(self, topic: str, payload: Dict[str, Any] = {}):
         """
         Sends a message to PubSub
         """
+        self.lock.acquire()
         payloadWithTopic = payload.copy()
         payloadWithTopic['topic'] = topic
         payload_json = json.dumps(payloadWithTopic)
         sendFuture, packetId = self.mqttConnection.publish(
             topic=('/' + self.deployment + topic),
             payload=payload_json,
-            qos=mqtt.QoS.AT_LEAST_ONCE)  # AT_LEAST_ONCE
+            qos=mqtt.QoS.AT_MOST_ONCE)  # AT_LEAST_ONCE
         # Future.result() waits until a result is available
         sendFuture.result()
+        self.lock.release()
 
     def disconnect(self):
+        self.lock.acquire()
         """
         Disconnect the PubSub pipe
         """
         disconnect_future = self.mqtt_connection.disconnect()
         # Wait for the async op to complete
         disconnect_future.result()
+        self.lock.release()
 
     def addResumeListener(self, listener):
         self.resumeListeners.append(listener)

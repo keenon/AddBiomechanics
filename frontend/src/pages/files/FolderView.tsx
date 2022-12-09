@@ -46,7 +46,7 @@ const FolderView = observer((props: FolderViewProps) => {
       }
     }
     else if (status === "waiting") {
-      statusBadge = <span className="badge bg-secondary">Waiting for server {props.cursor.getQueueOrder(entry.key)}</span>;
+      statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
     }
     else if (status === "empty") {
       statusBadge = <span className="badge bg-secondary">Waiting for you to upload data</span>;

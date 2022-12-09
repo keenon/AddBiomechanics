@@ -1,8 +1,5 @@
 //Core files
-$theme-colors: (
-  primary: #2C579E 
-);
-
+@import "scss/config/color-variables";
 @import "./node_modules/bootstrap/scss/functions";
 @import "./node_modules/bootstrap/scss/variables";
 @import "scss/config/variables";

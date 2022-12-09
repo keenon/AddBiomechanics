@@ -779,6 +779,26 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     </>;
   }
   else if (status === "processing") {
+    let advancedOptions = null;
+    if (props.cursor.canEdit()) {
+      advancedOptions = (
+        <div className="mt-2 mb-2">
+          <Dropdown>
+            <Dropdown.Toggle size="sm" variant="light" id="dropdown-basic">
+              Advanced Options
+            </Dropdown.Toggle>
+
+            <Dropdown.Menu>
+              <Dropdown.Item variant="danger" onClick={() => {
+                if (window.confirm("DANGER! Only do this if your processing server has crashed. You can check under \"Processing Server Status\" to make sure. Are you fairly confident your processing server crashed?")) {
+                  props.cursor.requestReprocessSubject();
+                }
+              }}>DANGER: Reprocess now, ignoring current processing attempt</Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
+        </div>
+      )
+    }
     statusBadge = <span className="badge bg-warning">Processing</span>;
     statusDetails =
       <>
@@ -793,6 +813,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             replace
           >Watch Live Processing Logs</Link>
         </div>
+        {advancedOptions}
         <div>
           We'll send you an email when your data has finished processing!
         </div>
@@ -810,8 +831,13 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     }
   }
   else if (status === "waiting") {
-    statusBadge = <span className="badge bg-secondary">Waiting for server {props.cursor.getQueueOrder()}</span>;
+    statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
     statusDetails = <div>
+      <div className="mb-1">
+        <Link
+          to={"/server_status"}
+        >View Processing Server Status</Link>
+      </div>
       We'll send you an email when your data has finished processing!
     </div>
   }

@@ -27,6 +27,11 @@ type MocapProcessingLogMsg = {
     timestamp: number;
 }
 
+type ProcessingServerStatus = {
+    currently_processing: string;
+    job_queue: string[];
+}
+
 class LargeZipBinaryObject {
     object: any | null;
     loading: boolean;
@@ -90,7 +95,9 @@ class MocapS3Cursor {
 
     userEmail: string | null;
 
-    cloudProcessingQueue: string[];
+    processingServers: Map<string, ProcessingServerStatus>;
+    processingServersLastUpdatedTimestamp: Map<string, number>;
+    lastSeenPong: Map<string, number>;
 
     constructor(s3Index: ReactiveIndex, socket: RobustMqtt) {
         this.dataPrefix = '';
@@ -115,7 +122,9 @@ class MocapS3Cursor {
 
         this.userEmail = null;
 
-        this.cloudProcessingQueue = [];
+        this.processingServers = new Map();
+        this.processingServersLastUpdatedTimestamp = new Map();
+        this.lastSeenPong = new Map();
 
         this.myIdentityId = '';
         this.authenticated = false;
@@ -124,11 +133,16 @@ class MocapS3Cursor {
             this.myIdentityId = credentials.identityId.replace("us-west-2:", "");
         }))
 
+        this.s3Index.addChildrenListener("protected/server_status/", this.updateProcessingServerFiles);
+        this.updateProcessingServerFiles();
+
         makeObservable(this, {
             myIdentityId: observable,
             dataPrefix: observable,
             showValidationControls: observable,
-            userEmail: observable
+            userEmail: observable,
+            processingServers: observable,
+            lastSeenPong: observable
         });
     }
 
@@ -144,17 +158,76 @@ class MocapS3Cursor {
     /**
      * Subscribe to processing details.
      */
-    subscribeToCloudProcessingQueueUpdates = () => {
-        this.socket.subscribe("/PROC_QUEUE", action((topic, msg) => {
-            const msgObj = JSON.parse(msg);
-            this.cloudProcessingQueue = msgObj['queue'];
+    subscribeToCloudProcessingServerPongs = () => {
+        this.socket.subscribe("/PONG/#", action((topic, msg) => {
+            const serverName = topic.replace("/PONG/", "").replace("/DEV", "").replace("/PROD", "");
+            console.log("Got pong from "+serverName);
+            this.lastSeenPong.set(serverName, new Date().getTime());
         }));
     }
+
+    /**
+     * Send a ping to a server.
+     */
+    pingServer = (key: string) => {
+        this.socket.publish("/PING/"+key, "{}");
+    };
+
+    /**
+     * Send out pings to all servers.
+     */
+    pingAllServers = () => {
+        this.processingServers.forEach((v,k) => {
+            this.pingServer(k);
+        });
+    };
+
+    updateProcessingServerFiles = action(() => {
+        // Get the list of current server statuses, and pull any necessary JSON files
+        const currentServerFiles = this.s3Index.getChildren("protected/server_status/");
+        currentServerFiles.forEach((v,k) => {
+            const timestamp = v.lastModified.getTime();
+            const lastUpdatedTimestamp = this.processingServersLastUpdatedTimestamp.get(k);
+            if (lastUpdatedTimestamp !== timestamp) {
+                console.log("Downloading status file for: "+k);
+                this.processingServersLastUpdatedTimestamp.set(k, timestamp);
+                this.s3Index.downloadText(v.key).then(action((text: string) => {
+                    console.log("Got status file for "+k+": "+text);
+                    try {
+                        const result: ProcessingServerStatus = JSON.parse(text);
+                        this.processingServers.set(k, result);
+                    }
+                    catch (e) {
+                        console.error("Failed to parse status file for processing server "+k+": "+text);
+                    }
+                })).catch((e) => {
+                    console.warn("Failed to download status file for processing server "+k);
+                });
+            }
+        });
+
+        // Clean up any files that have gone away
+        let toRemove: string[] = [];
+        this.processingServers.forEach((v,k) => {
+            console.log("Checking key: "+k);
+            console.log("Comparing to dict: ", [...currentServerFiles.keys()]);
+
+            if (!currentServerFiles.has(k)) {
+                console.log("Processing server "+k+" seems to have disappeared. Removing it.");
+                toRemove.push(k);
+            }
+        });
+        toRemove.forEach((k) => {
+            this.processingServers.delete(k);
+        });
+    });
 
     /**
      * Get the order of an element in the queue.
      */
     getQueueOrder = (path?: string) => {
+        return 'TODO';
+        /*
         let fullPath = this.s3Index.globalPrefix + this.rawCursor.path;
         if (path != null) {
             fullPath += path;
@@ -168,6 +241,7 @@ class MocapS3Cursor {
         else {
             return ': '+(index+1)+' ahead';
         }
+        */
     }
 
     /**
