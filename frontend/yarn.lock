@@ -9953,10 +9953,10 @@ neo-async@^2.6.2:
   resolved "https://registry.yarnpkg.com/neo-async/-/neo-async-2.6.2.tgz#b4aafb93e3aeb2d8174ca53cf163ab7d7308305f"
   integrity sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==
 
-nimble-visualizer@0.8.11:
-  version "0.8.11"
-  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.8.11.tgz#8b65b9c55d67f6e1a185a48e3ba65588d5eef682"
-  integrity sha512-m96lMgEso7oe1/ZaYUdzR0OnSYj8hvst6U3AMsl2j2pQ0pEQtCE7+yt/VeWySOj0hZe9af/J+6RekCMhz9kh2Q==
+nimble-visualizer@0.8.12:
+  version "0.8.12"
+  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.8.12.tgz#75cb50798628c13c8282b65c958894de248711dc"
+  integrity sha512-jvM6NZK6EEkc71vSTewdPlYbQjXqnpFg+sPc2q7S3XqO+/o4ws46bZ7S6U9257Q+QQ9fVt8Tu2SM6FGsvhlI5g==
   dependencies:
     google-protobuf "^3.20.1"
     sha256-uint8array "^0.10.3"

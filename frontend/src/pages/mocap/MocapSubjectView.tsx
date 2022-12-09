@@ -1172,7 +1172,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           delay={{ show: 50, hide: 400 }}
           overlay={(props) => (
             <Tooltip id="button-tooltip" {...props}>
-              We use structured tags, instead of free form text notes, to avoid accidentally hosting Personally Identifiable Information (PII) on the platform. If you don't find the tags you need, feel free to email keenon@cs.stanford.edu and suggest new tags!
+              These tags are not used in data processing, but can help your users once the data is published. We use structured tags, instead of free form text notes, to avoid accidentally hosting Personally Identifiable Information (PII) on the platform. If you don't find the tags you need, feel free to email keenon@cs.stanford.edu and suggest new tags!
             </Tooltip>
           )}
         >
@@ -1277,7 +1277,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                   delay={{ show: 50, hide: 400 }}
                   overlay={(props) => (
                     <Tooltip id="button-tooltip" {...props}>
-                      We use structured tags, instead of free form text notes, to avoid accidentally hosting Personally Identifiable Information (PII) on the platform. If you don't find the tags you need, feel free to email keenon@cs.stanford.edu and suggest new tags!
+                      These tags are not used in data processing, but can help your users once the data is published. We use structured tags, instead of free form text notes, to avoid accidentally hosting Personally Identifiable Information (PII) on the platform. If you don't find the tags you need, feel free to email keenon@cs.stanford.edu and suggest new tags!
                     </Tooltip>
                   )}
                 >
