@@ -591,7 +591,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
             shutil.copyfile(trialPath + 'manual_ik.mot', path +
                             'results/IK/' + trialName + '_manual_scaling_ik.mot')
             nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
-                trialName, markerNames, "Models/manually_scaled.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_on_manual_scaling_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_on_manually_scaled_setup.xml')
+                trialName, markerNames, "../Models/manually_scaled.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_on_manual_scaling_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_on_manually_scaled_setup.xml')
 
             originalIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
                 goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, markerTimesteps)
@@ -633,11 +633,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None):
                             'results/C3D/' + trialName + '.c3d')
         # Save OpenSim setup files to make it easy to (re)run IK and ID on the results in OpenSim
         nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
-            trialName, markerNames, "Models/optimized_scale_and_markers.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
+            trialName, markerNames, "../Models/optimized_scale_and_markers.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
         nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsForcesXMLFile(
             trialName, finalSkeleton, poses, forcePlates, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
         nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
-            trialName, 'Models/optimized_scale_and_markers.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml')
+            trialName, '../Models/optimized_scale_and_markers.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml')
 
         # 8.2. Write out the animation preview
         # 8.2.1. Create the raw binary
