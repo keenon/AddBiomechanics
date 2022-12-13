@@ -795,6 +795,7 @@ class ReactiveIndex {
     region: string;
     bucketName: string;
 
+    fullRefreshInProgress: boolean = false;
     authenticated: boolean = false;
     myIdentityId: string = '';
 
@@ -1157,6 +1158,11 @@ class ReactiveIndex {
      * This does a complete refresh, overwriting the paths
      */
     fullRefresh = async (recreateClient: boolean = true) => {
+        if (this.fullRefreshInProgress) {
+            console.log("Ignoring call to fullRefresh(), since we're in the middle of another full refresh.")
+            return;
+        }
+        this.fullRefreshInProgress = true;
         this.setIsLoading(true);
 
         if (recreateClient) {
@@ -1216,6 +1222,8 @@ class ReactiveIndex {
                 console.error('Unable to refresh index');
                 console.log(err);
                 this.setNetworkError("FullRefresh", "We got an error trying to load the files! Attempting to reconnect...");
+            }).finally(() => {
+                this.fullRefreshInProgress = false;
             });
     };
 
@@ -1313,6 +1321,8 @@ class ReactiveIndex {
             }
             else {
                 this.clearNetworkError("PubSub");
+                console.log("Doing a full refresh on reconnect, because we likely missed things while we were in the background.");
+                this.fullRefresh();
             }
         });
     };
@@ -1467,6 +1477,24 @@ class ReactiveIndex {
 
         return children;
     };
+
+    /**
+     * This returns all paths containing a specific string anywhere in the path.
+     */
+    getAllPathsContaining = (query: string) => {
+        let paths: Map<string, ReactiveFileMetadata> = new Map();
+
+        this.files.forEach((file: ReactiveFileMetadata, key: string) => {
+            if (key.indexOf(query) !== -1) {
+                paths.set(key, file);
+            }
+            else {
+                // console.log(query+' not in "'+key+'"');
+            }
+        });
+
+        return paths;
+    }
 
     /**
      * Fires whenever the set of children of a given path changes (either added or deleted)

@@ -572,13 +572,46 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let statusBadge = null;
   let statusDetails = null;
   if (status === "done") {
-    let download = null;
+    let downloadOpenSim = null;
     if (props.cursor.hasResultsArchive()) {
-      download = (
+      downloadOpenSim = (
         <div style={{ 'marginBottom': '5px' }}>
           <Button onClick={() => props.cursor.downloadResultsArchive()}>
             <i className="mdi mdi-download me-2 vertical-middle"></i>
             Download OpenSim Results
+            <OverlayTrigger
+              placement="right"
+              delay={{ show: 50, hide: 400 }}
+              overlay={(props) => (
+                <Tooltip id="button-tooltip" {...props}>
+                  This is a zip ball of a folder hierarchy with OpenSim files in a standard layout.
+                </Tooltip>
+              )}
+            >
+              <i className="mdi mdi-help-circle-outline vertical-middle" style={{ marginLeft: '5px' }}></i>
+            </OverlayTrigger>
+          </Button>
+        </div>
+      );
+    }
+    let downloadSubjectOnDisk = null;
+    if (props.cursor.hasSubjectOnDisk()) {
+      downloadSubjectOnDisk = (
+        <div style={{ 'marginBottom': '5px' }}>
+          <Button onClick={() => props.cursor.downloadSubjectOnDisk()}>
+            <i className="mdi mdi-download me-2 vertical-middle"></i>
+            Download Nimble Physics &amp; PyTorch Data File
+            <OverlayTrigger
+              placement="right"
+              delay={{ show: 50, hide: 400 }}
+              overlay={(props) => (
+                <Tooltip id="button-tooltip" {...props}>
+                  This binary file can be placed into a dataset folder and can be efficiently read by Nimble Physics to train PyTorch models.
+                </Tooltip>
+              )}
+            >
+              <i className="mdi mdi-help-circle-outline vertical-middle" style={{ marginLeft: '5px' }}></i>
+            </OverlayTrigger>
           </Button>
         </div>
       );
@@ -738,7 +771,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     statusDetails = <>
       <h4>Results: {(autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE {residualText}</h4>
       {guessedMarkersWarning}
-      {download}
+      {downloadOpenSim}
+      {downloadSubjectOnDisk}
       <div style={{ 'marginBottom': '5px' }}>
         <Button variant="success" onClick={() => { setShowViewerHint(true) }}>
           <i className="mdi mdi-eye me-2 vertical-middle"></i>

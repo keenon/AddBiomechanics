@@ -56,21 +56,89 @@ const FileManager = observer((props: FileManagerProps) => {
     }
 
     let securityNotice = <div>{path.type}</div>;
-    if (path.type === 'mine') {
-      securityNotice = (
-        <div className="d-flex justify-content-between align-items-center">
-          <div className="FileControlsWrapper-folder-description">
-            This folder is accessible to anyone who has the link (<a href={window.location.href}>{window.location.href}</a>), but is not searchable.
+    if (path.type === 'readonly') {
+      if (props.cursor.isSearchable()) {
+        securityNotice = (
+          <div className="d-flex justify-content-between align-items-center">
+            <div className="FileControlsWrapper-folder-description">
+              <div>
+                This folder is public and searchable.
+              </div>
+              <div>
+                <p>
+                  Creator's notes:
+                </p>
+                <div>
+                  {props.cursor.searchJson.getAttribute("notes", "")}
+                </div>
+              </div>
+            </div>
           </div>
-          {/*
-          <div>
-            <button type="submit" className="btn btn-primary">
-              <i className="mdi mdi-earth-plus"></i> Make Searchable
-            </button>
+        );
+      }
+      else {
+        securityNotice = (
+          <div className="d-flex justify-content-between align-items-center">
+            <div className="FileControlsWrapper-folder-description">
+              <div>
+                This folder is accessible to anyone who has the link (<a href={window.location.href}>{window.location.href}</a>), but is not searchable.
+              </div>
+              <div>
+                <p>
+                  Creator's notes:
+                </p>
+                <div>
+                  {props.cursor.searchJson.getAttribute("notes", "")}
+                </div>
+              </div>
+            </div>
           </div>
-          */}
-        </div>
-      );
+        );
+      }
+    }
+    else if (path.type === 'mine') {
+      if (props.cursor.isSearchable()) {
+        securityNotice = (
+          <div className="d-flex justify-content-between align-items-center">
+            <div className="FileControlsWrapper-folder-description">
+              <div>
+                This folder is public and searchable.
+              </div>
+              <div>
+                <div>
+                  <textarea placeholder="Public notes (how to cite, etc). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!" value={props.cursor.searchJson.getAttribute("notes", "")} onChange={(e) => {
+                    props.cursor.searchJson.setAttribute("notes", e.target.value);
+                  }} />
+                </div>
+                <button type="submit" className="btn btn-light" onClick={() => props.cursor.markNotSearchable()}>
+                  <i className="mdi mdi-earth-minus"></i> Remove from Search
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      else {
+        securityNotice = (
+          <div className="d-flex justify-content-between align-items-center">
+            <div className="FileControlsWrapper-folder-description">
+              <div>
+                This folder is accessible to anyone who has the link (<a href={window.location.href}>{window.location.href}</a>), but is not searchable.
+              </div>
+              <div>
+                <div>
+                  <textarea placeholder="Public notes (how to cite, etc). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!" value={props.cursor.searchJson.getAttribute("notes", "")} onChange={(e) => {
+                    props.cursor.searchJson.setAttribute("notes", e.target.value);
+                  }} />
+                </div>
+                <button type="submit" className="btn btn-primary" onClick={() => props.cursor.markSearchable()}>
+                  <i className="mdi mdi-earth-plus"></i> Make Searchable
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
     }
     else if (path.type === 'private') {
       securityNotice = (

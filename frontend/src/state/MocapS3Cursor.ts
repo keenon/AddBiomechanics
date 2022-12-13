@@ -89,6 +89,7 @@ class MocapS3Cursor {
 
     subjectJson: ReactiveJsonFile;
     resultsJson: ReactiveJsonFile;
+    searchJson: ReactiveJsonFile;
     customModelFile: ReactiveTextFile;
 
     socket: RobustMqtt;
@@ -116,6 +117,7 @@ class MocapS3Cursor {
 
         this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
         this.resultsJson = this.rawCursor.getJsonFile("_results.json");
+        this.searchJson = this.rawCursor.getJsonFile("_search.json");
         this.customModelFile = this.rawCursor.getTextFile("unscaled_generic.osim");
 
         this.socket = socket;
@@ -509,6 +511,8 @@ class MocapS3Cursor {
         }
 
         for (let i = 0; i < rawFolders.length; i++) {
+            if (rawFolders[i].key.indexOf("_SEARCH") !== -1 || rawFolders[i].key.indexOf("_search.json") !== -1) continue;
+
             let type: 'folder' | 'mocap' = 'folder';
             if (this.rawCursor.childHasChildren(rawFolders[i].key, ['trials/', '_subject.json'])) {
                 type = 'mocap';
@@ -777,6 +781,27 @@ class MocapS3Cursor {
     }
 
     /**
+     * Returns true if the current folder is publicly searchable
+     */
+    isSearchable = () => {
+        return this.rawCursor.hasChildren(["_SEARCH"]);
+    }
+
+    /**
+     * This marks a folder as searchable
+     */
+    markSearchable = () => {
+        return this.rawCursor.uploadChild("_SEARCH", "");
+    }
+
+    /**
+     * This marks a folder as not searchable
+     */
+    markNotSearchable = () => {
+        return this.rawCursor.deleteChild("_SEARCH");
+    }
+
+    /**
      * This adds the "READY_TO_PROCESS" file on the backend, which marks the trial as being fully uploaded, and
      * ready for the backend to pick up and work on.
      */
@@ -825,6 +850,22 @@ class MocapS3Cursor {
      */
     downloadResultsArchive = () => {
         this.rawCursor.downloadFile(this.getCurrentFileName() + ".zip");
+    };
+
+    /**
+     * Returns true if there's a zip archive of the results
+     * 
+     * @returns 
+     */
+    hasSubjectOnDisk = () => {
+        return this.rawCursor.hasChildren([ this.getCurrentFileName() + ".bin"]);
+    };
+
+    /**
+     * Download the zip results archive
+     */
+    downloadSubjectOnDisk = () => {
+        this.rawCursor.downloadFile(this.getCurrentFileName() + ".bin");
     };
 
     /**

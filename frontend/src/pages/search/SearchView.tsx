@@ -1,38 +1,71 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import logo from "../../assets/images/logo-alone.svg";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
+import {
+  Row,
+  Col,
+  Card,
+  Dropdown,
+  ButtonGroup,
+} from "react-bootstrap";
 import './SearchView.scss';
+
+type SearchResultProps = {
+  cursor: MocapS3Cursor;
+  filePath: string;
+};
+
+const SearchResult = (props: SearchResultProps) => {
+  const navigate = useNavigate();
+
+  const filtered = props.filePath.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
+  const parts = filtered.split('/');
+  if (parts.length === 2) {
+    const userId = parts[0];
+    return <Link to={'/data/' + userId}>{'User ' + userId}</Link>
+  }
+  else if (parts.length > 2) {
+    const userId = parts[0];
+    let link = '/data/' + userId + '/' + parts.slice(2).join('/');
+    return <Link to={link}>{userId + '/' + parts.slice(2).join('/')}</Link>
+  }
+  else {
+    return null;
+  }
+}
 
 type SearchViewProps = {
   cursor: MocapS3Cursor;
 };
 
 const SearchView = (props: SearchViewProps) => {
-  const navigate = useNavigate();
+  const [availableOptions, setAvailableOptions] = useState([] as string[]);
+
+  useEffect(() => {
+    setAvailableOptions([...props.cursor.s3Index.getAllPathsContaining("SEARCH").keys()]);
+  }, []);
+
+  console.log(availableOptions);
+
   return (
     <>
-      <div className="container col-xxl-8 px-4 py-5">
-        <div className="row flex-lg-row-reverse align-items-center g-5 py-5">
-          <div className="col-10 col-sm-8 col-lg-6">
-            <img src={logo} className="d-block mx-lg-auto img-fluid" alt="Bootstrap Themes" width="700" height="500" loading="lazy" />
-          </div>
-          <div className="col-lg-6" style={{ position: "relative" }}>
-            <h1 className="display-5 fw-bold lh-1 mb-3">Coming (Very) Soon:</h1>
-            <div className="d-grid gap-2 d-md-flex justify-content-md-start">
-              <a type="button" className="btn btn-primary btn-lg px-4 me-md-2" href={"/data"} onClick={(e) => {
-                e.preventDefault();
-                navigate("/data");
-              }}>Process and Share Data</a>
-              <a type="button" className="btn btn-outline-secondary btn-lg px-4" href="/public_data"
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate("/");
-                }}>Back Home</a>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Row className="mt-3">
+        <Col md="12">
+          <Card className="mt-4">
+            <Card.Body>
+              <h3>All Public Files:</h3>
+              <ul>
+                {availableOptions.map((v) => {
+                  return <li key={v}>
+                    <SearchResult cursor={props.cursor} filePath={v} />
+                  </li>
+                })}
+              </ul>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
     </>
   );
 };

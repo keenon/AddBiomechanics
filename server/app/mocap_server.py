@@ -153,6 +153,7 @@ class SubjectToProcess:
         self.errorFlagFile = self.subjectPath + 'ERROR'
         self.resultsFile = self.subjectPath + '_results.json'
         self.osimResults = self.subjectPath + self.subjectName + '.zip'
+        self.pytorchResults = self.subjectPath + self.subjectName + '.bin'
         self.logfile = self.subjectPath + 'log.txt'
 
     def sendNotificationEmail(self, email: str, name: str, path: str):
@@ -179,6 +180,26 @@ class SubjectToProcess:
             },
             Source="noreply@biomechnet.org",
         )
+
+    def getHref(self):
+        # and example self.subjectPath, for reference:
+        #
+        # protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/SprinterTest/
+        if self.subjectPath.startswith('private'):
+            return '<private_file>'
+
+        filteredPath = self.subjectPath.replace('protected/us-west-2:', '')
+        parts = filteredPath.split('/')
+        if len(parts) < 3:
+            return '<error>'
+
+        userId = parts[0]
+        filePath = '/'.join(parts[2:])
+
+        if self.index.deployment == 'DEV':
+            return 'https://dev.addbiomechanics.org/data/'+userId+'/'+filePath
+        else:
+            return 'https://app.addbiomechanics.org/data/'+userId+'/'+filePath
 
     def process(self):
         """
@@ -219,9 +240,9 @@ class SubjectToProcess:
             # 4. Launch a processing process
             enginePath = absPath('../engine/engine.py')
             print('Calling Command:\n'+enginePath+' ' +
-                  path+' '+self.subjectName, flush=True)
+                  path+' '+self.subjectName+' '+self.getHref(), flush=True)
             with open(path + 'log.txt', 'wb+') as logFile:
-                with subprocess.Popen([enginePath, path, self.subjectName], stdout=subprocess.PIPE) as proc:
+                with subprocess.Popen([enginePath, path, self.subjectName, self.getHref()], stdout=subprocess.PIPE) as proc:
                     print('Process created: '+str(proc.pid), flush=True)
 
                     unflushedLines: List[str] = []
@@ -293,6 +314,10 @@ class SubjectToProcess:
                 else:
                     print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                           path + self.subjectName + '.zip', flush=True)
+                # 5.1.2. Upload the downloadable {self.subjectName}.bin file, which can be loaded into PyTorch loaders
+                if os.path.exists(path + self.subjectName + '.bin'):
+                    self.index.uploadFile(
+                        self.pytorchResults, path + self.subjectName + '.bin')
                 # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
                 # and it starts to be able
                 if os.path.exists(path + '_results.json'):
