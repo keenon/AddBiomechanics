@@ -17,7 +17,7 @@ import Welcome from "./pages/Welcome";
 import SearchView from "./pages/search/SearchView";
 import ProcessingServerStatus from "./pages/processing_servers/ProcessingServerStatus";
 import ErrorDisplay from "./layouts/ErrorDisplay";
-import { ReactiveIndex } from "./state/ReactiveS3";
+import { ReactiveIndex, ReactiveSearchList } from "./state/ReactiveS3";
 import MocapS3Cursor from "./state/MocapS3Cursor";
 import Amplify, { API, Auth } from "aws-amplify";
 import awsExports from "./aws-exports";

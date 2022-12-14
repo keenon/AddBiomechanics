@@ -157,7 +157,7 @@ const SignUp = () => {
               We believe in open data
             </h4>
             <p className="text-muted mb-4">
-              We provide this free service in order to encourge more public sharing of human motion data, to enable data-driven breakthroughs in human motion science. <b>Any data you upload to the tool will be made <a href="/public_data" target={"_blank"}>publically available</a> under a <a href="https://creativecommons.org/licenses/by/4.0/" target={"_blank"}>CC BY 4.0</a> license.</b> If for some reason you don't want to share your data, you're welcome to look at the <a href="https://github.com/keenon/BiomechanicsNet">open source code</a> for the project and run your own private instance.
+              We provide this free service in order to encourge more public sharing of human motion data, to enable data-driven breakthroughs in human motion science. While you can choose to not share data you upload, we ask that you share as much as you can.
             </p>
           </div>
           <Checkbox name='data'>I agree to share data I upload with the community</Checkbox>

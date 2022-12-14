@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Dropdown, ButtonGroup, Table, Spinner } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
@@ -138,26 +138,29 @@ const FolderView = observer((props: FolderViewProps) => {
       );
     }
   }
+
   return (
-    <Table
-      responsive={rows.length > 2}
-      className="table table-centered table-nowrap mb-0"
-    >
-      <thead className="table-light">
-        <tr>
-          <th className="border-0">Name</th>
-          <th className="border-0">Status</th>
-          <th className="border-0">Last Modified</th>
-          <th className="border-0">Size</th>
-          {dataIsReadonly ? null : (
-            <th className="border-0" style={{ width: "80px" }}>
-              Action
-            </th>
-          )}
-        </tr>
-      </thead>
-      <tbody>{rows}</tbody>
-    </Table>
+    <>
+      <Table
+        responsive={rows.length > 2}
+        className="table table-centered table-nowrap mb-0"
+      >
+        <thead className="table-light">
+          <tr>
+            <th className="border-0">Name</th>
+            <th className="border-0">Status</th>
+            <th className="border-0">Last Modified</th>
+            <th className="border-0">Size</th>
+            {dataIsReadonly ? null : (
+              <th className="border-0" style={{ width: "80px" }}>
+                Action
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody>{rows}</tbody>
+      </Table>
+    </>
   );
 });
 

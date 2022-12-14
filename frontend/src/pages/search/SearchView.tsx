@@ -8,7 +8,9 @@ import {
   Card,
   Dropdown,
   ButtonGroup,
+  Spinner,
 } from "react-bootstrap";
+import { observer } from "mobx-react-lite";
 import './SearchView.scss';
 
 type SearchResultProps = {
@@ -28,25 +30,44 @@ const SearchResult = (props: SearchResultProps) => {
   else if (parts.length > 2) {
     const userId = parts[0];
     let link = '/data/' + userId + '/' + parts.slice(2).join('/');
-    return <Link to={link}>{userId + '/' + parts.slice(2).join('/')}</Link>
+    return <Link to={link}>{'User ' + userId + '/' + parts.slice(2).join('/')}</Link>
   }
   else {
     return null;
   }
-}
+};
 
 type SearchViewProps = {
   cursor: MocapS3Cursor;
 };
 
-const SearchView = (props: SearchViewProps) => {
-  const [availableOptions, setAvailableOptions] = useState([] as string[]);
+const SearchView = observer((props: SearchViewProps) => {
+  const result = props.cursor.searchIndex.results;
+  const availableOptions = [...result.keys()];
 
   useEffect(() => {
-    setAvailableOptions([...props.cursor.s3Index.getAllPathsContaining("SEARCH").keys()]);
+    props.cursor.searchIndex.startListening();
+
+    return () => {
+      props.cursor.searchIndex.stopListening();
+    }
   }, []);
 
-  console.log(availableOptions);
+  let body = null;
+  if (props.cursor.getIsLoading()) {
+    body = <Spinner animation="border" />;
+  }
+  else {
+    body = <>
+      <ul>
+        {availableOptions.map((v) => {
+          return <li key={v}>
+            <SearchResult cursor={props.cursor} filePath={v} />
+          </li>
+        })}
+      </ul>
+    </>
+  }
 
   return (
     <>
@@ -54,20 +75,15 @@ const SearchView = (props: SearchViewProps) => {
         <Col md="12">
           <Card className="mt-4">
             <Card.Body>
-              <h3>All Public Files:</h3>
-              <ul>
-                {availableOptions.map((v) => {
-                  return <li key={v}>
-                    <SearchResult cursor={props.cursor} filePath={v} />
-                  </li>
-                })}
-              </ul>
+              <h3>Published Folders:</h3>
+              <p>All folders still in "draft" mode will not show up here. Authors must mark their folder as published to have it appear here.</p>
+              {body}
             </Card.Body>
           </Card>
         </Col>
       </Row>
     </>
   );
-};
+});
 
 export default SearchView;

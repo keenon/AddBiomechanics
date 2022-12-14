@@ -143,7 +143,39 @@ const FileRouter = observer((props: FileRouterProps) => {
     else {
       body = (
         <div>
-          404 Not Found!
+          The URL you've entered doesn't seem to exist. Maybe the files were deleted by their owner?
+        </div>
+      );
+    }
+  }
+
+  let securityNotice = <></>;
+  if (path.type === 'readonly') {
+    if (props.cursor.isSearchable()) {
+      securityNotice = (
+        <div className="d-flex justify-content-between align-items-center">
+          <div className="FileControlsWrapper-folder-description">
+            <p className="mb-0 mt-2">
+              <b>Author's Notes:</b>{' '}{props.cursor.searchJson.getAttribute("notes", "")}
+            </p>
+          </div>
+        </div>
+      );
+    }
+    else {
+      securityNotice = (
+        <div className="d-flex justify-content-between align-items-center">
+          <div className="FileControlsWrapper-folder-description">
+            <h4>
+              <span className="badge rounded-pill p-1 px-2 bg-warning">DRAFT DATA</span>
+            </h4>
+            <p>
+              The author may not be finished working on this data, so use it with caution.
+            </p>
+            <p className="mb-0 mt-2">
+              <b>Author's Notes:</b>{' '}{props.cursor.searchJson.getAttribute("notes", "")}
+            </p>
+          </div>
         </div>
       );
     }
@@ -151,10 +183,9 @@ const FileRouter = observer((props: FileRouterProps) => {
 
   return (
     <>
-      <div className="mt-0">
-        <Breadcrumb className="m-0">{breadcrumbs}</Breadcrumb>
-        {body}
-      </div>
+      {securityNotice}
+      <Breadcrumb className="m-0 mb-0">{breadcrumbs}</Breadcrumb>
+      {body}
     </>
   );
 });

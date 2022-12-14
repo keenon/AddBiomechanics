@@ -1,4 +1,4 @@
-import { ReactiveCursor, ReactiveIndex, ReactiveJsonFile, ReactiveTextFile } from "./ReactiveS3";
+import { ReactiveCursor, ReactiveSearchList, ReactiveIndex, ReactiveJsonFile, ReactiveTextFile } from "./ReactiveS3";
 import { makeObservable, observable, action } from 'mobx';
 import { Auth } from "aws-amplify";
 import RobustMqtt from "./RobustMqtt";
@@ -74,6 +74,7 @@ class MocapS3Cursor {
     dataPrefix: string;
     rawCursor: ReactiveCursor;
     s3Index: ReactiveIndex;
+    searchIndex: ReactiveSearchList;
 
     region: string;
     myIdentityId: string;
@@ -106,6 +107,7 @@ class MocapS3Cursor {
         this.region = 'us-west-2';
         this.rawCursor = new ReactiveCursor(s3Index, 'protected/'+this.region+":"+s3Index.myIdentityId);
         this.s3Index = s3Index;
+        this.searchIndex = new ReactiveSearchList(s3Index, '_SEARCH');
 
         this.cachedLogFile = null;
         this.cachedResultsFile = null;
@@ -322,7 +324,8 @@ class MocapS3Cursor {
         const exists: boolean = this.rawCursor.getExists();
         // Special case: this happens when a user has just created an account, but hasn't uploaded anything yet.
         // If we're in the root of our private folder, even if no files uploaded yet, always treat this as a folder.
-        if (!exists && !hasChildren && parts.length === 3 && parts[1] === this.s3Index.myIdentityId && parts[2] === 'data') {
+        const id = parts[1].replace(this.region+":", "");
+        if (!exists && !hasChildren && parts.length === 3 && id === this.s3Index.myIdentityId && parts[2] === 'data') {
             return "folder";
         }
         // Otherwise say 404
