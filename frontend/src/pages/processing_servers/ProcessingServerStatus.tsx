@@ -102,8 +102,8 @@ const ProcessingServerDetails = observer((props: ProcessingServerDetailsProps) =
       let privacyLevel = parts[0];
       let userId = (parts.length > 1 ? parts[1] : '').replace(props.cursor.region + ":", "");
 
-      let username = userId === props.cursor.myIdentityId ? 'Me' : userId;
-      let isMe = userId === props.cursor.myIdentityId;
+      let username = userId === props.cursor.s3Index.myIdentityId ? 'Me' : userId;
+      let isMe = userId === props.cursor.s3Index.myIdentityId;
 
       let inBacklog = props.serverData.currently_processing !== rawPath;
       let rowStyle: any = null;

@@ -24,7 +24,7 @@ const FileManager = observer((props: FileManagerProps) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const path = parsePath(location.pathname, props.cursor.myIdentityId);
+  const path = parsePath(location.pathname, props.cursor.s3Index.myIdentityId);
 
   const type = props.cursor.getFileType();
 
@@ -139,7 +139,7 @@ const FileManager = observer((props: FileManagerProps) => {
           {dropdown}
           {/* Left side nav links */}
           <div className="email-menu-list mt-3">
-            <Link to={"/data/" + encodeURIComponent(props.cursor.myIdentityId)}>
+            <Link to={"/data/" + encodeURIComponent(props.cursor.s3Index.myIdentityId)}>
               <i className="mdi mdi-folder-outline font-18 align-middle me-2"></i>
               My Data
             </Link>

@@ -77,7 +77,6 @@ class MocapS3Cursor {
     searchIndex: ReactiveSearchList;
 
     region: string;
-    myIdentityId: string;
     authenticated: boolean;
 
     showValidationControls: boolean;
@@ -130,18 +129,15 @@ class MocapS3Cursor {
         this.processingServersLastUpdatedTimestamp = new Map();
         this.lastSeenPong = new Map();
 
-        this.myIdentityId = '';
         this.authenticated = false;
         Auth.currentCredentials().then(action((credentials) => {
             this.authenticated = credentials.authenticated;
-            this.myIdentityId = credentials.identityId.replace("us-west-2:", "");
         }))
 
         this.s3Index.addChildrenListener("protected/server_status/", this.updateProcessingServerFiles);
         this.updateProcessingServerFiles();
 
         makeObservable(this, {
-            myIdentityId: observable,
             dataPrefix: observable,
             showValidationControls: observable,
             userEmail: observable,

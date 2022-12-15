@@ -857,13 +857,17 @@ class ReactiveIndex {
 
     // This is a handle on the PubSub socket object we'll use
     socket: RobustMqtt;
+    addedSocketListeners: boolean;
+    firstConnection: boolean;
 
     constructor(region: string, bucketName: string, runNetworkSetup: boolean = true, socket: RobustMqtt) {
         this.region = region;
         this.bucketName = bucketName;
+        this.addedSocketListeners = false;
+        this.firstConnection = true;
         this.socket = socket;
 
-        // We don't want to run network setup in our unit tests
+        // We don't want to run network setup on creation in index.tsx or our unit tests
         if (runNetworkSetup) {
             this.fullRefresh();
             this.setupPubsub();
@@ -1345,6 +1349,11 @@ class ReactiveIndex {
      * This registers a PubSub listener for live change-updates on our S3 index
      */
     registerPubSubListeners = () => {
+        if (this.addedSocketListeners) {
+            console.log("Ignoring request to add the PubSub listeners twice");
+        }
+        this.addedSocketListeners = true;
+
         this.socket.subscribe("/UPDATE/" + this.globalPrefix + "#", (topic: string, message: string) => {
             const msg: any = JSON.parse(message);
             const globalKey: string = msg.key;
@@ -1369,6 +1378,12 @@ class ReactiveIndex {
                 this.setNetworkError("PubSub", "We got an error in PubSub! Attempting to reconnect...");
             }
             else {
+                // Don't do a full refresh on the first connection of the web socket
+                if (this.firstConnection) {
+                    this.firstConnection = false;
+                    return;
+                }
+                // Otherwise, do a full refresh
                 this.clearNetworkError("PubSub");
                 console.log("Doing a full refresh on reconnect, because we likely missed things while we were in the background.");
                 this.fullRefresh();

@@ -16,17 +16,17 @@ const FileRouter = observer((props: FileRouterProps) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if ((location.pathname === '/data' || location.pathname === '/data/') && props.cursor.myIdentityId !== '') {
+    if ((location.pathname === '/data' || location.pathname === '/data/') && props.cursor.s3Index.myIdentityId !== '') {
       if (props.cursor.authenticated) {
-        navigate("/data/" + encodeURIComponent(props.cursor.myIdentityId));
+        navigate("/data/" + encodeURIComponent(props.cursor.s3Index.myIdentityId));
       }
       else {
         navigate("/login", { replace: true, state: { from: location } });
       }
     }
-  }, [location.pathname, props.cursor.myIdentityId]);
+  }, [location.pathname, props.cursor.s3Index.myIdentityId]);
 
-  const path = parsePath(location.pathname, props.cursor.myIdentityId);
+  const path = parsePath(location.pathname, props.cursor.s3Index.myIdentityId);
 
   useEffect(() => {
     props.cursor.setDataPath(path.dataPath);
@@ -39,13 +39,13 @@ const FileRouter = observer((props: FileRouterProps) => {
   let breadcrumbs = [];
   let linkPath = "/data";
   if (path.type === 'mine') {
-    linkPath += encodeURIComponent(props.cursor.myIdentityId);
+    linkPath += encodeURIComponent(props.cursor.s3Index.myIdentityId);
     breadcrumbs.push(
       <BreadcrumbItem
-        href={"/data/" + encodeURIComponent(props.cursor.myIdentityId)}
+        href={"/data/" + encodeURIComponent(props.cursor.s3Index.myIdentityId)}
         onClick={(e) => {
           e.preventDefault();
-          navigate("/data/" + encodeURIComponent(props.cursor.myIdentityId));
+          navigate("/data/" + encodeURIComponent(props.cursor.s3Index.myIdentityId));
         }}
         active={path.parts.length === 1}
         key="header"
