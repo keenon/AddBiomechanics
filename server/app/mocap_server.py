@@ -583,7 +583,6 @@ class MocapServer:
             statusFiles: Dict[str, FileMetadata] = self.index.getImmediateChildren(
                 "protected/server_status/")
 
-            print('Sending liveness pings', flush=True)
             # Send out pings
             for k in statusFiles:
                 if k == self.serverId:

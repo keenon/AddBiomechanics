@@ -885,6 +885,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let advancedOptions = null;
   let exportSDF = props.cursor.subjectJson.getAttribute("exportSDF", false);
   let exportMJCF = props.cursor.subjectJson.getAttribute("exportMJCF", false);
+  let ignoreJointLimits = props.cursor.subjectJson.getAttribute("ignoreJointLimits", false);
   let fitDynamics = props.cursor.subjectJson.getAttribute("fitDynamics", false);
   let residualsToZero = props.cursor.subjectJson.getAttribute("residualsToZero", false);
   let tuneResidualLoss = props.cursor.subjectJson.getAttribute("tuneResidualLoss", 1.0);
@@ -952,6 +953,12 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             Export MuJoCo files:{" "}
             <input type="checkbox" checked={exportMJCF} onChange={(e) => {
               props.cursor.subjectJson.setAttribute("exportMJCF", e.target.checked);
+            }}></input>
+          </div>
+          <div className="mb-15">
+            Ignore joint limits:{" "}
+            <input type="checkbox" checked={ignoreJointLimits} onChange={(e) => {
+              props.cursor.subjectJson.setAttribute("ignoreJointLimits", e.target.checked);
             }}></input>
           </div>
           <div className="mb-15">Compare optimized skeleton with hand-scaled version:{" "}<input type="checkbox" checked={showValidationControls} onChange={(e) => {

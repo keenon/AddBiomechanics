@@ -84,6 +84,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         exportMJCF = False
 
+    if 'ignoreJointLimits' in subjectJson:
+        ignoreJointLimits = subjectJson['ignoreJointLimits']
+    else:
+        ignoreJointLimits = False
+
     if 'fitDynamics' in subjectJson:
         fitDynamics = subjectJson['fitDynamics']
     else:
@@ -161,6 +166,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     markerFitter.setInitialIKMaxRestarts(50)
     # markerFitter.setIterationLimit(40)
     markerFitter.setIterationLimit(500)
+    markerFitter.setIgnoreJointLimits(ignoreJointLimits)
 
     guessedTrackingMarkers = False
     if len(customOsim.anatomicalMarkers) > 10:
@@ -409,6 +415,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     dynamicsFitter.recalibrateForcePlates(
                         dynamicsInit, trial)
 
+            dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
+
             dynamicsFitter.computePerfectGRFs(dynamicsInit)
 
             consistent = dynamicsFitter.checkPhysicalConsistency(
@@ -562,6 +570,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         dynamicsFitter.writeSubjectOnDisk(
             outputPath, path + 'results/Models/final.osim', dynamicsInit, False, trialNames, href, notes)
 
+    trialDynamicsSegments: List[List[Tuple[int, int]]] = []
     for i in range(len(finalPoses)):
         poses = finalPoses[i]
         forces = finalInverseDynamics[i] if i < len(
@@ -644,12 +653,42 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialName, markerNames, "../Models/optimized_scale_and_markers.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
         # 8.2. Write out the inverse dynamics info
         if fitDynamics and dynamicsInit is not None:
+            # Run through the list of timesteps, looking for windows of time where we have GRF data. Trim the leading and trailing frames from these windows, because those don't fit by AddBiomechanics finite differencing.
+            dynamicsSegments: List[Tuple[int, int]] = []
+            lastUnobservedTimestep = -1
+            lastWasObserved = False
+            for t in range(len(dynamicsInit.probablyMissingGRF[i])):
+                if dynamicsInit.probablyMissingGRF[i][t]:
+                    if lastWasObserved:
+                        if lastUnobservedTimestep + 2 < t - 1:
+                            dynamicsSegments.append(
+                                (lastUnobservedTimestep + 2, t - 1))
+                    lastWasObserved = False
+                    lastUnobservedTimestep = t
+                else:
+                    lastWasObserved = True
+            if lastWasObserved:
+                if lastUnobservedTimestep + 2 < len(dynamicsInit.probablyMissingGRF[i]) - 2:
+                    dynamicsSegments.append(
+                        (lastUnobservedTimestep + 2, len(dynamicsInit.probablyMissingGRF[i]) - 2))
+            print('Trial ' + trialName + ' detected GRF data present on ranges: ' +
+                  str(dynamicsSegments), flush=True)
+            trialDynamicsSegments.append(dynamicsSegments)
+
             nimble.biomechanics.OpenSimParser.saveProcessedGRFMot(
                 path + 'results/ID/'+trialName+'_grf.mot', timestamps, dynamicsInit.grfBodyNodes, dynamicsInit.groundHeight[i], dynamicsInit.grfTrials[i])
             nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsProcessedForcesXMLFile(
                 trialName, dynamicsInit.grfBodyNodes, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
-            nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
-                trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_osim_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml', min(timestamps), max(timestamps))
+
+            if len(dynamicsSegments) > 1:
+                for seg in range(len(dynamicsSegments)):
+                    begin, end = dynamicsSegments[seg]
+                    nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
+                        trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_osim_segment_'+str(seg)+'_id.sto', trialName+'_osim_segment_'+str(seg)+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup_segment_'+str(seg)+'.xml', timestamps[begin], timestamps[end])
+            elif len(dynamicsSegments) == 1:
+                begin, end = dynamicsSegments[0]
+                nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
+                    trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_osim_id.sto', trialName+'_osim_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml', timestamps[begin], timestamps[end])
             # Still save the raw version, just call it that
             nimble.biomechanics.OpenSimParser.saveRawGRFMot(
                 path + 'results/ID/'+trialName+'_grf_raw.mot', timestamps, forcePlates)
@@ -927,15 +966,33 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                         trialName+'_ik_on_manual_scaling_by_opensim.mot\n')
             f.write("\n\n")
 
-        # TODO: update the README when Inverse Dynamics is fully supported
-        f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics in OpenSim uses a different time-step definition to the one used in AddBiomechanics (AddBiomechanics uses semi-implicit Euler, OpenSim uses splines). This means that your OpenSim inverse dynamics results WILL NOT MATCH your AddBiomechanics results, and YOU SHOULD NOT EXPECT THEM TO. The following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
-        f.write("\n\n")
-        for i in range(len(results)):
-            trialName = trialNames[i]
-            f.write(" > opensim-cmd run-tool " +
-                    trialName+'_id_setup.xml\n')
-            f.write("           # This will create a results file ID/" +
-                    trialName+'_id.sto\n')
+        if fitDynamics and dynamicsInit is not None:
+            f.write(textwrap.fill("To re-run Inverse Dynamics using OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics in OpenSim uses a different time-step definition to the one used in AddBiomechanics (AddBiomechanics uses semi-implicit Euler, OpenSim uses splines). This means that your OpenSim inverse dynamics results WILL NOT MATCH your AddBiomechanics results, and YOU SHOULD NOT EXPECT THEM TO. The following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
+            f.write("\n\n")
+            for i in range(len(results)):
+                trialName = trialNames[i]
+                if len(trialDynamicsSegments[i]) > 1:
+                    for seg in range(len(trialDynamicsSegments[i])):
+                        begin, end = trialDynamicsSegments[i][seg]
+                        f.write(" > opensim-cmd run-tool " +
+                                trialName+'_id_setup_segment_'+str(seg)+'.xml\n')
+                        f.write("           # This will create results on time range ("+str(dynamicsInit.trialTimesteps[i] * begin)+"s to "+str(dynamicsInit.trialTimesteps[i] * end)+"s) in file ID/" +
+                                trialName+'_osim_segment_'+str(seg)+'_id.sto\n')
+                elif len(trialDynamicsSegments[i]) == 1:
+                    begin, end = trialDynamicsSegments[i][0]
+                    f.write(" > opensim-cmd run-tool " +
+                            trialName+'_id_setup.xml\n')
+                    f.write("           # This will create results on time range ("+str(dynamicsInit.trialTimesteps[i] * begin)+"s to "+str(dynamicsInit.trialTimesteps[i] * end)+"s) in file ID/" +
+                            trialName+'_osim_id.sto\n')
+        else:
+            f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: This AddBiomechanics run did not attempt to fit dynamics (you need to have GRF data and enable physics fitting in the web app), so the residuals will not be small and YOU SHOULD NOT EXPECT THEM TO BE. That being said, to run inverse dynamics the following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
+            f.write("\n\n")
+            for i in range(len(results)):
+                trialName = trialNames[i]
+                f.write(" > opensim-cmd run-tool " +
+                        trialName+'_id_setup.xml\n')
+                f.write("           # This will create a results file ID/" +
+                        trialName+'_id.sto\n')
         f.write("\n\n")
         f.write(textwrap.fill(
             "The original unscaled model file is present in:"))
