@@ -122,6 +122,18 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   const tagList = tagsFile.getAttribute("tags", [] as string[]);
   const tagValues = tagsFile.getAttribute("tagValues", {} as { [key: string]: number });
 
+  let hasReviewTag = false;
+  for (let index = 0; index < tagList.length; index++) {
+    const tag: string = tagList[index];
+    if (tag.startsWith("_review")) {
+      hasReviewTag = true;
+    }
+  }
+  if (!hasReviewTag && props.cursor.getSubjectStatus() === "done") {
+    tagList.push("_review_new");
+    // tagsFile.setAttribute("tags", tagList);
+  }
+
   return (
     <tr>
       <td>
@@ -456,37 +468,48 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let trialViews: any[] = [];
 
   let trials = props.cursor.getTrials();
+  let trialsForReview = [];
   for (let i = 0; i < trials.length; i++) {
-    trialViews.push(
-      <MocapTrialRowView
-        cursor={props.cursor}
-        index={i}
-        key={trials[i].key}
-        name={trials[i].key}
-        showViewerHint={i == 0 && showViewerHint}
-        hideViewerHint={() => setShowViewerHint(false)}
-        uploadC3D={uploadFiles[trials[i].key + ".c3d"]}
-        uploadTRC={uploadFiles[trials[i].key + ".trc"]}
-        uploadGRF={uploadFiles[trials[i].key + "_grf.mot"]}
-        uploadIK={uploadFiles[trials[i].key + "_ik.mot"]}
-        onMultipleManualIK={(files: File[]) => {
-          // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
-          let updatedUploadFiles = { ...uploadFiles };
-          for (let i = 0; i < files.length; i++) {
-            updatedUploadFiles[files[i].name.replace(".mot", "_ik.mot").replace(".sto", "_ik.mot")] = files[i];
-          }
-          setUploadFiles(updatedUploadFiles);
-        }}
-        onMultipleGRF={(files: File[]) => {
-          // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
-          let updatedUploadFiles = { ...uploadFiles };
-          for (let i = 0; i < files.length; i++) {
-            updatedUploadFiles[files[i].name.replace(".mot", "_grf.mot").replace(".sto", "_grf.mot")] = files[i];
-          }
-          setUploadFiles(updatedUploadFiles);
-        }}
-      />
-    );
+    const trialView = <MocapTrialRowView
+      cursor={props.cursor}
+      index={i}
+      key={trials[i].key}
+      name={trials[i].key}
+      showViewerHint={i == 0 && showViewerHint}
+      hideViewerHint={() => setShowViewerHint(false)}
+      uploadC3D={uploadFiles[trials[i].key + ".c3d"]}
+      uploadTRC={uploadFiles[trials[i].key + ".trc"]}
+      uploadGRF={uploadFiles[trials[i].key + "_grf.mot"]}
+      uploadIK={uploadFiles[trials[i].key + "_ik.mot"]}
+      onMultipleManualIK={(files: File[]) => {
+        // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
+        let updatedUploadFiles = { ...uploadFiles };
+        for (let i = 0; i < files.length; i++) {
+          updatedUploadFiles[files[i].name.replace(".mot", "_ik.mot").replace(".sto", "_ik.mot")] = files[i];
+        }
+        setUploadFiles(updatedUploadFiles);
+      }}
+      onMultipleGRF={(files: File[]) => {
+        // This allows us to store that we'd like to auto-upload these files once the trials with matching names are created
+        let updatedUploadFiles = { ...uploadFiles };
+        for (let i = 0; i < files.length; i++) {
+          updatedUploadFiles[files[i].name.replace(".mot", "_grf.mot").replace(".sto", "_grf.mot")] = files[i];
+        }
+        setUploadFiles(updatedUploadFiles);
+      }}
+    />
+    trialViews.push(trialView);
+
+    // Check if any trial needs reviewing
+    // Todo: Is there a better way to do this?
+    const tagsFile = trialView.props.cursor.getTrialTagFile(trialView.props.name);
+    const tagList = tagsFile.getAttribute("tags", [] as string[]);
+    for (let index = 0; index < tagList.length; index++) {
+      const tag: string = tagList[index];
+      if (tag === "_review_new") {
+        trialsForReview.push(trialView);
+      }
+    }
   }
   if (props.cursor.canEdit()) {
     trialViews.push(
@@ -572,6 +595,33 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let statusBadge = null;
   let statusDetails = null;
   if (status === "done") {
+    let reviewWarning = null;
+    if (trialsForReview.length > 0) {
+      let reviewButton = (
+        <Link
+          to={{
+            search: "?show-trial=" + trialsForReview[0].props.index,
+          }}
+          replace
+        >
+          <div style={{ 'marginBottom': '5px' }}>
+            <Button onClick={() => {}}>
+              <i className="mdi mdi-magnify me-2 vertical-middle"></i>
+              Review trials
+            </Button>
+          </div>
+        </Link>
+      );
+      // Todo: Change the style to something else
+      reviewWarning = <div className="alert alert-warning">
+        <h4><i className="mdi mdi-alert me-2 vertical-middle"></i> Review required!</h4>
+        <p>
+          There are trials for this subject that still haven't been manually reviewed after processing. Click the button below to start the review process.
+        </p>
+        {reviewButton}
+      </div>;
+    }
+
     let downloadOpenSim = null;
     if (props.cursor.hasResultsArchive()) {
       downloadOpenSim = (
@@ -770,6 +820,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     }
     statusDetails = <>
       <h4>Results: {(autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE {residualText}</h4>
+      {reviewWarning}
       {guessedMarkersWarning}
       {downloadOpenSim}
       {downloadSubjectOnDisk}

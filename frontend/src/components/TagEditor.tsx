@@ -67,6 +67,11 @@ const trialOptions: Option[] = [
   { value: 'rigid_brace_right_hip', label: 'Brace (Rigid) - Right Hip' },
   { value: 'pneumatic_jets_shoes', label: 'Pneumatic Jets (Shoes)' },
   { value: 'arms_crossed', label: 'Arms Crossed' },
+  // Tags for the review process
+  { value: '_review_new', label: 'Review: Needs review' },
+  { value: '_review_accept', label: 'Review: Accepted' },
+  { value: '_review_reject', label: 'Review: Rejected' },
+  { value: '_review_edit', label: 'Review: Needs editing' },
 ];
 
 const MultiValueLabel = (props: MultiValueGenericProps<Option>) => {

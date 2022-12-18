@@ -171,7 +171,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
         return <></>;
     }
 
-    let hideModal = () => {
+    let hideModal = (search: string) => {
         if (standalone.current != null) {
             standalone.current.dispose();
             standalone.current = null;
@@ -180,7 +180,54 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
             console.log("Disposing of cached visualization");
             visualization.dispose();
         }
-        navigate({ search: "" }, { replace: true });
+        navigate({ search: search }, { replace: true });
+    };
+
+    let handleKeyDown = (e: any) => {
+        const location = window.location;
+        const trialNumber = parseInt(decodeURIComponent(location.search.substring("?show-trial=".length)));
+        const trial = props.cursor.getTrials()[trialNumber];
+        if (!trial) {
+            return;
+        }
+
+        const tagsFile = props.cursor.getTrialTagFile(trial.key);
+        let tagList = tagsFile.getAttribute("tags", [] as string[]);
+        let changedTags = false;
+        let newTagList = tagList.filter(
+            (e: string) => !e.startsWith("_review")
+        )
+        
+        let nextNumber = trialNumber;
+        switch (e.key) {
+            case "a": // Accept
+                newTagList.push("_review_accept");
+                changedTags = true;
+                break;
+            case "r": // Reject
+                newTagList.push("_review_reject");
+                changedTags = true;
+                break;
+            case "e": // Flag for editing
+                newTagList.push("_review_edit");
+                changedTags = true;
+                break;
+            case "ArrowRight": // Move to the next task
+                nextNumber = props.cursor.getTrials()[trialNumber + 1] ? trialNumber + 1 : trialNumber;
+                break;
+            case "ArrowLeft": // Move to the previous task
+                nextNumber = trialNumber > 1 ? trialNumber - 1 : 0;
+                break;
+            default: // We should show a tip with the keyboard shortcuts
+                break;
+        }
+        if (changedTags) {
+            // This triggers a warning, but gets the job done.
+            tagsFile.setAttribute("tags", newTagList);
+        }
+        if (nextNumber != trialNumber) {
+            hideModal("?show-trial=" + nextNumber.toString());
+        }
     };
 
 
@@ -614,7 +661,13 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
     }
 
     return (
-        <Modal size="xl" show={show} onHide={hideModal} ref={modalRef}>
+        <Modal size="xl"
+          show={show}
+          onHide={hideModal}
+          // Todo: there has to be a better way to register this callback
+          onEntered={() => {modalRef.current.dialog.onkeydown = handleKeyDown}}
+          ref={modalRef}
+        >
             <Modal.Header closeButton>
                 <Modal.Title>
                     <i className="mdi mdi-run me-1"></i> Trial: {trial.key}
