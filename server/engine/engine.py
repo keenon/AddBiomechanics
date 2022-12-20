@@ -227,7 +227,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             grfFilePath = trialPath + 'grf.mot'
             if os.path.exists(grfFilePath):
                 forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
-                    grfFilePath)
+                    grfFilePath, trcFile.framesPerSecond)
                 trialForcePlates.append(forcePlates)
             else:
                 print('Warning: No ground reaction forces specified for '+trialName)
