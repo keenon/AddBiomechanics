@@ -395,8 +395,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             dynamicsFitter.smoothAccelerations(dynamicsInit)
             dynamicsFitter.timeSyncAndInitializePipeline(dynamicsInit)
 
-            maxNumTrials = 3
-
+            # Run an optimization to figure out the model parameters
             dynamicsFitter.setIterationLimit(200)
             dynamicsFitter.setLBFGSHistoryLength(300)
             dynamicsFitter.runIPOPTOptimization(
@@ -405,29 +404,29 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     finalSkeleton)
                 .setDefaults(True)
                 .setResidualWeight(4e-2 * tuneResidualLoss)
-                .setMaxNumTrials(maxNumTrials)
+                .setMaxNumTrials(3)
                 .setConstrainResidualsZero(False)
                 .setIncludeMasses(True)
+                .setMaxNumBlocksPerTrial(20)
                 # .setIncludeInertias(True)
                 # .setIncludeCOMs(True)
                 # .setIncludeBodyScales(True)
                 .setIncludeMarkerOffsets(True)
                 .setIncludePoses(True))
 
-            # If we have more trials than we included in the main optimization, do just poses optimization for it
+            # Now re-run a position-only optimization on every trial in the dataset
             for trial in range(len(dynamicsInit.poseTrials)):
-                if trial >= maxNumTrials:
-                    dynamicsFitter.setIterationLimit(200)
-                    dynamicsFitter.setLBFGSHistoryLength(100)
-                    dynamicsFitter.runIPOPTOptimization(
-                        dynamicsInit,
-                        nimble.biomechanics.DynamicsFitProblemConfig(
-                            finalSkeleton)
-                        .setDefaults(True)
-                        .setOnlyOneTrial(trial)
-                        .setResidualWeight(4e-2 * tuneResidualLoss)
-                        .setConstrainResidualsZero(False)
-                        .setIncludePoses(True))
+                dynamicsFitter.setIterationLimit(200)
+                dynamicsFitter.setLBFGSHistoryLength(100)
+                dynamicsFitter.runIPOPTOptimization(
+                    dynamicsInit,
+                    nimble.biomechanics.DynamicsFitProblemConfig(
+                        finalSkeleton)
+                    .setDefaults(True)
+                    .setOnlyOneTrial(trial)
+                    .setResidualWeight(4e-2 * tuneResidualLoss)
+                    .setConstrainResidualsZero(False)
+                    .setIncludePoses(True))
 
             # Specifically optimize to 0-ish residuals, if user requests it
             if residualsToZero:
