@@ -37,7 +37,7 @@ const FileRouter = observer((props: FileRouterProps) => {
   //////////////////////////////////////////////////////////////
 
   let breadcrumbs = [];
-  let linkPath = "/data";
+  let linkPath = "/data/";
   if (path.type === 'mine') {
     linkPath += encodeURIComponent(props.cursor.s3Index.myIdentityId);
     breadcrumbs.push(
