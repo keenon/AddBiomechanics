@@ -870,7 +870,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       <div className="mb-1">
         <Link
           to={"/server_status"}
-        >View Processing Server Status</Link>
+        >See what the processing servers are working on</Link>
       </div>
       We'll send you an email when your data has finished processing!
     </div>
