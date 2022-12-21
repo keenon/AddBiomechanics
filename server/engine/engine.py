@@ -10,6 +10,7 @@ import numpy as np
 import subprocess
 import shutil
 import textwrap
+import glob
 import traceback
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
@@ -84,6 +85,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         exportMJCF = False
 
+    # Only export OpenSim files if we're not exporting MJCF or SDF files, since they use incompatible skeletons
+    exportOSIM = not (exportMJCF or exportSDF)
+
     if 'ignoreJointLimits' in subjectJson:
         ignoreJointLimits = subjectJson['ignoreJointLimits']
     else:
@@ -147,6 +151,28 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             customOsim.skeleton.getBodyNode("hand_r"))
     customOsim.skeleton.autogroupSymmetricPrefixes("ulna", "radius")
 
+    skeleton = customOsim.skeleton
+    markerSet = customOsim.markersMap
+
+    # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
+    if exportSDF or exportMJCF:
+        print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
+        mergeBodiesInto: Dict[str, str] = {}
+        mergeBodiesInto['ulna_r'] = 'radius_r'
+        mergeBodiesInto['ulna_l'] = 'radius_l'
+        customOsim.skeleton.setPositions(
+            np.zeros(customOsim.skeleton.getNumDofs()))
+        simplified = customOsim.skeleton.simplifySkeleton(
+            customOsim.skeleton.getName(), mergeBodiesInto)
+        simplified.setPositions(np.zeros(simplified.getNumDofs()))
+        skeleton = simplified
+
+        simplifiedMarkers = {}
+        for key in markerSet:
+            simplifiedMarkers[key] = (simplified.getBodyNode(
+                markerSet[key][0].getName()), markerSet[key][1])
+        markerSet = simplifiedMarkers
+
     # 4. Load the hand-scaled Osim file, if it exists
     goldOsim: nimble.biomechanics.OpenSimFile = None
     if os.path.exists(path + 'manually_scaled.osim'):
@@ -161,7 +187,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
     # 7. Process the trial
     markerFitter = nimble.biomechanics.MarkerFitter(
-        customOsim.skeleton, customOsim.markersMap)
+        skeleton, markerSet)
     markerFitter.setInitialIKSatisfactoryLoss(0.005)
     markerFitter.setInitialIKMaxRestarts(50)
     # markerFitter.setIterationLimit(40)
@@ -318,12 +344,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             .setMaxTimestepsToUseForMultiTrialScaling(4000),
             150)
 
-    customOsim.skeleton.setGroupScales(results[0].groupScales)
+    skeleton.setGroupScales(results[0].groupScales)
     fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
                                 np.ndarray]] = results[0].updatedMarkerMap
 
     # Set up some interchangeable data structures, so that we can write out the results using the same code, regardless of whether we used dynamics or not
-    finalSkeleton = customOsim.skeleton
+    finalSkeleton = skeleton
     finalPoses = [result.poses for result in results]
     finalMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
                                   np.ndarray]] = fitMarkers
@@ -506,54 +532,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     nimble.biomechanics.OpenSimParser.replaceOsimInertia(
         path + 'results/Models/optimized_scale_and_markers.osim', finalSkeleton, path + 'results/Models/final.osim')
 
-    # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
-    if exportSDF or exportMJCF:
-        print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
-        mergeBodiesInto: Dict[str, str] = {}
-        mergeBodiesInto['ulna_r'] = 'radius_r'
-        mergeBodiesInto['ulna_l'] = 'radius_l'
-        finalSkeleton.setPositions(
-            np.zeros(finalSkeleton.getNumDofs()))
-        simplified = finalSkeleton.simplifySkeleton(
-            finalSkeleton.getName(), mergeBodiesInto)
-        simplified.setPositions(np.zeros(simplified.getNumDofs()))
-
-        if exportSDF:
-            print('Writing an SDF version of the skeleton', flush=True)
-            nimble.utils.SdfParser.writeSkeleton(
-                path + 'results/SDF/model.sdf', simplified)
-            sdfSkeleton = nimble.utils.SdfParser.readSkeleton(
-                path + 'results/SDF/model.sdf')
-            sdfConverter: nimble.biomechanics.SkeletonConverter = nimble.biomechanics.SkeletonConverter(
-                sdfSkeleton, finalSkeleton)
-            # Set the root orientation to be the same
-            for i in range(6):
-                sdfSkeleton.setPosition(i, finalSkeleton.getPosition(i))
-            # Link joints
-            for i in range(sdfSkeleton.getNumJoints()):
-                sourceJoint = sdfSkeleton.getJoint(i)
-                if finalSkeleton.getJoint(sourceJoint.getName()) is not None:
-                    sdfConverter.linkJoints(
-                        sourceJoint, finalSkeleton.getJoint(sourceJoint.getName()))
-            sdfConverter.createVirtualMarkers()
-
-        if exportMJCF:
-            print('Writing a MuJoCo version of the skeleton', flush=True)
-            nimble.utils.MJCFExporter.writeSkeleton(
-                path + 'results/MuJoCo/model.xml', simplified)
-            mujocoConverter: nimble.biomechanics.SkeletonConverter = nimble.biomechanics.SkeletonConverter(
-                simplified, finalSkeleton)
-            # Set the root orientation to be the same
-            for i in range(6):
-                simplified.setPosition(i, finalSkeleton.getPosition(i))
-            # Link joints
-            for i in range(simplified.getNumJoints()):
-                sourceJoint = simplified.getJoint(i)
-                if finalSkeleton.getJoint(sourceJoint.getName()) is not None:
-                    mujocoConverter.linkJoints(
-                        sourceJoint, finalSkeleton.getJoint(sourceJoint.getName()))
-            mujocoConverter.createVirtualMarkers()
-
     # Get ready to count the number of times we run up against joint limits during the IK
     dofNames: List[str] = []
     jointLimitsHits: Dict[str, int] = {}
@@ -569,6 +547,26 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             outputPath: str = path+outputName+'.bin'
         dynamicsFitter.writeSubjectOnDisk(
             outputPath, path + 'results/Models/final.osim', dynamicsInit, False, trialNames, href, notes)
+
+    if exportSDF or exportMJCF:
+        print('Deleting OpenSim model outputs, since we cannot export OpenSim models when using a simplified skeleton')
+        # Get a list of all the file paths that ends with .osim from the Models
+        modelList = glob.glob(path + 'results/Models/*')
+        # Iterate over the list of filepaths and remove each file.
+        for filePath in modelList:
+            try:
+                os.remove(filePath)
+            except:
+                print("Error while deleting Model file: ", filePath)
+
+        if exportSDF:
+            print('Writing an SDF version of the skeleton', flush=True)
+            nimble.utils.SdfParser.writeSkeleton(
+                path + 'results/SDF/model.sdf', simplified)
+        if exportMJCF:
+            print('Writing a MuJoCo version of the skeleton', flush=True)
+            nimble.utils.MJCFExporter.writeSkeleton(
+                path + 'results/MuJoCo/model.xml', simplified)
 
     trialDynamicsSegments: List[List[Tuple[int, int]]] = []
     for i in range(len(finalPoses)):
@@ -648,9 +646,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         if c3dFile is not None:
             shutil.copyfile(trialPath + 'markers.c3d', path +
                             'results/C3D/' + trialName + '.c3d')
-        # Save OpenSim setup files to make it easy to (re)run IK and ID on the results in OpenSim
-        nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
-            trialName, markerNames, "../Models/optimized_scale_and_markers.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
+        if exportOSIM:
+            # Save OpenSim setup files to make it easy to (re)run IK and ID on the results in OpenSim
+            nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
+                trialName, markerNames, "../Models/optimized_scale_and_markers.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
         # 8.2. Write out the inverse dynamics info
         if fitDynamics and dynamicsInit is not None:
             # Run through the list of timesteps, looking for windows of time where we have GRF data. Trim the leading and trailing frames from these windows, because those don't fit by AddBiomechanics finite differencing.
@@ -680,29 +679,32 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsProcessedForcesXMLFile(
                 trialName, dynamicsInit.grfBodyNodes, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
 
-            if len(dynamicsSegments) > 1:
-                for seg in range(len(dynamicsSegments)):
-                    begin, end = dynamicsSegments[seg]
+            if exportOSIM:
+                if len(dynamicsSegments) > 1:
+                    for seg in range(len(dynamicsSegments)):
+                        begin, end = dynamicsSegments[seg]
+                        nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
+                            trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_osim_segment_'+str(seg)+'_id.sto', trialName+'_osim_segment_'+str(seg)+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup_segment_'+str(seg)+'.xml', timestamps[begin], timestamps[end])
+                elif len(dynamicsSegments) == 1:
+                    begin, end = dynamicsSegments[0]
                     nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
-                        trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_osim_segment_'+str(seg)+'_id.sto', trialName+'_osim_segment_'+str(seg)+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup_segment_'+str(seg)+'.xml', timestamps[begin], timestamps[end])
-            elif len(dynamicsSegments) == 1:
-                begin, end = dynamicsSegments[0]
-                nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
-                    trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_osim_id.sto', trialName+'_osim_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml', timestamps[begin], timestamps[end])
+                        trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_osim_id.sto', trialName+'_osim_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml', timestamps[begin], timestamps[end])
             # Still save the raw version, just call it that
             nimble.biomechanics.OpenSimParser.saveRawGRFMot(
                 path + 'results/ID/'+trialName+'_grf_raw.mot', timestamps, forcePlates)
             nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
                 trialName, finalSkeleton, poses, forcePlates, trialName+'_grf_raw.mot', path + 'results/ID/'+trialName+'_external_forces_raw.xml')
-            nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
-                trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces_raw.xml', trialName+'_osim_id_raw.sto', trialName+'_id_body_forces_raw.sto', path + 'results/ID/'+trialName+'_id_setup_raw.xml', min(timestamps), max(timestamps))
+            if exportOSIM:
+                nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
+                    trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces_raw.xml', trialName+'_osim_id_raw.sto', trialName+'_id_body_forces_raw.sto', path + 'results/ID/'+trialName+'_id_setup_raw.xml', min(timestamps), max(timestamps))
         else:
             nimble.biomechanics.OpenSimParser.saveRawGRFMot(
                 path + 'results/ID/'+trialName+'_grf.mot', timestamps, forcePlates)
             nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
                 trialName, finalSkeleton, poses, forcePlates, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
-            nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
-                trialName, '../Models/optimized_scale_and_markers.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml', min(timestamps), max(timestamps))
+            if exportOSIM:
+                nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
+                    trialName, '../Models/optimized_scale_and_markers.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml', min(timestamps), max(timestamps))
 
         # 8.2. Write out the animation preview
         # 8.2.1. Create the raw binary
@@ -806,26 +808,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             traceback.print_exc()
             print('Continuing...')
         print('Finished computing details about joint limit hits for the README')
-
-        if exportSDF:
-            # 8.4. Convert to SDF, and write that out
-            print('Converting '+trialName+' to SDF skeleton', flush=True)
-            convertedPoses = sdfConverter.convertMotion(
-                poses, convergenceThreshold=1e-9, maxStepCount=1000)
-            print('Finished converting '+trialName +
-                  ' to SDF. Writing out .mot file...', flush=True)
-            nimble.biomechanics.OpenSimParser.saveMot(
-                sdfSkeleton, path + 'results/SDF/'+trialName+'_ik.mot', timestamps, convertedPoses)
-
-        if exportMJCF:
-            # 8.4. Convert to MuJoCo, and write that out
-            print('Converting '+trialName+' to MuJoCo skeleton', flush=True)
-            convertedPoses = mujocoConverter.convertMotion(
-                poses, convergenceThreshold=1e-9, maxStepCount=1000)
-            print('Finished converting '+trialName +
-                  ' to MuJoCo. Writing out .mot file...', flush=True)
-            nimble.biomechanics.OpenSimParser.saveMot(
-                simplified, path + 'results/MuJoCo/'+trialName+'_ik.mot', timestamps, convertedPoses)
 
         print('Success! Done with '+trialName+'.', flush=True)
 
@@ -934,75 +916,85 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         f.write(textwrap.fill(
             "The model file containing optimal body scaling and marker offsets is:"))
         f.write("\n\n")
-        f.write("Models/optimized_scale_and_markers.osim")
-        f.write("\n\n")
+        if exportOSIM:
+            f.write("Models/optimized_scale_and_markers.osim")
+            f.write("\n\n")
+        if exportMJCF:
+            f.write("MuJoCo/model.xml")
+            f.write("\n\n")
+        if exportSDF:
+            f.write("SDF/model.sdf")
+            f.write("\n\n")
         f.write(textwrap.fill(
             "This tool works by finding an optimal scaling and an optimal marker offsets at the same time."))
         f.write("\n\n")
-        f.write(textwrap.fill("If you want to manually edit the marker offsets, you can modify the <MarkerSet> in \"Models/unscaled_but_with_optimized_markers.osim\" (by default this file contains the marker offsets found by the optimizer). If you want to tweak the Scaling, you can edit \"Models/rescaling_setup.xml\". If you change either of these files, then run (FROM THE \"Models\" FOLDER, and not including the leading \"> \"):"))
-        f.write("\n\n")
-        f.write(" > opensim-cmd run-tool rescaling_setup.xml\n")
-        f.write(
-            '           # This will re-generate Models/optimized_scale_and_markers.osim\n')
-        f.write("\n\n")
-        f.write(textwrap.fill("You do not need to re-run Inverse Kinematics unless you change scaling, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of AddBiomechanics, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THE \"IK\" FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
-        f.write("\n\n")
-        for i in range(len(results)):
-            trialName = trialNames[i]
-            f.write(" > opensim-cmd run-tool " +
-                    trialName+'_ik_setup.xml\n')
-            f.write("           # This will create a results file IK/" +
-                    trialName+'_ik_by_opensim.mot\n')
-        f.write("\n\n")
-
-        if os.path.exists(path + 'manually_scaled.osim'):
-            f.write(textwrap.fill("You included a manually scaled model to compare against. That model has been copied into this folder as \"manually_scaled.osim\". You can use the automatically generated XML configuration files to run IK using your manual scaling as well. Here are the command-line commands you can run (FROM THE \"IK\" FOLDER, and not including the leading \"> \") to compare IK results for each trial:"))
+        if exportOSIM:
+            f.write(textwrap.fill("If you want to manually edit the marker offsets, you can modify the <MarkerSet> in \"Models/unscaled_but_with_optimized_markers.osim\" (by default this file contains the marker offsets found by the optimizer). If you want to tweak the Scaling, you can edit \"Models/rescaling_setup.xml\". If you change either of these files, then run (FROM THE \"Models\" FOLDER, and not including the leading \"> \"):"))
             f.write("\n\n")
-            for i in range(len(results)):
-                trialName = trialNames[i]
-                f.write(" > opensim-cmd run-tool " + trialName +
-                        '_ik_on_manually_scaled_setup.xml\n')
-                f.write("           # This will create a results file IK/" +
-                        trialName+'_ik_on_manual_scaling_by_opensim.mot\n')
+            f.write(" > opensim-cmd run-tool rescaling_setup.xml\n")
+            f.write(
+                '           # This will re-generate Models/optimized_scale_and_markers.osim\n')
             f.write("\n\n")
-
-        if fitDynamics and dynamicsInit is not None:
-            f.write(textwrap.fill("To re-run Inverse Dynamics using OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics in OpenSim uses a different time-step definition to the one used in AddBiomechanics (AddBiomechanics uses semi-implicit Euler, OpenSim uses splines). This means that your OpenSim inverse dynamics results WILL NOT MATCH your AddBiomechanics results, and YOU SHOULD NOT EXPECT THEM TO. The following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
-            f.write("\n\n")
-            for i in range(len(results)):
-                trialName = trialNames[i]
-                if len(trialDynamicsSegments[i]) > 1:
-                    for seg in range(len(trialDynamicsSegments[i])):
-                        begin, end = trialDynamicsSegments[i][seg]
-                        f.write(" > opensim-cmd run-tool " +
-                                trialName+'_id_setup_segment_'+str(seg)+'.xml\n')
-                        f.write("           # This will create results on time range ("+str(dynamicsInit.trialTimesteps[i] * begin)+"s to "+str(dynamicsInit.trialTimesteps[i] * end)+"s) in file ID/" +
-                                trialName+'_osim_segment_'+str(seg)+'_id.sto\n')
-                elif len(trialDynamicsSegments[i]) == 1:
-                    begin, end = trialDynamicsSegments[i][0]
-                    f.write(" > opensim-cmd run-tool " +
-                            trialName+'_id_setup.xml\n')
-                    f.write("           # This will create results on time range ("+str(dynamicsInit.trialTimesteps[i] * begin)+"s to "+str(dynamicsInit.trialTimesteps[i] * end)+"s) in file ID/" +
-                            trialName+'_osim_id.sto\n')
-        else:
-            f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: This AddBiomechanics run did not attempt to fit dynamics (you need to have GRF data and enable physics fitting in the web app), so the residuals will not be small and YOU SHOULD NOT EXPECT THEM TO BE. That being said, to run inverse dynamics the following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
+            f.write(textwrap.fill("You do not need to re-run Inverse Kinematics unless you change scaling, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of AddBiomechanics, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THE \"IK\" FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
             f.write("\n\n")
             for i in range(len(results)):
                 trialName = trialNames[i]
                 f.write(" > opensim-cmd run-tool " +
-                        trialName+'_id_setup.xml\n')
-                f.write("           # This will create a results file ID/" +
-                        trialName+'_id.sto\n')
-        f.write("\n\n")
-        f.write(textwrap.fill(
-            "The original unscaled model file is present in:"))
-        f.write("\n\n")
-        f.write("Models/unscaled_generic.osim")
-        f.write("\n\n")
-        f.write(textwrap.fill(
-            "There is also an unscaled model, with markers moved to spots found by this tool, at:"))
-        f.write("\n\n")
-        f.write("Models/unscaled_but_with_optimized_markers.osim")
+                        trialName+'_ik_setup.xml\n')
+                f.write("           # This will create a results file IK/" +
+                        trialName+'_ik_by_opensim.mot\n')
+            f.write("\n\n")
+
+            if os.path.exists(path + 'manually_scaled.osim'):
+                f.write(textwrap.fill("You included a manually scaled model to compare against. That model has been copied into this folder as \"manually_scaled.osim\". You can use the automatically generated XML configuration files to run IK using your manual scaling as well. Here are the command-line commands you can run (FROM THE \"IK\" FOLDER, and not including the leading \"> \") to compare IK results for each trial:"))
+                f.write("\n\n")
+                for i in range(len(results)):
+                    trialName = trialNames[i]
+                    f.write(" > opensim-cmd run-tool " + trialName +
+                            '_ik_on_manually_scaled_setup.xml\n')
+                    f.write("           # This will create a results file IK/" +
+                            trialName+'_ik_on_manual_scaling_by_opensim.mot\n')
+                f.write("\n\n")
+
+            if fitDynamics and dynamicsInit is not None:
+                f.write(textwrap.fill("To re-run Inverse Dynamics using OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics in OpenSim uses a different time-step definition to the one used in AddBiomechanics (AddBiomechanics uses semi-implicit Euler, OpenSim uses splines). This means that your OpenSim inverse dynamics results WILL NOT MATCH your AddBiomechanics results, and YOU SHOULD NOT EXPECT THEM TO. The following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
+                f.write("\n\n")
+                for i in range(len(results)):
+                    trialName = trialNames[i]
+                    if len(trialDynamicsSegments[i]) > 1:
+                        for seg in range(len(trialDynamicsSegments[i])):
+                            begin, end = trialDynamicsSegments[i][seg]
+                            f.write(" > opensim-cmd run-tool " +
+                                    trialName+'_id_setup_segment_'+str(seg)+'.xml\n')
+                            f.write("           # This will create results on time range ("+str(dynamicsInit.trialTimesteps[i] * begin)+"s to "+str(dynamicsInit.trialTimesteps[i] * end)+"s) in file ID/" +
+                                    trialName+'_osim_segment_'+str(seg)+'_id.sto\n')
+                    elif len(trialDynamicsSegments[i]) == 1:
+                        begin, end = trialDynamicsSegments[i][0]
+                        f.write(" > opensim-cmd run-tool " +
+                                trialName+'_id_setup.xml\n')
+                        f.write("           # This will create results on time range ("+str(dynamicsInit.trialTimesteps[i] * begin)+"s to "+str(dynamicsInit.trialTimesteps[i] * end)+"s) in file ID/" +
+                                trialName+'_osim_id.sto\n')
+            else:
+                f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: This AddBiomechanics run did not attempt to fit dynamics (you need to have GRF data and enable physics fitting in the web app), so the residuals will not be small and YOU SHOULD NOT EXPECT THEM TO BE. That being said, to run inverse dynamics the following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
+                f.write("\n\n")
+                for i in range(len(results)):
+                    trialName = trialNames[i]
+                    f.write(" > opensim-cmd run-tool " +
+                            trialName+'_id_setup.xml\n')
+                    f.write("           # This will create a results file ID/" +
+                            trialName+'_id.sto\n')
+            f.write("\n\n")
+            f.write(textwrap.fill(
+                "The original unscaled model file is present in:"))
+            f.write("\n\n")
+            f.write("Models/unscaled_generic.osim")
+            f.write("\n\n")
+            f.write(textwrap.fill(
+                "There is also an unscaled model, with markers moved to spots found by this tool, at:"))
+            f.write("\n\n")
+            f.write("Models/unscaled_but_with_optimized_markers.osim")
+        else:
+            f.write(textwrap.fill("Because you chose to export MuJoCo and/or SDF files, we had to simplify the OpenSim skeleton we started out with (replacing <CustomJoint> objects with simpler joint types, etc). This means that the output is no longer compatible with OpenSim, and so the normal OpenSim files are not present. If you want the OpenSim files, please re-run AddBiomechanics with those options turned off"))
         f.write("\n\n")
         f.write(textwrap.fill(
             "If you encounter errors, please contact Keenon Werling at keenon@cs.stanford.edu, and I will do my best to help :)"))
