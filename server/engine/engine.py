@@ -103,6 +103,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         residualsToZero = False
 
+    if 'useReactionWheels' in subjectJson:
+        useReactionWheels = subjectJson['useReactionWheels']
+    else:
+        useReactionWheels = False
+
     if 'tuneResidualLoss' in subjectJson:
         tuneResidualLoss = subjectJson['tuneResidualLoss']
     else:
@@ -393,7 +398,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
             dynamicsFitter.boundPush(dynamicsInit)
             dynamicsFitter.smoothAccelerations(dynamicsInit)
-            dynamicsFitter.timeSyncAndInitializePipeline(dynamicsInit)
+            dynamicsFitter.timeSyncAndInitializePipeline(
+                dynamicsInit, useReactionWheels=useReactionWheels)
 
             # Run an optimization to figure out the model parameters
             dynamicsFitter.setIterationLimit(200)
@@ -436,7 +442,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                         # this holds the mass constant, and re-jigs the trajectory to try to get
                         # the angular ACC's to match more closely what was actually observed
                         dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
-                            dynamicsInit, trial, originalTrajectory, 1.0, 0.5, 0.1, 0.1, 150)
+                            dynamicsInit, trial, originalTrajectory, useReactionWheels=useReactionWheels, weightLinear=1.0, weightAngular=0.5, regularizeLinearResiduals=0.1, regularizeAngularResiduals=0.1, regularizeCopDriftCompensation=1.0, maxBuckets=150)
                     dynamicsFitter.recalibrateForcePlates(
                         dynamicsInit, trial)
 
