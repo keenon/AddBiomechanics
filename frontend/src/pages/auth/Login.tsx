@@ -1,5 +1,5 @@
 // @flow
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Alert, Row, Col } from "react-bootstrap";
 import { Auth } from "aws-amplify";
 import * as yup from "yup";
@@ -49,13 +49,15 @@ const Login = (props: LoginProps) => {
 
   let from = location.state?.from?.pathname || "/";
 
-  Auth.currentAuthenticatedUser()
-    .then((user: any) => {
-      console.log("User is already logged in.");
-      navigate(from, { replace: true });
-    }).catch((e) => {
-      // Ignore, we're already supposed to be logged in
-    });
+  useEffect(() => {
+    Auth.currentAuthenticatedUser()
+      .then((user: any) => {
+        console.log("User is already logged in.");
+        navigate(from, { replace: true });
+      }).catch((e) => {
+        // Ignore, we're already supposed to be logged in
+      });
+  }, [])
 
   function handleSubmit(value: { [key: string]: any }) {
     let email = value["username"] as string;
