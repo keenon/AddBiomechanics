@@ -422,8 +422,15 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
             # Now re-run a position-only optimization on every trial in the dataset
             for trial in range(len(dynamicsInit.poseTrials)):
-                dynamicsFitter.setIterationLimit(200)
-                dynamicsFitter.setLBFGSHistoryLength(100)
+                if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
+                    dynamicsFitter.setIterationLimit(200)
+                    dynamicsFitter.setLBFGSHistoryLength(100)
+                elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
+                    dynamicsFitter.setIterationLimit(100)
+                    dynamicsFitter.setLBFGSHistoryLength(30)
+                else:
+                    dynamicsFitter.setIterationLimit(50)
+                    dynamicsFitter.setLBFGSHistoryLength(3)
                 dynamicsFitter.runIPOPTOptimization(
                     dynamicsInit,
                     nimble.biomechanics.DynamicsFitProblemConfig(

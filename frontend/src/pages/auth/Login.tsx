@@ -49,6 +49,14 @@ const Login = (props: LoginProps) => {
 
   let from = location.state?.from?.pathname || "/";
 
+  Auth.currentAuthenticatedUser()
+    .then((user: any) => {
+      console.log("User is already logged in.");
+      navigate(from, { replace: true });
+    }).catch((e) => {
+      // Ignore, we're already supposed to be logged in
+    });
+
   function handleSubmit(value: { [key: string]: any }) {
     let email = value["username"] as string;
     let password = value["password"] as string;

@@ -26,12 +26,14 @@ Because the app is designed to be served as a static single page application (se
     c. Choose anything you like for your default editor
     d. Select the authentication method "AWS profile", and select the profile you created in step 2
 5. Run `yarn start` to launch the app!
-## Getting Set Up For Development (server)
+## Getting Set Up For Development (server processing algorithm)
 
-1. Download [credentials](https://drive.google.com/file/d/1okCCdvqaZh20gc4TG152o7yJV9_vnBtf/view?usp=sharing) into `.devcontainer/.aws/credentials` and `server/.aws/credentials`.
-2. Download [server_credentials.csv](https://drive.google.com/file/d/1e1GrwpOm0viZhNGkw_lDNPa_cfYhJ3r3/view?usp=sharing) into `.devcontainer/server_credentials.csv` and `server/server_credentials.csv`.
-3. Open this project in VSCode, and then use Ctrl+Shift+P and get to the command "Remote-Containers: Open Folder in Container...". Re-open this folder in a Docker container.
-4. Using a VSCode Terminal, navigate to `frontend` and execute `yarn start` to begin serving a live frontend
+The core algorithm for processing data exists in `server/engine/engine.py`. To test changes `engine.py`:
+
+1. Run `pip3 install -r /engine/requirements.txt`
+2. Download the [`test_engine.sh` script](https://drive.google.com/file/d/1n-9KSv-wZevuVNwShb1Ur36MRAZlnNhv/view?usp=share_link), place it in this directory
+3. Download the [test_data/ folder](https://drive.google.com/drive/folders/1jGfgM1m13ksqLZByKUEoUwsy22OVtEza?usp=share_link) (ask Keenon for access to this), place it in this directory
+4. Run `./test_engine.sh` to test out your changes to `engine.py` on existing data. Change the line `TEST_NAME="opencap_test"` to different run against other folder names you find in `test_data/` (careful, don't include the `_original` part or you'll overwrite your input data by accident)
 
 ## Hosting a Processing Server
 
