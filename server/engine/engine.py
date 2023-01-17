@@ -514,9 +514,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     for i in range(finalSkeleton.getNumBodyNodes()):
         bodyNode: nimble.dynamics.BodyNode = finalSkeleton.getBodyNode(i)
         # Now that we adjust the markers BEFORE we rescale the body, we don't want to rescale the marker locations at all
-        bodyScalesMap[bodyNode.getName()] = [1.0 / bodyNode.getScale()[0],
-                                             1.0 / bodyNode.getScale()[1],
-                                             1.0 / bodyNode.getScale()[2]]  # bodyNode.getScale() # [1, 1, 1]
+        bodyScalesMap[bodyNode.getName()] = [1, 1, 1]
     markerOffsetsMap: Dict[str, Tuple[str, np.ndarray]] = {}
     markerNames: List[str] = []
     for k in finalMarkers:
