@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>
+    AddBiomechanics
+  </title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link href="css/bootstrap.min.css" rel="stylesheet">
+  <link href="css/custom.css" rel="stylesheet">
+  <link rel="icon" href="img/favicon.ico" />
+  <script src="js/bootstrap.bundle.min.js"></script>
+</head>
+
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">add<span class="text-primary">biomechanics</span></a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
+        aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link" aria-current="page" href="#">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="instructions.html">Tips and Tricks</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="tos.html">Terms of Service</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" href="ml_challenges.html">ML Dataset &amp; Challenges</a>
+          </li>
+        </ul>
+        <form class="d-flex">
+          <a href="https://app.addbiomechanics.org" class="btn btn-primary">Go to app</a>
+        </form>
+      </div>
+    </div>
+  </nav>
+  <main role="main" class="container">
+    <h1 class="mt-5">Dataset for Biomechanics</h1>
+    <p class="lead">Aggregated data from all public AddBiomechanics uploads to enable large-scale machine learning</p>
+    <p>
+      This is the world's largest dataset of physically validated human motion. We provide skeletons, their physical
+      properties such as link masses and inertias, all the joint positions, velocities, and accelerations over time,
+      along with all the measured contact forces with the ground and all joint torques computed with inverse dynamics.
+    </p>
+    <p>
+      We regenerate our aggregate dataset every day at approximately midnight. The datasets come in efficient on-disk
+      binary
+      formats that support reading individual frames off of disk in random orders during training, reducing the amount
+      of RAM
+      needed to use these datasets for ML training. Example code to use the data for training a simple PyTorch model is
+      provided along with the data.
+    </p>
+    <p>
+      <button class="btn btn-primary btn-lg">Download Data &amp; Starter Code</button>
+      <button class="btn btn-secondary btn-lg">View Documentation</button>
+    </p>
+
+    <h1 class="mt-5">The "Physics Capture" Challenge:</h1>
+    <p class="lead">Estimating Accurate Physical Motion from Noisy Motion Capture</p>
+    <p>
+      We have a lot of ways to get noisy motion capture signals for the human body (<a
+        href="https://app.opencap.ai/session/7272a71a-e70a-4794-a253-39e11cb7542c" target="_blank">pose estimation from
+        video</a>,
+      wearable
+      <a href="https://www.xsens.com/motion-capture" target="_blank">IMU sensor suits</a>, optical motion capture, etc)
+      but it
+      currently requires expensive force measurement equipment to
+      accurately reconstruct the physical aspects of motion, including the forces between the feet and the ground, as
+      well as joint torques. This challenge aims to bridge the gap, going from noisy motion capture to clean and
+      accurate physical human motion dynamics.
+    </p>
+    <p>
+      <button class="btn btn-primary">Download Data &amp; Starter Code</button>
+      <button class="btn btn-secondary">View Documentation</button>
+    </p>
+  </main>
+</body>
+
+</html>
