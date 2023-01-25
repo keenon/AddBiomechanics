@@ -363,9 +363,24 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     # If we've got ground reaction force data, and we enabled dynamics, then run the dynamics pipeline
     if fitDynamics:
         print('******** EXPERIMENTAL! Attempting to fit dynamics... ********', flush=True)
+        totalForce = 0.0
+        for forcePlateList in trialForcePlates:
+            for forcePlate in forcePlateList:
+                totalForce += sum([np.linalg.norm(f)
+                                  for f in forcePlate.forces])
+
         if len(footBodyNames) == 0:
             print(
                 'ERROR: No foot bodies were specified, so we have to quit dynamics fitter early', flush=True)
+            fitDynamics = False
+        elif len(trialForcePlates) == 0:
+            print(
+                'ERROR: No force plates were specified, so we have to quit dynamics fitter early', flush=True)
+            fitDynamics = False
+        elif abs(totalForce) < 1e-10:
+            print(
+                'ERROR: force plate data has zero forces, so we have to quit dynamics fitter early', flush=True)
+            fitDynamics = False
         else:
             footBodies = []
             for name in footBodyNames:
@@ -378,7 +393,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             finalSkeleton.setGravity([0, -9.81, 0])
             dynamicsFitter = nimble.biomechanics.DynamicsFitter(
                 finalSkeleton, footBodies, customOsim.trackingMarkers)
-            dynamicsInit = nimble.biomechanics.DynamicsFitter.createInitialization(
+            dynamicsInit: nimble.biomechanics.DynamicsInitialization = nimble.biomechanics.DynamicsFitter.createInitialization(
                 finalSkeleton,
                 results,
                 customOsim.trackingMarkers,
@@ -401,89 +416,105 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             dynamicsFitter.timeSyncAndInitializePipeline(
                 dynamicsInit, useReactionWheels=useReactionWheels)
 
-            # Run an optimization to figure out the model parameters
-            dynamicsFitter.setIterationLimit(200)
-            dynamicsFitter.setLBFGSHistoryLength(300)
-            dynamicsFitter.runIPOPTOptimization(
-                dynamicsInit,
-                nimble.biomechanics.DynamicsFitProblemConfig(
-                    finalSkeleton)
-                .setDefaults(True)
-                .setResidualWeight(4e-2 * tuneResidualLoss)
-                .setMaxNumTrials(3)
-                .setConstrainResidualsZero(False)
-                .setIncludeMasses(True)
-                .setMaxNumBlocksPerTrial(20)
-                # .setIncludeInertias(True)
-                # .setIncludeCOMs(True)
-                # .setIncludeBodyScales(True)
-                .setIncludeMarkerOffsets(True)
-                .setIncludePoses(True))
-
-            # Now re-run a position-only optimization on every trial in the dataset
-            for trial in range(len(dynamicsInit.poseTrials)):
-                if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
-                    dynamicsFitter.setIterationLimit(200)
-                    dynamicsFitter.setLBFGSHistoryLength(100)
-                elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
-                    dynamicsFitter.setIterationLimit(100)
-                    dynamicsFitter.setLBFGSHistoryLength(30)
-                else:
-                    dynamicsFitter.setIterationLimit(50)
-                    dynamicsFitter.setLBFGSHistoryLength(3)
+            goodFramesCount = 0
+            totalFramesCount = 0
+            for trialMissingGRF in dynamicsInit.probablyMissingGRF:
+                goodFramesCount += sum(
+                    [0 if missing else 1 for missing in trialMissingGRF])
+                totalFramesCount += len(trialMissingGRF)
+            print('Detected missing/bad GRF data on '+str(totalFramesCount -
+                  goodFramesCount)+'/'+str(totalFramesCount)+' frames', flush=True)
+            if goodFramesCount == 0:
+                print('ERROR: we have no good frames of GRF data left after filtering out suspicious GRF frames. This '
+                      'probably means input GRF data is badly miscalibrated with respect to marker data (maybe they '
+                      'are in different coordinate frames?), or there are unmeasured external forces acting on your '
+                      'subject. Aborting the physics fitter!', flush=True)
+                fitDynamics = False
+            else:
+                # Run an optimization to figure out the model parameters
+                dynamicsFitter.setIterationLimit(200)
+                dynamicsFitter.setLBFGSHistoryLength(300)
                 dynamicsFitter.runIPOPTOptimization(
                     dynamicsInit,
                     nimble.biomechanics.DynamicsFitProblemConfig(
                         finalSkeleton)
                     .setDefaults(True)
-                    .setOnlyOneTrial(trial)
                     .setResidualWeight(4e-2 * tuneResidualLoss)
+                    .setMaxNumTrials(3)
                     .setConstrainResidualsZero(False)
+                    .setIncludeMasses(True)
+                    .setMaxNumBlocksPerTrial(20)
+                    # .setIncludeInertias(True)
+                    # .setIncludeCOMs(True)
+                    # .setIncludeBodyScales(True)
+                    .setIncludeMarkerOffsets(True)
                     .setIncludePoses(True))
 
-            # Specifically optimize to 0-ish residuals, if user requests it
-            if residualsToZero:
+                # Now re-run a position-only optimization on every trial in the dataset
                 for trial in range(len(dynamicsInit.poseTrials)):
-                    originalTrajectory = dynamicsInit.poseTrials[trial].copy()
-                    for i in range(100):
-                        # this holds the mass constant, and re-jigs the trajectory to try to get
-                        # the angular ACC's to match more closely what was actually observed
-                        dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
-                            dynamicsInit, trial, originalTrajectory, useReactionWheels=useReactionWheels, weightLinear=1.0, weightAngular=0.5, regularizeLinearResiduals=0.1, regularizeAngularResiduals=0.1, regularizeCopDriftCompensation=1.0, maxBuckets=150)
-                    dynamicsFitter.recalibrateForcePlates(
+                    if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
+                        dynamicsFitter.setIterationLimit(200)
+                        dynamicsFitter.setLBFGSHistoryLength(100)
+                    elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
+                        dynamicsFitter.setIterationLimit(100)
+                        dynamicsFitter.setLBFGSHistoryLength(30)
+                    else:
+                        dynamicsFitter.setIterationLimit(50)
+                        dynamicsFitter.setLBFGSHistoryLength(3)
+                    dynamicsFitter.runIPOPTOptimization(
+                        dynamicsInit,
+                        nimble.biomechanics.DynamicsFitProblemConfig(
+                            finalSkeleton)
+                        .setDefaults(True)
+                        .setOnlyOneTrial(trial)
+                        .setResidualWeight(4e-2 * tuneResidualLoss)
+                        .setConstrainResidualsZero(False)
+                        .setIncludePoses(True))
+
+                # Specifically optimize to 0-ish residuals, if user requests it
+                if residualsToZero:
+                    for trial in range(len(dynamicsInit.poseTrials)):
+                        originalTrajectory = dynamicsInit.poseTrials[trial].copy(
+                        )
+                        for i in range(100):
+                            # this holds the mass constant, and re-jigs the trajectory to try to get
+                            # the angular ACC's to match more closely what was actually observed
+                            dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
+                                dynamicsInit, trial, originalTrajectory, useReactionWheels=useReactionWheels, weightLinear=1.0, weightAngular=0.5, regularizeLinearResiduals=0.1, regularizeAngularResiduals=0.1, regularizeCopDriftCompensation=1.0, maxBuckets=150)
+                        dynamicsFitter.recalibrateForcePlates(
+                            dynamicsInit, trial)
+
+                dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
+
+                dynamicsFitter.computePerfectGRFs(dynamicsInit)
+
+                consistent = dynamicsFitter.checkPhysicalConsistency(
+                    dynamicsInit, maxAcceptableErrors=1e-3, maxTimestepsToTest=25)
+
+                print("Avg Marker RMSE: " +
+                      str(dynamicsFitter.computeAverageMarkerRMSE(dynamicsInit) * 100) + "cm", flush=True)
+                pair = dynamicsFitter.computeAverageResidualForce(dynamicsInit)
+                print("Avg Residual Force: " + str(pair[0]) + " N (" + str((pair[0] /
+                      secondPair[0]) * 100) + "% of original " + str(secondPair[0]) + " N)", flush=True)
+                print("Avg Residual Torque: " + str(pair[1]) + " Nm (" + str((pair[1] /
+                      secondPair[1]) * 100) + "% of original " + str(secondPair[1]) + " Nm)", flush=True)
+                print("Avg CoP movement in 'perfect' GRFs: " +
+                      str(dynamicsFitter.computeAverageCOPChange(dynamicsInit)) + " m", flush=True)
+                print("Avg force change in 'perfect' GRFs: " +
+                      str(dynamicsFitter.computeAverageForceMagnitudeChange(dynamicsInit)) + " N", flush=True)
+
+                # Write all the results back
+                for trial in range(len(dynamicsInit.poseTrials)):
+                    finalInverseDynamics.append(
+                        dynamicsFitter.computeInverseDynamics(dynamicsInit, trial))
+                    pair = dynamicsFitter.computeAverageTrialResidualForce(
                         dynamicsInit, trial)
-
-            dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
-
-            dynamicsFitter.computePerfectGRFs(dynamicsInit)
-
-            consistent = dynamicsFitter.checkPhysicalConsistency(
-                dynamicsInit, maxAcceptableErrors=1e-3, maxTimestepsToTest=25)
-
-            print("Avg Marker RMSE: " +
-                  str(dynamicsFitter.computeAverageMarkerRMSE(dynamicsInit) * 100) + "cm", flush=True)
-            pair = dynamicsFitter.computeAverageResidualForce(dynamicsInit)
-            print("Avg Residual Force: " + str(pair[0]) + " N (" + str((pair[0] /
-                  secondPair[0]) * 100) + "% of original " + str(secondPair[0]) + " N)", flush=True)
-            print("Avg Residual Torque: " + str(pair[1]) + " Nm (" + str((pair[1] /
-                  secondPair[1]) * 100) + "% of original " + str(secondPair[1]) + " Nm)", flush=True)
-            print("Avg CoP movement in 'perfect' GRFs: " +
-                  str(dynamicsFitter.computeAverageCOPChange(dynamicsInit)) + " m", flush=True)
-            print("Avg force change in 'perfect' GRFs: " +
-                  str(dynamicsFitter.computeAverageForceMagnitudeChange(dynamicsInit)) + " N", flush=True)
-
-            # Write all the results back
-            for trial in range(len(dynamicsInit.poseTrials)):
-                finalInverseDynamics.append(
-                    dynamicsFitter.computeInverseDynamics(dynamicsInit, trial))
-                pair = dynamicsFitter.computeAverageTrialResidualForce(
-                    dynamicsInit, trial)
-                trialProcessingResults[trial]['linearResidual'] = pair[0]
-                trialProcessingResults[trial]['angularResidual'] = pair[1]
-                pass
-            finalPoses = dynamicsInit.poseTrials
-            finalMarkers = dynamicsInit.updatedMarkerMap
-            trialForcePlates = dynamicsInit.forcePlateTrials
+                    trialProcessingResults[trial]['linearResidual'] = pair[0]
+                    trialProcessingResults[trial]['angularResidual'] = pair[1]
+                    pass
+                finalPoses = dynamicsInit.poseTrials
+                finalMarkers = dynamicsInit.updatedMarkerMap
+                trialForcePlates = dynamicsInit.forcePlateTrials
 
     # 8.2. Write out the usable OpenSim results
 
