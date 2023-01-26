@@ -12,6 +12,7 @@ import {
   OverlayTrigger,
   Tooltip
 } from "react-bootstrap";
+import DropFile from "../../components/DropFile";
 import { observer } from "mobx-react-lite";
 import './ProfileView.scss';
 import { Auth } from "aws-amplify";
@@ -180,7 +181,8 @@ const ProfileView = observer((props: ProfileViewProps) => {
                   (() => {
                     if (editing) {
                       return (
-                        <div>
+                        <div className="container">
+                        <div className="justify-content-md-center">
                           <form className="row g-3 mb-15">
                             <div className="col-md-4">
                               <label>Name:
@@ -238,7 +240,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                   delay={{ show: 50, hide: 400 }}
                                   overlay={(props) => (
                                     <Tooltip id="button-tooltip" {...props}>
-                                      Insert your contact.
+                                      Insert your contact e-mail.
                                     </Tooltip>
                                   )}>
                                   <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
@@ -326,7 +328,9 @@ const ProfileView = observer((props: ProfileViewProps) => {
                               </input>
                             </div>
                           </form>
+                          
                           <button type="button" className="btn btn-primary" onClick={() => {setEditing(false); console.log("EDITING: " + editing);}}>Finish</button>
+                        </div>
                         </div>
                       );
                     } else {
@@ -363,9 +367,9 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                   }
                                 })()}
                               </h5>
-                              <p className="text-muted mb-1">{affiliation}</p>
-                              <p className="text-muted mb-1">{lab}</p>
-                              <a href={"mail-to:" + contact} className="link-primary mb-4"><p className="text-muted mb-4">Contact</p></a>
+                              <p className="mb-1">{affiliation}</p>
+                              <p className="mb-1">{lab}</p>
+                              <a href={"mail-to:" + contact} className="link-primary mb-4"><p className="mb-4">Contact</p></a>
                               <button type="button" className="btn btn-primary" onClick={() => {setEditing(true); console.log("EDITING: " + editing);}}>Edit Profile</button>
                             </div>
                           </div>
@@ -379,19 +383,45 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                   <p className="mb-0">Full Name</p>
                                 </div>
                                 <div className="col-sm-9">
-                                  <p className="text-muted mb-0">{name + " " + surname}</p>
+                                  <p className="mb-0">{name + " " + surname}</p>
                                 </div>
                               </div>
                               <hr></hr>
                               <div className="row">
                                 <div className="col-sm-3">
-                                  <p className="mb-0">Email</p>
+                                <p className="mb-0">Email</p>
                                 </div>
                                 <div className="col-sm-9">
-                                  <p className="text-muted mb-0">{contact}</p>
+                                <a href={"mail-to:" + contact}><p className="mb-0">{contact}</p></a>
                                 </div>
                               </div>
                               <hr></hr>
+                              
+                              {
+                                /* By default show name and surname. If name is not available, show only surname.
+                                If none is available, show user id. */
+                                (() => {
+                                  if (personalWebsite != "") {
+                                    return (
+                                      <div>
+                                        <div className="row">
+                                          <div className="col-sm-3">
+                                            <p className="mb-0">Personal Website</p>
+                                          </div>
+                                          <div className="col-sm-9">
+                                            <a href={"https://" + personalWebsite}><p className="mb-0">{personalWebsite}</p></a>
+                                          </div>
+                                        </div>
+                                      <hr></hr>
+                                      </div>
+                                    );
+                                  }
+                                })()}
+
+
+
+
+
                             </div>
                           </div>
                         </div>
