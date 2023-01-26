@@ -398,8 +398,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                               <hr></hr>
                               
                               {
-                                /* By default show name and surname. If name is not available, show only surname.
-                                If none is available, show user id. */
+                                /* Show website only if there is a website. */
                                 (() => {
                                   if (personalWebsite != "") {
                                     return (
