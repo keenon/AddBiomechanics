@@ -1126,7 +1126,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
             </OverlayTrigger>
           </label>
-          <input type="number" disabled={props.cursor.dataIsReadonly()} className={"form-control" + ((heightValue < 0.1 || heightValue > 3.0) ? " is-invalid" : "")} id="heightM" value={heightValue} onChange={(e) => {
+          <input type="number" disabled={props.cursor.dataIsReadonly()} className={"form-control" + ((heightValue < 0.1 || heightValue > 3.0) ? " is-invalid" : "") + ((heightValue >= 0.1 && heightValue < 1.3) ? " is-warning" : "")} id="heightM" value={heightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("heightM", e.target.value);
           }} onFocus={(e) => {
             props.cursor.subjectJson.onFocusAttribute("heightM");
@@ -1138,6 +1138,13 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               return (
                 <div className="invalid-feedback">
                   Humans are generally not less than 0.1 meters tall.
+                </div>
+              );
+            }
+            else if (heightValue < 1.3) {
+              return (
+                <div className="warning-feedback">
+                  Our algorithm scales partially based on statistics generated from healthy adults. Results in children may not be accurate.
                 </div>
               );
             }
@@ -1165,7 +1172,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
             </OverlayTrigger>
           </label>
-          <input type="number" className={"form-control" + ((weightValue < 5 || weightValue > 700) ? " is-invalid" : "")} disabled={props.cursor.dataIsReadonly()} id="weightKg" value={weightValue} onChange={(e) => {
+          <input type="number" className={"form-control" + ((weightValue < 5 || weightValue > 700) ? " is-invalid" : "") + ((weightValue >= 5 && weightValue < 30) ? " is-warning" : "")} disabled={props.cursor.dataIsReadonly()} id="weightKg" value={weightValue} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("massKg", e.target.value);
           }} onFocus={(e) => {
             props.cursor.subjectJson.onFocusAttribute("massKg");
@@ -1177,6 +1184,13 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               return (
                 <div className="invalid-feedback">
                   Humans are generally not less than 5 kilograms.
+                </div>
+              );
+            }
+            else if (weightValue < 30) {
+              return (
+                <div className="warning-feedback">
+                  Our algorithm scales partially based on statistics generated from healthy adults. Results in children may not be accurate.
                 </div>
               );
             }

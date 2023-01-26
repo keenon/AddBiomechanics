@@ -31,4 +31,98 @@
       border-color: transparent transparent rgba(0, 0, 0, 0.4) transparent;
     }
   }
+
+  .is-warning {
+    border-color: var(--bs-warning) !important;
+  }
+  
+  .warning-feedback {
+    display: none;
+    width: 100%;
+    margin-top: 0.25rem;
+    font-size: 0.875em;
+    color: var(--bs-orange);
+  }
+  
+  .warning-tooltip {
+    position: absolute;
+    top: 100%;
+    z-index: 5;
+    display: none;
+    max-width: 100%;
+    padding: 0.25rem 0.5rem;
+    margin-top: 0.1rem;
+    font-size: 0.875rem;
+    color: #fff;
+    background-color: var(--bs-orange);
+    border-radius: 0.25rem;
+  }
+  
+  .was-validated :valid ~ .warning-feedback,
+  .was-validated :valid ~ .warning-tooltip,
+  .is-warning ~ .warning-feedback,
+  .is-warning ~ .warning-tooltip {
+    display: block;
+  }
+
+  .was-validated .form-control:valid, .form-control.is-warning {
+    border-color: #dc3545;
+    padding-left: calc(1.5em + 0.75rem);
+    background-image: url("data:image/svg+xml,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%20standalone%3D%22no%22%3F%3E%0A%3Csvg%0A%20%20%20viewBox%3D%220%200%2012.579889%2011.602654%22%0A%20%20%20width%3D%2212.579889%22%0A%20%20%20height%3D%2211.602654%22%0A%20%20%20fill%3D%22none%22%0A%20%20%20stroke%3D%22%23fd7e14%22%0A%20%20%20version%3D%221.1%22%0A%20%20%20id%3D%22svg6%22%0A%20%20%20sodipodi%3Adocname%3D%22warning2.svg%22%0A%20%20%20xmlns%3Ainkscape%3D%22http%3A%2F%2Fwww.inkscape.org%2Fnamespaces%2Finkscape%22%0A%20%20%20xmlns%3Asodipodi%3D%22http%3A%2F%2Fsodipodi.sourceforge.net%2FDTD%2Fsodipodi-0.dtd%22%0A%20%20%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%0A%20%20%20xmlns%3Asvg%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%0A%20%20%3Cdefs%0A%20%20%20%20%20id%3D%22defs10%22%20%2F%3E%0A%20%20%3Csodipodi%3Anamedview%0A%20%20%20%20%20id%3D%22namedview8%22%0A%20%20%20%20%20pagecolor%3D%22%23ffffff%22%0A%20%20%20%20%20bordercolor%3D%22%23666666%22%0A%20%20%20%20%20borderopacity%3D%221.0%22%0A%20%20%20%20%20showgrid%3D%22false%22%0A%20%20%20%20%20fit-margin-left%3D%220.5%22%0A%20%20%20%20%20fit-margin-top%3D%220.5%22%0A%20%20%20%20%20fit-margin-bottom%3D%220.5%22%0A%20%20%20%20%20fit-margin-right%3D%220.5%22%20%2F%3E%0A%20%20%3Cg%0A%20%20%20%20%20id%3D%22g1077%22%0A%20%20%20%20%20transform%3D%22matrix%280.96418874%2C0%2C0%2C0.89583706%2C-0.49371198%2C1.6622642%29%22%3E%0A%20%20%20%20%3Cpath%0A%20%20%20%20%20%20%20stroke-linejoin%3D%22round%22%0A%20%20%20%20%20%20%20d%3D%22m%206.8356106%2C3.6%20h%200.4%20l%20-0.2%2C2.9%20z%22%0A%20%20%20%20%20%20%20id%3D%22path2%22%20%2F%3E%0A%20%20%20%20%3Ccircle%0A%20%20%20%20%20%20%20cx%3D%227.0356107%22%0A%20%20%20%20%20%20%20cy%3D%228.1999998%22%0A%20%20%20%20%20%20%20r%3D%220.60000002%22%0A%20%20%20%20%20%20%20fill%3D%22%23dc3545%22%0A%20%20%20%20%20%20%20stroke%3D%22none%22%0A%20%20%20%20%20%20%20id%3D%22circle4%22%0A%20%20%20%20%20%20%20style%3D%22fill%3A%23ff7f2a%22%20%2F%3E%0A%20%20%3C%2Fg%3E%0A%20%20%3Cpath%0A%20%20%20%20%20sodipodi%3Atype%3D%22star%22%0A%20%20%20%20%20style%3D%22fill%3A%23ff7f2a%3Bfill-opacity%3A0%3Bstroke-width%3A1.00022%3Bstroke-linecap%3Around%3Bstroke-linejoin%3Around%3Bstroke-miterlimit%3A4%3Bstroke-dasharray%3Anone%3Bpaint-order%3Astroke%20fill%20markers%22%0A%20%20%20%20%20id%3D%22path52%22%0A%20%20%20%20%20sodipodi%3Asides%3D%223%22%0A%20%20%20%20%20sodipodi%3Acx%3D%225.8073449%22%0A%20%20%20%20%20sodipodi%3Acy%3D%225.7771339%22%0A%20%20%20%20%20sodipodi%3Ar1%3D%226.3222046%22%0A%20%20%20%20%20sodipodi%3Ar2%3D%223.1611023%22%0A%20%20%20%20%20sodipodi%3Aarg1%3D%221.5756318%22%0A%20%20%20%20%20sodipodi%3Aarg2%3D%222.6228293%22%0A%20%20%20%20%20d%3D%22M%205.7767742%2C12.099265%203.0621394%2C7.3444292%200.34750451%2C2.5895936%205.8226301%2C2.6160686%2011.297756%2C2.6425436%208.5372652%2C7.370904%20Z%22%0A%20%20%20%20%20transform%3D%22matrix%280.96897742%2C0.00422586%2C0.00405018%2C-1.0110133%2C0.63735173%2C13.213677%29%22%20%2F%3E%0A%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: left calc(0.375em + 0.1875rem) center;
+    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+  }
+  .was-validated .form-control:valid:focus, .form-control.is-warning:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+  }
+  
+  .was-validated textarea.form-control:valid, textarea.form-control.is-warning {
+    padding-left: calc(1.5em + 0.75rem);
+    background-position: top calc(0.375em + 0.1875rem) left calc(0.375em + 0.1875rem);
+  }
+  
+  .was-validated .form-select:valid, .form-select.is-warning {
+    border-color: #dc3545;
+  }
+  .was-validated .form-select:valid:not([multiple]):not([size]), .was-validated .form-select:valid:not([multiple])[size="1"], .form-select.is-warning:not([multiple]):not([size]), .form-select.is-warning:not([multiple])[size="1"] {
+    padding-left: 4.125rem;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23fd7e14' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e"), url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+    background-position: left 0.75rem center, center left 2.25rem;
+    background-size: 16px 12px, calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+  }
+  .was-validated .form-select:valid:focus, .form-select.is-warning:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+  }
+  
+  .was-validated .form-check-input:valid, .form-check-input.is-warning {
+    border-color: #dc3545;
+  }
+  .was-validated .form-check-input:valid:checked, .form-check-input.is-warning:checked {
+    background-color: #dc3545;
+  }
+  .was-validated .form-check-input:valid:focus, .form-check-input.is-warning:focus {
+    box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+  }
+  .was-validated .form-check-input:valid ~ .form-check-label, .form-check-input.is-warning ~ .form-check-label {
+    color: #dc3545;
+  }
+  
+  .form-check-inline .form-check-input ~ .warning-feedback {
+    margin-right: 0.5em;
+  }
+  
+  .was-validated .input-group .form-control:valid, .input-group .form-control.is-warning,
+  .was-validated .input-group .form-select:valid,
+  .input-group .form-select.is-warning {
+    z-index: 2;
+  }
+  .was-validated .input-group .form-control:valid:focus, .input-group .form-control.is-warning:focus,
+  .was-validated .input-group .form-select:valid:focus,
+  .input-group .form-select.is-warning:focus {
+    z-index: 3;
+  }
+  
 }
