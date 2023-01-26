@@ -358,6 +358,7 @@ class SubjectToProcess:
                           self.logfile, flush=True)
 
                 self.pushError(exitCode)
+            print('Finished processing, returning from process() method.', flush=True)
         except Exception as e:
             print('Caught exception in process(): {}'.format(e))
 
