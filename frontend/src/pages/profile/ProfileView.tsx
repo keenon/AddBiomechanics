@@ -249,7 +249,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                               <input
                                 type="text"
                                 className="form-control"
-                                placeholder="Your affiliation..."
+                                placeholder="Your contact e-mail..."
                                 value={contact}
                                 onChange={function(e) {setProfileContact(e.target.value)}}>
                               </input>
