@@ -431,58 +431,59 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                       'subject. Aborting the physics fitter!', flush=True)
                 fitDynamics = False
             else:
-                # Run an optimization to figure out the model parameters
-                dynamicsFitter.setIterationLimit(200)
-                dynamicsFitter.setLBFGSHistoryLength(300)
-                dynamicsFitter.runIPOPTOptimization(
-                    dynamicsInit,
-                    nimble.biomechanics.DynamicsFitProblemConfig(
-                        finalSkeleton)
-                    .setDefaults(True)
-                    .setResidualWeight(4e-2 * tuneResidualLoss)
-                    .setMaxNumTrials(3)
-                    .setConstrainResidualsZero(False)
-                    .setIncludeMasses(True)
-                    .setMaxNumBlocksPerTrial(20)
-                    # .setIncludeInertias(True)
-                    # .setIncludeCOMs(True)
-                    # .setIncludeBodyScales(True)
-                    .setIncludeMarkerOffsets(True)
-                    .setIncludePoses(True))
-
-                # Now re-run a position-only optimization on every trial in the dataset
-                for trial in range(len(dynamicsInit.poseTrials)):
-                    if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
-                        dynamicsFitter.setIterationLimit(200)
-                        dynamicsFitter.setLBFGSHistoryLength(100)
-                    elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
-                        dynamicsFitter.setIterationLimit(100)
-                        dynamicsFitter.setLBFGSHistoryLength(30)
-                    else:
-                        dynamicsFitter.setIterationLimit(50)
-                        dynamicsFitter.setLBFGSHistoryLength(3)
+                if not useReactionWheels:
+                    # Run an optimization to figure out the model parameters
+                    dynamicsFitter.setIterationLimit(200)
+                    dynamicsFitter.setLBFGSHistoryLength(300)
                     dynamicsFitter.runIPOPTOptimization(
                         dynamicsInit,
                         nimble.biomechanics.DynamicsFitProblemConfig(
                             finalSkeleton)
                         .setDefaults(True)
-                        .setOnlyOneTrial(trial)
                         .setResidualWeight(4e-2 * tuneResidualLoss)
+                        .setMaxNumTrials(3)
                         .setConstrainResidualsZero(False)
+                        .setIncludeMasses(True)
+                        .setMaxNumBlocksPerTrial(20)
+                        # .setIncludeInertias(True)
+                        # .setIncludeCOMs(True)
+                        # .setIncludeBodyScales(True)
+                        .setIncludeMarkerOffsets(True)
                         .setIncludePoses(True))
 
-                # Specifically optimize to 0-ish residuals, if user requests it
-                if residualsToZero:
+                    # Now re-run a position-only optimization on every trial in the dataset
                     for trial in range(len(dynamicsInit.poseTrials)):
-                        originalTrajectory = dynamicsInit.poseTrials[trial].copy(
-                        )
-                        for i in range(100):
-                            # this holds the mass constant, and re-jigs the trajectory to try to get
-                            # the angular ACC's to match more closely what was actually observed
-                            dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
-                                dynamicsInit, trial, originalTrajectory, useReactionWheels=useReactionWheels, weightLinear=1.0, weightAngular=0.5, regularizeLinearResiduals=0.1, regularizeAngularResiduals=0.1, regularizeCopDriftCompensation=1.0, maxBuckets=150)
-                        dynamicsFitter.recalibrateForcePlates(
-                            dynamicsInit, trial)
+                        if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
+                            dynamicsFitter.setIterationLimit(200)
+                            dynamicsFitter.setLBFGSHistoryLength(100)
+                        elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
+                            dynamicsFitter.setIterationLimit(100)
+                            dynamicsFitter.setLBFGSHistoryLength(30)
+                        else:
+                            dynamicsFitter.setIterationLimit(50)
+                            dynamicsFitter.setLBFGSHistoryLength(3)
+                        dynamicsFitter.runIPOPTOptimization(
+                            dynamicsInit,
+                            nimble.biomechanics.DynamicsFitProblemConfig(
+                                finalSkeleton)
+                            .setDefaults(True)
+                            .setOnlyOneTrial(trial)
+                            .setResidualWeight(4e-2 * tuneResidualLoss)
+                            .setConstrainResidualsZero(False)
+                            .setIncludePoses(True))
+
+                    # Specifically optimize to 0-ish residuals, if user requests it
+                    if residualsToZero:
+                        for trial in range(len(dynamicsInit.poseTrials)):
+                            originalTrajectory = dynamicsInit.poseTrials[trial].copy(
+                            )
+                            for i in range(100):
+                                # this holds the mass constant, and re-jigs the trajectory to try to get
+                                # the angular ACC's to match more closely what was actually observed
+                                dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
+                                    dynamicsInit, trial, originalTrajectory, useReactionWheels=useReactionWheels, weightLinear=1.0, weightAngular=0.5, regularizeLinearResiduals=0.1, regularizeAngularResiduals=0.1, regularizeCopDriftCompensation=1.0, maxBuckets=150)
+                            dynamicsFitter.recalibrateForcePlates(
+                                dynamicsInit, trial)
 
                 dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
 
