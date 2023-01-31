@@ -406,7 +406,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                   /* Show contact button only if there is an email. */
                                     if (contact != "") {
                                       return (
-                                        <a href={"mail-to:" + contact} className="link-primary mb-1">
+                                        <a href={"mailto:" + contact} target="_blank" className="link-primary mb-1">
                                           <p className="mb-1">
                                           <i className="mdi mdi-email-box me-1 vertical-middle"></i>
                                             Contact
@@ -472,7 +472,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                             </p>
                                           </div>
                                           <div className="col-sm-9">
-                                          <a href={"mail-to:" + contact}><p className="mb-0">{contact}</p></a>
+                                          <a href={"mailto:" + contact} target="_blank"><p className="mb-0">{contact}</p></a>
                                           </div>
                                         </div>
                                         <hr></hr>
@@ -495,7 +495,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                               </p>
                                             </div>
                                             <div className="col-sm-9">
-                                              <a href={"https://" + personalWebsite}>
+                                              <a href={"https://" + personalWebsite} target="_blank">
                                                 <p className="mb-0">
                                                   {personalWebsite}
                                                 </p>
