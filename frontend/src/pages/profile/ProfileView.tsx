@@ -11,8 +11,9 @@ import {
 import { observer } from "mobx-react-lite";
 import './ProfileView.scss';
 import { Auth } from "aws-amplify";
-
-
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { showToast } from "../../utils";
 
 type ProfileViewProps = {
   cursor: MocapS3Cursor;
@@ -147,6 +148,16 @@ const ProfileView = observer((props: ProfileViewProps) => {
     setLab(lab);
   }
 
+  async function copyProfileUrlToClipboard() {
+    const url:string = window.location.origin + "/profile/" + urlId;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Profile URL copied to clipboard!", "success");
+    } catch (err) {
+      showToast("Error while copying profile URL to clipboard", "error");
+    }
+  }
+
   function Redirect() {
     if(urlId == "" || urlId == "profile") {
       if ((location.pathname === '/profile' || location.pathname === '/profile/') && s3Index.myIdentityId !== '') {
@@ -204,7 +215,9 @@ const ProfileView = observer((props: ProfileViewProps) => {
                           <div className="justify-content-md-center">
                             <form className="row g-3 mb-15">
                               <div className="col-md-4">
-                                <label>Name:
+                                <label>
+                                  <i className="mdi mdi-account me-1 vertical-middle"></i>
+                                  Name:
                                   <OverlayTrigger
                                     placement="right"
                                     delay={{ show: 50, hide: 400 }}
@@ -228,7 +241,9 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
                             <form className="row g-3 mb-15">
                               <div className="col-md-4">
-                                <label>Surname:
+                                <label>
+                                  <i className="mdi mdi-account-star me-1 vertical-middle"></i>
+                                  Surname:
                                   <OverlayTrigger
                                     placement="right"
                                     delay={{ show: 50, hide: 400 }}
@@ -253,7 +268,9 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
                             <form className="row g-3 mb-15">
                               <div className="col-md-4">
-                                <label>contact:
+                                <label>
+                                  <i className="mdi mdi-email-box me-1 vertical-middle"></i>
+                                  Contact:
                                   <OverlayTrigger
                                     placement="right"
                                     delay={{ show: 50, hide: 400 }}
@@ -277,7 +294,9 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
                             <form className="row g-3 mb-15">
                               <div className="col-md-4">
-                                <label>Personal Website:
+                                <label>
+                                  <i className="mdi mdi-at me-1 vertical-middle"></i>
+                                  Personal Website:
                                   <OverlayTrigger
                                     placement="right"
                                     delay={{ show: 50, hide: 400 }}
@@ -302,7 +321,9 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
                             <form className="row g-3 mb-15">
                               <div className="col-md-4">
-                                <label>Affiliation:
+                                <label>
+                                  <i className="mdi mdi-school-outline me-1 vertical-middle"></i>
+                                  Affiliation:
                                   <OverlayTrigger
                                     placement="right"
                                     delay={{ show: 50, hide: 400 }}
@@ -326,7 +347,9 @@ const ProfileView = observer((props: ProfileViewProps) => {
                             </form>
                             <form className="row g-3 mb-15">
                               <div className="col-md-4">
-                                <label>Lab:
+                                <label>
+                                  <i className="mdi mdi-test-tube me-1 vertical-middle"></i>
+                                  Lab:
                                   <OverlayTrigger
                                     placement="right"
                                     delay={{ show: 50, hide: 400 }}
@@ -348,7 +371,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                               </div>
                             </form>
                             
-                            <button type="button" className="btn btn-primary" onClick={() => {setEditing(false); console.log("EDITING: " + editing);}}>Finish</button>
+                            <button type="button" className="btn btn-primary" onClick={() => {setEditing(false); showToast("Profile updated.", "info");}}>Finish</button>
                           </div>
                           </div>
                         );
@@ -359,42 +382,46 @@ const ProfileView = observer((props: ProfileViewProps) => {
                             <div className="card mb-4">
                               <div className="card-body text-center">
                               <img src="https://addbiomechanics.org/img/logo.svg" alt="avatar" className="rounded-circle img-fluid w-25"></img>
-                                <h5 className="my-3">
-                                  {
+                                {
                                   /* By default show name and surname. If name is not available, show only surname.
                                   If none is available, show user id. */
                                   (() => {
-                                    if (name != "") {
-                                      return (
+                                    return (
+                                      <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard()}}>
                                         <h5 className="my-3">
-                                          {name + " " + surname}
+                                          {name != "" ? name : ""}
+                                          {name != "" && surname != "" ? " " : ""}
+                                          {surname != "" ? surname : ""}
+                                          {name == "" && surname == "" ? "User ID: " + s3Index.myIdentityId : ""}
+                                          {" "}
+                                          <i className="mdi mdi-share me-1 vertical-middle"></i>
                                         </h5>
-                                      );
-                                    } else if (surname != "") {
-                                      return (
-                                        <h5 className="my-3">
-                                          {surname}
-                                        </h5>
-                                      );
-                                    } else {
-                                      return (
-                                        <h5 className="my-3">
-                                          {"User " + s3Index.myIdentityId}
-                                        </h5>
-                                      );
-
-                                    }
-                                  })()}
-                                </h5>
+                                      </a>
+                                    );
+                                  })()
+                                }
                                 <p className="mb-1">{affiliation}</p>
                                 <p className="mb-1">{lab}</p>
-                                <a href={"mail-to:" + contact} className="link-primary mb-4"><p className="mb-4">Contact</p></a>
+                                {(() => {
+                                  /* Show contact button only if there is an email. */
+                                    if (contact != "") {
+                                      return (
+                                        <a href={"mail-to:" + contact} className="link-primary mb-1">
+                                          <p className="mb-1">
+                                          <i className="mdi mdi-email-box me-1 vertical-middle"></i>
+                                            Contact
+                                          </p>
+                                        </a>
+                                      );
+                                    }
+                                })()}
+                                <div className="mb-4"></div>
                                 {
                                   /* Only show edit button if this is your profile. */
                                   (() => {
                                     if(s3Index.myIdentityId === urlId) {
                                       return (
-                                        <button type="button" className="btn btn-primary" onClick={() => {setEditing(true); console.log("EDITING: " + editing);}}>Edit Profile</button>
+                                        <button type="button" className="btn btn-primary" onClick={() => {setEditing(true);}}>Edit Profile</button>
                                       );
                                     } 
                                   })()}
@@ -405,24 +432,54 @@ const ProfileView = observer((props: ProfileViewProps) => {
                           <div className="col-lg-8">
                             <div className="card mb-4">
                               <div className="card-body">
-                                <div className="row">
-                                  <div className="col-sm-3">
-                                    <p className="mb-0">Full Name</p>
-                                  </div>
-                                  <div className="col-sm-9">
-                                    <p className="mb-0">{name + " " + surname}</p>
-                                  </div>
-                                </div>
-                                <hr></hr>
-                                <div className="row">
-                                  <div className="col-sm-3">
-                                  <p className="mb-0">Email</p>
-                                  </div>
-                                  <div className="col-sm-9">
-                                  <a href={"mail-to:" + contact}><p className="mb-0">{contact}</p></a>
-                                  </div>
-                                </div>
-                                <hr></hr>
+                              {
+                                /* Show full name only if there is a name to show. */
+                                (() => {
+                                  if (name != "" || surname != "") {
+                                    return (
+                                      <div>
+                                        <div className="row">
+                                          <div className="col-sm-3">
+                                            <p className="mb-0">
+                                              <i className="mdi mdi-account me-1 vertical-middle"></i>
+                                              Full Name
+                                            </p>
+                                          </div>
+                                          <div className="col-sm-9">
+                                            <p className="mb-0">
+                                              {name != "" ? name : ""}
+                                              {name != "" && surname != "" ? " " : ""}
+                                              {surname != "" ? surname : ""}</p>
+                                          </div>
+                                        </div>
+                                        <hr></hr>
+                                      </div>
+                                    );
+                                  }
+                              })()}
+
+                              {
+                                /* Show contact email only if there is an email. */
+                                (() => {
+                                  if (contact != "") {
+                                    return (
+                                      <div>
+                                        <div className="row">
+                                          <div className="col-sm-3">
+                                            <p className="mb-0">
+                                              <i className="mdi mdi-email-box me-1 vertical-middle"></i>
+                                              Email
+                                            </p>
+                                          </div>
+                                          <div className="col-sm-9">
+                                          <a href={"mail-to:" + contact}><p className="mb-0">{contact}</p></a>
+                                          </div>
+                                        </div>
+                                        <hr></hr>
+                                      </div>
+                                    );
+                                  }
+                              })()}
                                 
                                 {
                                   /* Show website only if there is a website. */
@@ -432,10 +489,17 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                         <div>
                                           <div className="row">
                                             <div className="col-sm-3">
-                                              <p className="mb-0">Personal Website</p>
+                                              <p className="mb-0">
+                                                <i className="mdi mdi-at me-1 vertical-middle"></i>
+                                                Personal Website
+                                              </p>
                                             </div>
                                             <div className="col-sm-9">
-                                              <a href={"https://" + personalWebsite}><p className="mb-0">{personalWebsite}</p></a>
+                                              <a href={"https://" + personalWebsite}>
+                                                <p className="mb-0">
+                                                  {personalWebsite}
+                                                </p>
+                                              </a>
                                             </div>
                                           </div>
                                         <hr></hr>
@@ -445,9 +509,25 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                   })()}
 
 
-
-
-
+                                  <div>
+                                    <div className="row">
+                                      <div className="col-sm-3">
+                                        <p className="mb-0">
+                                          <i className="mdi mdi-identifier me-1 vertical-middle"></i>
+                                          User ID
+                                        </p>
+                                      </div>
+                                      <div className="col-sm-9">
+                                        <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard()}}>
+                                          <p className="mb-0">{urlId + " "}
+                                            <i className="mdi mdi-share me-1 vertical-middle">
+                                            </i>
+                                          </p>
+                                        </a>
+                                      </div>
+                                    </div>
+                                  <hr></hr>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -462,8 +542,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
                      }
                   })()}
                   
-
-
               </div>
 
 

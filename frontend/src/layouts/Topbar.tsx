@@ -9,6 +9,9 @@ import ProfileDropdown from "../components/ProfileDropdown";
 import logo from "../assets/images/logo-with-text.svg";
 import logoSmall from "../assets/images/logo-alone.svg";
 
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 type TopbarProps = {
   hideLogo?: boolean;
   isMenuOpened?: boolean;
@@ -67,6 +70,10 @@ const Topbar = (props: TopbarProps) => {
               <span></span>
             </div>
           </Link>
+        </div>
+
+        <div>
+            <ToastContainer />
         </div>
       </div>
     </>
