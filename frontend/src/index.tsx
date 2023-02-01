@@ -15,6 +15,7 @@ import FileRouter from "./pages/files/FileRouter";
 import FileControlsWrapper from "./pages/files/FileControlsWrapper";
 import Welcome from "./pages/Welcome";
 import SearchView from "./pages/search/SearchView";
+import ProfileView from "./pages/profile/ProfileView";
 import ProcessingServerStatus from "./pages/processing_servers/ProcessingServerStatus";
 import ErrorDisplay from "./layouts/ErrorDisplay";
 import { ReactiveIndex, ReactiveSearchList } from "./state/ReactiveS3";
@@ -108,6 +109,12 @@ ReactDOM.render(
             path={"/search/*"}
             element={
               <SearchView cursor={cursor} />
+            }
+          ></Route>
+          <Route
+            path={"/profile/*"}
+            element={
+              <ProfileView cursor={cursor} />
             }
           ></Route>
           <Route

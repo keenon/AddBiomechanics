@@ -61,6 +61,17 @@ const Navbar = (props: NavbarProps) => {
                       <span>Processing Server Status</span>
                     </NavLink>
                   </li>
+                  <li className="nav-item">
+                    <NavLink
+                      to={"/profile"}
+                      className={({ isActive }) =>
+                        "nav-item nav-link" + (isActive ? " active" : "")
+                      }
+                    >
+                      <i className="mdi mdi-account me-1 vertical-middle"></i>
+                      <span>Profile</span>
+                    </NavLink>
+                  </li>
                 </ul>
               </div>
             </Collapse>

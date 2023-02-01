@@ -606,7 +606,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               delay={{ show: 50, hide: 400 }}
               overlay={(props) => (
                 <Tooltip id="button-tooltip" {...props}>
-                  This binary file can be placed into a dataset folder and can be efficiently read by Nimble Physics to train PyTorch models.
+                  This binary file can be efficiently read by Nimble Physics to train PyTorch models. See the Nimble documentation for details.
                 </Tooltip>
               )}
             >
