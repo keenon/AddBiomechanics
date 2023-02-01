@@ -8,3 +8,5 @@ biomechanics_net.egg-info/
 __pycache__
 test_dataset.db
 TODO
+.DS_Store
+/test_data
