@@ -93,12 +93,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         ignoreJointLimits = False
 
-    fitDynamics = True
-    # if 'fitDynamics' in subjectJson:
-    #     fitDynamics = subjectJson['fitDynamics']
-    #     print('*****TEST******')
-    # else:
-    #     fitDynamics = False
+    if 'fitDynamics' in subjectJson:
+        fitDynamics = subjectJson['fitDynamics']
+    else:
+        fitDynamics = False
 
     if 'residualsToZero' in subjectJson:
         residualsToZero = subjectJson['residualsToZero']
@@ -508,6 +506,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                       'residual moments.', flush=True)
                 initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
                     dynamicsInit, useReactionWheels=True)
+                # TODO re-run position only optimization here?
 
             dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
 
