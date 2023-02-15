@@ -333,6 +333,19 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         .setMaxTimestepsToUseForMultiTrialScaling(4000),
         150)
 
+    # Set the masses based on the change in mass of the model
+    unscaledSkeletonMass = skeleton.getMass()
+    massScaleFactor = massKg / unscaledSkeletonMass
+    print(f'Unscaled skeleton mass: {unscaledSkeletonMass}')
+    print(f'Mass scale factor: {massScaleFactor}')
+    for ibody in range(skeleton.getNumBodyNodes()):
+        body = skeleton.getBodyNode(ibody)
+        body.setMass(body.getMass() * massScaleFactor)
+
+    err_msg = (f'ERROR: expected final skeleton mass to equal {massKg} kg after scaling, '
+               f'but the final mass is {skeleton.getMass()}')
+    np.testing.assert_almost_equal(skeleton.getMass(), massKg, err_msg=err_msg, decimal=1e-3)
+
     # Check for any flipped markers, now that we've done a first pass
     anySwapped = False
     for i in range(len(trialNames)):
