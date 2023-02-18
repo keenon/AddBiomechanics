@@ -40,7 +40,6 @@ function humanFileSize(bytes: number, si: boolean = true, dp: number = 1) {
 }
 
 function showToast(message:string, type:string, position=toast.POSITION.BOTTOM_CENTER) {
-
     if(type === "success") {
         toast.success(message, {
             position: position
@@ -64,4 +63,14 @@ function showToast(message:string, type:string, position=toast.POSITION.BOTTOM_C
     }
 }
 
-export { humanFileSize, showToast };
+async function copyProfileUrlToClipboard(userId:string) {
+    const url:string = window.location.origin + "/profile/" + userId;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Profile URL copied to clipboard!", "success");
+    } catch (err) {
+      showToast("Error while copying profile URL to clipboard", "error");
+    }
+}
+
+export { humanFileSize, showToast, copyProfileUrlToClipboard };

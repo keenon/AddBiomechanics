@@ -18,19 +18,52 @@ type SearchResultProps = {
   filePath: string;
 };
 
+type ProfileJSON = {
+  name:string;
+  surname:string;
+  contact:string;
+  affiliation:string;
+  personalWebsite:string;
+  lab:string;
+}
+
 const SearchResult = (props: SearchResultProps) => {
   const navigate = useNavigate();
 
+  const [name, setName] = useState("");
+  const [surname, setSurname] = useState("");
+  const [fullName, setFullName] = useState("");
+
   const filtered = props.filePath.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
   const parts = filtered.split('/');
+  
+  let userId:string = "";
+  if (parts.length > 0) {
+    userId = parts[0];
+  }
+
+  props.cursor.s3Index.downloadText("protected/" + props.cursor.s3Index.region + ":" + userId + "/profile.json").then(function(text: string) {
+    const profileObject:ProfileJSON = JSON.parse(text);
+    setName(profileObject.name);
+    setSurname(profileObject.surname);
+    
+    if (name != "" && surname != "")
+      setFullName(name + " " + surname)
+    else if (name != "")
+      setFullName(name)
+    else if (name != "")
+      setFullName(surname)
+    else
+      setFullName(userId)
+  });
+
   if (parts.length === 2) {
-    const userId = parts[0];
-    return <Link to={'/data/' + userId}>{'User ' + userId}</Link>
+    return <Link to={'/data/' + userId}><b>{'User: '}</b> {fullName} - <b>{'Folder: '}</b> {"/"}</Link>
   }
   else if (parts.length > 2) {
     const userId = parts[0];
     let link = '/data/' + userId + '/' + parts.slice(2).join('/');
-    return <Link to={link}>{'User ' + userId + '/' + parts.slice(2).join('/')}</Link>
+    return <Link to={link}><b>{'User: '}</b> {fullName} - <b>{'Folder: '}</b> {"/" + parts.slice(2).join('/')}</Link>
   }
   else {
     return null;

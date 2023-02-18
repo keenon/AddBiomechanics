@@ -11,9 +11,8 @@ import {
 import { observer } from "mobx-react-lite";
 import './ProfileView.scss';
 import { Auth } from "aws-amplify";
-import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { showToast } from "../../utils";
+import { showToast, copyProfileUrlToClipboard} from "../../utils";
 import { Spinner } from "react-bootstrap";
 
 type ProfileViewProps = {
@@ -147,16 +146,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
   function setProfileLab(lab:string) {
     uploadProfileLab(lab);
     setLab(lab);
-  }
-
-  async function copyProfileUrlToClipboard() {
-    const url:string = window.location.origin + "/profile/" + urlId;
-    try {
-      await navigator.clipboard.writeText(url);
-      showToast("Profile URL copied to clipboard!", "success");
-    } catch (err) {
-      showToast("Error while copying profile URL to clipboard", "error");
-    }
   }
 
   function Redirect() {
@@ -398,7 +387,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                     If none is available, show user id. */
                                     (() => {
                                       return (
-                                        <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard()}}>
+                                        <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(urlId)}}>
                                           <h5 className="my-3">
                                             {name != "" ? name : ""}
                                             {name != "" && surname != "" ? " " : ""}
@@ -529,7 +518,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                           </p>
                                         </div>
                                         <div className="col-sm-9">
-                                          <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard()}}>
+                                          <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(urlId)}}>
                                             <p className="mb-0">{urlId + " "}
                                               <i className="mdi mdi-share me-1 vertical-middle">
                                               </i>
