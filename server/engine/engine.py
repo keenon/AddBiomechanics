@@ -113,10 +113,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         tuneResidualLoss = 1.0
 
-    if 'shiftGRFs' in subjectJson:
-        shiftGRFs = subjectJson['shiftGRFs']
+    if 'shiftGRF' in subjectJson:
+        shiftGRF = subjectJson['shiftGRF']
     else:
-        shiftGRFs = False
+        shiftGRF = False
 
     if 'maxTrialsToSolveMassOver' in subjectJson:
         maxTrialsToSolveMassOver = subjectJson['maxTrialsToSolveMassOver']
@@ -439,7 +439,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
                 dynamicsInit,
                 useReactionWheels=useReactionWheels,
-                shiftGRFs=shiftGRFs,
+                shiftGRF=shiftGRF,
                 maxTrialsToSolveMassOver=maxTrialsToSolveMassOver)
 
             # If initialization succeeded, we will proceed with the kitchen sink optimization.
@@ -533,7 +533,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
                     dynamicsInit,
                     useReactionWheels=True,
-                    shiftGRFs=shiftGRFs,
+                    shiftGRF=shiftGRF,
                     maxTrialsToSolveMassOver=maxTrialsToSolveMassOver)
                 # TODO re-run position only optimization here?
 
