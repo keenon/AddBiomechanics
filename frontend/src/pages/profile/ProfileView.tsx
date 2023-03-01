@@ -11,10 +11,10 @@ import {
 import { observer } from "mobx-react-lite";
 import './ProfileView.scss';
 import { Auth } from "aws-amplify";
-import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { showToast } from "../../utils";
+import { showToast, copyProfileUrlToClipboard} from "../../utils";
 import { Spinner } from "react-bootstrap";
+import { ReactiveCursor, ReactiveIndex, ReactiveSearchList} from "../../state/ReactiveS3";
 
 type ProfileViewProps = {
   cursor: MocapS3Cursor;
@@ -149,16 +149,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
     setLab(lab);
   }
 
-  async function copyProfileUrlToClipboard() {
-    const url:string = window.location.origin + "/profile/" + urlId;
-    try {
-      await navigator.clipboard.writeText(url);
-      showToast("Profile URL copied to clipboard!", "success");
-    } catch (err) {
-      showToast("Error while copying profile URL to clipboard", "error");
-    }
-  }
-
   function Redirect() {
     if(urlId == "" || urlId == "profile") {
       if ((location.pathname === '/profile' || location.pathname === '/profile/') && s3Index.myIdentityId !== '') {
@@ -173,29 +163,57 @@ const ProfileView = observer((props: ProfileViewProps) => {
     }
   }
 
-  function DownloadProfile() {
-      s3Index.downloadText("protected/" + s3Index.region + ":" + urlId + "/profile.json").then(function(text: string) {
-        const profileObject:ProfileJSON = JSON.parse(text);
-        if(text == "" && text.includes("The specified key does not exist.")) {
-          setValidUser(false)
-        } else {
-          setName(profileObject.name);
-          setSurname(profileObject.surname);
-          setContact(profileObject.contact);
-          setAffiliation(profileObject.affiliation);
-          setPersonalWebsite(profileObject.personalWebsite);
-          setLab(profileObject.lab);
-          setValidUser(true)
-        }
-      });
+  function DownloadProfile(user_exists:boolean, profile_file_exists:boolean) {
+    if (!user_exists) {
+      setValidUser(false)
+    } else {
+      setValidUser(true)
+      if(profile_file_exists) {
+        s3Index.downloadText("protected/" + s3Index.region + ":" + urlId + "/profile.json").then(function(text: string) {
+          const profileObject:ProfileJSON = JSON.parse(text);
+          // Case 1: User exists, but there is not information, or the profile.json file does not exist.
+          if(text != "") {
+            setName(profileObject.name);
+            setSurname(profileObject.surname);
+            setContact(profileObject.contact);
+            setAffiliation(profileObject.affiliation);
+            setPersonalWebsite(profileObject.personalWebsite);
+            setLab(profileObject.lab);
+          } else {
+            // TODO Error loading data.
+          }
+        });
+      }
+    }
   }
 
   useEffect(() => {
+    var user_exists:boolean = false;
+    var profile_file_exists:boolean = false;
+
     Auth.currentCredentials().then((credentials) => {
-      Redirect();
-      DownloadProfile();
+      setValidUser(false)
+      s3Index.loadFolder("protected/" + s3Index.region + ":" + urlId, true).then((result => {
+        setValidUser(true)
+        if(result.files.length === 0 && result.folders.length === 0) {
+          user_exists = false
+          profile_file_exists = false
+        } else if (result.files.length === 0) {
+          user_exists = true
+          profile_file_exists = false
+        } else {
+          user_exists = true
+          result.files.forEach(element => {
+            if(element.key.includes("profile.json")){
+              profile_file_exists = true
+            }
+          });
+        }
+        Redirect();
+        DownloadProfile(user_exists, profile_file_exists);
+      }))
     })
-  }, [location.pathname, s3Index.myIdentityId, urlId]);
+  }, [location.pathname, urlId]);
 
 
   return (
@@ -398,7 +416,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                     If none is available, show user id. */
                                     (() => {
                                       return (
-                                        <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard()}}>
+                                        <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(urlId)}}>
                                           <h5 className="my-3">
                                             {name != "" ? name : ""}
                                             {name != "" && surname != "" ? " " : ""}
@@ -529,7 +547,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                           </p>
                                         </div>
                                         <div className="col-sm-9">
-                                          <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard()}}>
+                                          <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(urlId)}}>
                                             <p className="mb-0">{urlId + " "}
                                               <i className="mdi mdi-share me-1 vertical-middle">
                                               </i>
@@ -557,11 +575,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
                   
               </div>
 
-
-
-
-
-              
             </Card.Body>
           </Card>
         </Col>
