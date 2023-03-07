@@ -113,6 +113,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         tuneResidualLoss = 1.0
 
+    if 'shiftGRF' in subjectJson:
+        shiftGRF = subjectJson['shiftGRF']
+    else:
+        shiftGRF = False
+
+    if 'maxTrialsToSolveMassOver' in subjectJson:
+        maxTrialsToSolveMassOver = subjectJson['maxTrialsToSolveMassOver']
+    else:
+        maxTrialsToSolveMassOver = 4
+
     if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
         footBodyNames = ['calcn_l', 'calcn_r']
     else:
@@ -427,7 +437,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             dynamicsFitter.boundPush(dynamicsInit)
             dynamicsFitter.smoothAccelerations(dynamicsInit)
             initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
-                dynamicsInit)
+                dynamicsInit,
+                useReactionWheels=useReactionWheels,
+                shiftGRF=shiftGRF,
+                maxTrialsToSolveMassOver=maxTrialsToSolveMassOver)
 
             # If initialization succeeded, we will proceed with the kitchen sink optimization.
             # If not, we will re-run timeSyncAndInitializePipeline() with reaction wheels.
@@ -518,7 +531,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                       'body mass optimization and re-running dynamics initialization while allowing large '
                       'residual moments.', flush=True)
                 initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
-                    dynamicsInit, useReactionWheels=True)
+                    dynamicsInit,
+                    useReactionWheels=True,
+                    shiftGRF=shiftGRF,
+                    maxTrialsToSolveMassOver=maxTrialsToSolveMassOver)
                 # TODO re-run position only optimization here?
 
             dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
