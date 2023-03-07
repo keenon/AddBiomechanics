@@ -477,7 +477,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                         # .setIncludeCOMs(True)
                         # .setIncludeBodyScales(True)
                         .setIncludeMarkerOffsets(True)
-                        .setIncludePoses(True))
+                        .setIncludePoses(True)
+                        .setRegularizeJointAcc(1e-4))
 
                     # Now re-run a position-only optimization on every trial in the dataset
                     for trial in range(len(dynamicsInit.poseTrials)):
@@ -612,7 +613,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
         'optimized_scale_and_markers', finalSkeleton, massKg, heightM, 'Models/unscaled_but_with_optimized_markers.osim', 'Unassigned', 'Models/optimized_scale_and_markers.osim', path + 'results/Models/rescaling_setup.xml')
     # 8.2.3. Call the OpenSim scaling tool
-    command = 'cd '+path+'results && opensim-cmd run-tool ' + \
+    command = 'cd '+path+'results && opensim-cmd.exe run-tool ' + \
         path + 'results/Models/rescaling_setup.xml'
     print('Scaling OpenSim files: '+command, flush=True)
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
@@ -813,9 +814,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 round(1.0 / dynamicsInit.trialTimesteps[i]))
 
             dynamicsFitter.writeCSVData(
-                trialPath+'plot.csv', dynamicsInit, i)
+                trialPath+'plot.csv', dynamicsInit, i, False, timestamps)
             dynamicsFitter.writeCSVData(
-                path + 'results/ID/'+trialName+'_full.csv', dynamicsInit, i)
+                path + 'results/ID/'+trialName+'_full.csv', dynamicsInit, i, False, timestamps)
         else:
             if (goldOsim is not None) and (goldMot is not None):
                 print('Saving trajectory, markers, and the manual IK to a GUI log ' +
@@ -1055,18 +1056,19 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 f.write("\n\n")
                 for i in range(len(results)):
                     trialName = trialNames[i]
+                    timestamps = trialTimestamps[i]
                     if len(trialDynamicsSegments[i]) > 1:
                         for seg in range(len(trialDynamicsSegments[i])):
                             begin, end = trialDynamicsSegments[i][seg]
                             f.write(" > opensim-cmd run-tool " +
                                     trialName+'_id_setup_segment_'+str(seg)+'.xml\n')
-                            f.write("           # This will create results on time range ("+str(dynamicsInit.trialTimesteps[i] * begin)+"s to "+str(dynamicsInit.trialTimesteps[i] * end)+"s) in file ID/" +
+                            f.write("           # This will create results on time range ("+str(timestamps[begin])+"s to "+str(timestamps[end])+"s) in file ID/" +
                                     trialName+'_osim_segment_'+str(seg)+'_id.sto\n')
                     elif len(trialDynamicsSegments[i]) == 1:
                         begin, end = trialDynamicsSegments[i][0]
                         f.write(" > opensim-cmd run-tool " +
                                 trialName+'_id_setup.xml\n')
-                        f.write("           # This will create results on time range ("+str(dynamicsInit.trialTimesteps[i] * begin)+"s to "+str(dynamicsInit.trialTimesteps[i] * end)+"s) in file ID/" +
+                        f.write("           # This will create results on time range ("+str(timestamps[begin])+"s to "+str(timestamps[end])+"s) in file ID/" +
                                 trialName+'_osim_id.sto\n')
             else:
                 f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: This AddBiomechanics run did not attempt to fit dynamics (you need to have GRF data and enable physics fitting in the web app), so the residuals will not be small and YOU SHOULD NOT EXPECT THEM TO BE. That being said, to run inverse dynamics the following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
