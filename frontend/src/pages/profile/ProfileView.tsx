@@ -421,7 +421,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                             {name != "" ? name : ""}
                                             {name != "" && surname != "" ? " " : ""}
                                             {surname != "" ? surname : ""}
-                                            {name == "" && surname == "" ? "User ID: " + s3Index.myIdentityId : ""}
+                                            {name == "" && surname == "" ? "User ID: " + urlId : ""}
                                             {" "}
                                             <i className="mdi mdi-share me-1 vertical-middle"></i>
                                           </h5>
