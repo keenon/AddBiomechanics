@@ -20,6 +20,10 @@ type ProfileViewProps = {
 };
 
 const ProfileView = observer((props: ProfileViewProps) => {
+  console.log("LOG: " + Array.from(props.cursor.s3Index.files.keys()))
+  console.log("LOG: " + props.cursor.profileJson.getAbsolutePath())
+  console.log("LOG: " + props.cursor.s3Index.myIdentityId)
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -69,7 +73,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
       s3Index.files.forEach((v,k) => {
         // Count all files containing the urlId in its path.
         if (k.includes(urlId)) {
-          props.cursor.profileJson.refreshFile()
           setValidUser(true)
         }
       });
