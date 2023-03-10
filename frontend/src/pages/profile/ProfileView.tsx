@@ -197,7 +197,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                     (() => {
                                       return (
                                         <div>
-                                          <button type="button" onClick={() => {copyProfileUrlToClipboard(urlId)}} className="btn btn-link  m-0 p-0">
+                                          <button type="button" onClick={() => {copyProfileUrlToClipboard(urlId)}} className="btn btn-link m-0 p-0">
                                             <h5 className="my-3">
                                               {name !== "" ? name : ""}
                                               {name !== "" && surname !== "" ? " " : ""}
