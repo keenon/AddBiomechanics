@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate, Link } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
 import {
   Row,
@@ -39,11 +39,11 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
   let fullName = "";
 
-  if (name != "" && surname != "")
+  if (name !== "" && surname !== "")
     fullName = name + " " + surname
-  else if  (name == "" && surname != "")
+  else if  (name === "" && surname !== "")
     fullName = surname
-  else if (name != "" && surname == "")
+  else if (name !== "" && surname === "")
     fullName = name
   else fullName = ""
 
@@ -52,7 +52,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
   const [validUser, setValidUser] = useState(false);
 
   function Redirect() {
-    if(urlId == "" || urlId == "profile") {
+    if(urlId === "" || urlId === "profile") {
       if ((location.pathname === '/profile' || location.pathname === '/profile/') && s3Index.myIdentityId !== '') {
         if (props.cursor.authenticated) {
           navigate("/profile/" + encodeURIComponent(s3Index.myIdentityId));
@@ -66,8 +66,11 @@ const ProfileView = observer((props: ProfileViewProps) => {
   }
 
   useEffect(() => {
+    Redirect();
+  })
+
+  useEffect(() => {
     Auth.currentCredentials().then((credentials) => {
-      Redirect();
       setValidUser(false)
       // Iterate all files.
       s3Index.files.forEach((v,k) => {
@@ -77,7 +80,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
         }
       });
     })
-  }, [location.pathname, urlId, props.cursor.profileJson]);
+  }, [urlId, s3Index.files]);
 
   function generate_input_field(valueField:any, label:string, tooltip:string, placeholder:string, attributeName:string, icon:string) {
     return (
@@ -126,7 +129,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
               */}
               {link !== ""
                 ?
-                  <a href={link} target="_blank">
+                  <a href={link} target="_blank" rel="noreferrer">
                     <p className="mb-0">
                       {valueField}
                     </p>
@@ -193,16 +196,18 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                     If none is available, show user id. */
                                     (() => {
                                       return (
-                                        <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(urlId)}}>
-                                          <h5 className="my-3">
-                                            {name != "" ? name : ""}
-                                            {name != "" && surname != "" ? " " : ""}
-                                            {surname != "" ? surname : ""}
-                                            {name == "" && surname == "" ? "User ID: " + urlId : ""}
-                                            {" "}
-                                            <i className="mdi mdi-share me-1 vertical-middle"></i>
-                                          </h5>
-                                        </a>
+                                        <div>
+                                          <button type="button" onClick={() => {copyProfileUrlToClipboard(urlId)}} className="btn btn-link  m-0 p-0">
+                                            <h5 className="my-3">
+                                              {name !== "" ? name : ""}
+                                              {name !== "" && surname !== "" ? " " : ""}
+                                              {surname !== "" ? surname : ""}
+                                              {name === "" && surname === "" ? "User ID: " + urlId : ""}
+                                              {" "}
+                                              <i className="mdi mdi-share me-1 vertical-middle"></i>
+                                            </h5>
+                                          </button>
+                                        </div>
                                       );
                                     })()
                                   }
@@ -210,9 +215,9 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                   <p className="mb-1">{lab}</p>
                                   {(() => {
                                     /* Show contact button only if there is an email. */
-                                      if (contact != "") {
+                                      if (contact !== "") {
                                         return (
-                                          <a href={"mailto:" + contact} target="_blank" className="link-primary mb-1">
+                                          <a href={"mailto:" + contact} target="_blank" className="link-primary mb-1" rel="noreferrer">
                                             <p className="mb-1">
                                             <i className="mdi mdi-email-box me-1 vertical-middle"></i>
                                               Contact
@@ -238,9 +243,9 @@ const ProfileView = observer((props: ProfileViewProps) => {
                             <div className="col-lg-8">
                               <div className="card mb-4">
                                 <div className="card-body">
-                                  {generate_info_row(fullName, "Full Name", "mdi-account", name != "" || surname != "")}
-                                  {generate_info_row(contact, "Email", "mdi-email-box", contact != "", "mailto:" + contact)}
-                                  {generate_info_row(personalWebsite, "Personal Website", "mdi-at", personalWebsite != "", "https://" + personalWebsite)}
+                                  {generate_info_row(fullName, "Full Name", "mdi-account", name !== "" || surname !== "")}
+                                  {generate_info_row(contact, "Email", "mdi-email-box", contact !== "", "mailto:" + contact)}
+                                  {generate_info_row(personalWebsite, "Personal Website", "mdi-at", personalWebsite !== "", "https://" + personalWebsite)}
 
                                   {/*User ID is not generated using "generate_info_row" because it has a custom onclick for the <a></a> element*/}
                                   {/*Consider creating a function for this, or modify generate_info_row, just in case it is needed in the future.*/}
@@ -253,12 +258,12 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                         </p>
                                       </div>
                                       <div className="col-sm-9">
-                                        <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(urlId)}}>
-                                          <p className="mb-0">{urlId + " "}
-                                            <i className="mdi mdi-share me-1 vertical-middle">
-                                            </i>
-                                          </p>
-                                        </a>
+                                      <button type="button" onClick={() => {copyProfileUrlToClipboard(urlId)}} className="btn btn-link m-0 p-0">
+                                        <p className="mb-0">{urlId + " "}
+                                          <i className="mdi mdi-share me-1 vertical-middle"></i>
+                                        </p>
+                                      </button>
+
                                       </div>
                                     </div>
                                   </div>
