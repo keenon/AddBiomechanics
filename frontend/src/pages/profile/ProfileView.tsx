@@ -14,20 +14,10 @@ import { Auth } from "aws-amplify";
 import 'react-toastify/dist/ReactToastify.css';
 import { showToast, copyProfileUrlToClipboard} from "../../utils";
 import { Spinner } from "react-bootstrap";
-import { ReactiveCursor, ReactiveIndex, ReactiveSearchList} from "../../state/ReactiveS3";
 
 type ProfileViewProps = {
   cursor: MocapS3Cursor;
 };
-
-type ProfileJSON = {
-  name:string;
-  surname:string;
-  contact:string;
-  affiliation:string;
-  personalWebsite:string;
-  lab:string;
-}
 
 const ProfileView = observer((props: ProfileViewProps) => {
   const location = useLocation();
@@ -36,118 +26,26 @@ const ProfileView = observer((props: ProfileViewProps) => {
   const [editing, setEditing] = useState(false)
 
   const s3Index = props.cursor.s3Index;
-  const [name, setName] = useState("");
-  const [surname, setSurname] = useState("");
-  const [contact, setContact] = useState("");
-  const [affiliation, setAffiliation] = useState("");
-  const [personalWebsite, setPersonalWebsite] = useState("");
-  const [lab, setLab] = useState("");
+  let name = props.cursor.profileJson.getAttribute("name", "");
+  let surname = props.cursor.profileJson.getAttribute("surname", "");
+  let contact = props.cursor.profileJson.getAttribute("contact", "");
+  let affiliation = props.cursor.profileJson.getAttribute("affiliation", "");
+  let personalWebsite = props.cursor.profileJson.getAttribute("personalWebsite", "");
+  let lab = props.cursor.profileJson.getAttribute("lab", "");
+
+  let fullName = "";
+
+  if (name != "" && surname != "")
+    fullName = name + " " + surname
+  else if  (name == "" && surname != "")
+    fullName = surname
+  else if (name != "" && surname == "")
+    fullName = name
+  else fullName = ""
+
   const [urlId, setUrlId] = useState(useLocation().pathname.substring(useLocation().pathname.lastIndexOf('/') + 1));
 
   const [validUser, setValidUser] = useState(false);
-
-  let typingTimeout: null | ReturnType<typeof setTimeout> = null
-
-  function generateProfileJson(name:string, surname:string, contact:string, affiliation:string, personalWebsite:string, lab:string) {
-    let profile:ProfileJSON = {"name": name, "surname":surname, "contact":contact, "affiliation":affiliation, "personalWebsite":personalWebsite, "lab":lab};
-    return profile;
-  }
-
-  function uploadProfileName(name:string) {
-    if (typingTimeout !== null) {
-      clearTimeout(typingTimeout);
-    }
-    
-    typingTimeout = setTimeout(function () {
-      const profile:ProfileJSON = generateProfileJson(name, surname, contact, affiliation, personalWebsite, lab)
-      s3Index.upload("protected/" + s3Index.region + ":" + s3Index.myIdentityId + "/profile.json", JSON.stringify(profile));
-    }, 500)
-  }
-
-  function uploadProfileSurname(surname:string) {
-    if (typingTimeout !== null) {
-      clearTimeout(typingTimeout);
-    }
-    
-    typingTimeout = setTimeout(function () {
-      const profile:ProfileJSON = generateProfileJson(name, surname, contact, affiliation, personalWebsite, lab)
-      s3Index.upload("protected/" + s3Index.region + ":" + s3Index.myIdentityId + "/profile.json", JSON.stringify(profile));
-    }, 500)
-  }
-
-  function uploadProfileContact(contact:string) {
-    if (typingTimeout !== null) {
-      clearTimeout(typingTimeout);
-    }
-    
-    typingTimeout = setTimeout(function () {
-      const profile:ProfileJSON = generateProfileJson(name, surname, contact, affiliation, personalWebsite, lab)
-      s3Index.upload("protected/" + s3Index.region + ":" + s3Index.myIdentityId + "/profile.json", JSON.stringify(profile));
-    }, 500)
-  }
-
-  function uploadProfileAffiliation(affiliation:string) {
-    if (typingTimeout !== null) {
-      clearTimeout(typingTimeout);
-    }
-    
-    typingTimeout = setTimeout(function () {
-      const profile:ProfileJSON = generateProfileJson(name, surname, contact, affiliation, personalWebsite, lab)
-      s3Index.upload("protected/" + s3Index.region + ":" + s3Index.myIdentityId + "/profile.json", JSON.stringify(profile));
-    }, 500)
-  }
-
-  function uploadProfilePersonalWebsite(personalWebsite:string) {
-    if (typingTimeout !== null) {
-      clearTimeout(typingTimeout);
-    }
-    
-    typingTimeout = setTimeout(function () {
-      const profile:ProfileJSON = generateProfileJson(name, surname, contact, affiliation, personalWebsite, lab)
-      s3Index.upload("protected/" + s3Index.region + ":" + s3Index.myIdentityId + "/profile.json", JSON.stringify(profile));
-    }, 500)
-  }
-
-  function uploadProfileLab(lab:string) {
-    if (typingTimeout !== null) {
-      clearTimeout(typingTimeout);
-    }
-    
-    typingTimeout = setTimeout(function () {
-      const profile:ProfileJSON = generateProfileJson(name, surname, contact, affiliation, personalWebsite, lab)
-      s3Index.upload("protected/" + s3Index.region + ":" + s3Index.myIdentityId + "/profile.json", JSON.stringify(profile));
-    }, 500)
-  }
-
-  function setProfileName(name:string) {
-    uploadProfileName(name);
-    setName(name);
-  }
-
-  function setProfileSurname(surname:string) {
-    uploadProfileSurname(surname);
-    setSurname(surname);
-  }
-
-  function setProfileContact(contact:string) {
-    uploadProfileContact(contact);
-    setContact(contact);
-  }
-
-  function setProfileAffiliation(affiliation:string) {
-    uploadProfileAffiliation(affiliation);
-    setAffiliation(affiliation);
-  }
-
-  function setProfilePersonalWebsite(personalWebsite:string) {
-    uploadProfilePersonalWebsite(personalWebsite);
-    setPersonalWebsite(personalWebsite);
-  }
-
-  function setProfileLab(lab:string) {
-    uploadProfileLab(lab);
-    setLab(lab);
-  }
 
   function Redirect() {
     if(urlId == "" || urlId == "profile") {
@@ -163,58 +61,85 @@ const ProfileView = observer((props: ProfileViewProps) => {
     }
   }
 
-  function DownloadProfile(user_exists:boolean, profile_file_exists:boolean) {
-    if (!user_exists) {
+  useEffect(() => {
+    Auth.currentCredentials().then((credentials) => {
+      Redirect();
       setValidUser(false)
-    } else {
-      setValidUser(true)
-      if(profile_file_exists) {
-        s3Index.downloadText("protected/" + s3Index.region + ":" + urlId + "/profile.json").then(function(text: string) {
-          const profileObject:ProfileJSON = JSON.parse(text);
-          // Case 1: User exists, but there is not information, or the profile.json file does not exist.
-          if(text != "") {
-            setName(profileObject.name);
-            setSurname(profileObject.surname);
-            setContact(profileObject.contact);
-            setAffiliation(profileObject.affiliation);
-            setPersonalWebsite(profileObject.personalWebsite);
-            setLab(profileObject.lab);
-          } else {
-            // TODO Error loading data.
-          }
-        });
-      }
-    }
+      // Iterate all files.
+      s3Index.files.forEach((v,k) => {
+        // Count all files containing the urlId in its path.
+        if (k.includes(urlId)) {
+          props.cursor.profileJson.refreshFile()
+          setValidUser(true)
+        }
+      });
+    })
+  }, [location.pathname, urlId, props.cursor.profileJson]);
+
+  function generate_input_field(valueField:any, label:string, tooltip:string, placeholder:string, attributeName:string, icon:string) {
+    return (
+      <form className="row g-3 mb-15">
+        <div className="col-md-4">
+          <label>
+            <i className={"mdi me-1 vertical-middle " + icon}></i>
+            {label}:
+            <OverlayTrigger
+              placement="right"
+              delay={{ show: 50, hide: 400 }}
+              overlay={(props) => (
+                <Tooltip id="button-tooltip" {...props}>
+                  {tooltip}
+                </Tooltip>
+              )}>
+              <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+            </OverlayTrigger></label>
+          <br></br>
+          <input
+            type="text"
+            className="form-control"
+            placeholder={placeholder}
+            value={valueField}
+            onChange={function(e) {props.cursor.profileJson.setAttribute(attributeName, e.target.value);}}>
+          </input>
+        </div>
+      </form>
+    );
   }
 
-  useEffect(() => {
-    var user_exists:boolean = false;
-    var profile_file_exists:boolean = false;
-
-    Auth.currentCredentials().then((credentials) => {
-      setValidUser(false)
-      s3Index.loadFolder("protected/" + s3Index.region + ":" + urlId, true).then((result => {
-        setValidUser(true)
-        if(result.files.length === 0 && result.folders.length === 0) {
-          user_exists = false
-          profile_file_exists = false
-        } else if (result.files.length === 0) {
-          user_exists = true
-          profile_file_exists = false
-        } else {
-          user_exists = true
-          result.files.forEach(element => {
-            if(element.key.includes("profile.json")){
-              profile_file_exists = true
-            }
-          });
-        }
-        Redirect();
-        DownloadProfile(user_exists, profile_file_exists);
-      }))
-    })
-  }, [location.pathname, urlId]);
-
+  function generate_info_row(valueField:any, label:string, icon:string, show:boolean=true, link:string = "") {
+    if (show)
+      return (
+        <div>
+          <div className="row">
+            <div className="col-sm-3">
+              <p className="mb-0">
+                <i className={"mdi me-1 vertical-middle " + icon}></i>
+                {label}
+              </p>
+            </div>
+            <div className="col-sm-9">
+              {/*
+                If link is not empty, insert an "<a href='...'></a> arount the paragraph."
+              */}
+              {link !== ""
+                ?
+                  <a href={link} target="_blank">
+                    <p className="mb-0">
+                      {valueField}
+                    </p>
+                  </a>
+                :
+                  <p className="mb-0">
+                    {valueField}
+                  </p>
+              }
+            </div>
+          </div>
+          <hr></hr>
+        </div>
+      );
+    else return ('')
+  }
 
   return (
     <>
@@ -232,6 +157,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                       return (
                         <tr key="loading">
                           <td colSpan={4}>
+                            <p> Loading profile of user with ID: {urlId}</p>
                             <Spinner animation="border" />
                           </td>
                         </tr>
@@ -242,164 +168,12 @@ const ProfileView = observer((props: ProfileViewProps) => {
                           return (
                             <div className="container">
                             <div className="justify-content-md-center">
-                              <form className="row g-3 mb-15">
-                                <div className="col-md-4">
-                                  <label>
-                                    <i className="mdi mdi-account me-1 vertical-middle"></i>
-                                    Name:
-                                    <OverlayTrigger
-                                      placement="right"
-                                      delay={{ show: 50, hide: 400 }}
-                                      overlay={(props) => (
-                                        <Tooltip id="button-tooltip" {...props}>
-                                          Insert your name.
-                                        </Tooltip>
-                                      )}>
-                                      <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                                    </OverlayTrigger></label>
-                                  <br></br>
-                                  <input
-                                    type="text"
-                                    className="form-control"
-                                    placeholder="Your name..."
-                                    value={name}
-                                    onChange={function(e) {setProfileName(e.target.value)}}>
-                                  </input>
-                                </div>
-                              </form>
-
-                              <form className="row g-3 mb-15">
-                                <div className="col-md-4">
-                                  <label>
-                                    <i className="mdi mdi-account-star me-1 vertical-middle"></i>
-                                    Surname:
-                                    <OverlayTrigger
-                                      placement="right"
-                                      delay={{ show: 50, hide: 400 }}
-                                      overlay={(props) => (
-                                        <Tooltip id="button-tooltip" {...props}>
-                                          Insert your surname.
-                                        </Tooltip>
-                                      )}>
-                                      <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                                    </OverlayTrigger></label>
-                                  <br></br>
-                                  <input
-                                    type="text"
-                                    className="form-control"
-                                    placeholder="Your surname..."
-                                    value={surname}
-                                    onChange={function(e) {setProfileSurname(e.target.value)}}>
-                                  </input>
-                                </div>
-                              </form>
-
-
-                              <form className="row g-3 mb-15">
-                                <div className="col-md-4">
-                                  <label>
-                                    <i className="mdi mdi-email-box me-1 vertical-middle"></i>
-                                    Contact:
-                                    <OverlayTrigger
-                                      placement="right"
-                                      delay={{ show: 50, hide: 400 }}
-                                      overlay={(props) => (
-                                        <Tooltip id="button-tooltip" {...props}>
-                                          Insert your contact e-mail.
-                                        </Tooltip>
-                                      )}>
-                                      <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                                    </OverlayTrigger></label>
-                                  <br></br>
-                                  <input
-                                    type="text"
-                                    className="form-control"
-                                    placeholder="Your contact e-mail..."
-                                    value={contact}
-                                    onChange={function(e) {setProfileContact(e.target.value)}}>
-                                  </input>
-                                </div>
-                              </form>
-
-                              <form className="row g-3 mb-15">
-                                <div className="col-md-4">
-                                  <label>
-                                    <i className="mdi mdi-at me-1 vertical-middle"></i>
-                                    Personal Website:
-                                    <OverlayTrigger
-                                      placement="right"
-                                      delay={{ show: 50, hide: 400 }}
-                                      overlay={(props) => (
-                                        <Tooltip id="button-tooltip" {...props}>
-                                          Insert your personal website.
-                                        </Tooltip>
-                                      )}>
-                                      <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                                    </OverlayTrigger></label>
-                                  <br></br>
-                                  <input
-                                    type="text"
-                                    className="form-control"
-                                    placeholder="Your personal website..."
-                                    value={personalWebsite}
-                                    onChange={function(e) {setProfilePersonalWebsite(e.target.value)}}>
-                                  </input>
-                                </div>
-                              </form>
-
-
-                              <form className="row g-3 mb-15">
-                                <div className="col-md-4">
-                                  <label>
-                                    <i className="mdi mdi-school-outline me-1 vertical-middle"></i>
-                                    Affiliation:
-                                    <OverlayTrigger
-                                      placement="right"
-                                      delay={{ show: 50, hide: 400 }}
-                                      overlay={(props) => (
-                                        <Tooltip id="button-tooltip" {...props}>
-                                          Insert your affiliation.
-                                        </Tooltip>
-                                      )}>
-                                      <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                                    </OverlayTrigger></label>
-                                  <br></br>
-                                  <input
-                                    type="text"
-                                    className="form-control"
-                                    placeholder="Your affiliation..."
-                                    value={affiliation}
-                                    onChange={function(e) {setProfileAffiliation(e.target.value)}}>
-                                  </input>
-                                </div>
-
-                              </form>
-                              <form className="row g-3 mb-15">
-                                <div className="col-md-4">
-                                  <label>
-                                    <i className="mdi mdi-test-tube me-1 vertical-middle"></i>
-                                    Lab:
-                                    <OverlayTrigger
-                                      placement="right"
-                                      delay={{ show: 50, hide: 400 }}
-                                      overlay={(props) => (
-                                        <Tooltip id="button-tooltip" {...props}>
-                                          Insert your lab.
-                                        </Tooltip>
-                                      )}>
-                                      <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                                    </OverlayTrigger></label>
-                                  <br></br>
-                                  <input
-                                    type="text"
-                                    className="form-control"
-                                    placeholder="Your lab..."
-                                    value={lab}
-                                    onChange={function(e) {setProfileLab(e.target.value)}}>
-                                  </input>
-                                </div>
-                              </form>
-                              
+                              {generate_input_field(name, "Name", "Insert your name.", "Your name...", "name", "mdi-account")}
+                              {generate_input_field(surname, "Surname", "Insert your surname.", "Your surname...", "surname", "mdi-account-star")}
+                              {generate_input_field(contact, "Contact", "Insert your contact e-mail.", "Your contact e-mail...", "contact", "mdi-email-box")}
+                              {generate_input_field(personalWebsite, "Personal Website", "Insert your personal website.", "Your personal website...", "personalWebsite", "mdi-at")}
+                              {generate_input_field(affiliation, "Affiliation", "Insert your affiliation.", "Your affiliation...", "affiliation", "mdi-school-outline")}
+                              {generate_input_field(lab, "Lab", "Insert your lab.", "Your lab...", "lab", "mdi-test-tube")}
                               <button type="button" className="btn btn-primary" onClick={() => {setEditing(false); showToast("Profile updated.", "info");}}>Finish</button>
                             </div>
                             </div>
@@ -461,109 +235,48 @@ const ProfileView = observer((props: ProfileViewProps) => {
                             <div className="col-lg-8">
                               <div className="card mb-4">
                                 <div className="card-body">
-                                {
-                                  /* Show full name only if there is a name to show. */
-                                  (() => {
-                                    if (name != "" || surname != "") {
-                                      return (
-                                        <div>
-                                          <div className="row">
-                                            <div className="col-sm-3">
-                                              <p className="mb-0">
-                                                <i className="mdi mdi-account me-1 vertical-middle"></i>
-                                                Full Name
-                                              </p>
-                                            </div>
-                                            <div className="col-sm-9">
-                                              <p className="mb-0">
-                                                {name != "" ? name : ""}
-                                                {name != "" && surname != "" ? " " : ""}
-                                                {surname != "" ? surname : ""}</p>
-                                            </div>
-                                          </div>
-                                          <hr></hr>
-                                        </div>
-                                      );
-                                    }
-                                })()}
+                                  {generate_info_row(fullName, "Full Name", "mdi-account", name != "" || surname != "")}
+                                  {generate_info_row(contact, "Email", "mdi-email-box", contact != "", "mailto:" + contact)}
+                                  {generate_info_row(personalWebsite, "Personal Website", "mdi-at", personalWebsite != "", "https://" + personalWebsite)}
 
-                                {
-                                  /* Show contact email only if there is an email. */
-                                  (() => {
-                                    if (contact != "") {
-                                      return (
-                                        <div>
-                                          <div className="row">
-                                            <div className="col-sm-3">
-                                              <p className="mb-0">
-                                                <i className="mdi mdi-email-box me-1 vertical-middle"></i>
-                                                Email
-                                              </p>
-                                            </div>
-                                            <div className="col-sm-9">
-                                            <a href={"mailto:" + contact} target="_blank"><p className="mb-0">{contact}</p></a>
-                                            </div>
-                                          </div>
-                                          <hr></hr>
-                                        </div>
-                                      );
-                                    }
-                                })()}
-                                  
-                                  {
-                                    /* Show website only if there is a website. */
-                                    (() => {
-                                      if (personalWebsite != "") {
-                                        return (
-                                          <div>
-                                            <div className="row">
-                                              <div className="col-sm-3">
-                                                <p className="mb-0">
-                                                  <i className="mdi mdi-at me-1 vertical-middle"></i>
-                                                  Personal Website
-                                                </p>
-                                              </div>
-                                              <div className="col-sm-9">
-                                                <a href={"https://" + personalWebsite} target="_blank">
-                                                  <p className="mb-0">
-                                                    {personalWebsite}
-                                                  </p>
-                                                </a>
-                                              </div>
-                                            </div>
-                                          <hr></hr>
-                                          </div>
-                                        );
-                                      }
-                                    })()}
-
-
-                                    <div>
-                                      <div className="row">
-                                        <div className="col-sm-3">
-                                          <p className="mb-0">
-                                            <i className="mdi mdi-identifier me-1 vertical-middle"></i>
-                                            User ID
-                                          </p>
-                                        </div>
-                                        <div className="col-sm-9">
-                                          <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(urlId)}}>
-                                            <p className="mb-0">{urlId + " "}
-                                              <i className="mdi mdi-share me-1 vertical-middle">
-                                              </i>
-                                            </p>
-                                          </a>
-                                        </div>
+                                  {/*User ID is not generated using "generate_info_row" because it has a custom onclick for the <a></a> element*/}
+                                  {/*Consider creating a function for this, or modify generate_info_row, just in case it is needed in the future.*/}
+                                  <div>
+                                    <div className="row">
+                                      <div className="col-sm-3">
+                                        <p className="mb-0">
+                                          <i className="mdi mdi-identifier me-1 vertical-middle"></i>
+                                          User ID
+                                        </p>
                                       </div>
-                                    <hr></hr>
+                                      <div className="col-sm-9">
+                                        <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(urlId)}}>
+                                          <p className="mb-0">{urlId + " "}
+                                            <i className="mdi mdi-share me-1 vertical-middle">
+                                            </i>
+                                          </p>
+                                        </a>
+                                      </div>
                                     </div>
                                   </div>
+
                                 </div>
                               </div>
                             </div>
-                            );
 
-                          }
+                            <div className="col-lg-12">
+                              <div className="card mb-4">
+                                <div className="card-body"></div>
+                                  <h1>Public Datasets</h1>
+
+                                      {/*TODO: Insert list of public datasets for this user here.*/}
+
+                                </div>
+                              </div>
+                            </div>
+                          );
+
+                        }
                       } else {
                         return (
                           <p>There is no user with the following id: {urlId}</p>

@@ -54,15 +54,17 @@ class ReactiveJsonFile {
     cursor: ReactiveCursor;
     loading: boolean;
     path: string;
+    isPathGlobal: boolean;
     values: Map<string, any>;
     focused: Map<string, boolean>;
     lastUploadedValues: Map<string, any>;
     pendingTimeout: any | null;
     changeListeners: Array<() => void>;
 
-    constructor(cursor: ReactiveCursor, path: string) {
+    constructor(cursor: ReactiveCursor, path: string, isPathGlobal: boolean = false) {
         this.cursor = cursor;
         this.path = path;
+        this.isPathGlobal = isPathGlobal;
         this.values = new Map();
         this.focused = new Map();
         this.lastUploadedValues = new Map();
@@ -96,10 +98,10 @@ class ReactiveJsonFile {
      * This will do a refresh of the contents of the file from S3
      */
     refreshFile = () => {
-        console.log("File exists: " + this.fileExist());
         if (this.fileExist()) {
             this.loading = true;
-            this.cursor.downloadText(this.path).then(action((text: string) => {
+            console.log("File exists: " + this.fileExist());
+            this.cursor.index.downloadText(this.getAbsolutePath()).then(action((text: string) => {
                 console.log("Downloaded text: " + text);
                 try {
                     let savedValues: Map<string, any> = new Map();
@@ -154,9 +156,16 @@ class ReactiveJsonFile {
      * @returns the absolute path of the file, relative to the cursor path
      */
     getAbsolutePath = () => {
-        let prefix = this.cursor.path;
-        if (!prefix.endsWith('/')) prefix += '/';
-        return prefix + this.path;
+        if (this.isPathGlobal) {
+            // <userid>/data/something
+            const userPrefix = this.cursor.path.substring(0, this.cursor.path.indexOf('/', this.cursor.path.indexOf('/') + 1)); // todo bounds check
+            return userPrefix + '/' + this.path;
+        }
+        else {
+            let prefix = this.cursor.path;
+            if (!prefix.endsWith('/')) prefix += '/';
+            return prefix + this.path;
+        }
     };
 
     /**
@@ -179,7 +188,12 @@ class ReactiveJsonFile {
      * @returns True if the file currently exists, false otherwise
      */
     fileExist = () => {
-        return this.cursor.getExists(this.path);
+        if (this.isPathGlobal) {
+            let cursorGlobal:ReactiveCursor = new ReactiveCursor(this.cursor.index, this.getAbsolutePath())
+            return cursorGlobal.getExistsAbsolute();
+        }
+        else
+            return this.cursor.getExists(this.path);
     };
 
     /**
@@ -318,7 +332,7 @@ class ReactiveTextFile {
         console.log("File exists: " + this.fileExist());
         if (this.fileExist()) {
             this.loading = true;
-            this.cursor.downloadText(this.path).then(action((text: string) => {
+            this.cursor.downloadText(this.getAbsolutePath()).then(action((text: string) => {
                 console.log("Downloaded text: " + text);
                 this.text = text;
             })).finally(action(() => {
@@ -482,10 +496,10 @@ class ReactiveCursor {
      * 
      * @param path The path of the JSON file object to retrieve or create
      */
-    getJsonFile = (path: string) => {
+    getJsonFile = (path: string, isGlobalPath:boolean = false) => {
         let file = this.jsonFiles.get(path);
         if (file == null) {
-            file = new ReactiveJsonFile(this, path);
+            file = new ReactiveJsonFile(this, path, isGlobalPath);
             this.jsonFiles.set(path, file);
         }
         return file;
@@ -552,6 +566,18 @@ class ReactiveCursor {
      * @returns True if the file pointed to at "path" exists in S3
      */
     getExists = (path?: string) => {
+        if (path == null) {
+            return this.metadata != null;
+        }
+        else {
+            return this.getChildMetadata(path) != null;
+        }
+    };
+
+    /**
+     * @returns True if the file pointed to at "path" exists in S3
+     */
+    getExistsAbsolute = (path?: string) => {
         if (path == null) {
             return this.metadata != null;
         }
