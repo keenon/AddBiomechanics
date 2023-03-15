@@ -12,6 +12,7 @@ import shutil
 import textwrap
 import glob
 import traceback
+from plotting import plotIKResults, plotIDResults, plotMarkerErrors, plotGRFData
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
@@ -123,6 +124,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         maxTrialsToSolveMassOver = 4
 
+    if 'regularizeJointAcc' in subjectJson:
+        regularizeJointAcc = subjectJson['regularizeJointAcc']
+    else:
+        regularizeJointAcc = 0
+
     if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
         footBodyNames = ['calcn_l', 'calcn_r']
     else:
@@ -193,12 +199,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     if os.path.exists(path + 'manually_scaled.osim'):
         goldOsim = nimble.biomechanics.OpenSimParser.parseOsim(
             path + 'manually_scaled.osim')
-
+    #
     trialsFolderPath = path + 'trials/'
     if not os.path.exists(trialsFolderPath):
         print('ERROR: Trials folder "'+trialsFolderPath +
               '" does not exist. Quitting.')
         exit(1)
+
+    trialNames = []
+    for trialName in os.listdir(trialsFolderPath):
+        trialNames.append(trialName)
 
     # 7. Process the trial
     markerFitter = nimble.biomechanics.MarkerFitter(
@@ -440,103 +450,105 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 dynamicsInit,
                 useReactionWheels=useReactionWheels,
                 shiftGRF=shiftGRF,
-                maxTrialsToSolveMassOver=maxTrialsToSolveMassOver)
+                maxTrialsToSolveMassOver=maxTrialsToSolveMassOver
+            )
 
             # If initialization succeeded, we will proceed with the kitchen sink optimization.
             # If not, we will re-run timeSyncAndInitializePipeline() with reaction wheels.
-            if initializeSuccess:
-                goodFramesCount = 0
-                totalFramesCount = 0
-                for trialMissingGRF in dynamicsInit.probablyMissingGRF:
-                    goodFramesCount += sum(
-                        [0 if missing else 1 for missing in trialMissingGRF])
-                    totalFramesCount += len(trialMissingGRF)
-                print('Detected missing/bad GRF data on '+str(totalFramesCount -
-                      goodFramesCount)+'/'+str(totalFramesCount)+' frames', flush=True)
-                if goodFramesCount == 0:
-                    print('ERROR: we have no good frames of GRF data left after filtering out suspicious GRF frames. This '
-                          'probably means input GRF data is badly miscalibrated with respect to marker data (maybe they '
-                          'are in different coordinate frames?), or there are unmeasured external forces acting on your '
-                          'subject. Aborting the physics fitter!', flush=True)
-                    fitDynamics = False
-                else:
-                    # Run an optimization to figure out the model parameters
-                    dynamicsFitter.setIterationLimit(200)
-                    dynamicsFitter.setLBFGSHistoryLength(300)
-                    dynamicsFitter.runIPOPTOptimization(
-                        dynamicsInit,
-                        nimble.biomechanics.DynamicsFitProblemConfig(
-                            finalSkeleton)
-                        .setDefaults(True)
-                        .setResidualWeight(4e-2 * tuneResidualLoss)
-                        .setMaxNumTrials(3)
-                        .setConstrainResidualsZero(False)
-                        .setIncludeMasses(True)
-                        .setMaxNumBlocksPerTrial(20)
-                        # .setIncludeInertias(True)
-                        # .setIncludeCOMs(True)
-                        # .setIncludeBodyScales(True)
-                        .setIncludeMarkerOffsets(True)
-                        .setIncludePoses(True)
-                        .setRegularizeJointAcc(1e-4))
-
-                    # Now re-run a position-only optimization on every trial in the dataset
-                    for trial in range(len(dynamicsInit.poseTrials)):
-                        if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
-                            dynamicsFitter.setIterationLimit(200)
-                            dynamicsFitter.setLBFGSHistoryLength(100)
-                        elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
-                            dynamicsFitter.setIterationLimit(100)
-                            dynamicsFitter.setLBFGSHistoryLength(30)
-                        else:
-                            dynamicsFitter.setIterationLimit(50)
-                            dynamicsFitter.setLBFGSHistoryLength(3)
-                        dynamicsFitter.runIPOPTOptimization(
-                            dynamicsInit,
-                            nimble.biomechanics.DynamicsFitProblemConfig(
-                                finalSkeleton)
-                            .setDefaults(True)
-                            .setOnlyOneTrial(trial)
-                            .setResidualWeight(4e-2 * tuneResidualLoss)
-                            .setConstrainResidualsZero(False)
-                            .setIncludePoses(True))
-
-                    # Specifically optimize to 0-ish residuals, if user requests it
-                    if residualsToZero:
-                        for trial in range(len(dynamicsInit.poseTrials)):
-                            originalTrajectory = dynamicsInit.poseTrials[trial].copy()
-                            previousTotalResidual = np.inf
-                            for i in range(100):
-                                # this holds the mass constant, and re-jigs the trajectory to try to get
-                                # the angular ACC's to match more closely what was actually observed
-                                pair = dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
-                                    dynamicsInit, 
-                                    trial, 
-                                    originalTrajectory, 
-                                    previousTotalResidual,
-                                    i,
-                                    useReactionWheels=useReactionWheels, 
-                                    weightLinear=1.0, 
-                                    weightAngular=0.5, 
-                                    regularizeLinearResiduals=0.1, 
-                                    regularizeAngularResiduals=0.1, 
-                                    regularizeCopDriftCompensation=1.0, 
-                                    maxBuckets=150)
-                                previousTotalResidual = pair[1]
-
-                            dynamicsFitter.recalibrateForcePlates(
-                                dynamicsInit, trial)
-
-            else:
-                print('WARNING: Unable to minimize residual moments below the desired threshold. Skipping '
-                      'body mass optimization and re-running dynamics initialization while allowing large '
-                      'residual moments.', flush=True)
-                initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
-                    dynamicsInit,
-                    useReactionWheels=True,
-                    shiftGRF=shiftGRF,
-                    maxTrialsToSolveMassOver=maxTrialsToSolveMassOver)
-                # TODO re-run position only optimization here?
+            # if initializeSuccess:
+            #     goodFramesCount = 0
+            #     totalFramesCount = 0
+            #     for trialMissingGRF in dynamicsInit.probablyMissingGRF:
+            #         goodFramesCount += sum(
+            #             [0 if missing else 1 for missing in trialMissingGRF])
+            #         totalFramesCount += len(trialMissingGRF)
+            #     print('Detected missing/bad GRF data on '+str(totalFramesCount -
+            #           goodFramesCount)+'/'+str(totalFramesCount)+' frames', flush=True)
+            #     if goodFramesCount == 0:
+            #         print('ERROR: we have no good frames of GRF data left after filtering out suspicious GRF frames. This '
+            #               'probably means input GRF data is badly miscalibrated with respect to marker data (maybe they '
+            #               'are in different coordinate frames?), or there are unmeasured external forces acting on your '
+            #               'subject. Aborting the physics fitter!', flush=True)
+            #         fitDynamics = False
+            #     else:
+            #         # Run an optimization to figure out the model parameters
+            #         dynamicsFitter.setIterationLimit(200)
+            #         dynamicsFitter.setLBFGSHistoryLength(300)
+            #         dynamicsFitter.runIPOPTOptimization(
+            #             dynamicsInit,
+            #             nimble.biomechanics.DynamicsFitProblemConfig(
+            #                 finalSkeleton)
+            #             .setDefaults(True)
+            #             .setResidualWeight(4e-2 * tuneResidualLoss)
+            #             .setMaxNumTrials(3)
+            #             .setConstrainResidualsZero(False)
+            #             .setIncludeMasses(True)
+            #             .setMaxNumBlocksPerTrial(20)
+            #             # .setIncludeInertias(True)
+            #             # .setIncludeCOMs(True)
+            #             # .setIncludeBodyScales(True)
+            #             .setIncludeMarkerOffsets(True)
+            #             .setIncludePoses(True)
+            #             .setRegularizeJointAcc(regularizeJointAcc))
+            #
+            #         # Now re-run a position-only optimization on every trial in the dataset
+            #         for trial in range(len(dynamicsInit.poseTrials)):
+            #             if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
+            #                 dynamicsFitter.setIterationLimit(200)
+            #                 dynamicsFitter.setLBFGSHistoryLength(100)
+            #             elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
+            #                 dynamicsFitter.setIterationLimit(100)
+            #                 dynamicsFitter.setLBFGSHistoryLength(30)
+            #             else:
+            #                 dynamicsFitter.setIterationLimit(50)
+            #                 dynamicsFitter.setLBFGSHistoryLength(3)
+            #             dynamicsFitter.runIPOPTOptimization(
+            #                 dynamicsInit,
+            #                 nimble.biomechanics.DynamicsFitProblemConfig(
+            #                     finalSkeleton)
+            #                 .setDefaults(True)
+            #                 .setOnlyOneTrial(trial)
+            #                 .setResidualWeight(4e-2 * tuneResidualLoss)
+            #                 .setConstrainResidualsZero(False)
+            #                 .setIncludePoses(True))
+            #
+            #         # Specifically optimize to 0-ish residuals, if user requests it
+            #         if residualsToZero:
+            #             for trial in range(len(dynamicsInit.poseTrials)):
+            #                 originalTrajectory = dynamicsInit.poseTrials[trial].copy()
+            #                 previousTotalResidual = np.inf
+            #                 for i in range(100):
+            #                     # this holds the mass constant, and re-jigs the trajectory to try to get
+            #                     # the angular ACC's to match more closely what was actually observed
+            #                     pair = dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
+            #                         dynamicsInit,
+            #                         trial,
+            #                         originalTrajectory,
+            #                         previousTotalResidual,
+            #                         i,
+            #                         useReactionWheels=useReactionWheels,
+            #                         weightLinear=1.0,
+            #                         weightAngular=0.5,
+            #                         regularizeLinearResiduals=0.1,
+            #                         regularizeAngularResiduals=0.1,
+            #                         regularizeCopDriftCompensation=1.0,
+            #                         maxBuckets=150)
+            #                     previousTotalResidual = pair[1]
+            #
+            #                 dynamicsFitter.recalibrateForcePlates(
+            #                     dynamicsInit, trial)
+            #
+            # else:
+            #     print('WARNING: Unable to minimize residual moments below the desired threshold. Skipping '
+            #           'body mass optimization and re-running dynamics initialization while allowing large '
+            #           'residual moments.', flush=True)
+            #     initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
+            #         dynamicsInit,
+            #         useReactionWheels=True,
+            #         shiftGRF=shiftGRF,
+            #         maxTrialsToSolveMassOver=maxTrialsToSolveMassOver
+            #     )
+            #     # TODO re-run position only optimization here?
 
             dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
 
@@ -558,6 +570,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                   str(dynamicsFitter.computeAverageForceMagnitudeChange(dynamicsInit)) + " N", flush=True)
 
             # Write all the results back
+            trialBadDynamicsFrames: List[Dict[str, List[int]]] = []
             for trial in range(len(dynamicsInit.poseTrials)):
                 finalInverseDynamics.append(
                     dynamicsFitter.computeInverseDynamics(dynamicsInit, trial))
@@ -565,10 +578,22 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     dynamicsInit, trial)
                 trialProcessingResults[trial]['linearResidual'] = pair[0]
                 trialProcessingResults[trial]['angularResidual'] = pair[1]
-                pass
+
+                badDynamicsFrames: Dict[str, List[int]] = {}
+                numBadDynamicsFrames = 0
+                for iframe, reason in enumerate(dynamicsInit.missingGRFReason[trial]):
+                    if not reason.name in badDynamicsFrames: badDynamicsFrames[reason.name] = []
+                    badDynamicsFrames[reason.name].append(iframe)
+                    if not reason.name == 'notMissingGRF':
+                        numBadDynamicsFrames += 1
+
+                trialProcessingResults[trial]['numBadDynamicsFrames'] = numBadDynamicsFrames
+                trialBadDynamicsFrames.append(badDynamicsFrames)
+
             finalPoses = dynamicsInit.poseTrials
             finalMarkers = dynamicsInit.updatedMarkerMap
             trialForcePlates = dynamicsInit.forcePlateTrials
+
 
     # 8.2. Write out the usable OpenSim results
 
@@ -664,7 +689,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 path + 'results/MuJoCo/model.xml', simplified)
 
     trialDynamicsSegments: List[List[Tuple[int, int]]] = []
-    for i in range(len(finalPoses)):
+    for i in range(len(trialNames)):
         poses = finalPoses[i]
         forces = finalInverseDynamics[i] if i < len(
             finalInverseDynamics) else None
@@ -726,26 +751,43 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             # goldAvgRMSE: number;
             json.dump(trialProcessingResult, f)
 
-        # Write out the .mot files
-        print('Writing OpenSim '+path+'results/IK/' +
-              trialName+'.mot file, shape='+str(poses.shape), flush=True)
-        nimble.biomechanics.OpenSimParser.saveMot(
-            finalSkeleton, path + 'results/IK/'+trialName+'_ik.mot', timestamps, poses)
+
+        # 8.2. Write out the kinematics and kinetics data files.
+
+        # 8.2.1. Write out the inverse kinematics results,
+        ik_fpath = f'{path}/results/IK/{trialName}_ik.mot'
+        print(f'Writing OpenSim {ik_fpath} file, shape={str(poses.shape)}', flush=True)
+        nimble.biomechanics.OpenSimParser.saveMot(finalSkeleton, ik_fpath, timestamps, poses)
+
+        # 8.2.2. Write the inverse dynamics results.
+        id_fpath = f'{path}/results/ID/{trialName}_id.sto'
         if forces is not None:
             nimble.biomechanics.OpenSimParser.saveIDMot(
-                finalSkeleton, path + 'results/ID/'+trialName+'_id.sto', timestamps, forces)
-        resultIK.saveCSVMarkerErrorReport(
-            path + 'results/IK/'+trialName+'_ik_per_marker_error_report.csv')
+                finalSkeleton, id_fpath, timestamps, forces)
+
+        # 8.2.3. Write out the marker errors.
+        marker_errors_fpath = f'{path}/results/IK/{trialName}_marker_errors.csv'
+        resultIK.saveCSVMarkerErrorReport(marker_errors_fpath)
+
+        # 8.2.4. Write out the marker trajectories.
+        markers_fpath = f'{path}/results/MarkerData/{trialName}.trc'
         nimble.biomechanics.OpenSimParser.saveTRC(
-            path + 'results/MarkerData/'+trialName+'.trc', timestamps, markerTimesteps)
+            markers_fpath, timestamps, markerTimesteps)
+
+        # 8.2.5. Write out the C3D file.
+        c3d_fpath = f'{path}/results/C3D/{trialName}.c3d'
         if c3dFile is not None:
-            shutil.copyfile(trialPath + 'markers.c3d', path +
-                            'results/C3D/' + trialName + '.c3d')
+            shutil.copyfile(trialPath + 'markers.c3d', c3d_fpath)
+
+        # 8.2.6. Export setup files for OpenSim InverseKinematics.
         if exportOSIM:
             # Save OpenSim setup files to make it easy to (re)run IK and ID on the results in OpenSim
             nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
                 trialName, markerNames, "../Models/optimized_scale_and_markers.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
-        # 8.2. Write out the inverse dynamics info
+
+        # # 8.2.7. Write out the inverse dynamics files.
+        grf_fpath = f'{path}/results/ID/{trialName}_grf.mot'
+        grf_raw_fpath = f'{path}/results/ID/{trialName}_grf_raw.mot'
         if fitDynamics and dynamicsInit is not None:
             # Run through the list of timesteps, looking for windows of time where we have GRF data. Trim the leading and trailing frames from these windows, because those don't fit by AddBiomechanics finite differencing.
             dynamicsSegments: List[Tuple[int, int]] = []
@@ -769,8 +811,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                   str(dynamicsSegments), flush=True)
             trialDynamicsSegments.append(dynamicsSegments)
 
-            nimble.biomechanics.OpenSimParser.saveProcessedGRFMot(
-                path + 'results/ID/'+trialName+'_grf.mot', timestamps, dynamicsInit.grfBodyNodes, dynamicsInit.groundHeight[i], dynamicsInit.grfTrials[i])
+            nimble.biomechanics.OpenSimParser.saveProcessedGRFMot(grf_fpath, timestamps, dynamicsInit.grfBodyNodes,
+                dynamicsInit.groundHeight[i], dynamicsInit.grfTrials[i])
             nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsProcessedForcesXMLFile(
                 trialName, dynamicsInit.grfBodyNodes, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
 
@@ -785,24 +827,22 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
                         trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_osim_id.sto', trialName+'_osim_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml', timestamps[begin], timestamps[end])
             # Still save the raw version, just call it that
-            nimble.biomechanics.OpenSimParser.saveRawGRFMot(
-                path + 'results/ID/'+trialName+'_grf_raw.mot', timestamps, forcePlates)
+            nimble.biomechanics.OpenSimParser.saveRawGRFMot(grf_raw_fpath, timestamps, forcePlates)
             nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
                 trialName, finalSkeleton, poses, forcePlates, trialName+'_grf_raw.mot', path + 'results/ID/'+trialName+'_external_forces_raw.xml')
             if exportOSIM:
                 nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
                     trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces_raw.xml', trialName+'_osim_id_raw.sto', trialName+'_id_body_forces_raw.sto', path + 'results/ID/'+trialName+'_id_setup_raw.xml', min(timestamps), max(timestamps))
         else:
-            nimble.biomechanics.OpenSimParser.saveRawGRFMot(
-                path + 'results/ID/'+trialName+'_grf.mot', timestamps, forcePlates)
+            nimble.biomechanics.OpenSimParser.saveRawGRFMot(grf_fpath, timestamps, forcePlates)
             nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
                 trialName, finalSkeleton, poses, forcePlates, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
             if exportOSIM:
                 nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
                     trialName, '../Models/optimized_scale_and_markers.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_id.sto', trialName+'_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml', min(timestamps), max(timestamps))
 
-        # 8.2. Write out the animation preview
-        # 8.2.1. Create the raw binary
+        # 8.3. Write out the animation preview
+        # 8.3.1. Create the raw binary
         if fitDynamics and dynamicsInit is not None:
             print('Saving trajectory, markers, and dynamics to a GUI log ' +
                   trialPath+'preview.bin', flush=True)
@@ -831,13 +871,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                       trialPath+'preview.bin', flush=True)
                 markerFitter.saveTrajectoryAndMarkersToGUI(
                     trialPath+'preview.bin', results[i], markerTimesteps, framesPerSecond, forcePlates)
-        # 8.2.2. Zip it up
+        # 8.3.2. Zip it up
         print('Zipping up '+trialPath+'preview.bin', flush=True)
         subprocess.run(["zip", "-r", 'preview.bin.zip',
                        'preview.bin'], cwd=trialPath, capture_output=True)
         print('Finished zipping up '+trialPath+'preview.bin.zip', flush=True)
 
-        # 8.3. Count up the number of times we hit against joint limits
+        # 8.4. Count up the number of times we hit against joint limits
 
         trialJointLimitHits: Dict[str, int] = {}
         jointLimitsFrames: Dict[str, List[int]] = {}
@@ -868,7 +908,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                         jointLimitsFramesUpperBound[dof.getName()].append(
                             False)
 
-        # 8.3.1. Sort for trial joint limits
+        # 8.4.1. Sort for trial joint limits
 
         print('Computing details about joint limit hits for the README')
         try:
@@ -904,6 +944,28 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             print('Continuing...')
         print('Finished computing details about joint limit hits for the README')
 
+        # 8.5. Plot results.
+
+        # TODO switch 'osim_results' back to 'results'
+
+        print(f'Plotting results for trial {trialName}')
+        # plotIKResults(path + 'osim_results/IK/' + trialName + '_ik.mot')
+        plotIKResults(ik_fpath)
+        # plotMarkerErrors(path + 'osim_results/IK/' + trialName + '_ik_per_marker_error_report.csv',
+        #                  path + 'osim_results/IK/' + trialName + '_ik.mot')
+        plotMarkerErrors(marker_errors_fpath, ik_fpath)
+        if os.path.exists(id_fpath):
+           plotIDResults(id_fpath)
+        # plotIDResults(path + 'osim_results/ID/' + trialName + '_id.sto')
+
+        if os.path.exists(grf_fpath):
+            plotGRFData(grf_fpath)
+        # plotGRFData(path + 'osim_results/ID/' + trialName + '_grf.mot')
+
+        if os.path.exists(grf_raw_fpath):
+            plotGRFData(grf_raw_fpath)
+        # plotGRFData(path + 'osim_results/ID/' + trialName + '_grf_raw.mot')
+
         print('Success! Done with '+trialName+'.', flush=True)
 
     if os.path.exists(path + 'manually_scaled.osim'):
@@ -927,17 +989,23 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     goldTotalLen = 0
     processingResult['autoAvgRMSE'] = 0
     processingResult['autoAvgMax'] = 0
-    if fitDynamics:
+    if fitDynamics and dynamicsInit is not None:
         processingResult['linearResidual'] = 0
         processingResult['angularResidual'] = 0
     processingResult['goldAvgRMSE'] = 0
     processingResult['goldAvgMax'] = 0
-    for i in range(len(results)):
+    for i in range(len(trialNames)):
+        # TODO delete
+        # trialLen = 100
+        # trialPath = path + 'trials/' + trialName + '/'
+        # f_temp1 = open(trialPath + '_results.json')
+        # trialProcessingResult = json.load(f_temp1)
+
         trialLen = len(markerTrials[i])
         trialProcessingResult = trialProcessingResults[i]
         processingResult['autoAvgRMSE'] += trialProcessingResult['autoAvgRMSE'] * trialLen
         processingResult['autoAvgMax'] += trialProcessingResult['autoAvgMax'] * trialLen
-        if fitDynamics:
+        if fitDynamics and dynamicsInit is not None:
             processingResult['linearResidual'] += trialProcessingResult['linearResidual'] * trialLen
             processingResult['angularResidual'] += trialProcessingResult['angularResidual'] * trialLen
         autoTotalLen += trialLen
@@ -948,7 +1016,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             goldTotalLen += trialLen
     processingResult['autoAvgRMSE'] /= autoTotalLen
     processingResult['autoAvgMax'] /= autoTotalLen
-    if fitDynamics:
+    if fitDynamics and dynamicsInit is not None:
         processingResult['linearResidual'] /= autoTotalLen
         processingResult['angularResidual'] /= autoTotalLen
     if goldTotalLen > 0:
@@ -960,54 +1028,104 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
     trialWarnings: Dict[str, List[str]] = {}
     trialInfo: Dict[str, List[str]] = {}
+    badMarkerThreshold = 4  # cm
+    trialBadMarkers: Dict[str, int] = {}
     markerCleanupWarnings: List[str] = []
     for i in range(len(trialErrorReports)):
         trialWarnings[trialNames[i]] = trialErrorReports[i].warnings
         trialInfo[trialNames[i]] = trialErrorReports[i].info
+
     processingResult['trialWarnings'] = trialWarnings
     processingResult['trialInfo'] = trialInfo
     processingResult["fewFramesWarning"] = totalFrames < 300
     processingResult['jointLimitsHits'] = jointLimitsHits
 
     # Write out the README for the data
+    # TODO delete
+    # if os.path.exists(path + 'osim_results/README.txt'):
+    #     os.remove(path + 'osim_results/README.txt')
+    # with open(path + 'osim_results/README.txt', 'w') as f:
     with open(path + 'results/README.txt', 'w') as f:
         f.write(
             "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
         f.write(
-            "AddBiomechanics was written by Keenon Werling <keenon@cs.stanford.edu>\n")
+            "AddBiomechanics was written by Keenon Werling.\n")
         f.write("\n")
         f.write(textwrap.fill(
             "Automatic processing achieved the following marker errors (averaged over all frames of all trials):"))
         f.write("\n\n")
-        f.write(" - RMSE: "+('%.2f' %
-                (processingResult['autoAvgRMSE'] * 100))+'cm, Max: '+('%.2f' % (processingResult['autoAvgMax'] * 100))+'cm')
-        f.write("\n\n")
-        f.write(textwrap.fill(
-            "The following trials were processed to perform automatic body scaling and marker registration:"))
-        f.write("\n\n")
-        for i in range(len(results)):
-            trialName = trialNames[i]
-            f.write(" - MarkerData/" + trialName+'.trc (RMSE: '+('%.2f' % (trialProcessingResults[i]['autoAvgRMSE'] * 100))+'cm, Max: '+('%.2f' %
-                                                                                                                                         (trialProcessingResults[i]['autoAvgMax']*100))+'cm)\n')
-            for j in range(min(len(trialProcessingResults[i]['markerErrors']), 5)):
-                markerName, markerRMSE = trialProcessingResults[i]['markerErrors'][j]
-                f.write("     " + str(j+1)+" Worst Marker \"")
-                f.write(markerName)
-                f.write("\" (RMSE: "+('%.2f' % (markerRMSE * 100))+'cm)')
-                f.write('\n')
-            for warn in trialWarnings[trialName]:
-                f.write("     >> MARKER WARNING: ")
-                f.write(warn)
-                f.write('\n')
-            for warn in trialJointWarnings[trialName]:
-                f.write("     >> JOINT WARNING: ")
-                f.write(warn)
-                f.write('\n')
-            for info in trialInfo[trialName]:
-                f.write("     >> INFO: ")
-                f.write(info)
-                f.write('\n')
+        totalMarkerRMSE = processingResult['autoAvgRMSE'] * 100
+        totalMarkerMax = processingResult['autoAvgMax'] * 100
+        f.write(f'- Avg. Marker RMSE: {totalMarkerRMSE:1.2f} cm\n')
+        f.write(f'- Avg. Max Marker Error: {totalMarkerMax:.2f} cm\n')
         f.write("\n")
+        if fitDynamics and dynamicsInit is not None:
+            f.write(textwrap.fill(
+                "Automatic processing reduced the residual loads needed for dynamic consistency to the following magnitudes "
+                "(averaged over all frames of all trials):"))
+            f.write("\n\n")
+            residualForce =  processingResult['linearResidual']
+            residualTorque = processingResult['angularResidual']
+            f.write(f'- Avg. Residual Force: {residualForce:1.2f} N\n')
+            f.write(f'- Avg. Residual Torque: {residualTorque:1.2f} N-m\n')
+            f.write("\n")
+        if fitDynamics and dynamicsInit is not None:
+            f.write(textwrap.fill(
+                "The following trials were processed to perform automatic body scaling, marker registration, "
+                "and residual reduction:"))
+        else:
+            f.write(textwrap.fill(
+                "The following trials were processed to perform automatic body scaling and marker registration:"))
+        f.write("\n\n")
+        for i in range(len(trialNames)):
+            trialProcessingResult = trialProcessingResults[i]
+            # TODO delete
+            # trialPath = path + 'trials/' + trialName + '/'
+            # f_temp2 = open(trialPath +'_results.json')
+            # trialProcessingResult = json.load(f_temp2)
+
+            # Main trial results summary.
+            trialName = trialNames[i]
+            f.write(f'trial: {trialName}\n')
+
+            markerRMSE = trialProcessingResult['autoAvgRMSE'] * 100
+            markerMax = trialProcessingResult['autoAvgMax'] * 100
+            f.write(f'  - Avg. Marker RMSE      = {markerRMSE:1.2f} cm\n')
+            f.write(f'  - Avg. Marker Max Error = {markerMax:.2f} cm\n')
+
+            residualForce = trialProcessingResult['linearResidual']
+            residualTorque = trialProcessingResult['angularResidual']
+            f.write(f'  - Avg. Residual Force   = {residualForce:1.2f} N\n')
+            f.write(f'  - Avg. Residual Torque  = {residualTorque:1.2f} N-m\n')
+
+            # Warning and error reporting.
+            if len(trialJointWarnings[trialName]) > 0:
+                f.write(f'  - WARNING: {len(trialJointWarnings[trialName])} joints hit joint limits!\n')
+
+            numBadMarkers = 0
+            for markerError in trialProcessingResult['markerErrors']:
+                if 100*markerError[1] > badMarkerThreshold: numBadMarkers += 1
+
+            trialBadMarkers[trialName] = numBadMarkers
+            if numBadMarkers > 0:
+                f.write(f'  - WARNING: {numBadMarkers} marker(s) with RMSE greater than {badMarkerThreshold} cm!\n')
+
+            if len(trialWarnings[trialName]) > 0:
+                f.write(f'  - WARNING: Automatic data processing required modifying TRC data from '
+                        f'{len(trialWarnings[trialName])} marker(s)!\n')
+
+            if fitDynamics and dynamicsInit is not None:
+                numBadFrames = trialProcessingResult['numBadDynamicsFrames']
+                if numBadFrames:
+                    f.write(f'  - WARNING: {numBadFrames} frame(s) with ground reaction force inconsistencies detected!\n')
+                
+            if fitDynamics and dynamicsInit is not None:
+                f.write(f'  --> See IK/{trialName}_summary.txt and ID/{trialName}_summary.txt for more details.\n')
+            else:
+                f.write(f'  --> See IK/{trialName}_summary.txt for more details.\n')
+            f.write(f'\n')
+
+        f.write('\n')
         f.write(textwrap.fill(
             "The model file containing optimal body scaling and marker offsets is:"))
         f.write("\n\n")
@@ -1032,7 +1150,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             f.write("\n\n")
             f.write(textwrap.fill("You do not need to re-run Inverse Kinematics unless you change scaling, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of AddBiomechanics, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THE \"IK\" FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
             f.write("\n\n")
-            for i in range(len(results)):
+            for i in range(len(trialNames)):
                 trialName = trialNames[i]
                 f.write(" > opensim-cmd run-tool " +
                         trialName+'_ik_setup.xml\n')
@@ -1043,7 +1161,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             if os.path.exists(path + 'manually_scaled.osim'):
                 f.write(textwrap.fill("You included a manually scaled model to compare against. That model has been copied into this folder as \"manually_scaled.osim\". You can use the automatically generated XML configuration files to run IK using your manual scaling as well. Here are the command-line commands you can run (FROM THE \"IK\" FOLDER, and not including the leading \"> \") to compare IK results for each trial:"))
                 f.write("\n\n")
-                for i in range(len(results)):
+                for i in range(len(trialNames)):
                     trialName = trialNames[i]
                     f.write(" > opensim-cmd run-tool " + trialName +
                             '_ik_on_manually_scaled_setup.xml\n')
@@ -1054,7 +1172,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             if fitDynamics and dynamicsInit is not None:
                 f.write(textwrap.fill("To re-run Inverse Dynamics using OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics in OpenSim uses a different time-step definition to the one used in AddBiomechanics (AddBiomechanics uses semi-implicit Euler, OpenSim uses splines). This means that your OpenSim inverse dynamics results WILL NOT MATCH your AddBiomechanics results, and YOU SHOULD NOT EXPECT THEM TO. The following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
                 f.write("\n\n")
-                for i in range(len(results)):
+                for i in range(len(trialNames)):
                     trialName = trialNames[i]
                     timestamps = trialTimestamps[i]
                     if len(trialDynamicsSegments[i]) > 1:
@@ -1073,7 +1191,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             else:
                 f.write(textwrap.fill("To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: This AddBiomechanics run did not attempt to fit dynamics (you need to have GRF data and enable physics fitting in the web app), so the residuals will not be small and YOU SHOULD NOT EXPECT THEM TO BE. That being said, to run inverse dynamics the following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
                 f.write("\n\n")
-                for i in range(len(results)):
+                for i in range(len(trialNames)):
                     trialName = trialNames[i]
                     f.write(" > opensim-cmd run-tool " +
                             trialName+'_id_setup.xml\n')
@@ -1093,7 +1211,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             f.write(textwrap.fill("Because you chose to export MuJoCo and/or SDF files, we had to simplify the OpenSim skeleton we started out with (replacing <CustomJoint> objects with simpler joint types, etc). This means that the output is no longer compatible with OpenSim, and so the normal OpenSim files are not present. If you want the OpenSim files, please re-run AddBiomechanics with those options turned off"))
         f.write("\n\n")
         f.write(textwrap.fill(
-            "If you encounter errors, please contact Keenon Werling at keenon@cs.stanford.edu, and I will do my best to help :)"))
+            "If you encounter errors, please submit a post to the AddBiomechanics user forum on SimTK.org\n:"))
+        f.write('\n\n')
+        f.write('   https://simtk.org/projects/addbiomechanics.')
 
     if exportMJCF:
         with open(path + 'results/MuJoCo/README.txt', 'w') as f:
@@ -1127,6 +1247,193 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             f.write(textwrap.fill(
                 "The SDF skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. It's actually an open research question to approximate realistic foot-ground contact in physics engines. Instead of giving you pre-made foot colliders, you'll instead find the ground-reaction-force data, with the center-of-pressure, force direction, and torque between the feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in combination with the joint positions over time to develop your own foot colliders. Good luck!"))
 
+    # Write out summary files for individual trials.
+    for itrial, trialName in enumerate(trialNames):
+        timestamps = trialTimestamps[itrial]
+        trialProcessingResult = trialProcessingResults[i]
+        # TODO delete
+        # trialPath = path + 'trials/' + trialName + '/'
+        # f_temp3 = open(trialPath + '_results.json')
+        # trialProcessingResult = json.load(f_temp3)
+
+        # TODO change to 'results'
+        with open(f'{path}/results/IK/{trialName}_summary.txt', 'w') as f:
+            f.write('-'*len(trialName) + '--------------------------------------\n')
+            f.write(f'Trial {trialName}: Inverse Kinematics Summary\n')
+            f.write('-'*len(trialName) + '--------------------------------------\n')
+            f.write('\n')
+
+            f.write(textwrap.fill(
+                "Automatic processing achieved the following marker errors, averaged over all frames of this trial:"))
+            f.write('\n\n')
+            markerRMSE = trialProcessingResult['autoAvgRMSE'] * 100
+            markerMax = trialProcessingResult['autoAvgMax'] * 100
+            f.write(f'  - Avg. Marker RMSE      = {markerRMSE:1.2f} cm\n')
+            f.write(f'  - Avg. Marker Max Error = {markerMax:.2f} cm\n')
+
+            if trialBadMarkers[trialName]:
+                f.write('\n')
+                f.write('Markers with large root-mean-square error:\n')
+                f.write('\n')
+                for markerName, markerRMSE in trialProcessingResult['markerErrors']:
+                    if 100 * markerRMSE > badMarkerThreshold:
+                        f.write(f'  - WARNING: Marker {markerName} has RMSE = {100*markerRMSE:.2f} cm!\n')
+
+            if len(trialWarnings):
+                f.write('\n')
+                f.write(textwrap.fill('The input data for the following markers were modified to enable automatic processing:'))
+                f.write('\n\n')
+                for warn in trialWarnings[trialName]:
+                    f.write(f'  - WARNING: {warn}.\n')
+
+            if len(trialJointWarnings[trialName]):
+                f.write('\n')
+                f.write(textwrap.fill('The following model coordinates that hit joint limits during inverse kinematics:'))
+                f.write('\n\n')
+                for warn in trialJointWarnings[trialName]:
+                    f.write(f'  - WARNING: {warn}.\n')
+
+            if len(trialInfo):
+                f.write('\n')
+                f.write(f'Additional information:\n')
+                f.write('\n')
+                for info in trialInfo[trialName]:
+                    f.write(f'  - INFO: {info}.\n')
+
+        if fitDynamics and dynamicsInit is not None:
+            badDynamicsFrames = trialBadDynamicsFrames[itrial]
+            with open(f'{path}/results/ID/{trialName}_summary.txt', 'w') as f:
+                f.write('-' * len(trialName) + '--------------------------------\n')
+                f.write(f'Trial {trialName}: Inverse Dynamics Summary\n')
+                f.write('-' * len(trialName) + '--------------------------------\n')
+                f.write('\n')
+
+                f.write(textwrap.fill(
+                    "Automatic processing reduced the residual loads needed for dynamic consistency to the following "
+                    "magnitudes, averaged over all frames of this trial:"))
+                f.write('\n\n')
+                residualForce = trialProcessingResult['linearResidual']
+                residualTorque = trialProcessingResult['angularResidual']
+                f.write(f'  - Avg. Residual Force   = {residualForce:1.2f} N\n')
+                f.write(f'  - Avg. Residual Torque  = {residualTorque:1.2f} N-m\n')
+                f.write('\n\n')
+
+                numTotalFrames = len(dynamicsInit.missingGRFReason[itrial])
+                numBadFrames = trialProcessingResult['numBadDynamicsFrames']
+                if numBadFrames:
+                    f.write('Ground reaction force inconsistencies\n')
+                    f.write('=====================================\n')
+                    f.write(textwrap.fill(f'Ground reaction force inconsistencies were detected in {numBadFrames} out '
+                                          f'of {numTotalFrames} frames in this trial. See below for a breakdown of why '
+                                          f'these "bad" frames were detected.'))
+                    f.write('\n')
+
+                    badDynamicsFrames['measuredGrfZeroWhenAccelerationNonZero'] = [0,1]
+                    badDynamicsFrames['unmeasuredExternalForceDetected'] = [2,3]
+                    badDynamicsFrames['forceDiscrepancy'] = [4,5]
+                    badDynamicsFrames['torqueDiscrepancy'] = [6,7]
+                    badDynamicsFrames['notOverForcePlate'] = [8,9]
+                    badDynamicsFrames['missingImpact'] = [10,11]
+                    badDynamicsFrames['missingBlip'] = [12,13]
+                    badDynamicsFrames['shiftGRF'] = [14,15]
+
+                    reasonNumber = 1
+                    if 'measuredGrfZeroWhenAccelerationNonZero' in badDynamicsFrames:
+                        f.write('\n')
+                        f.write(f'{reasonNumber}. "Zero GRF, but non-zero acceleration."\n')
+                        f.write(f'   --------------------------------------\n')
+                        f.write(textwrap.indent(textwrap.fill(
+                            'No external ground reaction forces was present, but a non-zero whole-body acceleration '
+                            'was detected in the following frames:'), '   '))
+                        f.write('\n')
+                        for frame in badDynamicsFrames['measuredGrfZeroWhenAccelerationNonZero']:
+                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        reasonNumber += 1
+
+                    if 'unmeasuredExternalForceDetected' in badDynamicsFrames:
+                        f.write('\n')
+                        f.write(f'{reasonNumber}. "Zero acceleration, but non-zero GRF."\n')
+                        f.write(f'   --------------------------------------\n')
+                        f.write(textwrap.indent(textwrap.fill(
+                            'External ground reaction forces were present, but the whole-body acceleration was zero '
+                            'in the following frames:'), '   '))
+                        f.write('\n')
+                        for frame in badDynamicsFrames['unmeasuredExternalForceDetected']:
+                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        reasonNumber += 1
+
+                    if 'forceDiscrepancy' in badDynamicsFrames:
+                        f.write('\n')
+                        f.write(f'{reasonNumber}. "Foot not over a force plate."\n')
+                        f.write(f'   ------------------------------\n')
+                        f.write(textwrap.indent(textwrap.fill(
+                            'After optimizing the center-of-mass kinematics to match the observed ground reaction '
+                            'data, an unmeasured external force was still detected in the following frames:'), '   '))
+                        f.write('\n')
+                        for frame in badDynamicsFrames['forceDiscrepancy']:
+                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        reasonNumber += 1
+
+                    if 'torqueDiscrepancy' in badDynamicsFrames:
+                        f.write('\n')
+                        f.write(f'{reasonNumber}. "Unmeasured external torque."\n')
+                        f.write(f'   -----------------------------\n')
+                        f.write(textwrap.indent(textwrap.fill(
+                            'After optimizing the center-of-mass kinematics to match the observed ground reaction '
+                            'data, an unmeasured external torque was still detected in the following frames:'), '   '))
+                        f.write('\n')
+                        for frame in badDynamicsFrames['torqueDiscrepancy']:
+                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        reasonNumber += 1
+
+                    if 'notOverForcePlate' in badDynamicsFrames:
+                        f.write('\n')
+                        f.write(f'{reasonNumber}. "Foot not over a force plate."\n')
+                        f.write(f'   ------------------------------\n')
+                        f.write(textwrap.indent(textwrap.fill(
+                            'External ground reaction forces were present and the foot was detected '
+                            'to be penetrating the ground, but the foot was not located over any '
+                            'known force plate in the following frames:'), '   '))
+                        f.write('\n')
+                        for frame in badDynamicsFrames['notOverForcePlate']:
+                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        reasonNumber += 1
+
+                    if 'missingImpact' in badDynamicsFrames:
+                        f.write('\n')
+                        f.write(f'{reasonNumber}. "Missing foot-ground impact detected."\n')
+                        f.write(f'   --------------------------------------\n')
+                        f.write(textwrap.indent(textwrap.fill(
+                            'TODO...in the following frames:'), '   '))
+                        f.write('\n')
+                        for frame in badDynamicsFrames['missingImpact']:
+                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        reasonNumber += 1
+
+                    if 'missingBlip' in badDynamicsFrames:
+                        f.write('\n')
+                        f.write(f'{reasonNumber}. "Missing ground reaction force \'blip\' detected."\n')
+                        f.write(f'   ------------------------------------------------\n')
+                        f.write(textwrap.indent(textwrap.fill(
+                            'TODO...in the following frames:'), '   '))
+                        f.write('\n')
+                        for frame in badDynamicsFrames['missingBlip']:
+                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        reasonNumber += 1
+
+                    if 'shiftGRF' in badDynamicsFrames:
+                        f.write('\n')
+                        f.write(f'{reasonNumber}. "Shifted ground reaction force data."\n')
+                        f.write(f'   -------------------------------------\n')
+                        f.write(textwrap.indent(textwrap.fill(
+                            'The following frames were marked as having missing ground reaction force data due to '
+                            'shifting the force data to better match marker data. If you receive this message, then '
+                            'an error has occurred. '), '   '))
+                        f.write('\n')
+                        for frame in badDynamicsFrames['shiftGRF']:
+                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        reasonNumber += 1
+
     shutil.move(path + 'results', path + outputName)
     print('Zipping up OpenSim files', flush=True)
     shutil.make_archive(path + outputName, 'zip', path, outputName)
@@ -1140,7 +1447,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         print('Had an error writing _results.json:', flush=True)
         print(e, flush=True)
 
-    print('Generated a final zip file at '+path+outputName+'.zip')
+    # print('Generated a final zip file at '+path+outputName+'.zip')
     # counter = 0
     # while True:
     #     print('[For live log demo] Counting to 10: '+str(counter), flush=True)
@@ -1148,7 +1455,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     #     time.sleep(1)
     #     if counter > 10:
     #         break
-    print('Done!', flush=True)
+    # print('Done!', flush=True)
 
 
 if __name__ == "__main__":
