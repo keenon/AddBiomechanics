@@ -634,7 +634,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
         'optimized_scale_and_markers', finalSkeleton, massKg, heightM, 'Models/unscaled_but_with_optimized_markers.osim', 'Unassigned', 'Models/optimized_scale_and_markers.osim', path + 'results/Models/rescaling_setup.xml')
     # 8.2.3. Call the OpenSim scaling tool
-    command = 'cd '+path+'results && opensim-cmd run-tool ' + \
+    command = 'cd '+path+'results && opensim-cmd.exe run-tool ' + \
         path + 'results/Models/rescaling_setup.xml'
     print('Scaling OpenSim files: '+command, flush=True)
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
@@ -1359,7 +1359,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                         f.write(f'{reasonNumber}. "Missing foot-ground impact detected."\n')
                         f.write(f'   --------------------------------------\n')
                         f.write(textwrap.indent(textwrap.fill(
-                            'TODO...in the following frames:'), '   '))
+                            'EXPERIMENTAL: The following frames had ground reaction force data removed using an impact '
+                            'detection algorithm in nimblephysics. If you receive this message, then we assume that '
+                            'you know what you are doing.'), '   '))
                         f.write('\n')
                         for frame in badDynamicsFrames['missingImpact']:
                             f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
@@ -1370,7 +1372,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                         f.write(f'{reasonNumber}. "Missing ground reaction force \'blip\' detected."\n')
                         f.write(f'   ------------------------------------------------\n')
                         f.write(textwrap.indent(textwrap.fill(
-                            'TODO...in the following frames:'), '   '))
+                            'Ground reaction forces were detected the following frames were preceded and followed by '
+                            'several frames of zero force data. Therefore, these \'blips\' in the data were removed:')
+                            , '   '))
                         f.write('\n')
                         for frame in badDynamicsFrames['missingBlip']:
                             f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
