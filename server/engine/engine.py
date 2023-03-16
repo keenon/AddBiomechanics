@@ -634,7 +634,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
         'optimized_scale_and_markers', finalSkeleton, massKg, heightM, 'Models/unscaled_but_with_optimized_markers.osim', 'Unassigned', 'Models/optimized_scale_and_markers.osim', path + 'results/Models/rescaling_setup.xml')
     # 8.2.3. Call the OpenSim scaling tool
-    command = 'cd '+path+'results && opensim-cmd.exe run-tool ' + \
+    command = 'cd '+path+'results && opensim-cmd run-tool ' + \
         path + 'results/Models/rescaling_setup.xml'
     print('Scaling OpenSim files: '+command, flush=True)
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
