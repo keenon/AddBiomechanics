@@ -199,16 +199,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     if os.path.exists(path + 'manually_scaled.osim'):
         goldOsim = nimble.biomechanics.OpenSimParser.parseOsim(
             path + 'manually_scaled.osim')
-    #
+
     trialsFolderPath = path + 'trials/'
     if not os.path.exists(trialsFolderPath):
         print('ERROR: Trials folder "'+trialsFolderPath +
               '" does not exist. Quitting.')
         exit(1)
-
-    trialNames = []
-    for trialName in os.listdir(trialsFolderPath):
-        trialNames.append(trialName)
 
     # 7. Process the trial
     markerFitter = nimble.biomechanics.MarkerFitter(
@@ -946,25 +942,17 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
         # 8.5. Plot results.
 
-        # TODO switch 'osim_results' back to 'results'
-
         print(f'Plotting results for trial {trialName}')
-        # plotIKResults(path + 'osim_results/IK/' + trialName + '_ik.mot')
         plotIKResults(ik_fpath)
-        # plotMarkerErrors(path + 'osim_results/IK/' + trialName + '_ik_per_marker_error_report.csv',
-        #                  path + 'osim_results/IK/' + trialName + '_ik.mot')
         plotMarkerErrors(marker_errors_fpath, ik_fpath)
         if os.path.exists(id_fpath):
            plotIDResults(id_fpath)
-        # plotIDResults(path + 'osim_results/ID/' + trialName + '_id.sto')
 
         if os.path.exists(grf_fpath):
             plotGRFData(grf_fpath)
-        # plotGRFData(path + 'osim_results/ID/' + trialName + '_grf.mot')
 
         if os.path.exists(grf_raw_fpath):
             plotGRFData(grf_raw_fpath)
-        # plotGRFData(path + 'osim_results/ID/' + trialName + '_grf_raw.mot')
 
         print('Success! Done with '+trialName+'.', flush=True)
 
@@ -995,12 +983,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     processingResult['goldAvgRMSE'] = 0
     processingResult['goldAvgMax'] = 0
     for i in range(len(trialNames)):
-        # TODO delete
-        # trialLen = 100
-        # trialPath = path + 'trials/' + trialName + '/'
-        # f_temp1 = open(trialPath + '_results.json')
-        # trialProcessingResult = json.load(f_temp1)
-
         trialLen = len(markerTrials[i])
         trialProcessingResult = trialProcessingResults[i]
         processingResult['autoAvgRMSE'] += trialProcessingResult['autoAvgRMSE'] * trialLen
@@ -1041,10 +1023,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     processingResult['jointLimitsHits'] = jointLimitsHits
 
     # Write out the README for the data
-    # TODO delete
-    # if os.path.exists(path + 'osim_results/README.txt'):
-    #     os.remove(path + 'osim_results/README.txt')
-    # with open(path + 'osim_results/README.txt', 'w') as f:
     with open(path + 'results/README.txt', 'w') as f:
         f.write(
             "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
@@ -1079,11 +1057,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         f.write("\n\n")
         for i in range(len(trialNames)):
             trialProcessingResult = trialProcessingResults[i]
-            # TODO delete
-            # trialPath = path + 'trials/' + trialName + '/'
-            # f_temp2 = open(trialPath +'_results.json')
-            # trialProcessingResult = json.load(f_temp2)
-
             # Main trial results summary.
             trialName = trialNames[i]
             f.write(f'trial: {trialName}\n')
@@ -1120,9 +1093,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     f.write(f'  - WARNING: {numBadFrames} frame(s) with ground reaction force inconsistencies detected!\n')
                 
             if fitDynamics and dynamicsInit is not None:
-                f.write(f'  --> See IK/{trialName}_summary.txt and ID/{trialName}_summary.txt for more details.\n')
+                f.write(f'  --> See IK/{trialName}_ik_summary.txt and ID/{trialName}_id_summary.txt for more details.\n')
             else:
-                f.write(f'  --> See IK/{trialName}_summary.txt for more details.\n')
+                f.write(f'  --> See IK/{trialName}_ik_summary.txt for more details.\n')
             f.write(f'\n')
 
         f.write('\n')
@@ -1213,7 +1186,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         f.write(textwrap.fill(
             "If you encounter errors, please submit a post to the AddBiomechanics user forum on SimTK.org\n:"))
         f.write('\n\n')
-        f.write('   https://simtk.org/projects/addbiomechanics.')
+        f.write('   https://simtk.org/projects/addbiomechanics')
 
     if exportMJCF:
         with open(path + 'results/MuJoCo/README.txt', 'w') as f:
@@ -1251,13 +1224,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     for itrial, trialName in enumerate(trialNames):
         timestamps = trialTimestamps[itrial]
         trialProcessingResult = trialProcessingResults[i]
-        # TODO delete
-        # trialPath = path + 'trials/' + trialName + '/'
-        # f_temp3 = open(trialPath + '_results.json')
-        # trialProcessingResult = json.load(f_temp3)
-
-        # TODO change to 'results'
-        with open(f'{path}/results/IK/{trialName}_summary.txt', 'w') as f:
+        with open(f'{path}/results/IK/{trialName}_ik_summary.txt', 'w') as f:
             f.write('-'*len(trialName) + '--------------------------------------\n')
             f.write(f'Trial {trialName}: Inverse Kinematics Summary\n')
             f.write('-'*len(trialName) + '--------------------------------------\n')
@@ -1271,7 +1238,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             f.write(f'  - Avg. Marker RMSE      = {markerRMSE:1.2f} cm\n')
             f.write(f'  - Avg. Marker Max Error = {markerMax:.2f} cm\n')
 
-            if trialBadMarkers[trialName]:
+            if trialBadMarkers[trialName] > 0:
                 f.write('\n')
                 f.write('Markers with large root-mean-square error:\n')
                 f.write('\n')
@@ -1279,7 +1246,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     if 100 * markerRMSE > badMarkerThreshold:
                         f.write(f'  - WARNING: Marker {markerName} has RMSE = {100*markerRMSE:.2f} cm!\n')
 
-            if len(trialWarnings):
+            if len(trialWarnings[trialName]) > 0:
                 f.write('\n')
                 f.write(textwrap.fill('The input data for the following markers were modified to enable automatic processing:'))
                 f.write('\n\n')
@@ -1293,7 +1260,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 for warn in trialJointWarnings[trialName]:
                     f.write(f'  - WARNING: {warn}.\n')
 
-            if len(trialInfo):
+            if len(trialInfo[trialName]) > 0:
                 f.write('\n')
                 f.write(f'Additional information:\n')
                 f.write('\n')
@@ -1302,7 +1269,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
         if fitDynamics and dynamicsInit is not None:
             badDynamicsFrames = trialBadDynamicsFrames[itrial]
-            with open(f'{path}/results/ID/{trialName}_summary.txt', 'w') as f:
+            with open(f'{path}/results/ID/{trialName}_id_summary.txt', 'w') as f:
                 f.write('-' * len(trialName) + '--------------------------------\n')
                 f.write(f'Trial {trialName}: Inverse Dynamics Summary\n')
                 f.write('-' * len(trialName) + '--------------------------------\n')
@@ -1327,15 +1294,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                                           f'of {numTotalFrames} frames in this trial. See below for a breakdown of why '
                                           f'these "bad" frames were detected.'))
                     f.write('\n')
-
-                    badDynamicsFrames['measuredGrfZeroWhenAccelerationNonZero'] = [0,1]
-                    badDynamicsFrames['unmeasuredExternalForceDetected'] = [2,3]
-                    badDynamicsFrames['forceDiscrepancy'] = [4,5]
-                    badDynamicsFrames['torqueDiscrepancy'] = [6,7]
-                    badDynamicsFrames['notOverForcePlate'] = [8,9]
-                    badDynamicsFrames['missingImpact'] = [10,11]
-                    badDynamicsFrames['missingBlip'] = [12,13]
-                    badDynamicsFrames['shiftGRF'] = [14,15]
 
                     reasonNumber = 1
                     if 'measuredGrfZeroWhenAccelerationNonZero' in badDynamicsFrames:
