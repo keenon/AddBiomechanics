@@ -747,7 +747,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             # goldAvgRMSE: number;
             json.dump(trialProcessingResult, f)
 
-
         # 8.2. Write out the kinematics and kinetics data files.
 
         # 8.2.1. Write out the inverse kinematics results,
@@ -781,7 +780,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
                 trialName, markerNames, "../Models/optimized_scale_and_markers.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_by_opensim.mot', path + 'results/IK/'+trialName+'_ik_setup.xml')
 
-        # # 8.2.7. Write out the inverse dynamics files.
+        # 8.2.7. Write out the inverse dynamics files.
         grf_fpath = f'{path}/results/ID/{trialName}_grf.mot'
         grf_raw_fpath = f'{path}/results/ID/{trialName}_grf_raw.mot'
         if fitDynamics and dynamicsInit is not None:
@@ -941,7 +940,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         print('Finished computing details about joint limit hits for the README')
 
         # 8.5. Plot results.
-
         print(f'Plotting results for trial {trialName}')
         plotIKResults(ik_fpath)
         plotMarkerErrors(marker_errors_fpath, ik_fpath)
@@ -1016,7 +1014,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     for i in range(len(trialErrorReports)):
         trialWarnings[trialNames[i]] = trialErrorReports[i].warnings
         trialInfo[trialNames[i]] = trialErrorReports[i].info
-
     processingResult['trialWarnings'] = trialWarnings
     processingResult['trialInfo'] = trialInfo
     processingResult["fewFramesWarning"] = totalFrames < 300
@@ -1405,7 +1402,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         print('Had an error writing _results.json:', flush=True)
         print(e, flush=True)
 
-    # print('Generated a final zip file at '+path+outputName+'.zip')
+    print('Generated a final zip file at '+path+outputName+'.zip')
     # counter = 0
     # while True:
     #     print('[For live log demo] Counting to 10: '+str(counter), flush=True)
@@ -1413,7 +1410,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     #     time.sleep(1)
     #     if counter > 10:
     #         break
-    # print('Done!', flush=True)
+    print('Done!', flush=True)
 
 
 if __name__ == "__main__":
