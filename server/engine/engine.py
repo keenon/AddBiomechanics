@@ -451,100 +451,100 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
             # If initialization succeeded, we will proceed with the kitchen sink optimization.
             # If not, we will re-run timeSyncAndInitializePipeline() with reaction wheels.
-            # if initializeSuccess:
-            #     goodFramesCount = 0
-            #     totalFramesCount = 0
-            #     for trialMissingGRF in dynamicsInit.probablyMissingGRF:
-            #         goodFramesCount += sum(
-            #             [0 if missing else 1 for missing in trialMissingGRF])
-            #         totalFramesCount += len(trialMissingGRF)
-            #     print('Detected missing/bad GRF data on '+str(totalFramesCount -
-            #           goodFramesCount)+'/'+str(totalFramesCount)+' frames', flush=True)
-            #     if goodFramesCount == 0:
-            #         print('ERROR: we have no good frames of GRF data left after filtering out suspicious GRF frames. This '
-            #               'probably means input GRF data is badly miscalibrated with respect to marker data (maybe they '
-            #               'are in different coordinate frames?), or there are unmeasured external forces acting on your '
-            #               'subject. Aborting the physics fitter!', flush=True)
-            #         fitDynamics = False
-            #     else:
-            #         # Run an optimization to figure out the model parameters
-            #         dynamicsFitter.setIterationLimit(200)
-            #         dynamicsFitter.setLBFGSHistoryLength(300)
-            #         dynamicsFitter.runIPOPTOptimization(
-            #             dynamicsInit,
-            #             nimble.biomechanics.DynamicsFitProblemConfig(
-            #                 finalSkeleton)
-            #             .setDefaults(True)
-            #             .setResidualWeight(4e-2 * tuneResidualLoss)
-            #             .setMaxNumTrials(3)
-            #             .setConstrainResidualsZero(False)
-            #             .setIncludeMasses(True)
-            #             .setMaxNumBlocksPerTrial(20)
-            #             # .setIncludeInertias(True)
-            #             # .setIncludeCOMs(True)
-            #             # .setIncludeBodyScales(True)
-            #             .setIncludeMarkerOffsets(True)
-            #             .setIncludePoses(True)
-            #             .setRegularizeJointAcc(regularizeJointAcc))
-            #
-            #         # Now re-run a position-only optimization on every trial in the dataset
-            #         for trial in range(len(dynamicsInit.poseTrials)):
-            #             if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
-            #                 dynamicsFitter.setIterationLimit(200)
-            #                 dynamicsFitter.setLBFGSHistoryLength(100)
-            #             elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
-            #                 dynamicsFitter.setIterationLimit(100)
-            #                 dynamicsFitter.setLBFGSHistoryLength(30)
-            #             else:
-            #                 dynamicsFitter.setIterationLimit(50)
-            #                 dynamicsFitter.setLBFGSHistoryLength(3)
-            #             dynamicsFitter.runIPOPTOptimization(
-            #                 dynamicsInit,
-            #                 nimble.biomechanics.DynamicsFitProblemConfig(
-            #                     finalSkeleton)
-            #                 .setDefaults(True)
-            #                 .setOnlyOneTrial(trial)
-            #                 .setResidualWeight(4e-2 * tuneResidualLoss)
-            #                 .setConstrainResidualsZero(False)
-            #                 .setIncludePoses(True))
-            #
-            #         # Specifically optimize to 0-ish residuals, if user requests it
-            #         if residualsToZero:
-            #             for trial in range(len(dynamicsInit.poseTrials)):
-            #                 originalTrajectory = dynamicsInit.poseTrials[trial].copy()
-            #                 previousTotalResidual = np.inf
-            #                 for i in range(100):
-            #                     # this holds the mass constant, and re-jigs the trajectory to try to get
-            #                     # the angular ACC's to match more closely what was actually observed
-            #                     pair = dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
-            #                         dynamicsInit,
-            #                         trial,
-            #                         originalTrajectory,
-            #                         previousTotalResidual,
-            #                         i,
-            #                         useReactionWheels=useReactionWheels,
-            #                         weightLinear=1.0,
-            #                         weightAngular=0.5,
-            #                         regularizeLinearResiduals=0.1,
-            #                         regularizeAngularResiduals=0.1,
-            #                         regularizeCopDriftCompensation=1.0,
-            #                         maxBuckets=150)
-            #                     previousTotalResidual = pair[1]
-            #
-            #                 dynamicsFitter.recalibrateForcePlates(
-            #                     dynamicsInit, trial)
-            #
-            # else:
-            #     print('WARNING: Unable to minimize residual moments below the desired threshold. Skipping '
-            #           'body mass optimization and re-running dynamics initialization while allowing large '
-            #           'residual moments.', flush=True)
-            #     initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
-            #         dynamicsInit,
-            #         useReactionWheels=True,
-            #         shiftGRF=shiftGRF,
-            #         maxTrialsToSolveMassOver=maxTrialsToSolveMassOver
-            #     )
-            #     # TODO re-run position only optimization here?
+            if initializeSuccess:
+                goodFramesCount = 0
+                totalFramesCount = 0
+                for trialMissingGRF in dynamicsInit.probablyMissingGRF:
+                    goodFramesCount += sum(
+                        [0 if missing else 1 for missing in trialMissingGRF])
+                    totalFramesCount += len(trialMissingGRF)
+                print('Detected missing/bad GRF data on '+str(totalFramesCount -
+                      goodFramesCount)+'/'+str(totalFramesCount)+' frames', flush=True)
+                if goodFramesCount == 0:
+                    print('ERROR: we have no good frames of GRF data left after filtering out suspicious GRF frames. This '
+                          'probably means input GRF data is badly miscalibrated with respect to marker data (maybe they '
+                          'are in different coordinate frames?), or there are unmeasured external forces acting on your '
+                          'subject. Aborting the physics fitter!', flush=True)
+                    fitDynamics = False
+                else:
+                    # Run an optimization to figure out the model parameters
+                    dynamicsFitter.setIterationLimit(200)
+                    dynamicsFitter.setLBFGSHistoryLength(300)
+                    dynamicsFitter.runIPOPTOptimization(
+                        dynamicsInit,
+                        nimble.biomechanics.DynamicsFitProblemConfig(
+                            finalSkeleton)
+                        .setDefaults(True)
+                        .setResidualWeight(4e-2 * tuneResidualLoss)
+                        .setMaxNumTrials(3)
+                        .setConstrainResidualsZero(False)
+                        .setIncludeMasses(True)
+                        .setMaxNumBlocksPerTrial(20)
+                        # .setIncludeInertias(True)
+                        # .setIncludeCOMs(True)
+                        # .setIncludeBodyScales(True)
+                        .setIncludeMarkerOffsets(True)
+                        .setIncludePoses(True)
+                        .setRegularizeJointAcc(regularizeJointAcc))
+
+                    # Now re-run a position-only optimization on every trial in the dataset
+                    for trial in range(len(dynamicsInit.poseTrials)):
+                        if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
+                            dynamicsFitter.setIterationLimit(200)
+                            dynamicsFitter.setLBFGSHistoryLength(100)
+                        elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
+                            dynamicsFitter.setIterationLimit(100)
+                            dynamicsFitter.setLBFGSHistoryLength(30)
+                        else:
+                            dynamicsFitter.setIterationLimit(50)
+                            dynamicsFitter.setLBFGSHistoryLength(3)
+                        dynamicsFitter.runIPOPTOptimization(
+                            dynamicsInit,
+                            nimble.biomechanics.DynamicsFitProblemConfig(
+                                finalSkeleton)
+                            .setDefaults(True)
+                            .setOnlyOneTrial(trial)
+                            .setResidualWeight(4e-2 * tuneResidualLoss)
+                            .setConstrainResidualsZero(False)
+                            .setIncludePoses(True))
+
+                    # Specifically optimize to 0-ish residuals, if user requests it
+                    if residualsToZero:
+                        for trial in range(len(dynamicsInit.poseTrials)):
+                            originalTrajectory = dynamicsInit.poseTrials[trial].copy()
+                            previousTotalResidual = np.inf
+                            for i in range(100):
+                                # this holds the mass constant, and re-jigs the trajectory to try to get
+                                # the angular ACC's to match more closely what was actually observed
+                                pair = dynamicsFitter.zeroLinearResidualsAndOptimizeAngular(
+                                    dynamicsInit,
+                                    trial,
+                                    originalTrajectory,
+                                    previousTotalResidual,
+                                    i,
+                                    useReactionWheels=useReactionWheels,
+                                    weightLinear=1.0,
+                                    weightAngular=0.5,
+                                    regularizeLinearResiduals=0.1,
+                                    regularizeAngularResiduals=0.1,
+                                    regularizeCopDriftCompensation=1.0,
+                                    maxBuckets=150)
+                                previousTotalResidual = pair[1]
+
+                            dynamicsFitter.recalibrateForcePlates(
+                                dynamicsInit, trial)
+
+            else:
+                print('WARNING: Unable to minimize residual moments below the desired threshold. Skipping '
+                      'body mass optimization and re-running dynamics initialization while allowing large '
+                      'residual moments.', flush=True)
+                initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
+                    dynamicsInit,
+                    useReactionWheels=True,
+                    shiftGRF=shiftGRF,
+                    maxTrialsToSolveMassOver=maxTrialsToSolveMassOver
+                )
+                # TODO re-run position only optimization here?
 
             dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
 
