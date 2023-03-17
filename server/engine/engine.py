@@ -25,6 +25,17 @@ def requireExists(path: str, reason: str):
         exit(1)
 
 
+def getConsecutiveValues(data):
+    from operator import itemgetter
+    from itertools import groupby
+    ranges = []
+    for key, group in groupby(enumerate(data), lambda x: x[0]-x[1]):
+        group = list(map(itemgetter(1), group))
+        ranges.append((group[0], group[-1]))
+
+    return ranges
+
+
 def processLocalSubjectFolder(path: str, outputName: str = None, href: str = ''):
     if not path.endswith('/'):
         path += '/'
@@ -1301,8 +1312,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             'No external ground reaction forces was present, but a non-zero whole-body acceleration '
                             'was detected in the following frames:'), '   '))
                         f.write('\n')
-                        for frame in badDynamicsFrames['measuredGrfZeroWhenAccelerationNonZero']:
-                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['measuredGrfZeroWhenAccelerationNonZero'])
+                        for frames in frameRanges:
+                            if frames[0] is frames[-1]:
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                            else:
+                                f.write(f'     - frames {frames[0]}-{frames[-1]} '
+                                        f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                         reasonNumber += 1
 
                     if 'unmeasuredExternalForceDetected' in badDynamicsFrames:
@@ -1313,8 +1329,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             'External ground reaction forces were present, but the whole-body acceleration was zero '
                             'in the following frames:'), '   '))
                         f.write('\n')
-                        for frame in badDynamicsFrames['unmeasuredExternalForceDetected']:
-                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['unmeasuredExternalForceDetected'])
+                        for frames in frameRanges:
+                            if frames[0] is frames[-1]:
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                            else:
+                                f.write(f'     - frames {frames[0]}-{frames[-1]} '
+                                        f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                         reasonNumber += 1
 
                     if 'forceDiscrepancy' in badDynamicsFrames:
@@ -1325,8 +1346,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             'After optimizing the center-of-mass kinematics to match the observed ground reaction '
                             'data, an unmeasured external force was still detected in the following frames:'), '   '))
                         f.write('\n')
-                        for frame in badDynamicsFrames['forceDiscrepancy']:
-                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['forceDiscrepancy'])
+                        for frames in frameRanges:
+                            if frames[0] is frames[-1]:
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                            else:
+                                f.write(f'     - frames {frames[0]}-{frames[-1]} '
+                                        f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                         reasonNumber += 1
 
                     if 'torqueDiscrepancy' in badDynamicsFrames:
@@ -1337,8 +1363,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             'After optimizing the center-of-mass kinematics to match the observed ground reaction '
                             'data, an unmeasured external torque was still detected in the following frames:'), '   '))
                         f.write('\n')
-                        for frame in badDynamicsFrames['torqueDiscrepancy']:
-                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['torqueDiscrepancy'])
+                        for frames in frameRanges:
+                            if frames[0] is frames[-1]:
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                            else:
+                                f.write(f'     - frames {frames[0]}-{frames[-1]} '
+                                        f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                         reasonNumber += 1
 
                     if 'notOverForcePlate' in badDynamicsFrames:
@@ -1350,8 +1381,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             'to be penetrating the ground, but the foot was not located over any '
                             'known force plate in the following frames:'), '   '))
                         f.write('\n')
-                        for frame in badDynamicsFrames['notOverForcePlate']:
-                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['notOverForcePlate'])
+                        for frames in frameRanges:
+                            if frames[0] is frames[-1]:
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                            else:
+                                f.write(f'     - frames {frames[0]}-{frames[-1]} '
+                                        f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                         reasonNumber += 1
 
                     if 'missingImpact' in badDynamicsFrames:
@@ -1363,8 +1399,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             'detection algorithm in nimblephysics. If you receive this message, then we assume that '
                             'you know what you are doing.'), '   '))
                         f.write('\n')
-                        for frame in badDynamicsFrames['missingImpact']:
-                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['missingImpact'])
+                        for frames in frameRanges:
+                            if frames[0] is frames[-1]:
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                            else:
+                                f.write(f'     - frames {frames[0]}-{frames[-1]} '
+                                        f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                         reasonNumber += 1
 
                     if 'missingBlip' in badDynamicsFrames:
@@ -1376,8 +1417,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             'several frames of zero force data. Therefore, these \'blips\' in the data were removed:')
                             , '   '))
                         f.write('\n')
-                        for frame in badDynamicsFrames['missingBlip']:
-                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['missingBlip'])
+                        for frames in frameRanges:
+                            if frames[0] is frames[-1]:
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                            else:
+                                f.write(f'     - frames {frames[0]}-{frames[-1]} '
+                                        f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                         reasonNumber += 1
 
                     if 'shiftGRF' in badDynamicsFrames:
@@ -1389,8 +1435,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             'shifting the force data to better match marker data. If you receive this message, then '
                             'an error has occurred. '), '   '))
                         f.write('\n')
-                        for frame in badDynamicsFrames['shiftGRF']:
-                            f.write(f'     - frame {frame} (time = {timestamps[frame]:.3f})\n')
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['shiftGRF'])
+                        for frames in frameRanges:
+                            if frames[0] is frames[-1]:
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                            else:
+                                f.write(f'     - frames {frames[0]}-{frames[-1]} '
+                                        f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                         reasonNumber += 1
 
     shutil.move(path + 'results', path + outputName)
