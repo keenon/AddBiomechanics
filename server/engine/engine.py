@@ -517,7 +517,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             .setOnlyOneTrial(trial)
                             .setResidualWeight(4e-2 * tuneResidualLoss)
                             .setConstrainResidualsZero(False)
-                            .setIncludePoses(True))
+                            .setIncludePoses(True)
+                            .setRegularizeJointAcc(regularizeJointAcc))
 
                     # Specifically optimize to 0-ish residuals, if user requests it
                     if residualsToZero:
@@ -1074,10 +1075,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             f.write(f'  - Avg. Marker RMSE      = {markerRMSE:1.2f} cm\n')
             f.write(f'  - Avg. Marker Max Error = {markerMax:.2f} cm\n')
 
-            residualForce = trialProcessingResult['linearResidual']
-            residualTorque = trialProcessingResult['angularResidual']
-            f.write(f'  - Avg. Residual Force   = {residualForce:1.2f} N\n')
-            f.write(f'  - Avg. Residual Torque  = {residualTorque:1.2f} N-m\n')
+            if fitDynamics and dynamicsInit is not None:
+                residualForce = trialProcessingResult['linearResidual']
+                residualTorque = trialProcessingResult['angularResidual']
+                f.write(f'  - Avg. Residual Force   = {residualForce:1.2f} N\n')
+                f.write(f'  - Avg. Residual Torque  = {residualTorque:1.2f} N-m\n')
 
             # Warning and error reporting.
             if len(trialJointWarnings[trialName]) > 0:
