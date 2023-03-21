@@ -110,13 +110,15 @@ ReactDOM.render(
             element={
               <SearchView cursor={cursor} />
             }
-          ></Route>
+          >
+          </Route>
           <Route
             path={"/profile/*"}
             element={
               <ProfileView cursor={cursor} />
             }
-          ></Route>
+          >
+          </Route>
           <Route
             path={"/server_status/*"}
             element={

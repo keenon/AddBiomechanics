@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useState, useEffect, useReducer } from "react";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
 import {
   Row,
@@ -14,74 +14,170 @@ import { Auth } from "aws-amplify";
 import 'react-toastify/dist/ReactToastify.css';
 import { showToast, copyProfileUrlToClipboard} from "../../utils";
 import { Spinner } from "react-bootstrap";
+import { parsePath } from "../files/pathHelper";
+import { url } from "inspector";
 
 type ProfileViewProps = {
   cursor: MocapS3Cursor;
 };
 
-const ProfileView = observer((props: ProfileViewProps) => {
-  console.log("LOG: " + Array.from(props.cursor.s3Index.files.keys()))
-  console.log("LOG: " + props.cursor.profileJson.getAbsolutePath())
-  console.log("LOG: " + props.cursor.s3Index.myIdentityId)
+type SearchResultProps = {
+  cursor: MocapS3Cursor;
+  filePath: string;
+  urlId: string;
+  userName: string;
+};
 
+const SearchResult = (props: SearchResultProps) => {
+  const filtered = props.filePath.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
+  const parts = filtered.split('/');
+
+  const [description, setDescription] = useState("")
+
+  let link_search = ""
+  if (parts.length === 2)
+    link_search = "protected/" + props.cursor.s3Index.region + ":" + props.urlId + "/data/_search.json"
+  else
+    link_search = "protected/" + props.cursor.s3Index.region + ":" + props.urlId + "/data/" + parts.slice(2).join('/') + "/_search.json"
+  props.cursor.s3Index.downloadText(link_search).then(
+    function(text:string) {
+      const searchObject = JSON.parse(text);
+      setDescription(searchObject.notes)
+    }
+  );
+
+  if (parts.length === 2) {
+    const userId = parts[0];
+    if(userId === props.urlId) {
+      return (
+        <Col md="4">
+          <Card>
+            <Card.Body>
+              <h4><Link to={'/data/' + userId}>Main Folder</Link></h4>
+              By <Link to={'/profile/' + userId}>{props.userName}</Link>
+              <p></p>
+              <p>{description}</p>
+              <p></p>
+              <span className="badge bg-success">Tag 1</span> <span className="badge bg-success">Tag 2</span> <span className="badge bg-success">Tag 3</span>
+            </Card.Body>
+          </Card>
+        </Col>
+      )
+    } else {
+      return null;
+    }
+  }
+  else if (parts.length > 2) {
+    const userId = parts[0];
+    if(userId === props.urlId) {
+      let linkDataset = '/data/' + userId + '/' + parts.slice(2).join('/');
+      let linkUser = '/profile/' + userId;
+      return (
+        <Col md="4">
+          <Card>
+            <Card.Body>
+              <h4><Link to={linkDataset}>{"/" + parts.slice(2).join('/')}</Link></h4>
+              By <Link to={linkUser}>{props.userName}</Link>
+              <p></p>
+              <p>{description}</p>
+              <p></p>
+              <span className="badge bg-success">Tag 1</span> <span className="badge bg-success">Tag 2</span> <span className="badge bg-success">Tag 3</span>
+            </Card.Body>
+          </Card>
+        </Col>
+      )
+    } else {
+      return null;
+    }
+  }
+  else {
+    return null;
+  }
+};
+
+const ProfileView = observer((props: ProfileViewProps) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [editing, setEditing] = useState(false)
-
   const s3Index = props.cursor.s3Index;
+
+  const [editing, setEditing] = useState(false)
+  const [validUser, setValidUser] = useState(false);
+
+  let urlId = useLocation().pathname.substring(useLocation().pathname.lastIndexOf('/') + 1);
+
   let name = props.cursor.profileJson.getAttribute("name", "");
   let surname = props.cursor.profileJson.getAttribute("surname", "");
   let contact = props.cursor.profileJson.getAttribute("contact", "");
   let affiliation = props.cursor.profileJson.getAttribute("affiliation", "");
   let personalWebsite = props.cursor.profileJson.getAttribute("personalWebsite", "");
   let lab = props.cursor.profileJson.getAttribute("lab", "");
+  let fullName = ""
 
-  let fullName = "";
 
   if (name !== "" && surname !== "")
-    fullName = name + " " + surname
+    fullName = (name + " " + surname)
   else if  (name === "" && surname !== "")
-    fullName = surname
+    fullName = (surname)
   else if (name !== "" && surname === "")
-    fullName = name
-  else fullName = ""
+    fullName = (name)
+  else fullName = ("")
 
-  const [urlId, setUrlId] = useState(useLocation().pathname.substring(useLocation().pathname.lastIndexOf('/') + 1));
-
-  const [validUser, setValidUser] = useState(false);
-
-  function Redirect() {
-    if(urlId === "" || urlId === "profile") {
-      if ((location.pathname === '/profile' || location.pathname === '/profile/') && s3Index.myIdentityId !== '') {
-        if (props.cursor.authenticated) {
-          navigate("/profile/" + encodeURIComponent(s3Index.myIdentityId));
-        }
-        else {
-          navigate("/login", { replace: true, state: { from: location } });
-        }
-      }
-      setUrlId(location.pathname.substring(location.pathname.lastIndexOf('/') + 1));
+  // Search for this user's public datasets.
+  const result = props.cursor.searchIndex.results;
+  const availableOptions = [...result.keys()];
+  let body = null;
+  if(urlId != null) {
+    if (props.cursor.getIsLoading()) {
+      body = <Spinner animation="border" />;
+    }
+    else {
+      body = <>
+          {
+          availableOptions.map((v) => {
+              return <SearchResult cursor={props.cursor} filePath={v} urlId={urlId} userName={fullName}/>
+          })}
+      </>
     }
   }
 
   useEffect(() => {
-    Redirect();
-  })
+    props.cursor.searchIndex.startListening();
+
+    return () => {
+      props.cursor.searchIndex.stopListening();
+    }
+  }, []);
+
+  function Redirect() {
+    // If the user is authenticated, but the current path is profile...
+    if(props.cursor.authenticated && (location.pathname === '/profile' || location.pathname === '/profile/')) {
+      // Go to user's profile.
+      navigate("/profile/" + encodeURIComponent(s3Index.myIdentityId));
+      urlId = s3Index.myIdentityId;
+    // If the user is not authenticated...
+    } else if (!props.cursor.authenticated) {
+      // Go to login.
+      navigate("/login/");
+    }
+  }
 
   useEffect(() => {
     Auth.currentCredentials().then((credentials) => {
-      setValidUser(false)
-      // Iterate all files.
-      s3Index.files.forEach((v,k) => {
-        // Count all files containing the urlId in its path.
-        if (k.includes(urlId)) {
-          setValidUser(true)
-        }
-      });
-    })
-  }, [urlId, s3Index.files]);
+      Redirect();
+  
+      let path = parsePath(location.pathname, urlId);
+      if (!path.dataPath.includes("undefined"))
+        props.cursor.setDataPath(path.dataPath);
 
+      props.cursor.s3Index.loadFolder(path.dataPath.replace("data/", ""), true).then((results) => {
+        if(results.files.length > 0 || results.folders.length > 0)
+            setValidUser(true)
+      });
+    });
+
+    }, [location.pathname]);
+  
   function generate_input_field(valueField:any, label:string, tooltip:string, placeholder:string, attributeName:string, icon:string) {
     return (
       <form className="row g-3 mb-15">
@@ -272,16 +368,21 @@ const ProfileView = observer((props: ProfileViewProps) => {
                               </div>
                             </div>
 
-                            <div className="col-lg-12">
-                              <div className="card mb-4">
-                                <div className="card-body"></div>
-                                  <h1>Public Datasets</h1>
-
-                                      {/*TODO: Insert list of public datasets for this user here.*/}
-
-                                </div>
-                              </div>
-                            </div>
+                            <Row>
+                              <Col md="12">
+                                <Card>
+                                  <Card.Body>
+                                    <div className="mb-4">
+                                      <h3>Public Datasets</h3>
+                                    </div>
+                                    <Row>
+                                      {body}
+                                    </Row>
+                                  </Card.Body>
+                                </Card>
+                              </Col>
+                            </Row>
+                          </div>
                           );
 
                         }

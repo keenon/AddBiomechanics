@@ -6,7 +6,7 @@ type Path = {
 
 export function parsePath(pathname: string, myIdentityId: string): Path {
   const pathParts = pathname.split('/');
-  while (pathParts.length > 0 && ((pathParts[0] === 'data') || (pathParts[0] === ''))) {
+  while (pathParts.length > 0 && ((pathParts[0] === 'data') || (pathParts[0] === '') || (pathParts[0] === 'profile'))) {
     pathParts.splice(0, 1);
   }
   for (let i = 0; i < pathParts.length; i++) {
