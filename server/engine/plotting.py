@@ -247,6 +247,7 @@ def generateReportForTable(table, filename, output_fpath, data_type, bilateral=T
     title_dict = OrderedDict()
     ls_dict = defaultdict(list)
     label_dict = dict()
+    motion_type = 'rotational'
     for col_label in table.columns:
         if col_label == 'time': continue
 
@@ -277,8 +278,6 @@ def generateReportForTable(table, filename, output_fpath, data_type, bilateral=T
                 for suffix in rotate_suffixes:
                     if col_label.endswith(suffix):
                         motion_type = 'rotational'
-            else:
-                motion_type = 'rotational'
 
         label_dict[title] = getLabelFromMotionAndDataType(motion_type, data_type)
 
