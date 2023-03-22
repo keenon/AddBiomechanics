@@ -40,7 +40,6 @@ function humanFileSize(bytes: number, si: boolean = true, dp: number = 1) {
 }
 
 function showToast(message:string, type:string, position=toast.POSITION.BOTTOM_CENTER) {
-
     if(type === "success") {
         toast.success(message, {
             position: position
