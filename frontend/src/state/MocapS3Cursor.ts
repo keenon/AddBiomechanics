@@ -90,6 +90,7 @@ class MocapS3Cursor {
     subjectJson: ReactiveJsonFile;
     resultsJson: ReactiveJsonFile;
     searchJson: ReactiveJsonFile;
+    profileJson: ReactiveJsonFile;
     customModelFile: ReactiveTextFile;
 
     socket: RobustMqtt;
@@ -119,6 +120,7 @@ class MocapS3Cursor {
         this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
         this.resultsJson = this.rawCursor.getJsonFile("_results.json");
         this.searchJson = this.rawCursor.getJsonFile("_search.json");
+        this.profileJson = this.rawCursor.getJsonFile("profile.json", true);
         this.customModelFile = this.rawCursor.getTextFile("unscaled_generic.osim");
 
         this.socket = socket;
