@@ -143,6 +143,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
   useEffect(() => {
     props.cursor.searchIndex.startListening();
+
     return () => {
       props.cursor.searchIndex.stopListening();
     }
@@ -358,22 +359,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                           <i className="mdi mdi-share me-1 vertical-middle"></i>
                                         </p>
                                       </button>
-                                    <div>
-                                      <div className="row">
-                                        <div className="col-sm-3">
-                                          <p className="mb-0">
-                                            <i className="mdi mdi-identifier me-1 vertical-middle"></i>
-                                            User ID
-                                          </p>
-                                        </div>
-                                        <div className="col-sm-9">
-                                          <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(urlId)}}>
-                                            <p className="mb-0">{urlId + " "}
-                                              <i className="mdi mdi-share me-1 vertical-middle">
-                                              </i>
-                                            </p>
-                                          </a>
-                                        </div>
 
                                       </div>
                                     </div>

@@ -25,15 +25,6 @@ type SearchResultProps = {
   index: number;
 };
 
-type ProfileJSON = {
-  name:string;
-  surname:string;
-  contact:string;
-  affiliation:string;
-  personalWebsite:string;
-  lab:string;
-}
-
 const SearchResult = (props: SearchResultProps) => {
   const filtered = props.filePath.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
   const parts = filtered.split('/');
