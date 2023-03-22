@@ -106,13 +106,13 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
   let urlId = useLocation().pathname.substring(useLocation().pathname.lastIndexOf('/') + 1);
 
-  let name = props.cursor.profileJson.getAttribute("name", "");
-  let surname = props.cursor.profileJson.getAttribute("surname", "");
-  let contact = props.cursor.profileJson.getAttribute("contact", "");
-  let affiliation = props.cursor.profileJson.getAttribute("affiliation", "");
-  let personalWebsite = props.cursor.profileJson.getAttribute("personalWebsite", "");
-  let lab = props.cursor.profileJson.getAttribute("lab", "");
-  let fullName = ""
+  let name:string = props.cursor.profileJson.getAttribute("name", "");
+  let surname:string = props.cursor.profileJson.getAttribute("surname", "");
+  let contact:string = props.cursor.profileJson.getAttribute("contact", "");
+  let affiliation:string = props.cursor.profileJson.getAttribute("affiliation", "");
+  let personalWebsite:string = props.cursor.profileJson.getAttribute("personalWebsite", "");
+  let lab:string = props.cursor.profileJson.getAttribute("lab", "");
+  let fullName:string = ""
 
 
   if (name !== "" && surname !== "")
@@ -270,8 +270,8 @@ const ProfileView = observer((props: ProfileViewProps) => {
                           return (
                             <div className="container">
                             <div className="justify-content-md-center">
-                              {generate_input_field(name, "Name", "Insert your name.", "Your name...", "name", "mdi-account")}
-                              {generate_input_field(surname, "Surname", "Insert your surname.", "Your surname...", "surname", "mdi-account-star")}
+                              {generate_input_field(name, "First Name", "Insert your first name.", "Your first name...", "name", "mdi-account")}
+                              {generate_input_field(surname, "Last Name (Surname)", "Insert your last name (surname).", "Your last name (surname)...", "surname", "mdi-account-star")}
                               {generate_input_field(contact, "Contact", "Insert your contact e-mail.", "Your contact e-mail...", "contact", "mdi-email-box")}
                               {generate_input_field(personalWebsite, "Personal Website", "Insert your personal website.", "Your personal website...", "personalWebsite", "mdi-at")}
                               {generate_input_field(affiliation, "Affiliation", "Insert your affiliation.", "Your affiliation...", "affiliation", "mdi-school-outline")}
@@ -340,8 +340,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                               <div className="card mb-4">
                                 <div className="card-body">
                                   {generate_info_row(fullName, "Full Name", "mdi-account", name !== "" || surname !== "")}
-                                  {generate_info_row(contact, "Email", "mdi-email-box", contact !== "", "mailto:" + contact)}
-                                  {generate_info_row(personalWebsite, "Personal Website", "mdi-at", personalWebsite !== "", "https://" + personalWebsite)}
+                                  {generate_info_row(personalWebsite, "Personal Website", "mdi-at", personalWebsite !== "", (personalWebsite.startsWith("https://") || personalWebsite.startsWith("http://")) ? personalWebsite : "https://" + personalWebsite)}
 
                                   {/*User ID is not generated using "generate_info_row" because it has a custom onclick for the <a></a> element*/}
                                   {/*Consider creating a function for this, or modify generate_info_row, just in case it is needed in the future.*/}
