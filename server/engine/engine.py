@@ -145,6 +145,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         dynamicsMarkerOffsets = False
 
+    if 'dynamicsMarkerWeight' in subjectJson:
+        dynamicsMarkerWeight = subjectJson['dynamicsMarkerWeight']
+    else:
+        dynamicsMarkerWeight = 50.0
+
     if 'dynamicsJointWeight' in subjectJson:
         dynamicsJointWeight = subjectJson['dynamicsJointWeight']
     else:
@@ -507,12 +512,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                         .setConstrainResidualsZero(False)
                         .setIncludeMasses(True)
                         .setMaxNumBlocksPerTrial(20)
-                        .setIncludeInertias(True)
-                        .setIncludeCOMs(True)
+                        # .setIncludeInertias(True)
+                        # .setIncludeCOMs(True)
                         # .setIncludeBodyScales(True)
                         .setIncludeMarkerOffsets(dynamicsMarkerOffsets)
                         .setIncludePoses(True)
                         .setJointWeight(dynamicsJointWeight)
+                        .setMarkerWeight(dynamicsMarkerWeight)
                         .setRegularizePoses(dynamicsRegularizePoses)
                         .setRegularizeJointAcc(regularizeJointAcc))
 
@@ -538,6 +544,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             .setIncludeMarkerOffsets(dynamicsMarkerOffsets)
                             .setIncludePoses(True)
                             .setJointWeight(dynamicsJointWeight)
+                            .setMarkerWeight(dynamicsMarkerWeight)
                             .setRegularizePoses(dynamicsRegularizePoses)
                             .setRegularizeJointAcc(regularizeJointAcc))
 
