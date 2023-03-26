@@ -153,12 +153,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     if 'dynamicsJointWeight' in subjectJson:
         dynamicsJointWeight = subjectJson['dynamicsJointWeight']
     else:
-        dynamicsJointWeight = 0.1
+        dynamicsJointWeight = 0.01
 
     if 'dynamicsRegularizePoses' in subjectJson:
         dynamicsRegularizePoses = subjectJson['dynamicsRegularizePoses']
     else:
-        dynamicsRegularizePoses = 0.1
+        dynamicsRegularizePoses = 0.01
 
     if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
         footBodyNames = ['calcn_l', 'calcn_r']
