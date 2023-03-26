@@ -140,6 +140,26 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         regularizeJointAcc = 0
 
+    if 'dynamicsMarkerOffsets' in subjectJson:
+        dynamicsMarkerOffsets = subjectJson['dynamicsMarkerOffsets']
+    else:
+        dynamicsMarkerOffsets = False
+
+    if 'dynamicsMarkerWeight' in subjectJson:
+        dynamicsMarkerWeight = subjectJson['dynamicsMarkerWeight']
+    else:
+        dynamicsMarkerWeight = 50.0
+
+    if 'dynamicsJointWeight' in subjectJson:
+        dynamicsJointWeight = subjectJson['dynamicsJointWeight']
+    else:
+        dynamicsJointWeight = 0.01
+
+    if 'dynamicsRegularizePoses' in subjectJson:
+        dynamicsRegularizePoses = subjectJson['dynamicsRegularizePoses']
+    else:
+        dynamicsRegularizePoses = 0.01
+
     if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
         footBodyNames = ['calcn_l', 'calcn_r']
     else:
@@ -457,7 +477,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 dynamicsInit,
                 useReactionWheels=useReactionWheels,
                 shiftGRF=shiftGRF,
-                maxTrialsToSolveMassOver=maxTrialsToSolveMassOver
+                maxTrialsToSolveMassOver=maxTrialsToSolveMassOver,
+                reoptimizeMarkerOffsets=dynamicsMarkerOffsets
             )
 
             # If initialization succeeded, we will proceed with the kitchen sink optimization.
@@ -486,16 +507,19 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                         nimble.biomechanics.DynamicsFitProblemConfig(
                             finalSkeleton)
                         .setDefaults(True)
-                        .setResidualWeight(4e-2 * tuneResidualLoss)
-                        .setMaxNumTrials(3)
+                        .setResidualWeight(1e-2 * tuneResidualLoss)
+                        .setMaxNumTrials(maxTrialsToSolveMassOver)
                         .setConstrainResidualsZero(False)
                         .setIncludeMasses(True)
                         .setMaxNumBlocksPerTrial(20)
                         # .setIncludeInertias(True)
                         # .setIncludeCOMs(True)
                         # .setIncludeBodyScales(True)
-                        .setIncludeMarkerOffsets(True)
+                        .setIncludeMarkerOffsets(dynamicsMarkerOffsets)
                         .setIncludePoses(True)
+                        .setJointWeight(dynamicsJointWeight)
+                        .setMarkerWeight(dynamicsMarkerWeight)
+                        .setRegularizePoses(dynamicsRegularizePoses)
                         .setRegularizeJointAcc(regularizeJointAcc))
 
                     # Now re-run a position-only optimization on every trial in the dataset
@@ -515,9 +539,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                                 finalSkeleton)
                             .setDefaults(True)
                             .setOnlyOneTrial(trial)
-                            .setResidualWeight(4e-2 * tuneResidualLoss)
+                            .setResidualWeight(1e-2 * tuneResidualLoss)
                             .setConstrainResidualsZero(False)
+                            .setIncludeMarkerOffsets(dynamicsMarkerOffsets)
                             .setIncludePoses(True)
+                            .setJointWeight(dynamicsJointWeight)
+                            .setMarkerWeight(dynamicsMarkerWeight)
+                            .setRegularizePoses(dynamicsRegularizePoses)
                             .setRegularizeJointAcc(regularizeJointAcc))
 
                     # Specifically optimize to 0-ish residuals, if user requests it
@@ -554,7 +582,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     dynamicsInit,
                     useReactionWheels=True,
                     shiftGRF=shiftGRF,
-                    maxTrialsToSolveMassOver=maxTrialsToSolveMassOver
+                    maxTrialsToSolveMassOver=maxTrialsToSolveMassOver,
+                    reoptimizeMarkerOffsets=dynamicsMarkerOffsets
                 )
                 # TODO re-run position only optimization here?
 
