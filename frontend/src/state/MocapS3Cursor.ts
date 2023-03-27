@@ -144,8 +144,26 @@ class MocapS3Cursor {
             showValidationControls: observable,
             userEmail: observable,
             processingServers: observable,
-            lastSeenPong: observable
+            lastSeenPong: observable,
+            getFullName: observable
         });
+    }
+
+    getFullName = () => {
+        let name:string = this.profileJson.getAttribute("name", "");
+        let surname:string = this.profileJson.getAttribute("surname", "");
+        if (name !== "" && surname !== "") {
+            return name + " " + surname;
+        }
+        else if  (name === "" && surname !== "") {
+            return surname;
+        }
+        else if (name !== "" && surname === "") {
+            return name;
+        }
+        else {
+            return "";
+        }
     }
 
     /**
@@ -263,6 +281,8 @@ class MocapS3Cursor {
     };
 
     setDataPath = action((dataPath: string) => {
+        if (this.rawCursor.path === dataPath) return;
+
         console.log("Setting data path to: "+dataPath);
         this.rawCursor.setPath(dataPath);
 
@@ -285,10 +305,7 @@ class MocapS3Cursor {
      * @returns True if the cursor is pointing at readonly (i.e. public) data
      */
     dataIsReadonly = () => {
-        console.log(this.rawCursor.path);
-        console.log(this.s3Index.myIdentityId);
         const isReadonly = this.s3Index.myIdentityId === '' || this.rawCursor.path.indexOf(this.s3Index.myIdentityId) === -1;
-        console.log('isReadonly: '+isReadonly);
         return isReadonly;
     };
 

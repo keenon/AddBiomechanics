@@ -71,11 +71,11 @@ class ReactiveJsonFile {
         this.pendingTimeout = null;
         this.changeListeners = [];
         this.loading = false;
-        this.pathChanged();
+        this.pathChanged(true);
 
         this.cursor.index.addLoadingListener((loading: boolean) => {
             if (!loading) {
-                this.pathChanged();
+                this.pathChanged(true);
             }
         });
 
@@ -172,16 +172,26 @@ class ReactiveJsonFile {
      * This gets called right before the path changes, and leaves a chance to clean up values
      */
     pathWillChange = () => {
-        this.cursor.index.removeMetadataListener(this.getAbsolutePath(), this.onFileChanged);
+        // If `isPathGlobal` is true, that means that this file is relative to the root of the filesystem, 
+        // not relative to the cursor, so even as the cursor moves around, the path for this file won't 
+        // change. So in that case, we don't have to change our listeners.
+        if (!this.isPathGlobal) {
+            this.cursor.index.removeMetadataListener(this.getAbsolutePath(), this.onFileChanged);
+        }
     };
 
     /**
      * This gets called when the path has changed in the supporting cursor
      */
-    pathChanged = () => {
-        console.log('Adding listener to: '+ this.getAbsolutePath() );
-        this.cursor.index.addMetadataListener(this.getAbsolutePath(), this.onFileChanged);
-        this.refreshFile();
+    pathChanged = (forceRefreshEvenIfGlobal: boolean = false) => {
+        // If `isPathGlobal` is true, that means that this file is relative to the root of the filesystem, 
+        // not relative to the cursor, so even as the cursor moves around, the path for this file won't 
+        // change. So in that case, we don't have to change our listeners.
+        if (!this.isPathGlobal || forceRefreshEvenIfGlobal) {
+            console.log('Adding listener to: '+ this.getAbsolutePath() );
+            this.cursor.index.addMetadataListener(this.getAbsolutePath(), this.onFileChanged);
+            this.refreshFile();
+        }
     };
 
     /**
@@ -332,8 +342,8 @@ class ReactiveTextFile {
         console.log("File exists: " + this.fileExist());
         if (this.fileExist()) {
             this.loading = true;
-            this.cursor.downloadText(this.getAbsolutePath()).then(action((text: string) => {
-                console.log("Downloaded text: " + text);
+            const absolutePath = this.getAbsolutePath();
+            this.cursor.index.downloadText(absolutePath).then(action((text: string) => {
                 this.text = text;
             })).finally(action(() => {
                 this.loading = false;
@@ -365,6 +375,7 @@ class ReactiveTextFile {
     getAbsolutePath = () => {
         let prefix = this.cursor.path;
         if (!prefix.endsWith('/')) prefix += '/';
+        console.log("Getting absolute path. Prefix = "+prefix+", path="+this.path);
         return prefix + this.path;
     };
 
@@ -973,7 +984,16 @@ class ReactiveIndex {
                 throw e;
             });
         });
-        }
+    }
+
+    /**
+     * This checks if any files exist in our index that contain the given userId.
+     * 
+     * Note, this does NOT download anything, it just uses our existing `files` map, so it's safe to call from View code.
+     */
+    isUserValid = (userId: string) => {
+        return [...this.files.keys()].filter((fileName) => fileName.indexOf(userId) != -1).length > 0;
+    }
 
     /**
      * This attempts to delete a file in S3, and notify PubSub of having done so.

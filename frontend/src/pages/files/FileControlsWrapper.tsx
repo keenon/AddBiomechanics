@@ -33,8 +33,7 @@ type ProfileJSON = {
 
 // FileManager
 const FileManager = observer((props: FileManagerProps) => {
-  const [name, setName] = useState("");
-  const [surname, setSurname] = useState("");
+  const fullName = props.cursor.getFullName();
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -263,24 +262,13 @@ const FileManager = observer((props: FileManagerProps) => {
           {(() => {
             // Get user id from url.
             let url_id = location.pathname.split('/')[2];
-
-            // Extract name and surname.
-            props.cursor.s3Index.downloadText("protected/" + props.cursor.s3Index.region + ":" + url_id + "/profile.json").then(function(text: string) {
-              const profileObject:ProfileJSON = JSON.parse(text);
-              setName(profileObject.name);
-              setSurname(profileObject.surname);
-  
-            });
             
             // Print name, surname accordingly to its disponibility. If not available, print user id.
             return (
               <>
               <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(url_id)}}>
                 <h3 className="my-3">
-                  {name != "" ? name : ""}
-                  {name != "" && surname != "" ? " " : ""}
-                  {surname != "" ? surname : ""}
-                  {name == "" && surname == "" ? "User ID: " + url_id : ""}
+                  {fullName != "" ? fullName : "User ID: " + url_id}
                   <i className="mdi mdi-share me-1 vertical-middle"></i>
                 </h3>
               </a>

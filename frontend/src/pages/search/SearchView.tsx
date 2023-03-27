@@ -30,11 +30,8 @@ const SearchResult = (props: SearchResultProps) => {
   const parts = filtered.split('/');
   const userId = parts[0];
 
-  const [name, setName] = useState("")
-  const [surname, setSurname] = useState("")
-  const [fullName, setFullName] = useState("")
-
-  const [description, setDescription] = useState("")
+  const fullName = props.cursor.getFullName();
+  const description = props.cursor.searchJson.getAttribute("notes", "");
 
   function highlightSearchTerm(htmlString:string, searchTerm:string) {
     // Create a regular expression to match the search term
@@ -46,36 +43,6 @@ const SearchResult = (props: SearchResultProps) => {
     return highlightedHtmlString;
   }
 
-  // Download profile file
-  props.cursor.s3Index.downloadText("protected/" + props.cursor.s3Index.region + ":" + userId + "/profile.json").then(
-    function(text:string) {
-      const profileObject = JSON.parse(text);
-
-      setName(profileObject.name)
-      setSurname(profileObject.surname)
-      if (name !== "" && surname !== "")
-        setFullName(name + " " + surname)
-      else if  (name === "" && surname !== "")
-        setFullName(surname)
-      else if (name !== "" && surname === "")
-        setFullName(name)
-      else setFullName("")
-
-      let link_search = ""
-      if (parts.length === 2)
-        link_search = "protected/" + props.cursor.s3Index.region + ":" + userId + "/data/_search.json"
-      else
-        link_search = "protected/" + props.cursor.s3Index.region + ":" + userId + "/data/" + parts.slice(2).join('/') + "/_search.json"
-
-      props.cursor.s3Index.downloadText(link_search).then(
-        function(text:string) {
-          const searchObject = JSON.parse(text);
-          setDescription(searchObject.notes);
-        }
-      );
-
-    }
-  )
   if ( (description.toLowerCase().trim().includes(props.searchText.toLowerCase().trim()) ||
       parts.slice(2).join('/').toLowerCase().trim().includes(props.searchText.toLowerCase().trim()) ) &&
        fullName.toLowerCase().trim().includes(props.searchUser.toLowerCase().trim()) ) {
