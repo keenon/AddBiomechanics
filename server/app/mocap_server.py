@@ -170,15 +170,15 @@ class SubjectToProcess:
                 "Body": {
                     "Text": {
                         "Charset": CHARSET,
-                        "Data": "Your subject \"{0}\" has finished processing. Visit https://biomechnet.org/my_data/{1} to view and download. You can view in-browser visualizations of the uploaded trial data by clicking on each trial name.\n\nThank you for using BiomechNet!\n-BiomechNet team\n\nP.S: Do not reply to this email. To give feedback on BiomechNet, please contact the main author, Keenon Werling, directly at keenon@stanford.edu.".format(name, path),
+                        "Data":  "Your subject \"{0}\" has finished processing. Visit https://addbiomechanics.org/my_data/{1} to view and download. You can view in-browser visualizations of the uploaded trial data by clicking on each trial name.\n\nThank you for using AddBiomechanics!\n-AddBiomechanics team\n\nP.S: Do not reply to this email. To give feedback on AddBiomechanics or if you have questions, please visit the AddBiomechanics forum on SimTK: https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB.format(name, path)"
                     }
                 },
                 "Subject": {
                     "Charset": CHARSET,
-                    "Data": "BiomechNet: \"{0}\" Finished Processing".format(name),
+                    "Data": "AddBiomechanics: \"{0}\" Finished Processing".format(name),
                 },
             },
-            Source="noreply@biomechnet.org",
+            Source="noreply@addbiomechanics.org",
         )
 
     def getHref(self):
