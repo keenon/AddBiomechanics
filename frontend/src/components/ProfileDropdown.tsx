@@ -3,6 +3,8 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Auth } from "aws-amplify";
 import { CognitoUser } from "amazon-cognito-identity-js";
+import Dropdown from 'react-bootstrap/Dropdown';
+import './ProfileDropdown.scss';
 
 const STATE_LOADING = "loading";
 const STATE_LOGGED_IN = "logged-in";
@@ -28,13 +30,29 @@ const ProfileDropdown = () => {
   } else if (loggedInState === STATE_LOGGED_IN) {
     contents = (
       <>
-        {email}
-        {"  "}
+        <Dropdown className="d-none d-lg-block">
+          <Dropdown.Toggle className="btn btn-light bg-transparent border-transparent rounded-circle dropdown m-0 p-0 mt-1">
+            <img src="https://addbiomechanics.org/img/logo.svg" className="rounded-circle image-menu" height="60"></img>
+          </Dropdown.Toggle>
 
-        <Link to="/logout">
-          <i className={`mdi mdi-logout me-1`}></i>
-          <span>Logout</span>
-        </Link>
+          <Dropdown.Menu>
+            <Dropdown.Item as={Link} to="/profile">
+              <b>Signed in as:</b> {email}
+            </Dropdown.Item>
+            <hr className="mt-1 mb-1"></hr>
+            <Dropdown.Item as={Link} to="/profile">
+              <i className={`mdi mdi-account me-1`}></i>
+              <span>Your Profile</span>
+            </Dropdown.Item>
+            <Dropdown.Item as={Link} to="/logout">
+              <i className={`mdi mdi-logout me-1`}></i>
+              <span>Logout</span>
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown>
+
+
+
       </>
     );
   } else if (loggedInState === STATE_LOGGED_OUT) {

@@ -28,6 +28,21 @@ const Navbar = (props: NavbarProps) => {
             <Collapse in={props.isMenuOpened} className="navbar-collapse">
               <div>
                 <ul className="navbar-nav" id="main-side-menu">
+
+                  {/*Element shown only in small and medium devices*/}
+                  <li className="nav-item d-lg-none">
+                    <NavLink
+                      to={"/profile"}
+                      className={({ isActive }) =>
+                        "nav-item nav-link" + (isActive ? " active" : "")
+                      }
+                    >
+                      <i className="mdi mdi-account me-1 vertical-middle"></i>
+                      <span>Your Profile</span>
+                    </NavLink>
+                  </li>
+
+                  {/*Elements shown in all devices*/}
                   <li className="nav-item">
                     <NavLink
                       to={"/search"}
@@ -61,17 +76,20 @@ const Navbar = (props: NavbarProps) => {
                       <span>Processing Server Status</span>
                     </NavLink>
                   </li>
-                  <li className="nav-item">
+
+                  {/*Element shown only in small and medium devices*/}
+                  <li className="nav-item d-lg-none">
                     <NavLink
-                      to={"/profile"}
+                      to={"/logout"}
                       className={({ isActive }) =>
                         "nav-item nav-link" + (isActive ? " active" : "")
                       }
                     >
-                      <i className="mdi mdi-account me-1 vertical-middle"></i>
-                      <span>Profile</span>
+                      <i className="mdi mdi-logout me-1 vertical-middle"></i>
+                      <span>Logout</span>
                     </NavLink>
                   </li>
+
                 </ul>
               </div>
             </Collapse>
