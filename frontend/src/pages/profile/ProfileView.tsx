@@ -170,13 +170,14 @@ const ProfileView = observer((props: ProfileViewProps) => {
       if (!path.dataPath.includes("undefined"))
         props.cursor.setDataPath(path.dataPath);
 
-      props.cursor.s3Index.loadFolder(path.dataPath.replace("data/", ""), true).then((results) => {
-        if(results.files.length > 0 || results.folders.length > 0)
-            setValidUser(true)
-      });
+        console.log("LOG: " + props.cursor.profileJson.fileExist())
+        console.log("LOG: " + props.cursor.profileJson.getAbsolutePath())
+      
+      if(props.cursor.profileJson.fileExist())
+          setValidUser(true)
     });
 
-    }, [location.pathname]);
+    }, [location.pathname, s3Index.files]);
   
   function generate_input_field(valueField:any, label:string, tooltip:string, placeholder:string, attributeName:string, icon:string) {
     return (
