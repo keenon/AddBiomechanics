@@ -76,7 +76,12 @@ async function copyProfileUrlToClipboard(userId:string) {
 
 
 function getIdFromURL(url:string) {
-    // This regex matches an UUID and retrieves it.
+    // Detect UUID in an url.
+    // Initial slash: \/
+    // Eight hex characters: [\da-f]{8}
+    // Three groups of hyphen and four hex characters: (?:-[\da-f]{4})
+    // Hyphen and twelve hex charactersL: -[\da-f]{12}
+    // Optional forward slash at the end: \/?
     return url.match(/\/([\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12})\/?/)?.[1] ?? "";
 };
 
