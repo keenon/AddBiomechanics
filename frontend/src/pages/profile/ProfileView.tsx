@@ -116,13 +116,13 @@ const ProfileView = observer((props: ProfileViewProps) => {
     }
   }
 
-  let name:string = props.cursor.myProfileJson.getAttribute("name", "");
-  let surname:string = props.cursor.myProfileJson.getAttribute("surname", "");
-  let contact:string = props.cursor.myProfileJson.getAttribute("contact", "");
-  let affiliation:string = props.cursor.myProfileJson.getAttribute("affiliation", "");
-  let personalWebsite:string = props.cursor.myProfileJson.getAttribute("personalWebsite", "");
-  let lab:string = props.cursor.myProfileJson.getAttribute("lab", "");
-  let fullName:string = props.cursor.getFullName();
+  let name:string = props.cursor.getOtherProfileJson(urlId).getAttribute("name", "");
+  let surname:string = props.cursor.getOtherProfileJson(urlId).getAttribute("surname", "");
+  let contact:string = props.cursor.getOtherProfileJson(urlId).getAttribute("contact", "");
+  let affiliation:string = props.cursor.getOtherProfileJson(urlId).getAttribute("affiliation", "");
+  let personalWebsite:string = props.cursor.getOtherProfileJson(urlId).getAttribute("personalWebsite", "");
+  let lab:string = props.cursor.getOtherProfileJson(urlId).getAttribute("lab", "");
+  let fullName:string = props.cursor.getOtherProfileFullName(urlId);
 
   // Search for this user's public datasets.
   const result = props.cursor.searchIndex.results;
