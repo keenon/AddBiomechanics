@@ -25,13 +25,14 @@ type SearchResultProps = {
   index: number;
 };
 
-const SearchResult = (props: SearchResultProps) => {
+const SearchResult = observer((props: SearchResultProps) => {
+  console.log(props);
   const filtered = props.filePath.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
   const parts = filtered.split('/');
   const userId = parts[0];
 
-  const fullName = props.cursor.getFullName();
-  const description = props.cursor.searchJson.getAttribute("notes", "");
+  const fullName = props.cursor.getOtherProfileFullName(userId);
+  const description = props.cursor.getDatasetSearchJson(filtered).getAttribute("notes", "");
 
   function highlightSearchTerm(htmlString:string, searchTerm:string) {
     // Create a regular expression to match the search term
@@ -87,7 +88,7 @@ const SearchResult = (props: SearchResultProps) => {
   } else {
     return null;
   }
-};
+});
 
 type SearchViewProps = {
   cursor: MocapS3Cursor;

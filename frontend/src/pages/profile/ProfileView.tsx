@@ -28,11 +28,11 @@ type SearchResultProps = {
   userName: string;
 };
 
-const SearchResult = (props: SearchResultProps) => {
+const SearchResult = observer((props: SearchResultProps) => {
   const filtered = props.filePath.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
   const parts = filtered.split('/');
 
-  const description = props.cursor.searchJson.getAttribute("notes", "");
+  const description = props.cursor.getDatasetSearchJson(filtered).getAttribute("notes", "");
 
   if (parts.length === 2) {
     const userId = parts[0];
@@ -81,7 +81,7 @@ const SearchResult = (props: SearchResultProps) => {
   else {
     return null;
   }
-};
+});
 
 const ProfileView = observer((props: ProfileViewProps) => {
   const location = useLocation();
@@ -91,26 +91,37 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
   const [editing, setEditing] = useState(false)
 
+  useEffect(() => {
+    props.cursor.searchIndex.startListening();
+
+    return () => {
+      props.cursor.searchIndex.stopListening();
+    }
+  }, []);
+
   let urlId = location.pathname.substring(location.pathname.lastIndexOf('/') + 1);
   const validUser = props.cursor.s3Index.isUserValid(urlId);
 
-  // If the user is authenticated, but the current path is profile...
-  if (props.cursor.authenticated && (location.pathname === '/profile' || location.pathname === '/profile/')) {
-    // Go to user's profile.
-    navigate("/profile/" + encodeURIComponent(s3Index.myIdentityId));
-    urlId = s3Index.myIdentityId;
-  // If the user is not authenticated...
-  } else if (!props.cursor.authenticated) {
-    // Go to login.
-    navigate("/login/");
+  // Only do navigation checks if we're not currently loading
+  if (!props.cursor.getIsLoading()) {
+    // If the user is authenticated, but the current path is profile...
+    if (props.cursor.authenticated && (location.pathname === '/profile' || location.pathname === '/profile/')) {
+      // Go to user's profile.
+      navigate("/profile/" + encodeURIComponent(s3Index.myIdentityId));
+      urlId = s3Index.myIdentityId;
+    // If the user is not authenticated...
+    } else if (!props.cursor.authenticated) {
+      // Go to login.
+      navigate("/login/");
+    }
   }
 
-  let name:string = props.cursor.profileJson.getAttribute("name", "");
-  let surname:string = props.cursor.profileJson.getAttribute("surname", "");
-  let contact:string = props.cursor.profileJson.getAttribute("contact", "");
-  let affiliation:string = props.cursor.profileJson.getAttribute("affiliation", "");
-  let personalWebsite:string = props.cursor.profileJson.getAttribute("personalWebsite", "");
-  let lab:string = props.cursor.profileJson.getAttribute("lab", "");
+  let name:string = props.cursor.myProfileJson.getAttribute("name", "");
+  let surname:string = props.cursor.myProfileJson.getAttribute("surname", "");
+  let contact:string = props.cursor.myProfileJson.getAttribute("contact", "");
+  let affiliation:string = props.cursor.myProfileJson.getAttribute("affiliation", "");
+  let personalWebsite:string = props.cursor.myProfileJson.getAttribute("personalWebsite", "");
+  let lab:string = props.cursor.myProfileJson.getAttribute("lab", "");
   let fullName:string = props.cursor.getFullName();
 
   // Search for this user's public datasets.
@@ -130,14 +141,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
       </>
     }
   }
-
-  useEffect(() => {
-    props.cursor.searchIndex.startListening();
-
-    return () => {
-      props.cursor.searchIndex.stopListening();
-    }
-  }, []);
   
   function generate_input_field(valueField:any, label:string, tooltip:string, placeholder:string, attributeName:string, icon:string) {
     return (
@@ -162,7 +165,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
             className="form-control"
             placeholder={placeholder}
             value={valueField}
-            onChange={function(e) {props.cursor.profileJson.setAttribute(attributeName, e.target.value);}}>
+            onChange={function(e) {props.cursor.myProfileJson.setAttribute(attributeName, e.target.value);}}>
           </input>
         </div>
       </form>

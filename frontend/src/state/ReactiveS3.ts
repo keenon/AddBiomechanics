@@ -157,9 +157,7 @@ class ReactiveJsonFile {
      */
     getAbsolutePath = () => {
         if (this.isPathGlobal) {
-            // <userid>/data/something
-            const userPrefix = this.cursor.path.substring(0, this.cursor.path.indexOf('/', this.cursor.path.indexOf('/') + 1)); // todo bounds check
-            return userPrefix + '/' + this.path;
+            return this.path;
         }
         else {
             let prefix = this.cursor.path;
@@ -179,6 +177,14 @@ class ReactiveJsonFile {
             this.cursor.index.removeMetadataListener(this.getAbsolutePath(), this.onFileChanged);
         }
     };
+
+    /**
+     * This can be called if we're a file with a global absolute path.
+     */
+    setGlobalPath = (path: string) => {
+        this.path = path;
+        this.pathChanged(true);
+    }
 
     /**
      * This gets called when the path has changed in the supporting cursor
