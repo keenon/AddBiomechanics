@@ -48,11 +48,14 @@ const Login = (props: LoginProps) => {
   const [loading, setLoading] = useState(false);
 
   let from = location.state?.from?.pathname || "/";
+  if (from === '/login') {
+    from = '/';
+  }
 
   useEffect(() => {
     Auth.currentAuthenticatedUser()
       .then((user: any) => {
-        console.log("User is already logged in.");
+        console.log("User is already logged in. Navigating to " + from);
         navigate(from, { replace: true });
       }).catch((e) => {
         // Ignore, we're already supposed to be logged in

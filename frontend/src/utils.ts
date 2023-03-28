@@ -74,4 +74,10 @@ async function copyProfileUrlToClipboard(userId:string) {
     }
 }
 
-export { humanFileSize, showToast, copyProfileUrlToClipboard };
+
+function getIdFromURL(url:string) {
+    // This regex matches an UUID and retrieves it.
+    return url.match(/\/([\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12})\/?/)?.[1] ?? "";
+};
+
+export { humanFileSize, showToast, copyProfileUrlToClipboard, getIdFromURL };

@@ -90,7 +90,9 @@ class MocapS3Cursor {
     subjectJson: ReactiveJsonFile;
     resultsJson: ReactiveJsonFile;
     searchJson: ReactiveJsonFile;
-    profileJson: ReactiveJsonFile;
+    myProfileJson: ReactiveJsonFile;
+    otherProfileJsons: Map<string, ReactiveJsonFile>;
+    datasetSearchJsons: Map<string, ReactiveJsonFile>;
     customModelFile: ReactiveTextFile;
 
     socket: RobustMqtt;
@@ -120,7 +122,9 @@ class MocapS3Cursor {
         this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
         this.resultsJson = this.rawCursor.getJsonFile("_results.json");
         this.searchJson = this.rawCursor.getJsonFile("_search.json");
-        this.profileJson = this.rawCursor.getJsonFile("profile.json", true);
+        this.myProfileJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+s3Index.myIdentityId+"/profile.json", true);
+        this.otherProfileJsons = new Map();
+        this.datasetSearchJsons = new Map();
         this.customModelFile = this.rawCursor.getTextFile("unscaled_generic.osim");
 
         this.socket = socket;
@@ -134,6 +138,7 @@ class MocapS3Cursor {
         this.authenticated = false;
         Auth.currentCredentials().then(action((credentials) => {
             this.authenticated = credentials.authenticated;
+            this.myProfileJson.setGlobalPath('protected/'+this.region+":"+s3Index.myIdentityId+"/profile.json");
         }))
 
         this.s3Index.addChildrenListener("protected/server_status/", this.updateProcessingServerFiles);
@@ -144,9 +149,66 @@ class MocapS3Cursor {
             showValidationControls: observable,
             userEmail: observable,
             processingServers: observable,
-            lastSeenPong: observable
+            lastSeenPong: observable,
+            getFullName: observable,
+            getOtherProfileFullName: observable
         });
     }
+
+    getFullName = () => {
+        let name:string = this.myProfileJson.getAttribute("name", "");
+        let surname:string = this.myProfileJson.getAttribute("surname", "");
+        if (name !== "" && surname !== "") {
+            return name + " " + surname;
+        }
+        else if  (name === "" && surname !== "") {
+            return surname;
+        }
+        else if (name !== "" && surname === "") {
+            return name;
+        }
+        else {
+            return "";
+        }
+    }
+
+    getOtherProfileJson = (userId: string) => {
+        console.log('Get profile JSON for user '+userId);
+        let otherProfileJson = this.otherProfileJsons.get(userId);
+        if (otherProfileJson == null) {
+            otherProfileJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+userId+"/profile.json", true);
+            this.otherProfileJsons.set(userId, otherProfileJson);
+        }
+        return otherProfileJson;
+    };
+
+    getOtherProfileFullName = (userId: string) => {
+        console.log('Get full name for user '+userId);
+        const otherProfileJson = this.getOtherProfileJson(userId);
+        let name:string = otherProfileJson.getAttribute("name", "");
+        let surname:string = otherProfileJson.getAttribute("surname", "");
+        if (name !== "" && surname !== "") {
+            return name + " " + surname;
+        }
+        else if  (name === "" && surname !== "") {
+            return surname;
+        }
+        else if (name !== "" && surname === "") {
+            return name;
+        }
+        else {
+            return "";
+        }
+    }
+
+    getDatasetSearchJson = (filteredPath: string) => {
+        let otherSearchJson = this.datasetSearchJsons.get(filteredPath);
+        if (otherSearchJson == null) {
+            otherSearchJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+filteredPath+'/_search.json', true);
+            this.datasetSearchJsons.set(filteredPath, otherSearchJson);
+        }
+        return otherSearchJson;
+    };
 
     /**
      * This gets called after we log in, with the email of the user.
@@ -263,6 +325,8 @@ class MocapS3Cursor {
     };
 
     setDataPath = action((dataPath: string) => {
+        if (this.rawCursor.path === dataPath) return;
+
         console.log("Setting data path to: "+dataPath);
         this.rawCursor.setPath(dataPath);
 
@@ -285,10 +349,7 @@ class MocapS3Cursor {
      * @returns True if the cursor is pointing at readonly (i.e. public) data
      */
     dataIsReadonly = () => {
-        console.log(this.rawCursor.path);
-        console.log(this.s3Index.myIdentityId);
         const isReadonly = this.s3Index.myIdentityId === '' || this.rawCursor.path.indexOf(this.s3Index.myIdentityId) === -1;
-        console.log('isReadonly: '+isReadonly);
         return isReadonly;
     };
 

@@ -12,7 +12,7 @@ import { observer } from "mobx-react-lite";
 import './ProfileView.scss';
 import { Auth } from "aws-amplify";
 import 'react-toastify/dist/ReactToastify.css';
-import { showToast, copyProfileUrlToClipboard} from "../../utils";
+import { showToast, copyProfileUrlToClipboard, getIdFromURL} from "../../utils";
 import { Spinner } from "react-bootstrap";
 import { parsePath } from "../files/pathHelper";
 import { url } from "inspector";
@@ -28,23 +28,11 @@ type SearchResultProps = {
   userName: string;
 };
 
-const SearchResult = (props: SearchResultProps) => {
+const SearchResult = observer((props: SearchResultProps) => {
   const filtered = props.filePath.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
   const parts = filtered.split('/');
 
-  const [description, setDescription] = useState("")
-
-  let link_search = ""
-  if (parts.length === 2)
-    link_search = "protected/" + props.cursor.s3Index.region + ":" + props.urlId + "/data/_search.json"
-  else
-    link_search = "protected/" + props.cursor.s3Index.region + ":" + props.urlId + "/data/" + parts.slice(2).join('/') + "/_search.json"
-  props.cursor.s3Index.downloadText(link_search).then(
-    function(text:string) {
-      const searchObject = JSON.parse(text);
-      setDescription(searchObject.notes)
-    }
-  );
+  const description = props.cursor.getDatasetSearchJson(filtered).getAttribute("notes", "");
 
   if (parts.length === 2) {
     const userId = parts[0];
@@ -93,7 +81,7 @@ const SearchResult = (props: SearchResultProps) => {
   else {
     return null;
   }
-};
+});
 
 const ProfileView = observer((props: ProfileViewProps) => {
   const location = useLocation();
@@ -102,26 +90,40 @@ const ProfileView = observer((props: ProfileViewProps) => {
   const s3Index = props.cursor.s3Index;
 
   const [editing, setEditing] = useState(false)
-  const [validUser, setValidUser] = useState(false);
 
-  let urlId = useLocation().pathname.substring(useLocation().pathname.lastIndexOf('/') + 1);
+  useEffect(() => {
+    props.cursor.searchIndex.startListening();
 
-  let name:string = props.cursor.profileJson.getAttribute("name", "");
-  let surname:string = props.cursor.profileJson.getAttribute("surname", "");
-  let contact:string = props.cursor.profileJson.getAttribute("contact", "");
-  let affiliation:string = props.cursor.profileJson.getAttribute("affiliation", "");
-  let personalWebsite:string = props.cursor.profileJson.getAttribute("personalWebsite", "");
-  let lab:string = props.cursor.profileJson.getAttribute("lab", "");
-  let fullName:string = ""
+    return () => {
+      props.cursor.searchIndex.stopListening();
+    }
+  }, []);
 
+  let urlId = getIdFromURL(location.pathname);
 
-  if (name !== "" && surname !== "")
-    fullName = (name + " " + surname)
-  else if  (name === "" && surname !== "")
-    fullName = (surname)
-  else if (name !== "" && surname === "")
-    fullName = (name)
-  else fullName = ("")
+  const validUser = props.cursor.s3Index.isUserValid(urlId);
+
+  // Only do navigation checks if we're not currently loading
+  if (!props.cursor.getIsLoading()) {
+    // If the user is authenticated, but the current path is profile...
+    if (props.cursor.authenticated && (location.pathname === '/profile' || location.pathname === '/profile/')) {
+      // Go to user's profile.
+      navigate("/profile/" + encodeURIComponent(s3Index.myIdentityId));
+      urlId = s3Index.myIdentityId;
+    // If the user is not authenticated...
+    } else if (!props.cursor.authenticated) {
+      // Go to login.
+      navigate("/login/");
+    }
+  }
+
+  let name:string = props.cursor.getOtherProfileJson(urlId).getAttribute("name", "");
+  let surname:string = props.cursor.getOtherProfileJson(urlId).getAttribute("surname", "");
+  let contact:string = props.cursor.getOtherProfileJson(urlId).getAttribute("contact", "");
+  let affiliation:string = props.cursor.getOtherProfileJson(urlId).getAttribute("affiliation", "");
+  let personalWebsite:string = props.cursor.getOtherProfileJson(urlId).getAttribute("personalWebsite", "");
+  let lab:string = props.cursor.getOtherProfileJson(urlId).getAttribute("lab", "");
+  let fullName:string = props.cursor.getOtherProfileFullName(urlId);
 
   // Search for this user's public datasets.
   const result = props.cursor.searchIndex.results;
@@ -140,44 +142,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
       </>
     }
   }
-
-  useEffect(() => {
-    props.cursor.searchIndex.startListening();
-
-    return () => {
-      props.cursor.searchIndex.stopListening();
-    }
-  }, []);
-
-  function Redirect() {
-    // If the user is authenticated, but the current path is profile...
-    if(props.cursor.authenticated && (location.pathname === '/profile' || location.pathname === '/profile/')) {
-      // Go to user's profile.
-      navigate("/profile/" + encodeURIComponent(s3Index.myIdentityId));
-      urlId = s3Index.myIdentityId;
-    // If the user is not authenticated...
-    } else if (!props.cursor.authenticated) {
-      // Go to login.
-      navigate("/login/");
-    }
-  }
-
-  useEffect(() => {
-    Auth.currentCredentials().then((credentials) => {
-      Redirect();
-  
-      let path = parsePath(location.pathname, urlId);
-      if (!path.dataPath.includes("undefined"))
-        props.cursor.setDataPath(path.dataPath);
-
-        console.log("LOG: " + props.cursor.profileJson.fileExist())
-        console.log("LOG: " + props.cursor.profileJson.getAbsolutePath())
-      
-      if(props.cursor.profileJson.fileExist())
-          setValidUser(true)
-    });
-
-    }, [location.pathname, s3Index.files]);
   
   function generate_input_field(valueField:any, label:string, tooltip:string, placeholder:string, attributeName:string, icon:string) {
     return (
@@ -202,7 +166,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
             className="form-control"
             placeholder={placeholder}
             value={valueField}
-            onChange={function(e) {props.cursor.profileJson.setAttribute(attributeName, e.target.value);}}>
+            onChange={function(e) {props.cursor.myProfileJson.setAttribute(attributeName, e.target.value);}}>
           </input>
         </div>
       </form>
