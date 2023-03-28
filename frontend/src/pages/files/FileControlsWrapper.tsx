@@ -16,7 +16,7 @@ import './FileControlsWrapper.scss';
 import { useState, useEffect } from "react";
 import { observer } from "mobx-react-lite";
 import { parsePath } from './pathHelper';
-import { showToast, copyProfileUrlToClipboard} from "../../utils";
+import { showToast, copyProfileUrlToClipboard, getIdFromURL} from "../../utils";
 
 type FileManagerProps = {
   cursor: MocapS3Cursor;
@@ -33,12 +33,14 @@ type ProfileJSON = {
 
 // FileManager
 const FileManager = observer((props: FileManagerProps) => {
-  const fullName = props.cursor.getFullName();
-
   const navigate = useNavigate();
   const location = useLocation();
 
   const path = parsePath(location.pathname, props.cursor.s3Index.myIdentityId);
+
+  const urlId = getIdFromURL(location.pathname);
+
+  const fullName = props.cursor.getOtherProfileFullName(urlId);
 
   const type = props.cursor.getFileType();
 

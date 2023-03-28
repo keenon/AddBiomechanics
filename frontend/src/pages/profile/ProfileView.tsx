@@ -12,7 +12,7 @@ import { observer } from "mobx-react-lite";
 import './ProfileView.scss';
 import { Auth } from "aws-amplify";
 import 'react-toastify/dist/ReactToastify.css';
-import { showToast, copyProfileUrlToClipboard} from "../../utils";
+import { showToast, copyProfileUrlToClipboard, getIdFromURL} from "../../utils";
 import { Spinner } from "react-bootstrap";
 import { parsePath } from "../files/pathHelper";
 import { url } from "inspector";
@@ -99,7 +99,8 @@ const ProfileView = observer((props: ProfileViewProps) => {
     }
   }, []);
 
-  let urlId = location.pathname.substring(location.pathname.lastIndexOf('/') + 1);
+  let urlId = getIdFromURL(location.pathname);
+
   const validUser = props.cursor.s3Index.isUserValid(urlId);
 
   // Only do navigation checks if we're not currently loading
