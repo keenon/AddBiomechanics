@@ -35,11 +35,13 @@ const SearchResult = observer((props: SearchResultProps) => {
   const description = props.cursor.getDatasetSearchJson(filtered).getAttribute("notes", "");
 
   function highlightSearchTerm(htmlString:string, searchTerm:string) {
+    if (searchTerm.length == 0) return htmlString;
+
     // Create a regular expression to match the search term
-    const regex = new RegExp(searchTerm, "gi");
+    const regex = new RegExp('('+searchTerm+')', "gi");
   
-    // Replace all occurrences of the search term with a highlighted version
-    const highlightedHtmlString = htmlString.replace(regex, `<span style="background-color: #ffee5e; border-radius: 5px;">${searchTerm}</span>`);
+    // Replace all occurrences of the search term with a highlighted version (use capture groups to preserve capitalization)
+    const highlightedHtmlString = htmlString.replace(regex, '<span style="background-color: #ffee5e; border-radius: 5px;">$1</span>');
   
     return highlightedHtmlString;
   }
