@@ -2,7 +2,7 @@ import { ReactiveJsonFile, ReactiveCursor, ReactiveIndex } from "../../state/Rea
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import logo from "../../assets/images/logo-alone.svg";
-import MocapS3Cursor from '../../state/MocapS3Cursor';
+import MocapS3Cursor, {Dataset} from '../../state/MocapS3Cursor';
 import {
   Row,
   Col,
@@ -19,15 +19,13 @@ import { profile } from "console";
 
 type SearchResultProps = {
   cursor: MocapS3Cursor;
-  filePath: string;
+  dataset: Dataset;
   searchText: string;
-  searchUser: string;
   index: number;
 };
 
 const SearchResult = observer((props: SearchResultProps) => {
-  console.log(props);
-  const filtered = props.filePath.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
+  const filtered = props.dataset.key.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
   const parts = filtered.split('/');
   const userId = parts[0];
 
@@ -46,50 +44,33 @@ const SearchResult = observer((props: SearchResultProps) => {
     return highlightedHtmlString;
   }
 
-  if ( (description.toLowerCase().trim().includes(props.searchText.toLowerCase().trim()) ||
-      parts.slice(2).join('/').toLowerCase().trim().includes(props.searchText.toLowerCase().trim()) ) &&
-       fullName.toLowerCase().trim().includes(props.searchUser.toLowerCase().trim()) ) {
-    if (parts.length === 2) {
-        return (
-          <Col md="12">
-            <Card>
-              <Card.Body>
-                <h4><Link to={'/data/' + userId}>/</Link></h4>
-                By <Link to={'/profile/' + userId}><span dangerouslySetInnerHTML={ {__html: highlightSearchTerm(fullName, props.searchUser) }}></span></Link>
-                <p></p>
-                <p dangerouslySetInnerHTML={ {__html: highlightSearchTerm(description, props.searchText) }}></p>
-                <p></p>
-                <span className="badge bg-success">Tag 1</span> <span className="badge bg-success">Tag 2</span> <span className="badge bg-success">Tag 3</span>
-              </Card.Body>
-            </Card>
-          </Col>
-        )
-    }
-    else if (parts.length > 2) {
-      const userId = parts[0];
-      let linkDataset = '/data/' + userId + '/' + parts.slice(2).join('/');
-      let linkUser = '/profile/' + userId;
-      return (
-        <Col md="12">
-          <Card>
-            <Card.Body>
-              <h4><Link to={linkDataset}><span dangerouslySetInnerHTML={ {__html: highlightSearchTerm("/" + parts.slice(2).join('/'), props.searchText) }}></span></Link></h4>
-              By <Link to={linkUser}><span dangerouslySetInnerHTML={ {__html: highlightSearchTerm(fullName, props.searchUser) }}></span></Link>
-              <p></p>
-                <p dangerouslySetInnerHTML={ {__html: highlightSearchTerm(description, props.searchText) }}></p>
-              <p></p>
-              <span className="badge bg-success">Tag 1</span> <span className="badge bg-success">Tag 2</span> <span className="badge bg-success">Tag 3</span>
-            </Card.Body>
-          </Card>
-        </Col>
-      )
-    }
-    else {
-      return null;
-    }
-  } else {
-    return null;
+  let linkDataset = '/data/' + userId + '/' + parts.slice(2).join('/');
+  let linkUser = '/profile/' + userId;
+  let tags = [];
+  if (props.dataset.hasDynamics) {
+    tags.push(<span className="badge bg-success" key="dynamics">Dynamics</span>);
   }
+  if (props.dataset.isPublished) {
+    tags.push(<span className="badge bg-success" key="published">Published</span>);
+  }
+  else {
+    tags.push(<span className="badge bg-warning" key="unpublished">Draft</span>);
+  }
+  return (
+    <Col md="12">
+      <Card>
+        <Card.Body>
+          <h4><Link to={linkDataset}><span dangerouslySetInnerHTML={ {__html: highlightSearchTerm(parts.slice(2).join('/'), props.searchText) }}></span></Link></h4>
+          By <Link to={linkUser}><span dangerouslySetInnerHTML={ {__html: highlightSearchTerm(fullName, props.searchText) }}></span></Link>
+          <p></p>
+            <p dangerouslySetInnerHTML={ {__html: highlightSearchTerm(description, props.searchText) }}></p>
+          <p></p>
+          <p>Subjects: {props.dataset.numSubjects}, Trials: {props.dataset.numTrials}</p>
+          {tags}
+        </Card.Body>
+      </Card>
+    </Col>
+  )
 });
 
 type SearchViewProps = {
@@ -97,21 +78,27 @@ type SearchViewProps = {
 };
 
 const SearchView = observer((props: SearchViewProps) => {
-  const result = props.cursor.searchIndex.results;
-  const availableOptions = [...result.keys()];
-
   const [searchText, setSearchText] = useState("")
-  const [searchUser, setSearchUser] = useState("")
+  const [includeUnpublished, setIncludeUnpublished] = useState(false)
+  const [dynamicsOnly, setDynamicsOnly] = useState(false)
 
-  let searchResults = 0
-
-  useEffect(() => {
-    props.cursor.searchIndex.startListening();
-
-    return () => {
-      props.cursor.searchIndex.stopListening();
+  const datasets = props.cursor.datasetIndex.searchDatasets(searchText, dynamicsOnly, includeUnpublished);
+  // Collect the list of "root" datasets (that are not contained as part of any other dataset results) in order to avoid double counting.
+  const datasetsNoSubsidiaries: Dataset[] = [];
+  for (let i = 0; i < datasets.length; i++) {
+    let foundParent = false;
+    for (let j = 0; j < datasets.length; j++) {
+      if (datasets[i].key != datasets[j].key && datasets[j].key.indexOf(datasets[i].key) !== -1) {
+        foundParent = true;
+        break;
+      }
     }
-  }, []);
+    if (!foundParent) {
+      datasetsNoSubsidiaries.push(datasets[i]);
+    }
+  }
+  const totalSubjects = datasetsNoSubsidiaries.map(d => d.numSubjects).reduce((sum, n) => sum + n, 0);
+  const totalTrials = datasetsNoSubsidiaries.map(d => d.numTrials).reduce((sum, n) => sum + n, 0);
 
   let body = null;
   if (props.cursor.getIsLoading()) {
@@ -120,14 +107,59 @@ const SearchView = observer((props: SearchViewProps) => {
   else {
     body = <>
         {
-        availableOptions.map((v, i) => {
+        datasets.map((dataset, i) => {
             // Return search result
             return (
             <>
-              <SearchResult cursor={props.cursor} filePath={v} searchText={searchText} searchUser={searchUser} index={i}/>
+              <SearchResult cursor={props.cursor} dataset={dataset} searchText={searchText} index={i}/>
             </>)
         })}
     </>
+  }
+
+  let header = null;
+  if (includeUnpublished) {
+    header = <>
+      <h3>All Folders</h3>
+      <p>All folders, including those still in "draft" mode, will not show up here. WARNING: Use this data at your own risk, it has not been certified by its authors.</p>
+    </>;
+  }
+  else {
+    header = <>
+      <h3>Published Folders</h3>
+      <p>All folders still in "draft" mode will not show up here. Authors must mark their folder as published to have it appear here.</p>
+    </>;
+  }
+
+  const isAdmin = true;
+
+  let adminOptions = null;
+  if (isAdmin) {
+    adminOptions = (
+      <form className="row g-3 mb-15">
+        <div className="col-md-12">
+          <label>
+            <i className={"mdi me-1 vertical-middle mdi-account"}></i>
+            Include Unpublished
+            <OverlayTrigger
+              placement="right"
+              delay={{ show: 50, hide: 400 }}
+              overlay={(props) => (
+                <Tooltip id="button-tooltip" {...props}>
+                  Checking this box will include datasets that the author has not marked as "published" in your results. This data should not be trusted!
+                </Tooltip>
+              )}>
+              <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+            </OverlayTrigger></label>
+          <br></br>
+          <input
+            type="checkbox"
+            checked={includeUnpublished}
+            onChange={function(e) {setIncludeUnpublished(e.target.checked)}}>
+          </input>
+        </div>
+      </form>
+    );
   }
 
   return (
@@ -152,7 +184,7 @@ const SearchView = observer((props: SearchViewProps) => {
                               delay={{ show: 50, hide: 400 }}
                               overlay={(props) => (
                                 <Tooltip id="button-tooltip" {...props}>
-                                  Search...
+                                  Type keywords here to match dataset titles
                                 </Tooltip>
                               )}>
                               <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
@@ -167,8 +199,33 @@ const SearchView = observer((props: SearchViewProps) => {
                           </input>
                         </div>
                       </form>
+                      <form className="row g-3 mb-15">
+                        <div className="col-md-12">
+                          <label>
+                            <i className={"mdi me-1 vertical-middle mdi-account"}></i>
+                            Dynamics Required
+                            <OverlayTrigger
+                              placement="right"
+                              delay={{ show: 50, hide: 400 }}
+                              overlay={(props) => (
+                                <Tooltip id="button-tooltip" {...props}>
+                                  Checking this box will only show datasets that have ground-reaction-force (GRF) data, and have been processed for dynamic consistency with AddBiomechanics.
+                                </Tooltip>
+                              )}>
+                              <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                            </OverlayTrigger></label>
+                          <br></br>
+                          <input
+                            type="checkbox"
+                            checked={dynamicsOnly}
+                            onChange={function(e) {setDynamicsOnly(e.target.checked)}}>
+                          </input>
+                        </div>
+                      </form>
+                      {adminOptions}
 
 
+                      {/*
                       <form className="row g-3 mb-15">
                         <div className="col-md-12">
                           <label>
@@ -194,18 +251,17 @@ const SearchView = observer((props: SearchViewProps) => {
                           </input>
                         </div>
                       </form>
+                      */}
                     </Card.Body>
                   </Card>
                 </Col>
                 <Col md="8">
                   <Card>
                     <Card.Body>
-                        <h3>Published Folders</h3>
-                        <p>All folders still in "draft" mode will not show up here. Authors must mark their folder as published to have it appear here.</p>
+                      {header}
                       <Row>
-
                         <Row md="12">
-                        <p>{"Search results: " + searchResults}</p>
+                        <p>Search results: {datasets.length} datasets, {totalSubjects} subjects, {totalTrials} trials</p>
                         </Row>
                         {body}
                       </Row>

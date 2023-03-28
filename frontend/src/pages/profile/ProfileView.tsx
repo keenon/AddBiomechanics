@@ -1,6 +1,6 @@
 import { useState, useEffect, useReducer } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
-import MocapS3Cursor from '../../state/MocapS3Cursor';
+import MocapS3Cursor, {Dataset} from '../../state/MocapS3Cursor';
 import {
   Row,
   Col,
@@ -23,6 +23,7 @@ type ProfileViewProps = {
 
 type SearchResultProps = {
   cursor: MocapS3Cursor;
+  dataset: Dataset;
   filePath: string;
   urlId: string;
   userName: string;
@@ -91,14 +92,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
   const [editing, setEditing] = useState(false)
 
-  useEffect(() => {
-    props.cursor.searchIndex.startListening();
-
-    return () => {
-      props.cursor.searchIndex.stopListening();
-    }
-  }, []);
-
   let urlId = getIdFromURL(location.pathname);
 
   const validUser = props.cursor.s3Index.isUserValid(urlId);
@@ -126,8 +119,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
   let fullName:string = props.cursor.getOtherProfileFullName(urlId);
 
   // Search for this user's public datasets.
-  const result = props.cursor.searchIndex.results;
-  const availableOptions = [...result.keys()];
+  const result = props.cursor.datasetIndex.datasetsByUserId(urlId);
   let body = null;
   if(urlId != null) {
     if (props.cursor.getIsLoading()) {
@@ -136,8 +128,8 @@ const ProfileView = observer((props: ProfileViewProps) => {
     else {
       body = <>
           {
-          availableOptions.map((v) => {
-              return <SearchResult cursor={props.cursor} filePath={v} urlId={urlId} userName={fullName}/>
+          result.map((v) => {
+              return <SearchResult cursor={props.cursor} filePath={v.key} dataset={v} urlId={urlId} userName={fullName}/>
           })}
       </>
     }
