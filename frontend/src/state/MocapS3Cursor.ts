@@ -373,7 +373,7 @@ class MocapS3Cursor {
             return name;
         }
         else {
-            return "(No Profile Yet)";
+            return "(No Profile - " + userId.substring(0, 6)+")";
         }
     }
 
