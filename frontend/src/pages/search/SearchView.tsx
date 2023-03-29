@@ -56,7 +56,7 @@ const SearchView = observer((props: SearchViewProps) => {
           // Return search result
           return (
             <>
-              <SearchResult cursor={props.cursor} dataset={dataset} searchText={searchText} index={i} />
+              <SearchResult cursor={props.cursor} dataset={dataset} searchText={searchText} index={i} fullWidth={true} />
             </>)
         })}
     </>
@@ -85,13 +85,13 @@ const SearchView = observer((props: SearchViewProps) => {
         <div className="col-md-12">
           <label>
             <i className={"mdi me-1 vertical-middle mdi-account"}></i>
-            Include Unpublished
+            Include Raw Draft Data
             <OverlayTrigger
               placement="right"
               delay={{ show: 50, hide: 400 }}
               overlay={(props) => (
                 <Tooltip id="button-tooltip" {...props}>
-                  Checking this box will include datasets that the author has not marked as "published" in your results. This data should not be trusted!
+                  Checking this box will include datasets that the author has not marked as "published" in your results. This data is still under construction and should be treated with caution!
                 </Tooltip>
               )}>
               <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
@@ -123,13 +123,13 @@ const SearchView = observer((props: SearchViewProps) => {
                         <div className="col-md-12">
                           <label>
                             <i className={"mdi me-1 vertical-middle mdi-account"}></i>
-                            Search
+                            Title Keywords
                             <OverlayTrigger
                               placement="right"
                               delay={{ show: 50, hide: 400 }}
                               overlay={(props) => (
                                 <Tooltip id="button-tooltip" {...props}>
-                                  Type keywords here to match dataset titles
+                                  Type keywords here to match dataset titles. This does not search over user's home folders.
                                 </Tooltip>
                               )}>
                               <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>

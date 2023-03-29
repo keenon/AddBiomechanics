@@ -856,6 +856,10 @@ class ReactiveIndex {
     loading: boolean = true;
     loadingListeners: Array<(loading: boolean) => void> = [];
 
+    // These are listeners that fire whenever anything in the index changes. These are cheaper to use than childrenListeners on "/", but 
+    // are functionally basically the same thing.
+    changeListeners: Array<() => void> = [];
+
     // This holds network error messages, one per key. Individual keys identify different errors that may have independent lifetimes.
     // For example, an upload request may fail, and then retry and eventually resolve, with the key "UPLOAD", while a websocket glitch
     // with key "SOCKET" could happen and then resolve at any time during that process.
@@ -1177,6 +1181,9 @@ class ReactiveIndex {
      */
     _updateListeners = () => {
         if (!this.listenersEnabled) return;
+        this.changeListeners.forEach((listener) => {
+            listener();
+        });
         this.childrenListeners.forEach((listeners, key: string) => {
             let children = this.getChildren(key);
 
@@ -1573,6 +1580,13 @@ class ReactiveIndex {
             this.childrenListeners.set(path, []);
         }
         this.childrenListeners.get(path)?.push(onChange);
+    };
+
+    /**
+     * Fires whenever any file changes (either added or deleted)
+     */
+    addChangeListener = (onChange: () => void) => {
+        this.changeListeners.push(onChange);
     };
 
     /**

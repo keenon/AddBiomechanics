@@ -93,6 +93,11 @@ class MocapDatasetIndex {
                 this.reindexDatasets();
             }
         });
+
+        this.s3Index.addChangeListener(() => {
+            this.reindexDatasets();
+        });
+
         this.reindexDatasets();
 
         makeObservable(this, {
@@ -238,7 +243,20 @@ class MocapDatasetIndex {
         return this.datasets.filter(dataset => {
             if (!dataset.isPublished && !includeUnpublished) return false;
             if (!dataset.hasDynamics && dynamicsOnly) return false;
-            if (query.length > 0 && dataset.key.toLowerCase().indexOf(query.toLowerCase()) === -1) {
+            if (query.length > 0) {
+                if (dataset.key.toLowerCase().indexOf(query.toLowerCase()) !== -1) {
+                    return true;
+                }
+
+                // TODO: we'll want to add a better variant of this for searching over home folders, 
+                // once we have a more efficient way to get user's full names without downloading 
+                // everyone's profile.json. Don't forget to update the text on the SearchView tooltip 
+                // for title keyword search once this is supported!
+
+                // if ("home folder".indexOf(query.toLowerCase()) !== -1 && dataset.isHomeFolder) {
+                //     return true;
+                // }
+
                 return false;
             }
             return true;

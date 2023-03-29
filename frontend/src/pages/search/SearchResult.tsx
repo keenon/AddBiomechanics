@@ -23,6 +23,7 @@ type SearchResultProps = {
     dataset: Dataset;
     searchText: string;
     index: number;
+    fullWidth: boolean;
 };
 
 const SearchResult = observer((props: SearchResultProps) => {
@@ -65,7 +66,7 @@ const SearchResult = observer((props: SearchResultProps) => {
         datasetName = fullName + "'s Home Folder";
     }
     return (
-        <Col md="12">
+        <Col md={props.fullWidth ? "12" : "4"}>
             <Card>
                 <Card.Body>
                     <h4><Link to={linkDataset}><span dangerouslySetInnerHTML={{ __html: highlightSearchTerm(datasetName, props.searchText) }}></span></Link></h4>

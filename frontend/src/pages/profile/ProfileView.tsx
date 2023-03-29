@@ -67,7 +67,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
       body = <>
         {
           result.map((dataset, i) => {
-            return <SearchResult cursor={props.cursor} dataset={dataset} searchText='' index={i} />
+            return <SearchResult cursor={props.cursor} dataset={dataset} searchText='' index={i} fullWidth={false} />
           })}
       </>
     }
