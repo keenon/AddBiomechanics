@@ -2,7 +2,7 @@ import { ReactiveJsonFile, ReactiveCursor, ReactiveIndex } from "../../state/Rea
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import logo from "../../assets/images/logo-alone.svg";
-import MocapS3Cursor, {Dataset} from '../../state/MocapS3Cursor';
+import MocapS3Cursor, { Dataset } from '../../state/MocapS3Cursor';
 import {
   Row,
   Col,
@@ -16,62 +16,7 @@ import {
 import { observer } from "mobx-react-lite";
 import './SearchView.scss';
 import { profile } from "console";
-
-type SearchResultProps = {
-  cursor: MocapS3Cursor;
-  dataset: Dataset;
-  searchText: string;
-  index: number;
-};
-
-const SearchResult = observer((props: SearchResultProps) => {
-  const filtered = props.dataset.key.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
-  const parts = filtered.split('/');
-  const userId = parts[0];
-
-  const fullName = props.cursor.getOtherProfileFullName(userId);
-  const description = props.cursor.getDatasetSearchJson(filtered).getAttribute("notes", "");
-
-  function highlightSearchTerm(htmlString:string, searchTerm:string) {
-    if (searchTerm.length == 0) return htmlString;
-
-    // Create a regular expression to match the search term
-    const regex = new RegExp('('+searchTerm+')', "gi");
-  
-    // Replace all occurrences of the search term with a highlighted version (use capture groups to preserve capitalization)
-    const highlightedHtmlString = htmlString.replace(regex, '<span style="background-color: #ffee5e; border-radius: 5px;">$1</span>');
-  
-    return highlightedHtmlString;
-  }
-
-  let linkDataset = '/data/' + userId + '/' + parts.slice(2).join('/');
-  let linkUser = '/profile/' + userId;
-  let tags = [];
-  if (props.dataset.hasDynamics) {
-    tags.push(<span className="badge bg-success" key="dynamics">Dynamics</span>);
-  }
-  if (props.dataset.isPublished) {
-    tags.push(<span className="badge bg-success" key="published">Published</span>);
-  }
-  else {
-    tags.push(<span className="badge bg-warning" key="unpublished">Draft</span>);
-  }
-  return (
-    <Col md="12">
-      <Card>
-        <Card.Body>
-          <h4><Link to={linkDataset}><span dangerouslySetInnerHTML={ {__html: highlightSearchTerm(parts.slice(2).join('/'), props.searchText) }}></span></Link></h4>
-          By <Link to={linkUser}><span dangerouslySetInnerHTML={ {__html: highlightSearchTerm(fullName, props.searchText) }}></span></Link>
-          <p></p>
-            <p dangerouslySetInnerHTML={ {__html: highlightSearchTerm(description, props.searchText) }}></p>
-          <p></p>
-          <p>Subjects: {props.dataset.numSubjects}, Trials: {props.dataset.numTrials}</p>
-          {tags}
-        </Card.Body>
-      </Card>
-    </Col>
-  )
-});
+import SearchResult from './SearchResult';
 
 type SearchViewProps = {
   cursor: MocapS3Cursor;
@@ -106,12 +51,12 @@ const SearchView = observer((props: SearchViewProps) => {
   }
   else {
     body = <>
-        {
+      {
         datasets.map((dataset, i) => {
-            // Return search result
-            return (
+          // Return search result
+          return (
             <>
-              <SearchResult cursor={props.cursor} dataset={dataset} searchText={searchText} index={i}/>
+              <SearchResult cursor={props.cursor} dataset={dataset} searchText={searchText} index={i} />
             </>)
         })}
     </>
@@ -155,7 +100,7 @@ const SearchView = observer((props: SearchViewProps) => {
           <input
             type="checkbox"
             checked={includeUnpublished}
-            onChange={function(e) {setIncludeUnpublished(e.target.checked)}}>
+            onChange={function (e) { setIncludeUnpublished(e.target.checked) }}>
           </input>
         </div>
       </form>
@@ -195,7 +140,7 @@ const SearchView = observer((props: SearchViewProps) => {
                             className="form-control"
                             placeholder="Placeholder"
                             value={searchText}
-                            onChange={function(e) {setSearchText(e.target.value)}}>
+                            onChange={function (e) { setSearchText(e.target.value) }}>
                           </input>
                         </div>
                       </form>
@@ -218,7 +163,7 @@ const SearchView = observer((props: SearchViewProps) => {
                           <input
                             type="checkbox"
                             checked={dynamicsOnly}
-                            onChange={function(e) {setDynamicsOnly(e.target.checked)}}>
+                            onChange={function (e) { setDynamicsOnly(e.target.checked) }}>
                           </input>
                         </div>
                       </form>
@@ -261,7 +206,7 @@ const SearchView = observer((props: SearchViewProps) => {
                       {header}
                       <Row>
                         <Row md="12">
-                        <p>Search results: {datasets.length} datasets, {totalSubjects} subjects, {totalTrials} trials</p>
+                          <p>Search results: {datasets.length} datasets, {totalSubjects} subjects, {totalTrials} trials</p>
                         </Row>
                         {body}
                       </Row>

@@ -76,6 +76,7 @@ type Dataset = {
     userId: string;
     numSubjects: number;
     numTrials: number;
+    isHomeFolder: boolean
     isPublished: boolean;
     hasDynamics: boolean;
 };
@@ -143,8 +144,12 @@ class MocapDatasetIndex {
             const hasPhysics = this.s3Index.files.has(physicsBinName);
 
             let path = '';
-            for (let i = 3; i < parts.length - 1; i++) {
-                path += parts[i] + '/';
+            for (let i = 2; i < parts.length - 1; i++) {
+                if (i == 2) {
+                }
+                else {
+                    path += parts[i] + '/';
+                }
                 const key = 'protected/' + regionAndUserId + '/data/' + path;
 
                 let dataset = datasetMap.get(key);
@@ -156,7 +161,8 @@ class MocapDatasetIndex {
                         numSubjects: 0,
                         numTrials: 0,
                         isPublished: false,
-                        hasDynamics: hasPhysics
+                        hasDynamics: hasPhysics,
+                        isHomeFolder: i == 2
                     };
                     datasetMap.set(key, dataset);
                 }
@@ -169,20 +175,52 @@ class MocapDatasetIndex {
             }
         });
 
+        // Go through and find empty datasets
+        this.s3Index.files.forEach((rawFile, key) => {
+            if (key.indexOf("_SEARCH") !== -1) {
+                const filteredKey = key.replaceAll("_SEARCH", "");
+                console.log(filteredKey);
+
+                const parts = filteredKey.split("/");
+                // assert(parts[0] === "protected");
+                const regionAndUserId = parts[1];
+                // assert(parts[2] === "data");
+                const userId = regionAndUserId.split(":")[1];
+                const path = parts.slice(3).join("/");
+                const isHomeFolder = path === '';
+
+                if (!datasetMap.has(filteredKey)) {
+                    const dataset: Dataset = {
+                        key: key,
+                        href: '/data/' + userId + '/' + path + '/',
+                        userId,
+                        isHomeFolder,
+                        numSubjects: 0,
+                        numTrials: 0,
+                        isPublished: true,
+                        hasDynamics: false
+                    };
+                    datasetMap.set(filteredKey, dataset);
+                }
+            }
+        });
+
         let datasets: Dataset[] = [];
         // Look for published datasets, in O(n)
         datasetMap.forEach((dataset, path) => {
-            console.log(dataset.key + '_SEARCH');
             if (this.s3Index.files.has(dataset.key + '_SEARCH')) {
                 dataset.isPublished = true;
-            }
-            else {
-                dataset.isPublished = false;
             }
             datasets.push(dataset);
         });
 
         datasets.sort((a, b) => {
+            if (b.isHomeFolder && !a.isHomeFolder) {
+                return -1;
+            }
+            if (!b.isHomeFolder && a.isHomeFolder) {
+                return 1;
+            }
             return b.numTrials - a.numTrials;
         })
 
@@ -192,10 +230,7 @@ class MocapDatasetIndex {
     datasetsByUserId = (userId: string, includeUnpublished: boolean = false) => {
         return this.datasets.filter(dataset => {
             if (!dataset.isPublished && !includeUnpublished) return false;
-            if (dataset.userId === userId) {
-                return false;
-            }
-            return true;
+            return dataset.userId === userId;
         });
     }
 
