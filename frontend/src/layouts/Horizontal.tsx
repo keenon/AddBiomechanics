@@ -43,7 +43,7 @@ const HorizontalLayout = ({ cursor, children }: HorizontalLayoutProps) => {
     <>
       <div className="wrapper">
         <div className="content-page">
-          <div className="content">
+          <div className="content mb-5">
             <Topbar
               isMenuOpened={isMenuOpened}
               openLeftMenuCallBack={openMenu}

@@ -5,7 +5,7 @@ const Footer = () => {
   const currentYear = new Date().getFullYear();
   return (
     <React.Fragment>
-      <footer className="footer">
+      <footer className="footer bg-white">
         <div className="container-fluid">
           <Row>
             <Col md={12}>{currentYear} © Stanford University</Col>
