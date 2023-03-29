@@ -113,12 +113,18 @@ class MocapDatasetIndex {
         // Get a list of all the subject names, with trial counts appended, in O(n)
         const subjectTrialCount: Map<string, number> = new Map();
         this.s3Index.files.forEach((rawFile, key) => {
+            if (key.startsWith("private")) {
+                return;
+            }
             if (key.endsWith("_subject.json")) {
                 subjectTrialCount.set(key.substring(0, key.length - "/_subject.json".length) + '/trials', 0);
             }
         });
         const trialNamesTaken: Map<string, boolean> = new Map();
         this.s3Index.files.forEach((rawFile, key) => {
+            if (key.startsWith("private")) {
+                return;
+            }
             const trialIndex = key.indexOf("/trials");
             if (trialIndex != -1) {
                 const trialSubstring = key.substring(0, trialIndex + "/trials".length);
@@ -182,6 +188,9 @@ class MocapDatasetIndex {
 
         // Go through and find empty datasets
         this.s3Index.files.forEach((rawFile, key) => {
+            if (key.startsWith("private")) {
+                return;
+            }
             if (key.indexOf("_SEARCH") !== -1) {
                 const filteredKey = key.replaceAll("_SEARCH", "");
                 console.log(filteredKey);
