@@ -1,4 +1,4 @@
-import { ReactiveCursor, ReactiveSearchList, ReactiveIndex, ReactiveJsonFile, ReactiveTextFile } from "./ReactiveS3";
+import { ReactiveCursor, ReactiveIndex, ReactiveJsonFile, ReactiveTextFile } from "./ReactiveS3";
 import { makeObservable, observable, action } from 'mobx';
 import { Auth } from "aws-amplify";
 import RobustMqtt from "./RobustMqtt";
@@ -70,11 +70,214 @@ class LargeZipBinaryObject {
     }
 }
 
+type Dataset = {
+    key: string;
+    href: string;
+    userId: string;
+    numSubjects: number;
+    numTrials: number;
+    isHomeFolder: boolean
+    isPublished: boolean;
+    hasDynamics: boolean;
+};
+
+class MocapDatasetIndex {
+    s3Index: ReactiveIndex;
+    datasets: Dataset[];
+
+    constructor(s3Index: ReactiveIndex) {
+        this.s3Index = s3Index;
+        this.datasets = [];
+        this.s3Index.addLoadingListener((loading: boolean) => {
+            if (!loading) {
+                this.reindexDatasets();
+            }
+        });
+
+        this.s3Index.addChangeListener(() => {
+            this.reindexDatasets();
+        });
+
+        this.reindexDatasets();
+
+        makeObservable(this, {
+            datasets: observable,
+            searchDatasets: observable,
+            datasetsByUserId: observable
+        });
+    }
+
+    reindexDatasets = () => {
+        if (this.s3Index.getIsLoading()) return;
+
+        // Get a list of all the subject names, with trial counts appended, in O(n)
+        const subjectTrialCount: Map<string, number> = new Map();
+        this.s3Index.files.forEach((rawFile, key) => {
+            if (key.startsWith("private")) {
+                return;
+            }
+            if (key.endsWith("_subject.json")) {
+                subjectTrialCount.set(key.substring(0, key.length - "/_subject.json".length) + '/trials', 0);
+            }
+        });
+        const trialNamesTaken: Map<string, boolean> = new Map();
+        this.s3Index.files.forEach((rawFile, key) => {
+            if (key.startsWith("private")) {
+                return;
+            }
+            const trialIndex = key.indexOf("/trials");
+            if (trialIndex != -1) {
+                const trialSubstring = key.substring(0, trialIndex + "/trials".length);
+                const trialTail = key.substring(trialIndex + "/trials/".length);
+                const trialName = trialSubstring + '/' + trialTail.split("/")[0]
+                if (!trialNamesTaken.has(trialName)) {
+                    trialNamesTaken.set(trialName, true);
+                    if (subjectTrialCount.has(trialSubstring)) {
+                        subjectTrialCount.set(trialSubstring, (subjectTrialCount.get(trialSubstring) ?? 0) + 1);
+                    }
+                }
+            }
+        });
+
+        const datasetMap: Map<string, Dataset> = new Map();
+
+        // Break down the subjects into datasets, in O(n)
+        subjectTrialCount.forEach((trialCount: number, subjectTrialPath: string) => {
+            const subjectPath = subjectTrialPath.substring(0, subjectTrialPath.length - "/trials".length);
+            const parts = subjectPath.split("/");
+            // assert(parts[0] === "protected");
+            const regionAndUserId = parts[1];
+            // assert(parts[2] === "data");
+            const userId = regionAndUserId.split(":")[1];
+            const subjectName = parts[parts.length - 1];
+
+            const physicsBinName = subjectPath + '/' + subjectName + '.bin';
+            const hasPhysics = this.s3Index.files.has(physicsBinName);
+
+            let path = '';
+            for (let i = 2; i < parts.length - 1; i++) {
+                if (i == 2) {
+                }
+                else {
+                    path += parts[i] + '/';
+                }
+                const key = 'protected/' + regionAndUserId + '/data/' + path;
+
+                let dataset = datasetMap.get(key);
+                if (dataset == null) {
+                    dataset = {
+                        key: key,
+                        href: '/data/' + userId + '/' + path,
+                        userId,
+                        numSubjects: 0,
+                        numTrials: 0,
+                        isPublished: false,
+                        hasDynamics: hasPhysics,
+                        isHomeFolder: i == 2
+                    };
+                    datasetMap.set(key, dataset);
+                }
+                dataset.numSubjects ++;
+                dataset.numTrials += trialCount;
+                if (hasPhysics) {
+                    dataset.hasDynamics = true;
+                }
+                datasetMap.set(key, dataset);
+            }
+        });
+
+        // Go through and find empty datasets
+        this.s3Index.files.forEach((rawFile, key) => {
+            if (key.startsWith("private")) {
+                return;
+            }
+            if (key.indexOf("_SEARCH") !== -1) {
+                const filteredKey = key.replaceAll("_SEARCH", "");
+                console.log(filteredKey);
+
+                const parts = filteredKey.split("/");
+                // assert(parts[0] === "protected");
+                const regionAndUserId = parts[1];
+                // assert(parts[2] === "data");
+                const userId = regionAndUserId.split(":")[1];
+                const path = parts.slice(3).join("/");
+                const isHomeFolder = path === '';
+
+                if (!datasetMap.has(filteredKey)) {
+                    const dataset: Dataset = {
+                        key: key,
+                        href: '/data/' + userId + '/' + path + '/',
+                        userId,
+                        isHomeFolder,
+                        numSubjects: 0,
+                        numTrials: 0,
+                        isPublished: true,
+                        hasDynamics: false
+                    };
+                    datasetMap.set(filteredKey, dataset);
+                }
+            }
+        });
+
+        let datasets: Dataset[] = [];
+        // Look for published datasets, in O(n)
+        datasetMap.forEach((dataset, path) => {
+            if (this.s3Index.files.has(dataset.key + '_SEARCH')) {
+                dataset.isPublished = true;
+            }
+            datasets.push(dataset);
+        });
+
+        datasets.sort((a, b) => {
+            if (b.isHomeFolder && !a.isHomeFolder) {
+                return -1;
+            }
+            if (!b.isHomeFolder && a.isHomeFolder) {
+                return 1;
+            }
+            return b.numTrials - a.numTrials;
+        })
+
+        this.datasets = datasets;
+    };
+
+    datasetsByUserId = (userId: string, includeUnpublished: boolean = false) => {
+        return this.datasets.filter(dataset => {
+            if (!dataset.isPublished && !includeUnpublished) return false;
+            return dataset.userId === userId;
+        });
+    }
+
+    searchDatasets = (query: string, dynamicsOnly: boolean, includeUnpublished: boolean = false) => {
+        return this.datasets.filter(dataset => {
+            if (!dataset.isPublished && !includeUnpublished) return false;
+            if (!dataset.hasDynamics && dynamicsOnly) return false;
+            if (query.length > 0) {
+                if (dataset.key.toLowerCase().indexOf(query.toLowerCase()) !== -1) {
+                    return true;
+                }
+
+                // TODO: we'll want to add a better variant of this for searching over home folders, 
+                // once we have a more efficient way to get user's full names without downloading 
+                // everyone's profile.json. Don't forget to update the text on the SearchView tooltip 
+                // for title keyword search once this is supported!
+
+                // if ("home folder".indexOf(query.toLowerCase()) !== -1 && dataset.isHomeFolder) {
+                //     return true;
+                // }
+
+                return false;
+            }
+            return true;
+        });
+    };
+}
+
 class MocapS3Cursor {
     dataPrefix: string;
     rawCursor: ReactiveCursor;
     s3Index: ReactiveIndex;
-    searchIndex: ReactiveSearchList;
+    datasetIndex: MocapDatasetIndex;
 
     region: string;
     authenticated: boolean;
@@ -109,7 +312,7 @@ class MocapS3Cursor {
         this.region = 'us-west-2';
         this.rawCursor = new ReactiveCursor(s3Index, 'protected/'+this.region+":"+s3Index.myIdentityId);
         this.s3Index = s3Index;
-        this.searchIndex = new ReactiveSearchList(s3Index, '_SEARCH');
+        this.datasetIndex = new MocapDatasetIndex(s3Index);
 
         this.cachedLogFile = null;
         this.cachedResultsFile = null;
@@ -197,7 +400,7 @@ class MocapS3Cursor {
             return name;
         }
         else {
-            return "";
+            return "(No Profile - " + userId.substring(0, 6)+")";
         }
     }
 
@@ -938,5 +1141,5 @@ class MocapS3Cursor {
     };
 }
 
-export { LargeZipBinaryObject };
+export { LargeZipBinaryObject, MocapDatasetIndex, type Dataset };
 export default MocapS3Cursor;

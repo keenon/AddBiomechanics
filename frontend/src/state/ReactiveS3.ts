@@ -824,38 +824,6 @@ class ReactiveCursor {
     };
 }
 
-class ReactiveSearchList {
-    index: ReactiveIndex;
-    query: string;
-    results: Map<string, ReactiveFileMetadata>;
-
-    constructor(index: ReactiveIndex, query: string) {
-        this.index = index;
-        this.query = query;
-        this.results = this.index.searchPathsContaining(query);
-
-        makeObservable(this, {
-            results: observable,
-        });
-    }
-
-    startListening = () => {
-        console.log("Start listening to search updates");
-        this.index.addSearchListener(this.query, this.searchListener);
-        this.results = this.index.searchPathsContaining(this.query);
-    }
-
-    stopListening = () => {
-        console.log("Stop listening to search updates");
-        this.index.removeSearchListener(this.query, this.searchListener);
-    }
-
-    searchListener = action((results: Map<string, ReactiveFileMetadata>) => {
-        console.log("Got search update");
-        this.results = results;
-    });
-}
-
 /// This holds the low-level copy of the S3 output, without nulls
 type ReactiveFileMetadata = {
     key: string;
@@ -883,12 +851,14 @@ class ReactiveIndex {
     listenersEnabled: boolean = true;
     childrenListeners: Map<string, Array<(children: Map<string, ReactiveFileMetadata>) => void>> = new Map();
     childrenLastNotified: Map<string, Map<string, ReactiveFileMetadata>> = new Map();
-    searchListeners: Map<string, Array<(results: Map<string, ReactiveFileMetadata>) => void>> = new Map();
-    searchLastNotified: Map<string, Map<string, ReactiveFileMetadata>> = new Map();
 
     // We initialize as "loading", because we haven't loaded the relevant file index yet
     loading: boolean = true;
     loadingListeners: Array<(loading: boolean) => void> = [];
+
+    // These are listeners that fire whenever anything in the index changes. These are cheaper to use than childrenListeners on "/", but 
+    // are functionally basically the same thing.
+    changeListeners: Array<() => void> = [];
 
     // This holds network error messages, one per key. Individual keys identify different errors that may have independent lifetimes.
     // For example, an upload request may fail, and then retry and eventually resolve, with the key "UPLOAD", while a websocket glitch
@@ -1211,6 +1181,9 @@ class ReactiveIndex {
      */
     _updateListeners = () => {
         if (!this.listenersEnabled) return;
+        this.changeListeners.forEach((listener) => {
+            listener();
+        });
         this.childrenListeners.forEach((listeners, key: string) => {
             let children = this.getChildren(key);
 
@@ -1221,21 +1194,6 @@ class ReactiveIndex {
             }
 
             this.childrenLastNotified.set(key, children);
-        });
-        this.searchListeners.forEach((listeners, query: string) => {
-            let results = this.searchPathsContaining(query);
-
-            if (JSON.stringify([...(this.searchLastNotified.get(query) ?? new Map())].sort()) !== JSON.stringify([...results].sort())) {
-                console.log("Search changed for "+query, results);
-                for (let listener of listeners) {
-                    listener(results);
-                }
-            }
-            else {
-                console.log("Search did not change for "+query, results);
-            }
-
-            this.searchLastNotified.set(query, results);
         });
     };
 
@@ -1615,30 +1573,6 @@ class ReactiveIndex {
     /**
      * Fires whenever the set of children of a given path changes (either added or deleted)
      * 
-     * @param query The string to check for paths containing
-     */
-    addSearchListener = (query: string, onChange: (children: Map<string, ReactiveFileMetadata>) => void) => {
-        if (!this.searchListeners.has(query)) {
-            this.searchListeners.set(query, []);
-        }
-        this.searchListeners.get(query)?.push(onChange);
-    };
-
-    /**
-     * Fires whenever the set of children of a given path changes (either added or deleted)
-     * 
-     * @param query The string to check for paths containing
-     */
-    removeSearchListener = (query: string, onChange: (children: Map<string, ReactiveFileMetadata>) => void) => {
-        const index: number = this.searchListeners.get(query)?.indexOf(onChange) ?? -1;
-        if (index !== -1) {
-            this.searchListeners.get(query)?.splice(index, 1);
-        }
-    };
-
-    /**
-     * Fires whenever the set of children of a given path changes (either added or deleted)
-     * 
      * @param path The folder path to listen for
      */
     addChildrenListener = (path: string, onChange: (children: Map<string, ReactiveFileMetadata>) => void) => {
@@ -1646,6 +1580,13 @@ class ReactiveIndex {
             this.childrenListeners.set(path, []);
         }
         this.childrenListeners.get(path)?.push(onChange);
+    };
+
+    /**
+     * Fires whenever any file changes (either added or deleted)
+     */
+    addChangeListener = (onChange: () => void) => {
+        this.changeListeners.push(onChange);
     };
 
     /**
@@ -1689,4 +1630,4 @@ class ReactiveIndex {
     }
 }
 
-export { ReactiveIndex, ReactiveCursor, ReactiveSearchList, ReactiveJsonFile, ReactiveTextFile };
+export { ReactiveIndex, ReactiveCursor, ReactiveJsonFile, ReactiveTextFile };
