@@ -32,7 +32,7 @@ const ProfileDropdown = () => {
       <>
         <Dropdown className="d-none d-lg-block">
           <Dropdown.Toggle className="btn btn-light bg-transparent border-transparent rounded-circle dropdown m-0 p-0 mt-1">
-            <img src="https://addbiomechanics.org/img/logo.svg" className="rounded-circle image-menu" height="60"></img>
+            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg" className="rounded-circle image-menu" height="60"></img>
           </Dropdown.Toggle>
 
           <Dropdown.Menu>

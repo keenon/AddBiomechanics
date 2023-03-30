@@ -181,7 +181,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                               <div className="col-lg-4">
                                 <div className="card mb-4">
                                   <div className="card-body text-center">
-                                    <img src="https://addbiomechanics.org/img/logo.svg" alt="avatar" className="rounded-circle img-fluid w-25"></img>
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg" alt="avatar" className="rounded-circle img-fluid w-25"></img>
                                     {
                                       /* By default show name and surname. If name is not available, show only surname.
                                       If none is available, show user id. */

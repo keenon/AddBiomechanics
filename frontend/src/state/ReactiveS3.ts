@@ -250,27 +250,51 @@ class ReactiveJsonFile {
         });
         let json = JSON.stringify(object);
         console.log("Uploading object");
-        return this.cursor.uploadChild(this.path, json).then(action(() => {
-            console.log("Uploaded successfully");
-            // Update the lastUploadedValues, which we'll reset to if we 
-            this.lastUploadedValues.clear();
-            this.values.forEach((v, k) => {
-                this.lastUploadedValues.set(k, v);
-            });
-            // Call all the change listeners
-            this.changeListeners.forEach((listener) => listener());
-        })).catch(action((e) => {
-            console.error("Caught error uploading JSON, reverting to last uploaded values", e);
+        if (this.isPathGlobal) {
+            return this.cursor.uploadGlobal(this.path, json).then(action(() => {
+                console.log("Uploaded successfully");
+                // Update the lastUploadedValues, which we'll reset to if we 
+                this.lastUploadedValues.clear();
+                this.values.forEach((v, k) => {
+                    this.lastUploadedValues.set(k, v);
+                });
+                // Call all the change listeners
+                this.changeListeners.forEach((listener) => listener());
+            })).catch(action((e) => {
+                console.error("Caught error uploading JSON, reverting to last uploaded values", e);
 
-            this.values.clear();
-            this.lastUploadedValues.forEach((v, k) => {
-                this.values.set(k, v);
-            });
-            // Call all the change listeners
-            this.changeListeners.forEach((listener) => listener());
+                this.values.clear();
+                this.lastUploadedValues.forEach((v, k) => {
+                    this.values.set(k, v);
+                });
+                // Call all the change listeners
+                this.changeListeners.forEach((listener) => listener());
 
-            throw e;
-        }));
+                throw e;
+            }));
+        } else {
+            return this.cursor.uploadChild(this.path, json).then(action(() => {
+                console.log("Uploaded successfully");
+                // Update the lastUploadedValues, which we'll reset to if we 
+                this.lastUploadedValues.clear();
+                this.values.forEach((v, k) => {
+                    this.lastUploadedValues.set(k, v);
+                });
+                // Call all the change listeners
+                this.changeListeners.forEach((listener) => listener());
+            })).catch(action((e) => {
+                console.error("Caught error uploading JSON, reverting to last uploaded values", e);
+
+                this.values.clear();
+                this.lastUploadedValues.forEach((v, k) => {
+                    this.values.set(k, v);
+                });
+                // Call all the change listeners
+                this.changeListeners.forEach((listener) => listener());
+
+                throw e;
+            }));
+        }
     };
 
     /**
@@ -734,6 +758,13 @@ class ReactiveCursor {
         return this.index.upload(myPath + childPath, contents, progressCallback);
     };
 
+    /**
+     * Tries to upload a file using a global path
+     * @returns a promise for successful upload
+     */
+    uploadGlobal = (globalPath: string, contents: File | string, progressCallback: (percentage: number) => void = () => { }) => {
+        return this.index.upload(globalPath, contents, progressCallback);
+    };
     /**
      * This actually downloads a file from S3, if the browser allows it
      */
