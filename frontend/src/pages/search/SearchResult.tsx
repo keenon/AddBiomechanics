@@ -50,13 +50,13 @@ const SearchResult = observer((props: SearchResultProps) => {
     let linkUser = '/profile/' + userId;
     let tags = [];
     if (props.dataset.hasDynamics) {
-        tags.push(<><span className="badge bg-success mr-1" key="dynamics">Dynamics</span> </>);
+        tags.push(<><span className="badge bg-success" key="dynamics">Dynamics</span> </>);
     }
     if (props.dataset.isPublished) {
-        tags.push(<><span className="badge bg-success mr-1" key="published">Published</span> </>);
+        tags.push(<><span className="badge bg-success" key="published">Published</span> </>);
     }
     else {
-        tags.push(<><span className="badge bg-warning mr-1" key="unpublished">Draft</span> </>);
+        tags.push(<><span className="badge bg-warning" key="unpublished">Draft</span> </>);
     }
     if (parts[parts.length - 1] === '') {
         parts.splice(parts.length - 1, 1);
