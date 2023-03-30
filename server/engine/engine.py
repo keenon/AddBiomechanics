@@ -160,6 +160,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         dynamicsRegularizePoses = 0.01
 
+    if 'ignoreFootNotOverForcePlate' in subjectJson:
+        ignoreFootNotOverForcePlate = subjectJson['ignoreFootNotOverForcePlate']
+    else:
+        ignoreFootNotOverForcePlate = False
+
     if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
         footBodyNames = ['calcn_l', 'calcn_r']
     else:
@@ -240,8 +245,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     # 7. Process the trial
     markerFitter = nimble.biomechanics.MarkerFitter(
         skeleton, markerSet)
-    markerFitter.setInitialIKSatisfactoryLoss(0.005)
-    markerFitter.setInitialIKMaxRestarts(50)
+    markerFitter.setInitialIKSatisfactoryLoss(1e-5)
+    markerFitter.setInitialIKMaxRestarts(150)
     # markerFitter.setIterationLimit(40)
     markerFitter.setIterationLimit(500)
     markerFitter.setIgnoreJointLimits(ignoreJointLimits)
@@ -275,7 +280,49 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     markerTrials = []
     trialProcessingResults: List[Dict[str, Any]] = []
 
+    # Get the static trial, if it exists.
+    trialsNoStatic = list()
     for trialName in os.listdir(trialsFolderPath):
+        if trialName == 'static':
+            staticMarkers = dict()
+            c3dFilePath = os.path.join(trialsFolderPath, 'static', 'markers.c3d')
+            trcFilePath = os.path.join(trialsFolderPath, 'static', 'markers.trc')
+            if os.path.exists(c3dFilePath):
+                c3dFile: nimble.biomechanics.C3D = nimble.biomechanics.C3DLoader.loadC3D(
+                    c3dFilePath)
+                nimble.biomechanics.C3DLoader.fixupMarkerFlips(c3dFile)
+                markerFitter.autorotateC3D(c3dFile)
+                staticMarkers.update(c3dFile.markerTimesteps[0])
+
+            elif os.path.exists(trcFilePath):
+                trcFile: nimble.biomechanics.OpenSimTRC = nimble.biomechanics.OpenSimParser.loadTRC(
+                    trcFilePath)
+                staticMarkers.update(trcFile.markerTimesteps[0])
+
+            # Remove upper arm markers
+            # TODO include other upper body names
+            upperArmBodies = ['humerus', 'radius', 'ulna', 'hand']
+            markersToRemove = list()
+            for marker in staticMarkers.keys():
+                if marker in markerSet:
+                    bodyName = markerSet[marker][0].getName()
+                    for upperArmBody in upperArmBodies:
+                        if upperArmBody in bodyName:
+                            markersToRemove.append(marker)
+
+            print('Removing upper arm markers from the static pose...')
+            for marker in markersToRemove:
+                print(f'  --> {marker}')
+                staticMarkers.pop(marker)
+
+            zeroPose = np.zeros(skeleton.getNumDofs())
+            markerFitter.setStaticTrial(staticMarkers, zeroPose)
+            markerFitter.setStaticTrialWeight(50.0)
+        else:
+            trialsNoStatic.append(trialName)
+
+    # Process the non-"static" trials in the subject folder
+    for trialName in trialsNoStatic:
         trialNames.append(trialName)
         trialPath = trialsFolderPath + trialName + '/'
         trialProcessingResult: Dict[str, Any] = {}
@@ -303,6 +350,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialFramesPerSecond.append(trcFile.framesPerSecond)
             trialMarkerSet[trialName] = list(trcFile.markerLines.keys())
             grfFilePath = trialPath + 'grf.mot'
+            ignoreFootNotOverForcePlate = True # .mot files do not contain force plate geometry
             if os.path.exists(grfFilePath):
                 forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
                     grfFilePath, trcFile.framesPerSecond)
@@ -461,7 +509,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 trialForcePlates,
                 trialFramesPerSecond,
                 markerTrials)
-            dynamicsFitter.estimateFootGroundContacts(dynamicsInit)
+            dynamicsFitter.estimateFootGroundContacts(dynamicsInit,
+                                                      ignoreFootNotOverForcePlate=ignoreFootNotOverForcePlate)
 
             print("Initial mass: " +
                   str(finalSkeleton.getMass()) + " kg", flush=True)

@@ -16,30 +16,31 @@ import './FileControlsWrapper.scss';
 import { useState, useEffect } from "react";
 import { observer } from "mobx-react-lite";
 import { parsePath } from './pathHelper';
-import { showToast, copyProfileUrlToClipboard} from "../../utils";
+import { showToast, copyProfileUrlToClipboard, getIdFromURL } from "../../utils";
 
 type FileManagerProps = {
   cursor: MocapS3Cursor;
 };
 
 type ProfileJSON = {
-  name:string;
-  surname:string;
-  contact:string;
-  affiliation:string;
-  personalWebsite:string;
-  lab:string;
+  name: string;
+  surname: string;
+  contact: string;
+  affiliation: string;
+  personalWebsite: string;
+  lab: string;
 }
 
 // FileManager
 const FileManager = observer((props: FileManagerProps) => {
-  const [name, setName] = useState("");
-  const [surname, setSurname] = useState("");
-
   const navigate = useNavigate();
   const location = useLocation();
 
   const path = parsePath(location.pathname, props.cursor.s3Index.myIdentityId);
+
+  const urlId = getIdFromURL(location.pathname);
+
+  const fullName = props.cursor.getOtherProfileFullName(urlId);
 
   const type = props.cursor.getFileType();
 
@@ -257,49 +258,36 @@ const FileManager = observer((props: FileManagerProps) => {
         </>
       );
     }
+    let navLinks = null;
+    if (path.type === 'mine' || path.type === 'private') {
+      navLinks = (
+        <div className="email-menu-list mt-3">
+          <Link to={"/data/" + encodeURIComponent(props.cursor.s3Index.myIdentityId)} className={path.type === 'mine' ? "fw-bold" : ""}>
+            <i className="mdi mdi-folder-outline font-18 align-middle me-2"></i>
+            My Data
+          </Link>
+          <Link to="/data/private" className={path.type === 'private' ? "fw-bold" : ""}>
+            <i className="mdi mdi-lock-outline font-18 align-middle me-2"></i>
+            Private Workspace
+          </Link>
+        </div>
+      );
+    }
+    // Get user id from url.
+    let url_id = location.pathname.split('/')[2];
     body = (
       <>
         <div className="page-aside-left">
-          {(() => {
-            // Get user id from url.
-            let url_id = location.pathname.split('/')[2];
+          <Link to={"/profile/" + url_id}>
+            <h3 className="my-3">
+              {fullName != "" ? fullName : "User ID: " + url_id}
+              <i className="mdi mdi-share me-1 vertical-middle"></i>
+            </h3>
+          </Link>
 
-            // Extract name and surname.
-            props.cursor.s3Index.downloadText("protected/" + props.cursor.s3Index.region + ":" + url_id + "/profile.json").then(function(text: string) {
-              const profileObject:ProfileJSON = JSON.parse(text);
-              setName(profileObject.name);
-              setSurname(profileObject.surname);
-  
-            });
-            
-            // Print name, surname accordingly to its disponibility. If not available, print user id.
-            return (
-              <>
-              <a href="javascript:void(0)" role="button" onClick={() => {copyProfileUrlToClipboard(url_id)}}>
-                <h3 className="my-3">
-                  {name != "" ? name : ""}
-                  {name != "" && surname != "" ? " " : ""}
-                  {surname != "" ? surname : ""}
-                  {name == "" && surname == "" ? "User ID: " + url_id : ""}
-                  <i className="mdi mdi-share me-1 vertical-middle"></i>
-                </h3>
-              </a>
-            </>
-            )
-          })()}
-          
           {dropdown}
           {/* Left side nav links */}
-          <div className="email-menu-list mt-3">
-            <Link to={"/data/" + encodeURIComponent(props.cursor.s3Index.myIdentityId)}>
-              <i className="mdi mdi-folder-outline font-18 align-middle me-2"></i>
-              My Data
-            </Link>
-            <Link to="/data/private">
-              <i className="mdi mdi-lock-outline font-18 align-middle me-2"></i>
-              Private Workspace
-            </Link>
-          </div>
+          {navLinks}
           <div className="mt-3">
             {securityNotice}
           </div>
@@ -311,7 +299,7 @@ const FileManager = observer((props: FileManagerProps) => {
                     <fieldset>
                       {(() => {
                         if (props.cursor.searchJson.getAttribute("notes", "") != "") {
-                          return(
+                          return (
                             <>
                               <br></br>
                               <br></br>
@@ -359,27 +347,27 @@ const FileManager = observer((props: FileManagerProps) => {
                           )
                         }
                         if (props.cursor.searchJson.getAttribute("funding", "") != "") {
-                          return(
-                          <>
-                            <br></br>
-                            <br></br>
-                            <label>
-                              <i className="mdi mdi-account me-1 vertical-middle"></i>
-                              Funding:
-                              <OverlayTrigger
-                                placement="right"
-                                delay={{ show: 50, hide: 400 }}
-                                overlay={(props) => (
-                                  <Tooltip id="button-tooltip" {...props}>
-                                    Insert information about funding supporting this project.
-                                  </Tooltip>
-                                )}>
-                                <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                              </OverlayTrigger>
-                            </label>
-                            <br></br>
-                            <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("funding", "")}</div>
-                          </>
+                          return (
+                            <>
+                              <br></br>
+                              <br></br>
+                              <label>
+                                <i className="mdi mdi-account me-1 vertical-middle"></i>
+                                Funding:
+                                <OverlayTrigger
+                                  placement="right"
+                                  delay={{ show: 50, hide: 400 }}
+                                  overlay={(props) => (
+                                    <Tooltip id="button-tooltip" {...props}>
+                                      Insert information about funding supporting this project.
+                                    </Tooltip>
+                                  )}>
+                                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                                </OverlayTrigger>
+                              </label>
+                              <br></br>
+                              <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("funding", "")}</div>
+                            </>
                           )
                         }
                       })()}

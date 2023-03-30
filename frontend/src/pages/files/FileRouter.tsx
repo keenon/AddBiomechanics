@@ -86,7 +86,7 @@ const FileRouter = observer((props: FileRouterProps) => {
     }
   }
   else if (path.type === 'private') {
-    linkPath += "private/";
+    linkPath += "private";
     breadcrumbs.push(
       <BreadcrumbItem
         href={"/data/private"}
