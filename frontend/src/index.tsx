@@ -25,6 +25,7 @@ import awsExports from "./aws-exports";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import RequireAuth from "./pages/auth/RequireAuth";
 import RobustMqtt from "./state/RobustMqtt";
+import { showToast } from "./utils";
 
 // Verify TS is configured correctly
 if (
@@ -74,6 +75,10 @@ function afterLogin(email: string) {
         }
 
         cursor.subscribeToCloudProcessingServerPongs();
+
+        // Check if profile.json file is empty.
+        if([...cursor.myProfileJson.values.values()].every(value => value === ''))
+          showToast("We have noticed you have not created a profile yet. Please go to your profile at top right and create it!.", "info");
       })
       .catch((error) => {
         console.log("Got error with PostAuthAPI!");

@@ -111,7 +111,7 @@ const FileManager = observer((props: FileManagerProps) => {
                     </label>
                     <textarea className="mb-2" style={{ width: '100%' }} placeholder="Public notes (how to cite, etc). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!" value={props.cursor.searchJson.getAttribute("notes", "")} onChange={(e) => {
                       props.cursor.searchJson.setAttribute("notes", e.target.value);
-                    }} />
+                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("notes")} onBlur={() => props.cursor.searchJson.onBlurAttribute("notes")} />
                     <label className="mb-1">
                       Citation:
                       <OverlayTrigger
@@ -127,7 +127,7 @@ const FileManager = observer((props: FileManagerProps) => {
                     </label>
                     <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert how do you want to be cited. (e.g., you can insert a citation in any style, like APA or IEEE." value={props.cursor.searchJson.getAttribute("citation", "")} onChange={(e) => {
                       props.cursor.searchJson.setAttribute("citation", e.target.value);
-                    }} />
+                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("citation")} onBlur={() => props.cursor.searchJson.onBlurAttribute("citation")} />
                     <label className="mb-1">
                       Funding:
                       <OverlayTrigger
@@ -143,7 +143,7 @@ const FileManager = observer((props: FileManagerProps) => {
                     </label>
                     <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert information about funding supporting this project." value={props.cursor.searchJson.getAttribute("funding", "")} onChange={(e) => {
                       props.cursor.searchJson.setAttribute("funding", e.target.value);
-                    }} />
+                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("funding")} onBlur={() => props.cursor.searchJson.onBlurAttribute("funding")} />
                   </fieldset>
                 </div>
                 <button type="submit" className="btn btn-light mt-2" onClick={() => props.cursor.markNotSearchable()}>
@@ -190,7 +190,7 @@ const FileManager = observer((props: FileManagerProps) => {
                     </label>
                     <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert public notes about the dataset." value={props.cursor.searchJson.getAttribute("notes", "")} onChange={(e) => {
                       props.cursor.searchJson.setAttribute("notes", e.target.value);
-                    }} />
+                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("notes")} onBlur={() => props.cursor.searchJson.onBlurAttribute("notes")} />
                     <label className="mb-1">
                       Citation:
                       <OverlayTrigger
@@ -206,7 +206,7 @@ const FileManager = observer((props: FileManagerProps) => {
                     </label>
                     <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert how do you want to be cited. (e.g., you can insert a citation in any style, like APA or IEEE." value={props.cursor.searchJson.getAttribute("citation", "")} onChange={(e) => {
                       props.cursor.searchJson.setAttribute("citation", e.target.value);
-                    }} />
+                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("citation")} onBlur={() => props.cursor.searchJson.onBlurAttribute("citation")} />
                     <label className="mb-1">
                       Funding:
                       <OverlayTrigger
@@ -222,7 +222,7 @@ const FileManager = observer((props: FileManagerProps) => {
                     </label>
                     <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert information about funding supporting this project." value={props.cursor.searchJson.getAttribute("funding", "")} onChange={(e) => {
                       props.cursor.searchJson.setAttribute("funding", e.target.value);
-                    }} />
+                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("funding")} onBlur={() => props.cursor.searchJson.onBlurAttribute("funding")} />
                   </fieldset>
                 </div>
                 <button type="submit" className="btn btn-primary mt-2" onClick={() => props.cursor.markSearchable()}>

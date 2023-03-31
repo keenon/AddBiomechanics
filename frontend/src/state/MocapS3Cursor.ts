@@ -107,7 +107,7 @@ class MocapDatasetIndex {
         });
     }
 
-    reindexDatasets = () => {
+    reindexDatasets = action(() => {
         if (this.s3Index.getIsLoading()) return;
 
         // Get a list of all the subject names, with trial counts appended, in O(n)
@@ -239,7 +239,7 @@ class MocapDatasetIndex {
         })
 
         this.datasets = datasets;
-    };
+    });
 
     datasetsByUserId = (userId: string, includeUnpublished: boolean = false) => {
         return this.datasets.filter(dataset => {

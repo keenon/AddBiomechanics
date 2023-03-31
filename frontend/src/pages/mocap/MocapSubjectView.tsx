@@ -892,7 +892,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let tuneResidualLoss = props.cursor.subjectJson.getAttribute("tuneResidualLoss", 1.0);
 
   let openSimText = props.cursor.customModelFile.getText();
-  console.log("OpenSim text: "+openSimText);
+  console.log("OpenSim text: " + openSimText);
   const availableBodyList = getOpenSimBodyList(openSimText);
   let footBodyNames = props.cursor.subjectJson.getAttribute("footBodyNames", []);
 
@@ -924,7 +924,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             </p>
             <input type="number" value={tuneResidualLoss} onChange={(e) => {
               props.cursor.subjectJson.setAttribute("tuneResidualLoss", parseFloat(e.target.value));
-            }}></input>
+            }} onFocus={() => props.cursor.subjectJson.onFocusAttribute("tuneResidualLoss")} onBlur={() => props.cursor.subjectJson.onBlurAttribute("tuneResidualLoss")}></input>
           </div>
           <div className="mb-15">
             <p>
