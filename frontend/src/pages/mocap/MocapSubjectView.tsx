@@ -979,6 +979,24 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             props.cursor.setShowValidationControls(e.target.checked);
           }} />
           </div>
+          <div className="mb-15">
+            <label>
+              Static Trial:
+            </label>
+            <OverlayTrigger
+              placement="right"
+              delay={{ show: 50, hide: 400 }}
+              overlay={(props) => (
+                <Tooltip id="button-tooltip" {...props}>
+                  This is a short trial where the model's joints are known to be in the neutral position. If you have uploaded a custom OpenSim file, this is currently assumed to be all joints set to zero.
+                  Using a static trial can be helpful for enforcing tradeoffs between joint angle changes and corresponding marker offsets that can otherwise be somewhat ambiguous, such as pelvis rotation and ankle extension.
+                </Tooltip>
+              )}
+            >
+              <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+            </OverlayTrigger>
+            <DropFile cursor={props.cursor} path={"trials/static/markers"} text="Drop a .trc or .c3d file here for your static trial" accept=".trc,.c3d" keepFileExtension={true} />
+          </div>
           <div className="">
             <div className="alert alert-warning" role="alert">
               Experimental - Attempt to Fit Dynamics:{" "}
