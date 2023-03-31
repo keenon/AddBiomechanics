@@ -303,7 +303,7 @@ class ReactiveJsonFile {
      * @param key 
      * @param value 
      */
-    setAttribute = (key: string, value: any, uploadImmediate?: boolean) => {
+    setAttribute = action((key: string, value: any, uploadImmediate?: boolean) => {
         this.values.set(key, value);
         if (uploadImmediate) {
             this.uploadNow();
@@ -311,7 +311,7 @@ class ReactiveJsonFile {
         else {
             this.restartUploadTimer();
         }
-    };
+    });
 
     /**
      * When called, this starts a timer to upload in a few hundred milliseconds.

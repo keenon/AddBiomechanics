@@ -22,6 +22,49 @@ type ProfileViewProps = {
   cursor: MocapS3Cursor;
 };
 
+type InputFieldProps = {
+  cursor: MocapS3Cursor;
+  label: string;
+  tooltip: string;
+  placeholder: string;
+  attributeName: string;
+  icon: string;
+}
+
+const InputField = observer((props: InputFieldProps) => {
+  let valueField: string = props.cursor.myProfileJson.getAttribute(props.attributeName, "");
+  return (
+    <form className="row g-3 mb-15">
+      <div className="col-md-4">
+        <label>
+          <i className={"mdi me-1 vertical-middle " + props.icon}></i>
+          {props.label}:
+          <OverlayTrigger
+            placement="right"
+            delay={{ show: 50, hide: 400 }}
+            overlay={(props) => (
+              <Tooltip id="button-tooltip" {...props}>
+                {props.tooltip}
+              </Tooltip>
+            )}>
+            <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+          </OverlayTrigger></label>
+        <br></br>
+        <input
+          type="text"
+          className="form-control"
+          placeholder={props.placeholder}
+          value={valueField}
+          onFocus={(e) => props.cursor.myProfileJson.onFocusAttribute(props.attributeName)}
+          onBlur={(e) => props.cursor.myProfileJson.onBlurAttribute(props.attributeName)}
+          onChange={(e) => props.cursor.myProfileJson.setAttribute(props.attributeName, e.target.value)}>
+        </input>
+      </div>
+    </form>
+  );
+});
+
+
 const ProfileView = observer((props: ProfileViewProps) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -71,36 +114,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
           })}
       </>
     }
-  }
-
-  function generate_input_field(valueField: any, label: string, tooltip: string, placeholder: string, attributeName: string, icon: string) {
-    return (
-      <form className="row g-3 mb-15">
-        <div className="col-md-4">
-          <label>
-            <i className={"mdi me-1 vertical-middle " + icon}></i>
-            {label}:
-            <OverlayTrigger
-              placement="right"
-              delay={{ show: 50, hide: 400 }}
-              overlay={(props) => (
-                <Tooltip id="button-tooltip" {...props}>
-                  {tooltip}
-                </Tooltip>
-              )}>
-              <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-            </OverlayTrigger></label>
-          <br></br>
-          <input
-            type="text"
-            className="form-control"
-            placeholder={placeholder}
-            value={valueField}
-            onChange={function (e) { props.cursor.myProfileJson.setAttribute(attributeName, e.target.value); }}>
-          </input>
-        </div>
-      </form>
-    );
   }
 
   function generate_info_row(valueField: any, label: string, icon: string, show: boolean = true, link: string = "") {
@@ -165,12 +178,18 @@ const ProfileView = observer((props: ProfileViewProps) => {
                           return (
                             <div className="container">
                               <div className="justify-content-md-center">
-                                {generate_input_field(name, "First Name", "Insert your first name.", "Your first name...", "name", "mdi-account")}
-                                {generate_input_field(surname, "Last Name (Surname)", "Insert your last name (surname).", "Your last name (surname)...", "surname", "mdi-account-star")}
-                                {generate_input_field(contact, "Contact", "Insert your contact e-mail.", "Your contact e-mail...", "contact", "mdi-email-box")}
-                                {generate_input_field(personalWebsite, "Personal Website", "Insert your personal website.", "Your personal website...", "personalWebsite", "mdi-at")}
-                                {generate_input_field(affiliation, "Affiliation", "Insert your affiliation.", "Your affiliation...", "affiliation", "mdi-school-outline")}
-                                {generate_input_field(lab, "Lab", "Insert your lab.", "Your lab...", "lab", "mdi-test-tube")}
+                                <InputField cursor={props.cursor} label="First Name" tooltip="Insert your first name." placeholder="Your first name..." attributeName="name" icon="mdi-account" />
+                                {/* {generate_input_field(name, "First Name", "Insert your first name.", "Your first name...", "name", "mdi-account")} */}
+                                <InputField cursor={props.cursor} label="Last Name (Surname)" tooltip="Insert your last name (surname)." placeholder="Your last name (surname)..." attributeName="surname" icon="mdi-account-star" />
+                                {/* {generate_input_field(surname, "Last Name (Surname)", "Insert your last name (surname).", "Your last name (surname)...", "surname", "mdi-account-star")} */}
+                                <InputField cursor={props.cursor} label="Contact" tooltip="Insert your contact e-mail." placeholder="Your contact e-mail..." attributeName="contact" icon="mdi-email-box" />
+                                {/* {generate_input_field(contact, "Contact", "Insert your contact e-mail.", "Your contact e-mail...", "contact", "mdi-email-box")} */}
+                                <InputField cursor={props.cursor} label="Personal Website" tooltip="Insert your personal website." placeholder="Your personal website..." attributeName="personalWebsite" icon="mdi-at" />
+                                {/* {generate_input_field(personalWebsite, "Personal Website", "Insert your personal website.", "Your personal website...", "personalWebsite", "mdi-at")} */}
+                                <InputField cursor={props.cursor} label="Affiliation" tooltip="Insert your affiliation." placeholder="Your affiliation..." attributeName="affiliation" icon="mdi-school-outline" />
+                                {/* {generate_input_field(affiliation, "Affiliation", "Insert your affiliation.", "Your affiliation...", "affiliation", "mdi-school-outline")} */}
+                                <InputField cursor={props.cursor} label="Lab" tooltip="Insert your lab." placeholder="Your lab..." attributeName="lab" icon="mdi-test-tube" />
+                                {/* {generate_input_field(lab, "Lab", "Insert your lab.", "Your lab...", "lab", "mdi-test-tube")} */}
                                 <button type="button" className="btn btn-primary" onClick={() => { setEditing(false); showToast("Profile updated.", "info"); }}>Finish</button>
                               </div>
                             </div>
