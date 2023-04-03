@@ -539,8 +539,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     goodFramesCount += sum(
                         [0 if missing else 1 for missing in trialMissingGRF])
                     totalFramesCount += len(trialMissingGRF)
-                print('Detected missing/bad GRF data on '+str(totalFramesCount -
-                      goodFramesCount)+'/'+str(totalFramesCount)+' frames', flush=True)
+                badFramesCount = totalFramesCount - goodFramesCount
+                print('Detected missing/bad GRF data on '+str(badFramesCount)+'/'+str(totalFramesCount)+' frames', flush=True)
                 if goodFramesCount == 0:
                     print('ERROR: we have no good frames of GRF data left after filtering out suspicious GRF frames. This '
                           'probably means input GRF data is badly miscalibrated with respect to marker data (maybe they '
