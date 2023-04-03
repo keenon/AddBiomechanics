@@ -261,18 +261,32 @@ class SubjectToProcess:
                         elapsedSeconds = now - lastFlushed
 
                         # Only flush in bulk, and only every 3 seconds
-                        if elapsedSeconds > 3.0:
-                            # Send to PubSub
-                            logLine: Dict[str, str] = {}
-                            logLine['lines'] = unflushedLines
-                            logLine['timestamp'] = now * 1000
-                            try:
-                                self.index.pubSub.sendMessage(
-                                    '/LOG/'+procLogTopic, logLine)
-                            except e:
-                                print('Failed to send live log message: '+str(e), flush=True)
-                            lastFlushed = now
-                            unflushedLines = []
+                        if elapsedSeconds > 3.0 and len(unflushedLines) > 0:
+                            # Send to PubSub, in packets of at most 20 lines at a time
+                            if len(unflushedLines) > 20:
+                                toSend = unflushedLines[:20]
+                                logLine: Dict[str, str] = {}
+                                logLine['lines'] = toSend
+                                logLine['timestamp'] = now * 1000
+                                try:
+                                    self.index.pubSub.sendMessage(
+                                        '/LOG/'+procLogTopic, logLine)
+                                except e:
+                                    print('Failed to send live log message: '+str(e), flush=True)
+                                unflushedLines = unflushedLines[20:]
+                                # Explicitly do NOT reset lastFlushed on this branch, because we want to immediately send the next batch of lines, until we've exhausted the queue.
+                            else:
+                                logLine: Dict[str, str] = {}
+                                logLine['lines'] = unflushedLines
+                                logLine['timestamp'] = now * 1000
+                                try:
+                                    self.index.pubSub.sendMessage(
+                                        '/LOG/'+procLogTopic, logLine)
+                                except e:
+                                    print('Failed to send live log message: '+str(e), flush=True)
+                                unflushedLines = []
+                                # Reset lastFlushed, because we've sent everything, and we want to wait 3 seconds before sending again.
+                                lastFlushed = now
                     # Wait for the process to exit
                     exitCode = 'Failed to exit after 60 seconds'
                     for i in range(20):
