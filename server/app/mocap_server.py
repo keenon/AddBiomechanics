@@ -266,8 +266,11 @@ class SubjectToProcess:
                             logLine: Dict[str, str] = {}
                             logLine['lines'] = unflushedLines
                             logLine['timestamp'] = now * 1000
-                            self.index.pubSub.sendMessage(
-                                '/LOG/'+procLogTopic, logLine)
+                            try:
+                                self.index.pubSub.sendMessage(
+                                    '/LOG/'+procLogTopic, logLine)
+                            except e:
+                                print('Failed to send live log message: '+str(e), flush=True)
                             lastFlushed = now
                             unflushedLines = []
                     # Wait for the process to exit
@@ -284,8 +287,11 @@ class SubjectToProcess:
                             logLine: Dict[str, str] = {}
                             logLine['line'] = line
                             logLine['timestamp'] = time.time() * 1000
-                            self.index.pubSub.sendMessage(
-                                '/LOG/'+procLogTopic, logLine)
+                            try:
+                                self.index.pubSub.sendMessage(
+                                    '/LOG/'+procLogTopic, logLine)
+                            except e:
+                                print('Failed to send live log message: '+str(e), flush=True)
                     line = 'exit: '+str(exitCode)
                     # Send to the log
                     logFile.write(line.encode("utf-8"))
@@ -293,8 +299,11 @@ class SubjectToProcess:
                     logLine: Dict[str, str] = {}
                     logLine['line'] = line
                     logLine['timestamp'] = time.time() * 1000
-                    self.index.pubSub.sendMessage(
-                        '/LOG/'+procLogTopic, logLine)
+                    try:
+                        self.index.pubSub.sendMessage(
+                            '/LOG/'+procLogTopic, logLine)
+                    except e:
+                        print('Failed to send live log message: '+str(e), flush=True)
                     print('Process return code: '+str(exitCode), flush=True)
 
             # 5. Upload the results back to S3
@@ -538,8 +547,11 @@ class MocapServer:
 
     def sendPong(self):
         print('Sending liveness pong as '+self.serverId)
-        self.index.pubSub.sendMessage(
-            '/PONG/'+self.serverId, {})
+        try:
+            self.index.pubSub.sendMessage(
+                '/PONG/'+self.serverId, {})
+        except e:
+            print('Failed to send liveness pong: '+str(e))
 
     def onPongReceived(self, topic: str, payload: bytes):
         """
@@ -590,7 +602,10 @@ class MocapServer:
                     pass
                 else:
                     # Send a ping, which will get an asynchronous response which will eventually update self.lastSeenPong[k]
-                    self.index.pubSub.sendMessage('/PING/'+k, {})
+                    try:
+                        self.index.pubSub.sendMessage('/PING/'+k, {})
+                    except e:
+                        print('Failed to send ping to '+k+': '+str(e), flush=True)
 
             # Check for death
             for k in statusFiles:
