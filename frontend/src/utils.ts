@@ -1,4 +1,4 @@
-import {toast } from 'react-toastify';
+import {toast, ToastPosition } from 'react-toastify';
 
 /**
  * THIS FUNCTION CREDIT TO https://stackoverflow.com/questions/10420352/converting-file-size-in-bytes-to-human-readable-string/10420404
@@ -39,27 +39,37 @@ function humanFileSize(bytes: number, si: boolean = true, dp: number = 1) {
     return bytes.toFixed(dp) + ' ' + units[u];
 }
 
-function showToast(message:string, type:string, position=toast.POSITION.BOTTOM_CENTER) {
+function showToast(message:string | any, type:string, position:ToastPosition=toast.POSITION.BOTTOM_CENTER, autoCloseTime:number=5000) {
 
     if(type === "success") {
         toast.success(message, {
-            position: position
+            position: position,
+            autoClose: autoCloseTime,
+            closeOnClick: false
         });
-    } else if (type == "error") {
+    } else if (type === "error") {
         toast.error(message, {
-            position: position
+            position: position,
+            autoClose: autoCloseTime,
+            closeOnClick: false
         });
-    } else if (type == "info") {
+    } else if (type === "info") {
         toast.info(message, {
-            position: position
+            position: position,
+            autoClose: autoCloseTime,
+            closeOnClick: false
         });
-    } else if (type == "warning") {
+    } else if (type === "warning") {
         toast.warning(message, {
-            position: position
+            position: position,
+            autoClose: autoCloseTime,
+            closeOnClick: false
         });
     } else {
         toast(message, {
-            position: position
+            position: position,
+            autoClose: autoCloseTime,
+            closeOnClick: false
         });
     }
 }
