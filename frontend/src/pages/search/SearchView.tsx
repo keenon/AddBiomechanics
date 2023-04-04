@@ -138,9 +138,10 @@ const SearchView = observer((props: SearchViewProps) => {
                           <input
                             type="text"
                             className="form-control"
-                            placeholder="Placeholder"
+                            placeholder="Your keywords..."
                             value={searchText}
-                            onChange={function (e) { setSearchText(e.target.value) }}>
+                            onChange={function (e) { setSearchText(e.target.value) }}
+                            onKeyPress={(e) => {e.key === 'Enter' && e.preventDefault();}}>
                           </input>
                         </div>
                       </form>
