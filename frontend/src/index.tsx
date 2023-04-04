@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom";
 import "./index.scss";
 import "bootstrap";
+import { Link } from "react-router-dom";
 import { Row, Col, Card } from "react-bootstrap";
 import Login from "./pages/auth/Login";
 import Logout from "./pages/auth/Logout";
@@ -25,6 +26,7 @@ import awsExports from "./aws-exports";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import RequireAuth from "./pages/auth/RequireAuth";
 import RobustMqtt from "./state/RobustMqtt";
+import {toast } from 'react-toastify';
 import { showToast } from "./utils";
 
 // Verify TS is configured correctly
@@ -77,8 +79,15 @@ function afterLogin(email: string) {
         cursor.subscribeToCloudProcessingServerPongs();
 
         // Check if profile.json file is empty.
-        if([...cursor.myProfileJson.values.values()].every(value => value === ''))
-          showToast("We have noticed you have not created a profile yet. Please go to your profile at top right and create it!.", "info");
+        if([...cursor.myProfileJson.values.values()].every(value => value === '')) {
+
+          const CustomToastWithLink = () => (
+            <div>
+              We noticed you have not created a profile. Please click <Link to="/profile">here</Link> to create one!.
+            </div>
+          );
+          showToast(CustomToastWithLink, "info", toast.POSITION.BOTTOM_CENTER, 10000);
+        }
       })
       .catch((error) => {
         console.log("Got error with PostAuthAPI!");
