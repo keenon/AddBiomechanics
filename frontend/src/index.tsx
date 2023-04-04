@@ -78,8 +78,12 @@ function afterLogin(email: string) {
 
         cursor.subscribeToCloudProcessingServerPongs();
 
-        // Check if profile.json file is empty.
-        if([...cursor.myProfileJson.values.values()].every(value => value === '')) {
+        // Check if profile.json file is empty. This will show a toast asking users to create a profile after logging in.
+        // - If the file profile.json file does not exist, the toast is not shown. This is the case of a user logging in for the first time.
+        //   This way, we let users explore the tool the first time they log in, and we only ask them to create the profile the following times.
+        // - If the file profile.json file exists, the toast is shown only if there are no values on the file. This is true for users that have
+        //   never created a profile page, and for users that have removed their information from their profile page. 
+        if(cursor.myProfileJson && cursor.myProfileJson.values && [...cursor.myProfileJson.values.values()].every(value => value === '')) {
 
           const CustomToastWithLink = () => (
             <div>
