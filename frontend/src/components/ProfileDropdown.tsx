@@ -44,6 +44,28 @@ const ProfileDropdown = () => {
               <i className={`mdi mdi-account me-1`}></i>
               <span>Your Profile</span>
             </Dropdown.Item>
+            <Dropdown.Item as={Link} to="/data">
+              <i className={`mdi mdi-magnify me-1`}></i>
+              <span>Your Data</span>
+            </Dropdown.Item>
+            <Dropdown.Item as={Link} to="/server_status">
+              <i className={`mdi mdi-server me-1`}></i>
+              <span>Processing Server Status</span>
+            </Dropdown.Item>
+            <hr className="mt-1 mb-1"></hr>
+            <Dropdown.Item tag={Link} href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402" target="_blank">
+              <i className={`mdi mdi-forum me-1`}></i>
+              <span>Forum</span>
+            </Dropdown.Item>
+            <Dropdown.Item tag={Link} href="https://addbiomechanics.org/instructions.html" target="_blank">
+              <i className={`mdi mdi-help me-1`}></i>
+              <span>Help</span>
+            </Dropdown.Item>
+            <Dropdown.Item tag={Link} href="https://addbiomechanics.org/tos.html" target="_blank">
+              <i className={`mdi mdi-file-document-edit me-1`}></i>
+              <span>Terms of Service</span>
+            </Dropdown.Item>
+            <hr className="mt-1 mb-1"></hr>
             <Dropdown.Item as={Link} to="/logout">
               <i className={`mdi mdi-logout me-1`}></i>
               <span>Logout</span>
