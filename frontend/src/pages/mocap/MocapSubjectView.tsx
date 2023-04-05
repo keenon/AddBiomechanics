@@ -722,7 +722,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           </li>);
         }
       }
-      warningList.push(<li key={"fewFrames"}>
+      warningList.push(<li key={"jointLimits"}>
         <p>The OpenSim skeleton hit its joint limits during the trial. This may lead to poor/jittery IK results. Here are joints to investigate:</p>
         <ul>
           {warningsBlocks}
