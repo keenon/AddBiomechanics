@@ -976,9 +976,9 @@ class ReactiveIndex {
         };
         const topic = makeTopicPubSubSafe("/UPDATE/" + fullPath);
         console.log("Updating '" + topic + "' with " + JSON.stringify(updatedFile));
-        return this.s3client.then((client) => {
+        return this.s3client.then(async (client) => {
             const uploadObject = new RobustUpload(client, this.region, this.bucketName, fullPath, contents, '');
-            uploadObject.upload((progress) => {
+            await uploadObject.upload((progress) => {
                 progressCallback(progress.loaded / progress.total);
             }).then((response: any) => {
                 console.log("S3.put() Completed callback", response);

@@ -102,9 +102,9 @@ const DropFile = observer((props: DropFileProps) => {
                 pathToUpload = pathToUpload.split(".")[0] + extension;
               }
               props.cursor.rawCursor.uploadChild(pathToUpload, acceptedFiles[0], setUploadProgress).then(action(() => {
-                setIsUploading(false);
+                
               })).catch(action(() => {
-                setIsUploading(false);
+                
               }));
             }
           });
