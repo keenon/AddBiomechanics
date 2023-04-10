@@ -217,8 +217,8 @@ def generateReportForTable(table, filename, output_fpath, data_type, bilateral=T
     refs = list()
 
     # Suffixes to detect if a pelvis coordinate is translational or rotational.
-    translate_suffixes = ['_tx', '_ty', '_tz', '_force', '_vx', '_vy', '_vz', '_px', '_py', '_pz']
-    rotate_suffixes = ['_tilt', '_list', '_rotation', '_moment', '_mx', '_my', '_mz', '_x', '_y', '_z']
+    translate_suffixes = ['_tx', '_ty', '_tz', '_force']
+    rotate_suffixes = ['_tilt', '_list', '_rotation', '_moment']
 
     # Create legend handles and labels that can be used to create a figure
     # legend that is applicable all figures.
