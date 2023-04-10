@@ -433,9 +433,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     massScaleFactor = massKg / unscaledSkeletonMass
     print(f'Unscaled skeleton mass: {unscaledSkeletonMass}')
     print(f'Mass scale factor: {massScaleFactor}')
+    bodyMasses = dict()
     for ibody in range(skeleton.getNumBodyNodes()):
         body = skeleton.getBodyNode(ibody)
         body.setMass(body.getMass() * massScaleFactor)
+        bodyMasses[body.getName()] = body.getMass()
 
     err_msg = (f'ERROR: expected final skeleton mass to equal {massKg} kg after scaling, '
                f'but the final mass is {skeleton.getMass()}')
@@ -1121,8 +1123,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         f.write("\n\n")
         totalMarkerRMSE = processingResult['autoAvgRMSE'] * 100
         totalMarkerMax = processingResult['autoAvgMax'] * 100
-        f.write(f'- Avg. Marker RMSE: {totalMarkerRMSE:1.2f} cm\n')
-        f.write(f'- Avg. Max Marker Error: {totalMarkerMax:.2f} cm\n')
+        f.write(f'- Avg. Marker RMSE      = {totalMarkerRMSE:1.2f} cm\n')
+        f.write(f'- Avg. Max Marker Error = {totalMarkerMax:.2f} cm\n')
         f.write("\n")
         if fitDynamics and dynamicsInit is not None:
             f.write(textwrap.fill(
@@ -1131,9 +1133,38 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             f.write("\n\n")
             residualForce =  processingResult['linearResidual']
             residualTorque = processingResult['angularResidual']
-            f.write(f'- Avg. Residual Force: {residualForce:1.2f} N\n')
-            f.write(f'- Avg. Residual Torque: {residualTorque:1.2f} N-m\n')
+            f.write(f'- Avg. Residual Force  = {residualForce:1.2f} N\n')
+            f.write(f'- Avg. Residual Torque = {residualTorque:1.2f} N-m\n')
             f.write("\n")
+            f.write(textwrap.fill(
+                "Automatic processing found a new model mass to achieve dynamic consistency:"))
+            f.write("\n\n")
+            finalMass = finalSkeleton.getMass()
+            percentMassChange = 100 * (finalMass - massKg) / massKg
+            f.write(f'  - Total mass = {finalMass:1.2f} kg '
+                    f'({percentMassChange:+1.2f}% change from original {massKg} kg)\n')
+            f.write("\n")
+            f.write(textwrap.fill(
+                "Individual body mass changes:"))
+            f.write("\n\n")
+            maxBodyNameLen = 0
+            for ibody in range(skeleton.getNumBodyNodes()):
+                body = skeleton.getBodyNode(ibody)
+                bodyName = body.getName()
+                maxBodyNameLen = max(maxBodyNameLen, len(bodyName))
+            for ibody in range(skeleton.getNumBodyNodes()):
+                body = skeleton.getBodyNode(ibody)
+                bodyName = body.getName()
+                bodyMass = body.getMass()
+                bodyMassChange = bodyMass - bodyMasses[bodyName]
+                percentMassChange = 100 * bodyMassChange / bodyMasses[bodyName]
+                bodyNameLen = len(bodyName)
+                nameLenDiff = maxBodyNameLen - bodyNameLen
+                prefix = f'  - {bodyName}' + ' ' * nameLenDiff
+                f.write(f'{prefix} mass = {bodyMass:1.2f} kg '
+                        f'({percentMassChange:+1.2f}% change from original {bodyMasses[bodyName]:1.2f} kg)\n')
+            f.write("\n")
+
         if fitDynamics and dynamicsInit is not None:
             f.write(textwrap.fill(
                 "The following trials were processed to perform automatic body scaling, marker registration, "
@@ -1179,7 +1210,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 numBadFrames = trialProcessingResult['numBadDynamicsFrames']
                 if numBadFrames:
                     f.write(f'  - WARNING: {numBadFrames} frame(s) with ground reaction force inconsistencies detected!\n')
-                
+
             if fitDynamics and dynamicsInit is not None:
                 f.write(f'  --> See IK/{trialName}_ik_summary.txt and ID/{trialName}_id_summary.txt for more details.\n')
             else:
@@ -1187,11 +1218,15 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             f.write(f'\n')
 
         f.write('\n')
-        f.write(textwrap.fill(
-            "The model file containing optimal body scaling and marker offsets is:"))
+        if fitDynamics and dynamicsInit is not None:
+            f.write(textwrap.fill(
+                "The model file containing optimal body scaling, marker offsets, and mass parameters is:"))
+        else:
+            f.write(textwrap.fill(
+                "The model file containing optimal body scaling and marker offsets is:"))
         f.write("\n\n")
         if exportOSIM:
-            f.write("Models/optimized_scale_and_markers.osim")
+            f.write("Models/final.osim")
             f.write("\n\n")
         if exportMJCF:
             f.write("MuJoCo/model.xml")
@@ -1200,7 +1235,20 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             f.write("SDF/model.sdf")
             f.write("\n\n")
         f.write(textwrap.fill(
-            "This tool works by finding an optimal scaling and an optimal marker offsets at the same time."))
+            "This tool works by finding optimal scale factors and marker offsets at the same time. If specified, "
+            "it also runs a second optimization to find mass parameters to fit the model dynamics to the ground "
+            "reaction force data."))
+        f.write("\n\n")
+        if fitDynamics and dynamicsInit is not None:
+            f.write(textwrap.fill(
+                "The model containing the optimal body scaling and marker offsets found prior to the dynamics fitting "
+                "step is:"))
+            f.write("\n\n")
+            f.write("Models/optimized_scale_and_markers.osim")
+        else:
+            f.write(textwrap.fill(
+                "Since you did not choose to run the dynamics fitting step, Models/optimized_scale_and_markers.osim "
+                "contains the same model as Models/final.osim."))
         f.write("\n\n")
         if exportOSIM:
             f.write(textwrap.fill("If you want to manually edit the marker offsets, you can modify the <MarkerSet> in \"Models/unscaled_but_with_optimized_markers.osim\" (by default this file contains the marker offsets found by the optimizer). If you want to tweak the Scaling, you can edit \"Models/rescaling_setup.xml\". If you change either of these files, then run (FROM THE \"Models\" FOLDER, and not including the leading \"> \"):"))

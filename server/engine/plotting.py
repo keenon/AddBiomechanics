@@ -265,21 +265,45 @@ def generateReportForTable(table, filename, output_fpath, data_type, bilateral=T
         title_dict[title].append(col_label)
 
         # Create the appropriate labels.
+        final_motion_type = str(motion_type)
+        final_data_type = str(data_type)
         if data_type == 'marker':
-            motion_type = 'translational'
+            final_motion_type = 'translational'
+
+        elif data_type == 'grf':
+            # If we have GRF data, detect if force, moment, or COP.
+            for cop_suffix in ['_px', '_py', '_pz']:
+                if col_label.endswith(cop_suffix):
+                    final_data_type = 'kinematic'
+                    final_motion_type = 'translational'
+                    break
+
+            for force_suffix in ['_vx', '_vy', '_vz']:
+                if col_label.endswith(force_suffix):
+                    final_data_type = 'kinetic'
+                    final_motion_type = 'translational'
+                    break
+
+            for moment_suffix in ['_mx', '_my', '_mz']:
+                if col_label.endswith(moment_suffix):
+                    final_data_type = 'kinetic'
+                    final_motion_type = 'rotational'
+                    break
         else:
             # If we have a pelvis coordinate, detect if translational or rotational.
             if 'pelvis' in col_label:
-                motion_type = ''
                 for suffix in translate_suffixes:
                     if col_label.endswith(suffix):
-                        motion_type = 'translational'
+                        final_motion_type = 'translational'
 
                 for suffix in rotate_suffixes:
                     if col_label.endswith(suffix):
-                        motion_type = 'rotational'
+                        final_motion_type = 'rotational'
+            else:
+                # Otherwise, assume rotational.
+                final_motion_type = 'rotational'
 
-        label_dict[title] = getLabelFromMotionAndDataType(motion_type, data_type)
+        label_dict[title] = getLabelFromMotionAndDataType(final_motion_type, final_data_type)
 
     # Create a PDF instance and plot the table.
     with PdfPages(output_fpath) as pdf:
@@ -307,7 +331,7 @@ def plotGRFData(data_fpath):
     table = storage2pandas(data_fpath, header_shift=1)
     filename = os.path.basename(data_fpath)
     output_fpath = data_fpath.replace('.mot', '.pdf')
-    data_type = 'kinetic'
+    data_type = 'grf'
     generateReportForTable(table, filename, output_fpath, data_type, bilateral=False)
 
 # Plot marker errors located in CSV files under results/IK.
@@ -320,12 +344,12 @@ def plotMarkerErrors(data_fpath, ik_fpath):
     table.drop(0, inplace=True)
     table.reset_index(drop=True, inplace=True)
 
+    # Convert from m to cm.
+    table *= 100.0
+
     # Insert time column from IK results.
     ik_table = storage2pandas(ik_fpath, header_shift=-1)
     table.insert(0, 'time', ik_table['time'])
-
-    # Convert from m to cm.
-    table *= 100.0
 
     # Plot marker errors.
     filename = os.path.basename(data_fpath)
