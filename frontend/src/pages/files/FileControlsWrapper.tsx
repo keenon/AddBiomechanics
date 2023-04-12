@@ -296,12 +296,11 @@ const FileManager = observer((props: FileManagerProps) => {
               if (path.type !== 'mine' && path.type != 'private') {
                 return (
                   <>
-                    <fieldset>
                       {(() => {
-                        if (props.cursor.searchJson.getAttribute("notes", "") != "") {
-                          return (
-                            <>
-                              <br></br>
+                        let sidebarContent = []
+                        if (props.cursor.searchJson.getAttribute("notes", "") !== "") {
+                          sidebarContent.push (
+                            <li key="notes">
                               <br></br>
                               <label>
                                 <i className="mdi mdi-account me-1 vertical-middle"></i>
@@ -319,13 +318,13 @@ const FileManager = observer((props: FileManagerProps) => {
                               </label>
                               <br></br>
                               <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("notes", "")}</div>
-                            </>
+                            </li>
                           )
                         }
-                        if (props.cursor.searchJson.getAttribute("citation", "") != "") {
-                          return (
-                            <>
-                              <br></br>
+                        
+                        if (props.cursor.searchJson.getAttribute("citation", "") !== "") {
+                          sidebarContent.push (
+                            <li key="citation">
                               <br></br>
                               <label>
                                 <i className="mdi mdi-account me-1 vertical-middle"></i>
@@ -335,7 +334,7 @@ const FileManager = observer((props: FileManagerProps) => {
                                   delay={{ show: 50, hide: 400 }}
                                   overlay={(props) => (
                                     <Tooltip id="button-tooltip" {...props}>
-                                      Insert how do you prefer to be cited.
+                                      This is how the authors of this dataset prefer to be cited.
                                     </Tooltip>
                                   )}>
                                   <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
@@ -343,13 +342,12 @@ const FileManager = observer((props: FileManagerProps) => {
                               </label>
                               <br></br>
                               <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("citation", "")}</div>
-                            </>
+                            </li>
                           )
                         }
-                        if (props.cursor.searchJson.getAttribute("funding", "") != "") {
-                          return (
-                            <>
-                              <br></br>
+                        if (props.cursor.searchJson.getAttribute("funding", "") !== "") {
+                          sidebarContent.push (
+                            <li key="funding">
                               <br></br>
                               <label>
                                 <i className="mdi mdi-account me-1 vertical-middle"></i>
@@ -359,7 +357,7 @@ const FileManager = observer((props: FileManagerProps) => {
                                   delay={{ show: 50, hide: 400 }}
                                   overlay={(props) => (
                                     <Tooltip id="button-tooltip" {...props}>
-                                      Insert information about funding supporting this project.
+                                      This is the funding the authors have received to create this dataset.
                                     </Tooltip>
                                   )}>
                                   <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
@@ -367,11 +365,17 @@ const FileManager = observer((props: FileManagerProps) => {
                               </label>
                               <br></br>
                               <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("funding", "")}</div>
-                            </>
+                            </li>
                           )
                         }
+                        return (
+                          <fieldset>
+                            <ul className="no-bullets">{sidebarContent}</ul>
+                          </fieldset>
+                        )
+                          
                       })()}
-                    </fieldset>
+                    
                   </>
                 )
               }
