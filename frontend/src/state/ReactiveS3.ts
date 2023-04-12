@@ -6,6 +6,7 @@ import { Credentials, getAmplifyUserAgent } from '@aws-amplify/core';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { S3Client, ListObjectsV2Command, ListObjectsV2CommandOutput, GetObjectCommand, DeleteObjectCommand, DeleteObjectCommandOutput } from '@aws-sdk/client-s3';
 import RobustUpload from './RobustUpload';
+import { AxiosHttpHandler, SEND_UPLOAD_PROGRESS_EVENT, AxiosHttpHandlerOptions } from './RobustHandler'; // @aws-amplify/storage/src/providers/axios-http-handler
 
 
 /**
@@ -943,6 +944,7 @@ class ReactiveIndex {
                 // Authenticated S3 client
                 resolve(new S3Client({
                     region: this.region,
+                    requestHandler: new AxiosHttpHandler(),
                     // Using provider instead of a static credentials, so that if an upload task was in progress, but credentials gets
                     // changed or invalidated (e.g user signed out), the subsequent requests will fail.
                     credentials: credentialsProvider,
@@ -978,7 +980,7 @@ class ReactiveIndex {
         console.log("Updating '" + topic + "' with " + JSON.stringify(updatedFile));
         return this.s3client.then((client) => {
             const uploadObject = new RobustUpload(client, this.region, this.bucketName, fullPath, contents, '');
-            uploadObject.upload((progress) => {
+            return uploadObject.upload((progress) => {
                 progressCallback(progress.loaded / progress.total);
             }).then((response: any) => {
                 console.log("S3.put() Completed callback", response);
