@@ -1053,6 +1053,25 @@ class MocapS3Cursor {
     }
 
     /**
+     * Returns the path to the parent folder that is searchable, if one exists. Otherwise returns false.
+     */
+    isChildOfSearchable = () => {
+        let path = this.rawCursor.path;
+        if (path.endsWith("/")) {
+            path = path.substring(0, path.length - 1);
+        }
+        const parts = path.split("/");
+        for (let i = 0; i < parts.length; i++) {
+            const subPath = parts.slice(0, i).join("/");
+            console.log("Checking " + subPath + " for _SEARCH");
+            if (this.rawCursor.index.getMetadata(subPath + '/_SEARCH') != null) {
+                return subPath.split(":")[1];
+            }
+        }
+        return false;
+    }
+
+    /**
      * This marks a folder as searchable
      */
     markSearchable = () => {
