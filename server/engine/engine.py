@@ -105,10 +105,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         ignoreJointLimits = False
 
-    if 'dontFitDynamics' in subjectJson:
-        dontFitDynamics = subjectJson['dontFitDynamics']
+    if 'disableDynamics' in subjectJson:
+        disableDynamics = subjectJson['disableDynamics']
     else:
-        dontFitDynamics = False
+        disableDynamics = False
 
     if 'residualsToZero' in subjectJson:
         residualsToZero = subjectJson['residualsToZero']
@@ -285,10 +285,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     for trialName in os.listdir(trialsFolderPath):
         if trialName == 'static':
             staticMarkers = dict()
-            c3dFilePath = os.path.join(
-                trialsFolderPath, 'static', 'markers.c3d')
-            trcFilePath = os.path.join(
-                trialsFolderPath, 'static', 'markers.trc')
+            c3dFilePath = os.path.join(trialsFolderPath, 'static', 'markers.c3d')
+            trcFilePath = os.path.join(trialsFolderPath, 'static', 'markers.trc')
             if os.path.exists(c3dFilePath):
                 c3dFile: nimble.biomechanics.C3D = nimble.biomechanics.C3DLoader.loadC3D(
                     c3dFilePath)
@@ -352,8 +350,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialFramesPerSecond.append(trcFile.framesPerSecond)
             trialMarkerSet[trialName] = list(trcFile.markerLines.keys())
             grfFilePath = trialPath + 'grf.mot'
-            # .mot files do not contain force plate geometry
-            ignoreFootNotOverForcePlate = True
+            ignoreFootNotOverForcePlate = True # .mot files do not contain force plate geometry
             if os.path.exists(grfFilePath):
                 forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
                     grfFilePath, trcFile.framesPerSecond)
@@ -444,8 +441,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
     err_msg = (f'ERROR: expected final skeleton mass to equal {massKg} kg after scaling, '
                f'but the final mass is {skeleton.getMass()}')
-    np.testing.assert_almost_equal(
-        skeleton.getMass(), massKg, err_msg=err_msg, decimal=1e-3)
+    np.testing.assert_almost_equal(skeleton.getMass(), massKg, err_msg=err_msg, decimal=1e-3)
 
     # Check for any flipped markers, now that we've done a first pass
     anySwapped = False
@@ -474,17 +470,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                                   np.ndarray]] = fitMarkers
     finalInverseDynamics = []
 
+    # If we've got ground reaction force data, and we didn't disable dynamics, then run the dynamics pipeline
     totalForce = 0.0
     for forcePlateList in trialForcePlates:
         for forcePlate in forcePlateList:
             totalForce += sum([np.linalg.norm(f)
-                               for f in forcePlate.forces])
-    fitDynamics = totalForce > 1e-10 and dontFitDynamics
+                                for f in forcePlate.forces])
+    fitDynamics = totalForce > 1e-10 and not disableDynamics
 
-    # If we've got ground reaction force data, and we enabled dynamics, then run the dynamics pipeline
     if fitDynamics:
-        print('******** Attempting to fit dynamics... ********', flush=True)
-
+        print('******** EXPERIMENTAL! Attempting to fit dynamics... ********', flush=True)
         if len(footBodyNames) == 0:
             print(
                 'ERROR: No foot bodies were specified, so we have to quit dynamics fitter early', flush=True)
@@ -492,10 +487,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         elif len(trialForcePlates) == 0:
             print(
                 'ERROR: No force plates were specified, so we have to quit dynamics fitter early', flush=True)
-            fitDynamics = False
-        elif abs(totalForce) < 1e-10:
-            print(
-                'ERROR: force plate data has zero forces, so we have to quit dynamics fitter early', flush=True)
             fitDynamics = False
         else:
             footBodies = []
@@ -539,7 +530,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             )
 
             # If initialization succeeded, we will proceed with the kitchen sink optimization.
-            # If not, we will return the best results we have so far.
+            # If not, we will re-run timeSyncAndInitializePipeline() with reaction wheels.
             if initializeSuccess:
                 goodFramesCount = 0
                 totalFramesCount = 0
@@ -548,8 +539,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                         [0 if missing else 1 for missing in trialMissingGRF])
                     totalFramesCount += len(trialMissingGRF)
                 badFramesCount = totalFramesCount - goodFramesCount
-                print('Detected missing/bad GRF data on '+str(badFramesCount) +
-                      '/'+str(totalFramesCount)+' frames', flush=True)
+                print('Detected missing/bad GRF data on '+str(badFramesCount)+'/'+str(totalFramesCount)+' frames', flush=True)
                 if goodFramesCount == 0:
                     print('ERROR: we have no good frames of GRF data left after filtering out suspicious GRF frames. This '
                           'probably means input GRF data is badly miscalibrated with respect to marker data (maybe they '
@@ -609,8 +599,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     # Specifically optimize to 0-ish residuals, if user requests it
                     if residualsToZero:
                         for trial in range(len(dynamicsInit.poseTrials)):
-                            originalTrajectory = dynamicsInit.poseTrials[trial].copy(
-                            )
+                            originalTrajectory = dynamicsInit.poseTrials[trial].copy()
                             previousTotalResidual = np.inf
                             for i in range(100):
                                 # this holds the mass constant, and re-jigs the trajectory to try to get
@@ -635,7 +624,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
             else:
                 print('WARNING: Unable to minimize residual moments below the desired threshold. Skipping '
-                      'body mass optimization and "kitchen-sink" optimization.', flush=True)
+                      'body mass optimization and kitchen sink optimization.', flush=True)
 
             dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
 
@@ -669,8 +658,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 badDynamicsFrames: Dict[str, List[int]] = {}
                 numBadDynamicsFrames = 0
                 for iframe, reason in enumerate(dynamicsInit.missingGRFReason[trial]):
-                    if not reason.name in badDynamicsFrames:
-                        badDynamicsFrames[reason.name] = []
+                    if not reason.name in badDynamicsFrames: badDynamicsFrames[reason.name] = []
                     badDynamicsFrames[reason.name].append(iframe)
                     if not reason.name == 'notMissingGRF':
                         numBadDynamicsFrames += 1
@@ -681,6 +669,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             finalPoses = dynamicsInit.poseTrials
             finalMarkers = dynamicsInit.updatedMarkerMap
             trialForcePlates = dynamicsInit.forcePlateTrials
+
 
     # 8.2. Write out the usable OpenSim results
 
@@ -842,10 +831,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
         # 8.2.1. Write out the inverse kinematics results,
         ik_fpath = f'{path}/results/IK/{trialName}_ik.mot'
-        print(
-            f'Writing OpenSim {ik_fpath} file, shape={str(poses.shape)}', flush=True)
-        nimble.biomechanics.OpenSimParser.saveMot(
-            finalSkeleton, ik_fpath, timestamps, poses)
+        print(f'Writing OpenSim {ik_fpath} file, shape={str(poses.shape)}', flush=True)
+        nimble.biomechanics.OpenSimParser.saveMot(finalSkeleton, ik_fpath, timestamps, poses)
 
         # 8.2.2. Write the inverse dynamics results.
         id_fpath = f'{path}/results/ID/{trialName}_id.sto'
@@ -900,7 +887,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialDynamicsSegments.append(dynamicsSegments)
 
             nimble.biomechanics.OpenSimParser.saveProcessedGRFMot(grf_fpath, timestamps, dynamicsInit.grfBodyNodes,
-                                                                  dynamicsInit.groundHeight[i], dynamicsInit.grfTrials[i])
+                dynamicsInit.groundHeight[i], dynamicsInit.grfTrials[i])
             nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsProcessedForcesXMLFile(
                 trialName, dynamicsInit.grfBodyNodes, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
 
@@ -915,16 +902,14 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
                         trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces.xml', trialName+'_osim_id.sto', trialName+'_osim_id_body_forces.sto', path + 'results/ID/'+trialName+'_id_setup.xml', timestamps[begin], timestamps[end])
             # Still save the raw version, just call it that
-            nimble.biomechanics.OpenSimParser.saveRawGRFMot(
-                grf_raw_fpath, timestamps, forcePlates)
+            nimble.biomechanics.OpenSimParser.saveRawGRFMot(grf_raw_fpath, timestamps, forcePlates)
             nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
                 trialName, finalSkeleton, poses, forcePlates, trialName+'_grf_raw.mot', path + 'results/ID/'+trialName+'_external_forces_raw.xml')
             if exportOSIM:
                 nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
                     trialName, '../Models/final.osim', '../IK/'+trialName+'_ik.mot', trialName+'_external_forces_raw.xml', trialName+'_osim_id_raw.sto', trialName+'_id_body_forces_raw.sto', path + 'results/ID/'+trialName+'_id_setup_raw.xml', min(timestamps), max(timestamps))
         else:
-            nimble.biomechanics.OpenSimParser.saveRawGRFMot(
-                grf_fpath, timestamps, forcePlates)
+            nimble.biomechanics.OpenSimParser.saveRawGRFMot(grf_fpath, timestamps, forcePlates)
             nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
                 trialName, finalSkeleton, poses, forcePlates, trialName+'_grf.mot', path + 'results/ID/'+trialName+'_external_forces.xml')
             if exportOSIM:
@@ -1039,7 +1024,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         plotIKResults(ik_fpath)
         plotMarkerErrors(marker_errors_fpath, ik_fpath)
         if os.path.exists(id_fpath):
-            plotIDResults(id_fpath)
+           plotIDResults(id_fpath)
 
         if os.path.exists(grf_fpath):
             plotGRFData(grf_fpath)
@@ -1134,7 +1119,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 "Automatic processing reduced the residual loads needed for dynamic consistency to the following magnitudes "
                 "(averaged over all frames of all trials):"))
             f.write("\n\n")
-            residualForce = processingResult['linearResidual']
+            residualForce =  processingResult['linearResidual']
             residualTorque = processingResult['angularResidual']
             f.write(f'- Avg. Residual Force  = {residualForce:1.2f} N\n')
             f.write(f'- Avg. Residual Torque = {residualTorque:1.2f} N-m\n')
@@ -1190,25 +1175,20 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             if fitDynamics and dynamicsInit is not None:
                 residualForce = trialProcessingResult['linearResidual']
                 residualTorque = trialProcessingResult['angularResidual']
-                f.write(
-                    f'  - Avg. Residual Force   = {residualForce:1.2f} N\n')
-                f.write(
-                    f'  - Avg. Residual Torque  = {residualTorque:1.2f} N-m\n')
+                f.write(f'  - Avg. Residual Force   = {residualForce:1.2f} N\n')
+                f.write(f'  - Avg. Residual Torque  = {residualTorque:1.2f} N-m\n')
 
             # Warning and error reporting.
             if len(trialJointWarnings[trialName]) > 0:
-                f.write(
-                    f'  - WARNING: {len(trialJointWarnings[trialName])} joints hit joint limits!\n')
+                f.write(f'  - WARNING: {len(trialJointWarnings[trialName])} joints hit joint limits!\n')
 
             numBadMarkers = 0
             for markerError in trialProcessingResult['markerErrors']:
-                if 100*markerError[1] > badMarkerThreshold:
-                    numBadMarkers += 1
+                if 100*markerError[1] > badMarkerThreshold: numBadMarkers += 1
 
             trialBadMarkers[trialName] = numBadMarkers
             if numBadMarkers > 0:
-                f.write(
-                    f'  - WARNING: {numBadMarkers} marker(s) with RMSE greater than {badMarkerThreshold} cm!\n')
+                f.write(f'  - WARNING: {numBadMarkers} marker(s) with RMSE greater than {badMarkerThreshold} cm!\n')
 
             if len(trialWarnings[trialName]) > 0:
                 f.write(f'  - WARNING: Automatic data processing required modifying TRC data from '
@@ -1217,15 +1197,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             if fitDynamics and dynamicsInit is not None:
                 numBadFrames = trialProcessingResult['numBadDynamicsFrames']
                 if numBadFrames:
-                    f.write(
-                        f'  - WARNING: {numBadFrames} frame(s) with ground reaction force inconsistencies detected!\n')
+                    f.write(f'  - WARNING: {numBadFrames} frame(s) with ground reaction force inconsistencies detected!\n')
 
             if fitDynamics and dynamicsInit is not None:
-                f.write(
-                    f'  --> See IK/{trialName}_ik_summary.txt and ID/{trialName}_id_summary.txt for more details.\n')
+                f.write(f'  --> See IK/{trialName}_ik_summary.txt and ID/{trialName}_id_summary.txt for more details.\n')
             else:
-                f.write(
-                    f'  --> See IK/{trialName}_ik_summary.txt for more details.\n')
+                f.write(f'  --> See IK/{trialName}_ik_summary.txt for more details.\n')
             f.write(f'\n')
 
         f.write('\n')
@@ -1372,11 +1349,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         timestamps = trialTimestamps[itrial]
         trialProcessingResult = trialProcessingResults[i]
         with open(f'{path}/results/IK/{trialName}_ik_summary.txt', 'w') as f:
-            f.write('-'*len(trialName) +
-                    '--------------------------------------\n')
+            f.write('-'*len(trialName) + '--------------------------------------\n')
             f.write(f'Trial {trialName}: Inverse Kinematics Summary\n')
-            f.write('-'*len(trialName) +
-                    '--------------------------------------\n')
+            f.write('-'*len(trialName) + '--------------------------------------\n')
             f.write('\n')
 
             f.write(textwrap.fill(
@@ -1393,21 +1368,18 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 f.write('\n')
                 for markerName, markerRMSE in trialProcessingResult['markerErrors']:
                     if 100 * markerRMSE > badMarkerThreshold:
-                        f.write(
-                            f'  - WARNING: Marker {markerName} has RMSE = {100*markerRMSE:.2f} cm!\n')
+                        f.write(f'  - WARNING: Marker {markerName} has RMSE = {100*markerRMSE:.2f} cm!\n')
 
             if len(trialWarnings[trialName]) > 0:
                 f.write('\n')
-                f.write(textwrap.fill(
-                    'The input data for the following markers were modified to enable automatic processing:'))
+                f.write(textwrap.fill('The input data for the following markers were modified to enable automatic processing:'))
                 f.write('\n\n')
                 for warn in trialWarnings[trialName]:
                     f.write(f'  - WARNING: {warn}.\n')
 
             if len(trialJointWarnings[trialName]):
                 f.write('\n')
-                f.write(textwrap.fill(
-                    'The following model coordinates that hit joint limits during inverse kinematics:'))
+                f.write(textwrap.fill('The following model coordinates that hit joint limits during inverse kinematics:'))
                 f.write('\n\n')
                 for warn in trialJointWarnings[trialName]:
                     f.write(f'  - WARNING: {warn}.\n')
@@ -1422,11 +1394,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         if fitDynamics and dynamicsInit is not None:
             badDynamicsFrames = trialBadDynamicsFrames[itrial]
             with open(f'{path}/results/ID/{trialName}_id_summary.txt', 'w') as f:
-                f.write('-' * len(trialName) +
-                        '--------------------------------\n')
+                f.write('-' * len(trialName) + '--------------------------------\n')
                 f.write(f'Trial {trialName}: Inverse Dynamics Summary\n')
-                f.write('-' * len(trialName) +
-                        '--------------------------------\n')
+                f.write('-' * len(trialName) + '--------------------------------\n')
                 f.write('\n')
 
                 f.write(textwrap.fill(
@@ -1435,10 +1405,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 f.write('\n\n')
                 residualForce = trialProcessingResult['linearResidual']
                 residualTorque = trialProcessingResult['angularResidual']
-                f.write(
-                    f'  - Avg. Residual Force   = {residualForce:1.2f} N\n')
-                f.write(
-                    f'  - Avg. Residual Torque  = {residualTorque:1.2f} N-m\n')
+                f.write(f'  - Avg. Residual Force   = {residualForce:1.2f} N\n')
+                f.write(f'  - Avg. Residual Torque  = {residualTorque:1.2f} N-m\n')
                 f.write('\n\n')
 
                 numTotalFrames = len(dynamicsInit.missingGRFReason[itrial])
@@ -1454,19 +1422,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     reasonNumber = 1
                     if 'measuredGrfZeroWhenAccelerationNonZero' in badDynamicsFrames:
                         f.write('\n')
-                        f.write(
-                            f'{reasonNumber}. "Zero GRF, but non-zero acceleration."\n')
+                        f.write(f'{reasonNumber}. "Zero GRF, but non-zero acceleration."\n')
                         f.write(f'   --------------------------------------\n')
                         f.write(textwrap.indent(textwrap.fill(
                             'No external ground reaction forces was present, but a non-zero whole-body acceleration '
                             'was detected in the following frames:'), '   '))
                         f.write('\n')
-                        frameRanges = getConsecutiveValues(
-                            badDynamicsFrames['measuredGrfZeroWhenAccelerationNonZero'])
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['measuredGrfZeroWhenAccelerationNonZero'])
                         for frames in frameRanges:
                             if frames[0] is frames[-1]:
-                                f.write(
-                                    f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
                             else:
                                 f.write(f'     - frames {frames[0]}-{frames[-1]} '
                                         f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
@@ -1474,19 +1439,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                     if 'unmeasuredExternalForceDetected' in badDynamicsFrames:
                         f.write('\n')
-                        f.write(
-                            f'{reasonNumber}. "Zero acceleration, but non-zero GRF."\n')
+                        f.write(f'{reasonNumber}. "Zero acceleration, but non-zero GRF."\n')
                         f.write(f'   --------------------------------------\n')
                         f.write(textwrap.indent(textwrap.fill(
                             'External ground reaction forces were present, but the whole-body acceleration was zero '
                             'in the following frames:'), '   '))
                         f.write('\n')
-                        frameRanges = getConsecutiveValues(
-                            badDynamicsFrames['unmeasuredExternalForceDetected'])
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['unmeasuredExternalForceDetected'])
                         for frames in frameRanges:
                             if frames[0] is frames[-1]:
-                                f.write(
-                                    f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
                             else:
                                 f.write(f'     - frames {frames[0]}-{frames[-1]} '
                                         f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
@@ -1494,19 +1456,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                     if 'forceDiscrepancy' in badDynamicsFrames:
                         f.write('\n')
-                        f.write(
-                            f'{reasonNumber}. "Foot not over a force plate."\n')
+                        f.write(f'{reasonNumber}. "Foot not over a force plate."\n')
                         f.write(f'   ------------------------------\n')
                         f.write(textwrap.indent(textwrap.fill(
                             'After optimizing the center-of-mass kinematics to match the observed ground reaction '
                             'data, an unmeasured external force was still detected in the following frames:'), '   '))
                         f.write('\n')
-                        frameRanges = getConsecutiveValues(
-                            badDynamicsFrames['forceDiscrepancy'])
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['forceDiscrepancy'])
                         for frames in frameRanges:
                             if frames[0] is frames[-1]:
-                                f.write(
-                                    f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
                             else:
                                 f.write(f'     - frames {frames[0]}-{frames[-1]} '
                                         f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
@@ -1514,19 +1473,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                     if 'torqueDiscrepancy' in badDynamicsFrames:
                         f.write('\n')
-                        f.write(
-                            f'{reasonNumber}. "Unmeasured external torque."\n')
+                        f.write(f'{reasonNumber}. "Unmeasured external torque."\n')
                         f.write(f'   -----------------------------\n')
                         f.write(textwrap.indent(textwrap.fill(
                             'After optimizing the center-of-mass kinematics to match the observed ground reaction '
                             'data, an unmeasured external torque was still detected in the following frames:'), '   '))
                         f.write('\n')
-                        frameRanges = getConsecutiveValues(
-                            badDynamicsFrames['torqueDiscrepancy'])
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['torqueDiscrepancy'])
                         for frames in frameRanges:
                             if frames[0] is frames[-1]:
-                                f.write(
-                                    f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
                             else:
                                 f.write(f'     - frames {frames[0]}-{frames[-1]} '
                                         f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
@@ -1534,20 +1490,17 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                     if 'notOverForcePlate' in badDynamicsFrames:
                         f.write('\n')
-                        f.write(
-                            f'{reasonNumber}. "Foot not over a force plate."\n')
+                        f.write(f'{reasonNumber}. "Foot not over a force plate."\n')
                         f.write(f'   ------------------------------\n')
                         f.write(textwrap.indent(textwrap.fill(
                             'External ground reaction forces were present and the foot was detected '
                             'to be penetrating the ground, but the foot was not located over any '
                             'known force plate in the following frames:'), '   '))
                         f.write('\n')
-                        frameRanges = getConsecutiveValues(
-                            badDynamicsFrames['notOverForcePlate'])
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['notOverForcePlate'])
                         for frames in frameRanges:
                             if frames[0] is frames[-1]:
-                                f.write(
-                                    f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
                             else:
                                 f.write(f'     - frames {frames[0]}-{frames[-1]} '
                                         f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
@@ -1555,20 +1508,17 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                     if 'missingImpact' in badDynamicsFrames:
                         f.write('\n')
-                        f.write(
-                            f'{reasonNumber}. "Missing foot-ground impact detected."\n')
+                        f.write(f'{reasonNumber}. "Missing foot-ground impact detected."\n')
                         f.write(f'   --------------------------------------\n')
                         f.write(textwrap.indent(textwrap.fill(
                             'EXPERIMENTAL: The following frames had ground reaction force data removed using an impact '
                             'detection algorithm in nimblephysics. If you receive this message, then we assume that '
                             'you know what you are doing.'), '   '))
                         f.write('\n')
-                        frameRanges = getConsecutiveValues(
-                            badDynamicsFrames['missingImpact'])
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['missingImpact'])
                         for frames in frameRanges:
                             if frames[0] is frames[-1]:
-                                f.write(
-                                    f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
                             else:
                                 f.write(f'     - frames {frames[0]}-{frames[-1]} '
                                         f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
@@ -1576,20 +1526,17 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                     if 'missingBlip' in badDynamicsFrames:
                         f.write('\n')
-                        f.write(
-                            f'{reasonNumber}. "Missing ground reaction force \'blip\' detected."\n')
-                        f.write(
-                            f'   ------------------------------------------------\n')
+                        f.write(f'{reasonNumber}. "Missing ground reaction force \'blip\' detected."\n')
+                        f.write(f'   ------------------------------------------------\n')
                         f.write(textwrap.indent(textwrap.fill(
                             'Ground reaction forces were detected the following frames were preceded and followed by '
-                            'several frames of zero force data. Therefore, these \'blips\' in the data were removed:'), '   '))
+                            'several frames of zero force data. Therefore, these \'blips\' in the data were removed:')
+                            , '   '))
                         f.write('\n')
-                        frameRanges = getConsecutiveValues(
-                            badDynamicsFrames['missingBlip'])
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['missingBlip'])
                         for frames in frameRanges:
                             if frames[0] is frames[-1]:
-                                f.write(
-                                    f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
                             else:
                                 f.write(f'     - frames {frames[0]}-{frames[-1]} '
                                         f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
@@ -1597,20 +1544,17 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                     if 'shiftGRF' in badDynamicsFrames:
                         f.write('\n')
-                        f.write(
-                            f'{reasonNumber}. "Shifted ground reaction force data."\n')
+                        f.write(f'{reasonNumber}. "Shifted ground reaction force data."\n')
                         f.write(f'   -------------------------------------\n')
                         f.write(textwrap.indent(textwrap.fill(
                             'The following frames were marked as having missing ground reaction force data due to '
                             'shifting the force data to better match marker data. If you receive this message, then '
                             'an error has occurred. '), '   '))
                         f.write('\n')
-                        frameRanges = getConsecutiveValues(
-                            badDynamicsFrames['shiftGRF'])
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['shiftGRF'])
                         for frames in frameRanges:
                             if frames[0] is frames[-1]:
-                                f.write(
-                                    f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
                             else:
                                 f.write(f'     - frames {frames[0]}-{frames[-1]} '
                                         f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')

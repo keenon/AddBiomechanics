@@ -886,7 +886,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let exportSDF = props.cursor.subjectJson.getAttribute("exportSDF", false);
   let exportMJCF = props.cursor.subjectJson.getAttribute("exportMJCF", false);
   let ignoreJointLimits = props.cursor.subjectJson.getAttribute("ignoreJointLimits", false);
-  let dontFitDynamics = props.cursor.subjectJson.getAttribute("dontFitDynamics", false);
+  let disableDynamics = props.cursor.subjectJson.getAttribute("disableDynamics", false);
   let residualsToZero = props.cursor.subjectJson.getAttribute("residualsToZero", false);
   let tuneResidualLoss = props.cursor.subjectJson.getAttribute("tuneResidualLoss", 1.0);
 
@@ -897,7 +897,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   if (true) {
     let dynamicsOptions = <></>;
-    if (!dontFitDynamics) {
+    if (!disableDynamics) {
       dynamicsOptions = <>
         <div className="mb-15">
           <p>
@@ -984,8 +984,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           <div className="">
             <div className="alert alert-warning" role="alert">
               Skip Dynamics Fit:{" "}
-              <input type="checkbox" checked={dontFitDynamics} onChange={(e) => {
-                props.cursor.subjectJson.setAttribute("dontFitDynamics", e.target.checked);
+              <input type="checkbox" checked={disableDynamics} onChange={(e) => {
+                props.cursor.subjectJson.setAttribute("disableDynamics", e.target.checked);
               }}></input>
               <OverlayTrigger
                 placement="right"
@@ -1023,7 +1023,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
 
   let footSelector = null;
-  if (!dontFitDynamics && skeletonPreset === 'custom') {
+  if (!disableDynamics && skeletonPreset === 'custom') {
     let footErrorMessage = null;
     if (footBodyNames.length < 2) {
       footErrorMessage = (
