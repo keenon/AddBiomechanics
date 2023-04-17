@@ -105,11 +105,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         ignoreJointLimits = False
 
-    if 'disableDynamics' in subjectJson:
-        disableDynamics = subjectJson['disableDynamics']
-    else:
-        disableDynamics = False
-
     if 'residualsToZero' in subjectJson:
         residualsToZero = subjectJson['residualsToZero']
     else:
@@ -164,6 +159,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         ignoreFootNotOverForcePlate = subjectJson['ignoreFootNotOverForcePlate']
     else:
         ignoreFootNotOverForcePlate = False
+
+    if 'disableDynamics' in subjectJson:
+        disableDynamics = subjectJson['disableDynamics']
+    else:
+        disableDynamics = False
 
     if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
         footBodyNames = ['calcn_l', 'calcn_r']
@@ -479,7 +479,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     fitDynamics = totalForce > 1e-10 and not disableDynamics
 
     if fitDynamics:
-        print('******** EXPERIMENTAL! Attempting to fit dynamics... ********', flush=True)
+        print('******** Attempting to fit dynamics... ********', flush=True)
+
         if len(footBodyNames) == 0:
             print(
                 'ERROR: No foot bodies were specified, so we have to quit dynamics fitter early', flush=True)
@@ -624,7 +625,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
             else:
                 print('WARNING: Unable to minimize residual moments below the desired threshold. Skipping '
-                      'body mass optimization and kitchen sink optimization.', flush=True)
+                      'body mass optimization and subsequent "kitchen sink" optimization.', flush=True)
 
             dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
 
