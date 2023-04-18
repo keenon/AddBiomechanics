@@ -79,6 +79,7 @@ type Dataset = {
     isHomeFolder: boolean
     isPublished: boolean;
     hasDynamics: boolean;
+    description: string | undefined;
 };
 
 class MocapDatasetIndex {
@@ -173,7 +174,8 @@ class MocapDatasetIndex {
                         numTrials: 0,
                         isPublished: false,
                         hasDynamics: hasPhysics,
-                        isHomeFolder: i == 2
+                        isHomeFolder: i == 2,
+                        description: undefined
                     };
                     datasetMap.set(key, dataset);
                 }
@@ -212,7 +214,8 @@ class MocapDatasetIndex {
                         numSubjects: 0,
                         numTrials: 0,
                         isPublished: true,
-                        hasDynamics: false
+                        hasDynamics: false,
+                        description: undefined
                     };
                     datasetMap.set(filteredKey, dataset);
                 }
@@ -268,7 +271,9 @@ class MocapDatasetIndex {
 
                 return false;
             }
-            return true;
+            else {
+                return true;
+            }
         });
     };
 }
