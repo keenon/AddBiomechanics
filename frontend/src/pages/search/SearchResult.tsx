@@ -27,12 +27,16 @@ type SearchResultProps = {
 };
 
 const SearchResult = observer((props: SearchResultProps) => {
-    const filtered = props.dataset.key.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
+    let filtered = props.dataset.key.replace("protected/us-west-2:", "").replace('/_SEARCH', '');
     const parts = filtered.split('/');
     const userId = parts[0];
 
     const fullName = props.cursor.getOtherProfileFullName(userId);
+    if (filtered.endsWith('/')) {
+        filtered = filtered.slice(0, -1)
+    }
     const description = props.cursor.getDatasetSearchJson(filtered).getAttribute("notes", "");
+    const datasetTitle = props.cursor.getDatasetSearchJson(filtered).getAttribute("title", "");
 
     function highlightSearchTerm(htmlString: string, searchTerm: string) {
         if (searchTerm.length == 0) return htmlString;
@@ -61,15 +65,29 @@ const SearchResult = observer((props: SearchResultProps) => {
     if (parts[parts.length - 1] === '') {
         parts.splice(parts.length - 1, 1);
     }
-    let datasetName = parts.slice(2).join('/');
-    if (datasetName === '') {
-        datasetName = fullName + "'s Home Folder";
+
+    // If user set a title for the dataset, show it first. If not, use only dataset folder name.
+    let datasetTitleShown = "";
+    if (datasetTitle !== "") {
+        datasetTitleShown += datasetTitle + " - (";
     }
+    // Add folder name.
+    let datasetName = parts.slice(2).join('/');
+    datasetTitleShown = datasetTitleShown + datasetName;
+    // If dataset is home folder, add "<username>'s Home Folder" as name.
+    if (datasetName === '') {
+        datasetTitleShown += fullName + "'s Home Folder";
+    }
+    // Add ending parenthesis.
+    if (datasetTitle !== "") {
+        datasetTitleShown += ")";
+    }
+
     return (
         <Col md={props.fullWidth ? "12" : "4"}>
             <Card>
                 <Card.Body>
-                    <h4><Link to={linkDataset}><span dangerouslySetInnerHTML={{ __html: highlightSearchTerm(datasetName, props.searchText) }}></span></Link></h4>
+                    <h4><Link to={linkDataset}><span dangerouslySetInnerHTML={{ __html: highlightSearchTerm(datasetTitleShown, props.searchText) }}></span></Link></h4>
                     By <Link to={linkUser}><span dangerouslySetInnerHTML={{ __html: highlightSearchTerm(fullName, props.searchText) }}></span></Link>
                     <p></p>
                     <p dangerouslySetInnerHTML={{ __html: highlightSearchTerm(description, props.searchText) }}></p>

@@ -304,6 +304,16 @@ const FileManager = observer((props: FileManagerProps) => {
                   <>
                       {(() => {
                         let sidebarContent = []
+
+                        if (props.cursor.searchJson.getAttribute("title", "") !== "") {
+                          sidebarContent.push (
+                            <li key="title">
+                              <br></br>
+                              <h2 style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("title", "")}</h2>
+                            </li>
+                          )
+                        }
+
                         if (props.cursor.searchJson.getAttribute("notes", "") !== "") {
                           sidebarContent.push (
                             <li key="notes">
