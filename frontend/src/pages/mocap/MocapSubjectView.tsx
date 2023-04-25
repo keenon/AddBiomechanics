@@ -19,8 +19,6 @@ import MocapTagModal from "./MocapTagModal";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
 import TagEditor from '../../components/TagEditor';
 import { attachEventProps } from "@aws-amplify/ui-react/lib-esm/react-component-lib/utils";
-import DropdownTreeSelect from 'react-dropdown-tree-select';
-import 'react-dropdown-tree-select/dist/styles.css';
 
 type ProcessingResultsJSON = {
   autoAvgMax: number;
@@ -456,86 +454,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const navigate = useNavigate();
 
   let trialViews: any[] = [];
-
-
-
-
-
-
-  const dataSubjectTags = [
-      {
-      label: 'Phenotypes',
-      value: 'phenotype',
-      disabled: true,
-      children: [
-        {
-          label: 'Parkinsons',
-          value: 'parkinsons',
-          disabled: false,
-          children: [
-            {
-              label: 'Freezing of Gait',
-              value: 'freezing_of_gait',
-              disabled: false,
-            },
-            {
-              label: 'Tremor',
-              value: 'tremor',
-              disabled: false,
-            },
-          ],
-        },
-        {
-          label: 'Stroke',
-          value: 'stroke',
-          disabled: true,
-          children: [
-            {
-              label: 'Stroke Left Hemiparesis',
-              value: 'stroke_left_hemiparesis',
-              disabled: false,
-            },
-            {
-              label: 'Stroke Right Hemiparesis',
-              value: 'stroke_right_hemiparesis',
-              disabled: false,
-            },
-          ],
-        },
-      ],
-    },
-    {
-      label: 'Trial Level Tags',
-      value: 'stroke',
-      readOnly: true,
-      children: [
-        {
-          label: 'Running',
-          value: 'running',
-        },
-        {
-          label: 'Walking',
-          value: 'walking',
-        },
-      ],
-    }
-  ]
-  
-  const onChangeSubjectTags = (currentNode:any, selectedNodes:any) => {
-    console.log('onChange::', currentNode, selectedNodes)
-  }
-  const onActionSubjectTags = (node:any, action:any) => {
-    console.log('onAction::', action, node)
-  }
-  const onNodeToggleSubjectTags = (currentNode:any) => {
-    console.log('onNodeToggle::', currentNode)
-  }
-
-  
-
-
-
-
 
   let trials = props.cursor.getTrials();
   for (let i = 0; i < trials.length; i++) {
@@ -1347,7 +1265,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         >
           <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
         </OverlayTrigger>
-          <DropdownTreeSelect data={dataSubjectTags} onChange={onChangeSubjectTags} onAction={onActionSubjectTags} onNodeToggle={onNodeToggleSubjectTags} />,
         <TagEditor
           tagSet='subject'
           tags={subjectTags}
