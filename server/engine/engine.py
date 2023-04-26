@@ -350,7 +350,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialFramesPerSecond.append(trcFile.framesPerSecond)
             trialMarkerSet[trialName] = list(trcFile.markerLines.keys())
             grfFilePath = trialPath + 'grf.mot'
-            ignoreFootNotOverForcePlate = True # .mot files do not contain force plate geometry
+            ignoreFootNotOverForcePlate = True  # .mot files do not contain force plate geometry
             if os.path.exists(grfFilePath):
                 forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
                     grfFilePath, trcFile.framesPerSecond)
@@ -362,6 +362,17 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             print('ERROR: No marker files exist for trial '+trialName+'. Checked both ' +
                   c3dFilePath+' and '+trcFilePath+', neither exist. Quitting.')
             exit(1)
+
+        # Step 1: Find the intersection of the time vectors in the marker data and the force plate data and
+        #         remove any data outside of that intersection.
+
+
+        # Step 2: Scan through the timestamps in the data and find segments longer than a certain threshold that have
+        #         zero forces.
+
+
+        import pdb
+        pdb.set_trace()
 
         trialProcessingResults.append(trialProcessingResult)
 
@@ -624,19 +635,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                             dynamicsFitter.recalibrateForcePlates(
                                 dynamicsInit, trial)
-
-            else:
-                print('WARNING: Unable to minimize residual moments below the desired threshold. Skipping '
-                      'body mass optimization and re-running dynamics initialization while allowing large '
-                      'residual moments.', flush=True)
-                initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
-                    dynamicsInit,
-                    useReactionWheels=True,
-                    shiftGRF=shiftGRF,
-                    maxTrialsToSolveMassOver=maxTrialsToSolveMassOver,
-                    reoptimizeMarkerOffsets=dynamicsMarkerOffsets
-                )
-                # TODO re-run position only optimization here?
 
             dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
 
