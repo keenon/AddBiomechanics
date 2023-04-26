@@ -76,8 +76,7 @@ export class AxiosHttpHandler implements HttpHandler {
     axiosRequest.data = request.body;
 
     axiosRequest.onUploadProgress = function (event) {
-      console.log("SEND_UPLOAD_PROGRESS_EVENT: ", event);
-      console.log("Options: ", options);
+      // console.log("SEND_UPLOAD_PROGRESS_EVENT: ", event);
       if (options?.progressCallback) {
         options.progressCallback({
           loaded: event.loaded,
@@ -86,7 +85,7 @@ export class AxiosHttpHandler implements HttpHandler {
       }
     };
     axiosRequest.onDownloadProgress = function (event) {
-      console.log("SEND_DOWNLOAD_PROGRESS_EVENT: ", event);
+      // console.log("SEND_DOWNLOAD_PROGRESS_EVENT: ", event);
     };
 
     // From gamma release, aws-sdk now expects all response type to be of blob or streams

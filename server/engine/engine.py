@@ -105,11 +105,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         ignoreJointLimits = False
 
-    if 'fitDynamics' in subjectJson:
-        fitDynamics = subjectJson['fitDynamics']
-    else:
-        fitDynamics = False
-
     if 'residualsToZero' in subjectJson:
         residualsToZero = subjectJson['residualsToZero']
     else:
@@ -164,6 +159,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         ignoreFootNotOverForcePlate = subjectJson['ignoreFootNotOverForcePlate']
     else:
         ignoreFootNotOverForcePlate = False
+
+    if 'disableDynamics' in subjectJson:
+        disableDynamics = subjectJson['disableDynamics']
+    else:
+        disableDynamics = False
 
     if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
         footBodyNames = ['calcn_l', 'calcn_r']
@@ -481,14 +481,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                                   np.ndarray]] = fitMarkers
     finalInverseDynamics = []
 
-    # If we've got ground reaction force data, and we enabled dynamics, then run the dynamics pipeline
+    # If we've got ground reaction force data, and we didn't disable dynamics, then run the dynamics pipeline
+    totalForce = 0.0
+    for forcePlateList in trialForcePlates:
+        for forcePlate in forcePlateList:
+            totalForce += sum([np.linalg.norm(f)
+                                for f in forcePlate.forces])
+    fitDynamics = totalForce > 1e-10 and not disableDynamics
+
     if fitDynamics:
-        print('******** EXPERIMENTAL! Attempting to fit dynamics... ********', flush=True)
-        totalForce = 0.0
-        for forcePlateList in trialForcePlates:
-            for forcePlate in forcePlateList:
-                totalForce += sum([np.linalg.norm(f)
-                                  for f in forcePlate.forces])
+        print('******** Attempting to fit dynamics... ********', flush=True)
 
         if len(footBodyNames) == 0:
             print(
@@ -497,10 +499,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         elif len(trialForcePlates) == 0:
             print(
                 'ERROR: No force plates were specified, so we have to quit dynamics fitter early', flush=True)
-            fitDynamics = False
-        elif abs(totalForce) < 1e-10:
-            print(
-                'ERROR: force plate data has zero forces, so we have to quit dynamics fitter early', flush=True)
             fitDynamics = False
         else:
             footBodies = []
@@ -635,6 +633,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                             dynamicsFitter.recalibrateForcePlates(
                                 dynamicsInit, trial)
+
+            else:
+                print('WARNING: Unable to minimize residual moments below the desired threshold. Skipping '
+                      'body mass optimization and subsequent "kitchen sink" optimization.', flush=True)
 
             dynamicsFitter.applyInitToSkeleton(finalSkeleton, dynamicsInit)
 

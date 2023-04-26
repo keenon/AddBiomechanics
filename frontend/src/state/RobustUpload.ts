@@ -345,6 +345,7 @@ class RobustUpload {
       );
 
       const parts: Part[] = this.createParts();
+      let totalUploaded = 0;
       for (
         let start = 0;
         start < numberOfPartsToUpload;
@@ -355,12 +356,19 @@ class RobustUpload {
         **/
         await this.checkIfUploadCancelled(uploadId);
 
+        const totalUploadedSoFar = totalUploaded;
         // Upload as many as `queueSize` parts simultaneously
         await this.uploadParts(
           uploadId,
           parts.slice(start, start + QUEUE_SIZE),
-          progressCallback
+          (progress: {loaded: number, total: number}) => {
+            progressCallback({
+              loaded: totalUploadedSoFar + progress.loaded,
+              total: this.totalBytesToUpload
+            });
+          }
         );
+        totalUploaded = totalUploadedSoFar + parts.slice(start, start + QUEUE_SIZE).reduce((acc, part) => acc + part.length, 0);
 
         /** Call cleanup a second time in case there were part upload requests
          *  in flight. This is to ensure that all parts are cleaned up.

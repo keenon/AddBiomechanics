@@ -28,7 +28,10 @@ const DropFile = observer((props: DropFileProps) => {
     if (props.uploadOnMount) {
       setUploadProgress(0.0);
       setIsUploading(true);
-      props.cursor.rawCursor.uploadChild(props.path, props.uploadOnMount, setUploadProgress).then(action(() => {
+      props.cursor.rawCursor.uploadChild(props.path, props.uploadOnMount, (progress) => {
+        setUploadProgress(progress);
+      }).then(action(() => {
+        console.log("Finished upload");
         setIsUploading(false);
       }));
     }
@@ -101,9 +104,13 @@ const DropFile = observer((props: DropFileProps) => {
                 }
                 pathToUpload = pathToUpload.split(".")[0] + extension;
               }
-              props.cursor.rawCursor.uploadChild(pathToUpload, acceptedFiles[0], setUploadProgress).then(action(() => {
+              props.cursor.rawCursor.uploadChild(pathToUpload, acceptedFiles[0], (progress) => {
+                setUploadProgress(progress);
+              }).then(action(() => {
+                console.log("Finished upload");
                 setIsUploading(false);
               })).catch(action(() => {
+                console.log("Caught error during upload");
                 setIsUploading(false);
               }));
             }

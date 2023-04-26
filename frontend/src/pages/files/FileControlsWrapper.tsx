@@ -12,6 +12,7 @@ import {
 import NewFolderModal from "./file-control-modals/NewFolderModal";
 import DeleteFolderModal from "./file-control-modals/DeleteFolderModal";
 import MocapS3Cursor from "../../state/MocapS3Cursor";
+import { ReactiveJsonFile } from '../../state/ReactiveS3';
 import './FileControlsWrapper.scss';
 import { useState, useEffect } from "react";
 import { observer } from "mobx-react-lite";
@@ -73,9 +74,120 @@ const FileManager = observer((props: FileManagerProps) => {
 
     let securityNotice = <></>;
 
-    // TODO: There is a lot of duplicated code here. This can be refactored to be more readable and maintanable.
     if (path.type === 'mine') {
-      if (props.cursor.isSearchable()) {
+      // This is the section of the left bar where the user can edit the properties of the dataset
+      const getEditableDescriptionSection = (searchJson: ReactiveJsonFile) => {
+        return <>
+          <div>
+            <label className="mb-1">
+              Dataset Title:
+              <OverlayTrigger
+                placement="right"
+                delay={{ show: 50, hide: 400 }}
+                overlay={(props) => (
+                  <Tooltip id="button-tooltip" {...props}>
+                    This is the name of the dataset, currently not editable
+                  </Tooltip>
+                )}>
+                <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+              </OverlayTrigger>
+            </label>
+            <textarea className="mb-2" style={{ width: '100%' }} placeholder="Full title of dataset" value={searchJson.getAttribute("title", "")} onChange={(e) => {
+              searchJson.setAttribute("title", e.target.value);
+            }} onFocus={() => searchJson.onFocusAttribute("title")} onBlur={() => searchJson.onBlurAttribute("title")} />
+          </div>
+          <div>
+            <fieldset>
+              <label className="mb-1">
+                Dataset Information:
+                <OverlayTrigger
+                  placement="right"
+                  delay={{ show: 50, hide: 400 }}
+                  overlay={(props) => (
+                    <Tooltip id="button-tooltip" {...props}>
+                      Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!
+                    </Tooltip>
+                  )}>
+                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                </OverlayTrigger>
+              </label>
+              <textarea className="mb-2" style={{ width: '100%' }} placeholder="Public notes (how to cite, etc). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!" value={searchJson.getAttribute("notes", "")} onChange={(e) => {
+                searchJson.setAttribute("notes", e.target.value);
+              }} onFocus={() => searchJson.onFocusAttribute("notes")} onBlur={() => searchJson.onBlurAttribute("notes")} />
+              <label className="mb-1">
+                Citation:
+                <OverlayTrigger
+                  placement="right"
+                  delay={{ show: 50, hide: 400 }}
+                  overlay={(props) => (
+                    <Tooltip id="button-tooltip" {...props}>
+                      Insert how do you prefer to be cited.
+                    </Tooltip>
+                  )}>
+                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                </OverlayTrigger>
+              </label>
+              <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert how do you want to be cited. (e.g., you can insert a citation in any style, like APA or IEEE." value={searchJson.getAttribute("citation", "")} onChange={(e) => {
+                searchJson.setAttribute("citation", e.target.value);
+              }} onFocus={() => searchJson.onFocusAttribute("citation")} onBlur={() => searchJson.onBlurAttribute("citation")} />
+              <label className="mb-1">
+                Funding:
+                <OverlayTrigger
+                  placement="right"
+                  delay={{ show: 50, hide: 400 }}
+                  overlay={(props) => (
+                    <Tooltip id="button-tooltip" {...props}>
+                      Insert information about funding supporting this project.
+                    </Tooltip>
+                  )}>
+                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                </OverlayTrigger>
+              </label>
+              <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert information about funding supporting this project." value={searchJson.getAttribute("funding", "")} onChange={(e) => {
+                searchJson.setAttribute("funding", e.target.value);
+              }} onFocus={() => searchJson.onFocusAttribute("funding")} onBlur={() => searchJson.onBlurAttribute("funding")} />
+            </fieldset>
+          </div>
+        </>;
+      };
+
+      const childOfSearchable = props.cursor.isChildOfSearchable();
+      if (childOfSearchable) {
+        const parentPathParts = childOfSearchable.split("/");
+        const userId = parentPathParts[0];
+        const data = parentPathParts[1];
+        let path = '/data/' + userId + '/' + parentPathParts.slice(2).join('/');
+        let parentName = parentPathParts[parentPathParts.length - 1];
+        if (parentName === 'data') {
+          parentName = 'My Data';
+        }
+        const otherDatasetJson = props.cursor.getDatasetSearchJson(childOfSearchable);
+        securityNotice = (
+          <>
+            <h4>
+              <span className="badge rounded-pill p-1 px-2 bg-success mb-2">PUBLISHED SUBFOLDER</span>
+              <OverlayTrigger
+                placement="right"
+                delay={{ show: 50, hide: 800 }}
+                overlay={(props) => (
+                  <Tooltip id="button-tooltip" {...props}>
+                    <p>This is a sub-folder in a <b>published dataset</b>, and can be found on the AddBiomechanics <Link to="/search">search page</Link>.</p>
+                    <p>You can leave public notes to help others using the data (how to cite the data, etc). It is <b>your responsibility</b> to not include any Personally Identifiable Information (PII) about your subjects!</p>
+                  </Tooltip>
+                )}>
+                <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+              </OverlayTrigger>
+            </h4>
+            <h5>
+              Part of Dataset: <Link to={path} className="mb-5">{parentName}</Link>
+            </h5>
+            <div className="FileControlsWrapper-folder-description">
+              {getEditableDescriptionSection(otherDatasetJson)}
+            </div>
+          </>
+        );
+      }
+      else if (props.cursor.isSearchable()) {
         securityNotice = (
           <>
             <h4>
@@ -93,63 +205,10 @@ const FileManager = observer((props: FileManagerProps) => {
               </OverlayTrigger>
             </h4>
             <div className="FileControlsWrapper-folder-description">
-              <div>
-                <div>
-                  <fieldset>
-                    <label className="mb-1">
-                      Dataset Information:
-                      <OverlayTrigger
-                        placement="right"
-                        delay={{ show: 50, hide: 400 }}
-                        overlay={(props) => (
-                          <Tooltip id="button-tooltip" {...props}>
-                            Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!
-                          </Tooltip>
-                        )}>
-                        <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                      </OverlayTrigger>
-                    </label>
-                    <textarea className="mb-2" style={{ width: '100%' }} placeholder="Public notes (how to cite, etc). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!" value={props.cursor.searchJson.getAttribute("notes", "")} onChange={(e) => {
-                      props.cursor.searchJson.setAttribute("notes", e.target.value);
-                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("notes")} onBlur={() => props.cursor.searchJson.onBlurAttribute("notes")} />
-                    <label className="mb-1">
-                      Citation:
-                      <OverlayTrigger
-                        placement="right"
-                        delay={{ show: 50, hide: 400 }}
-                        overlay={(props) => (
-                          <Tooltip id="button-tooltip" {...props}>
-                            Insert how do you prefer to be cited.
-                          </Tooltip>
-                        )}>
-                        <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                      </OverlayTrigger>
-                    </label>
-                    <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert how do you want to be cited. (e.g., you can insert a citation in any style, like APA or IEEE." value={props.cursor.searchJson.getAttribute("citation", "")} onChange={(e) => {
-                      props.cursor.searchJson.setAttribute("citation", e.target.value);
-                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("citation")} onBlur={() => props.cursor.searchJson.onBlurAttribute("citation")} />
-                    <label className="mb-1">
-                      Funding:
-                      <OverlayTrigger
-                        placement="right"
-                        delay={{ show: 50, hide: 400 }}
-                        overlay={(props) => (
-                          <Tooltip id="button-tooltip" {...props}>
-                            Insert information about funding supporting this project.
-                          </Tooltip>
-                        )}>
-                        <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                      </OverlayTrigger>
-                    </label>
-                    <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert information about funding supporting this project." value={props.cursor.searchJson.getAttribute("funding", "")} onChange={(e) => {
-                      props.cursor.searchJson.setAttribute("funding", e.target.value);
-                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("funding")} onBlur={() => props.cursor.searchJson.onBlurAttribute("funding")} />
-                  </fieldset>
-                </div>
-                <button type="submit" className="btn btn-light mt-2" onClick={() => props.cursor.markNotSearchable()}>
-                  <i className="mdi mdi-earth-minus"></i> Remove from Search
-                </button>
-              </div>
+              {getEditableDescriptionSection(props.cursor.searchJson)}
+              <button type="submit" className="btn btn-light mt-2" onClick={() => props.cursor.markNotSearchable()}>
+                <i className="mdi mdi-earth-minus"></i> Remove from Search
+              </button>
             </div>
           </>
         );
@@ -157,79 +216,26 @@ const FileManager = observer((props: FileManagerProps) => {
       else {
         securityNotice = (
           <>
+            <h4>
+              <span className="badge rounded-pill p-1 px-2 bg-warning">UNPUBLISHED DRAFT</span>
+              <OverlayTrigger
+                placement="right"
+                delay={{ show: 50, hide: 800 }}
+                overlay={(props) => (
+                  <Tooltip id="button-tooltip" {...props}>
+                    <p>This folder is a <b>draft</b>. It is accessible to anyone who has the link, but will not show up on the AddBiomechanics <Link to="/search">search page</Link>.</p>
+                    <p>You can leave public notes to help others using the data (how to cite the data, etc). It is <b>your responsibility</b> to not include any Personally Identifiable Information (PII) about your subjects!</p>
+                  </Tooltip>
+                )}>
+                <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+              </OverlayTrigger>
+            </h4>
             <div className="FileControlsWrapper-folder-description">
-              <h4>
-                <span className="badge rounded-pill p-1 px-2 bg-warning">UNPUBLISHED DRAFT</span>
-                <OverlayTrigger
-                  placement="right"
-                  delay={{ show: 50, hide: 800 }}
-                  overlay={(props) => (
-                    <Tooltip id="button-tooltip" {...props}>
-                      <p>This folder is a <b>draft</b>. It is accessible to anyone who has the link, but will not show up on the AddBiomechanics <Link to="/search">search page</Link>.</p>
-                      <p>You can leave public notes to help others using the data (how to cite the data, etc). It is <b>your responsibility</b> to not include any Personally Identifiable Information (PII) about your subjects!</p>
-                    </Tooltip>
-                  )}>
-                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                </OverlayTrigger>
-              </h4>
-              <div>
-                <div>
-                  <fieldset>
-                    <label className="mb-1">
-                      Dataset Information:
-                      <OverlayTrigger
-                        placement="right"
-                        delay={{ show: 50, hide: 400 }}
-                        overlay={(props) => (
-                          <Tooltip id="button-tooltip" {...props}>
-                            Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!
-                          </Tooltip>
-                        )}>
-                        <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                      </OverlayTrigger>
-                    </label>
-                    <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert public notes about the dataset." value={props.cursor.searchJson.getAttribute("notes", "")} onChange={(e) => {
-                      props.cursor.searchJson.setAttribute("notes", e.target.value);
-                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("notes")} onBlur={() => props.cursor.searchJson.onBlurAttribute("notes")} />
-                    <label className="mb-1">
-                      Citation:
-                      <OverlayTrigger
-                        placement="right"
-                        delay={{ show: 50, hide: 400 }}
-                        overlay={(props) => (
-                          <Tooltip id="button-tooltip" {...props}>
-                            Insert how do you prefer to be cited.
-                          </Tooltip>
-                        )}>
-                        <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                      </OverlayTrigger>
-                    </label>
-                    <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert how do you want to be cited. (e.g., you can insert a citation in any style, like APA or IEEE." value={props.cursor.searchJson.getAttribute("citation", "")} onChange={(e) => {
-                      props.cursor.searchJson.setAttribute("citation", e.target.value);
-                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("citation")} onBlur={() => props.cursor.searchJson.onBlurAttribute("citation")} />
-                    <label className="mb-1">
-                      Funding:
-                      <OverlayTrigger
-                        placement="right"
-                        delay={{ show: 50, hide: 400 }}
-                        overlay={(props) => (
-                          <Tooltip id="button-tooltip" {...props}>
-                            Insert information about funding supporting this project.
-                          </Tooltip>
-                        )}>
-                        <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                      </OverlayTrigger>
-                    </label>
-                    <textarea className="mb-2" style={{ width: '100%' }} placeholder="Insert information about funding supporting this project." value={props.cursor.searchJson.getAttribute("funding", "")} onChange={(e) => {
-                      props.cursor.searchJson.setAttribute("funding", e.target.value);
-                    }} onFocus={() => props.cursor.searchJson.onFocusAttribute("funding")} onBlur={() => props.cursor.searchJson.onBlurAttribute("funding")} />
-                  </fieldset>
-                </div>
-                <button type="submit" className="btn btn-primary mt-2" onClick={() => props.cursor.markSearchable()}>
-                  <i className="mdi mdi-earth-plus"></i> Publish Data to Search Index
-                </button>
-                <p className="mt-2"><small>(You can always remove from the search index again later if you change your mind)</small></p>
-              </div>
+              {getEditableDescriptionSection(props.cursor.searchJson)}
+              <button type="submit" className="btn btn-primary mt-2" onClick={() => props.cursor.markSearchable()}>
+                <i className="mdi mdi-earth-plus"></i> Publish Data to Search Index
+              </button>
+              <p className="mt-2"><small>(You can always remove from the search index again later if you change your mind)</small></p>
             </div>
           </>
         );
@@ -296,12 +302,21 @@ const FileManager = observer((props: FileManagerProps) => {
               if (path.type !== 'mine' && path.type != 'private') {
                 return (
                   <>
-                    <fieldset>
                       {(() => {
-                        if (props.cursor.searchJson.getAttribute("notes", "") != "") {
-                          return (
-                            <>
+                        let sidebarContent = []
+
+                        if (props.cursor.searchJson.getAttribute("title", "") !== "") {
+                          sidebarContent.push (
+                            <li key="title">
                               <br></br>
+                              <h2 style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("title", "")}</h2>
+                            </li>
+                          )
+                        }
+
+                        if (props.cursor.searchJson.getAttribute("notes", "") !== "") {
+                          sidebarContent.push (
+                            <li key="notes">
                               <br></br>
                               <label>
                                 <i className="mdi mdi-account me-1 vertical-middle"></i>
@@ -319,13 +334,13 @@ const FileManager = observer((props: FileManagerProps) => {
                               </label>
                               <br></br>
                               <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("notes", "")}</div>
-                            </>
+                            </li>
                           )
                         }
-                        if (props.cursor.searchJson.getAttribute("citation", "") != "") {
-                          return (
-                            <>
-                              <br></br>
+                        
+                        if (props.cursor.searchJson.getAttribute("citation", "") !== "") {
+                          sidebarContent.push (
+                            <li key="citation">
                               <br></br>
                               <label>
                                 <i className="mdi mdi-account me-1 vertical-middle"></i>
@@ -335,7 +350,7 @@ const FileManager = observer((props: FileManagerProps) => {
                                   delay={{ show: 50, hide: 400 }}
                                   overlay={(props) => (
                                     <Tooltip id="button-tooltip" {...props}>
-                                      Insert how do you prefer to be cited.
+                                      This is how the authors of this dataset prefer to be cited.
                                     </Tooltip>
                                   )}>
                                   <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
@@ -343,13 +358,12 @@ const FileManager = observer((props: FileManagerProps) => {
                               </label>
                               <br></br>
                               <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("citation", "")}</div>
-                            </>
+                            </li>
                           )
                         }
-                        if (props.cursor.searchJson.getAttribute("funding", "") != "") {
-                          return (
-                            <>
-                              <br></br>
+                        if (props.cursor.searchJson.getAttribute("funding", "") !== "") {
+                          sidebarContent.push (
+                            <li key="funding">
                               <br></br>
                               <label>
                                 <i className="mdi mdi-account me-1 vertical-middle"></i>
@@ -359,7 +373,7 @@ const FileManager = observer((props: FileManagerProps) => {
                                   delay={{ show: 50, hide: 400 }}
                                   overlay={(props) => (
                                     <Tooltip id="button-tooltip" {...props}>
-                                      Insert information about funding supporting this project.
+                                      This is the funding the authors have received to create this dataset.
                                     </Tooltip>
                                   )}>
                                   <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
@@ -367,11 +381,17 @@ const FileManager = observer((props: FileManagerProps) => {
                               </label>
                               <br></br>
                               <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("funding", "")}</div>
-                            </>
+                            </li>
                           )
                         }
+                        return (
+                          <fieldset>
+                            <ul className="no-bullets">{sidebarContent}</ul>
+                          </fieldset>
+                        )
+                          
                       })()}
-                    </fieldset>
+                    
                   </>
                 )
               }
