@@ -17,10 +17,11 @@ const FileRouter = observer((props: FileRouterProps) => {
 
   useEffect(() => {
     if ((location.pathname === '/data' || location.pathname === '/data/') && props.cursor.s3Index.myIdentityId !== '') {
-      if (props.cursor.authenticated) {
+      if (props.cursor.s3Index.authenticated) {
         navigate("/data/" + encodeURIComponent(props.cursor.s3Index.myIdentityId));
       }
       else {
+        console.log("Navigating to login page, because user is not logged in.")
         navigate("/login", { replace: true, state: { from: location } });
       }
     }

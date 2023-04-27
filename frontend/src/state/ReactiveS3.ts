@@ -61,6 +61,7 @@ class ReactiveJsonFile {
     lastUploadedValues: Map<string, any>;
     pendingTimeout: any | null;
     changeListeners: Array<() => void>;
+    loadedListeners: Array<() => void>;
 
     constructor(cursor: ReactiveCursor, path: string, isPathGlobal: boolean = false) {
         this.cursor = cursor;
@@ -71,7 +72,8 @@ class ReactiveJsonFile {
         this.lastUploadedValues = new Map();
         this.pendingTimeout = null;
         this.changeListeners = [];
-        this.loading = false;
+        this.loadedListeners = [];
+        this.loading = true;
         this.pathChanged(true);
 
         this.cursor.index.addLoadingListener((loading: boolean) => {
@@ -98,51 +100,76 @@ class ReactiveJsonFile {
     /**
      * This will do a refresh of the contents of the file from S3
      */
-    refreshFile = () => {
-        if (this.fileExist()) {
-            this.loading = true;
-            console.log("File exists: " + this.fileExist());
-            this.cursor.index.downloadText(this.getAbsolutePath()).then(action((text: string) => {
-                console.log("Downloaded text: " + text);
-                try {
-                    let savedValues: Map<string, any> = new Map();
-                    this.focused.forEach((v, k) => {
-                        if (v) {
-                            savedValues.set(k, this.values.get(k));
-                        }
-                    });
+    refreshFile = action(() => {
+        console.log("Refreshing JSON file: " + this.path);
+        this.loading = true;
+        this.cursor.index.callOnceLoaded(action(() => {
+            if (this.fileExist()) {
+                this.cursor.index.downloadText(this.getAbsolutePath()).then(action((text: string) => {
+                    console.log("Downloaded JSON file " + this.path + " text: " + text);
+                    try {
+                        let savedValues: Map<string, any> = new Map();
+                        this.focused.forEach((v, k) => {
+                            if (v) {
+                                savedValues.set(k, this.values.get(k));
+                            }
+                        });
 
-                    this.values = savedValues;
-                    this.lastUploadedValues.clear();
-                    const result = JSON.parse(text);
-                    for (let key in result) {
-                        if (this.focused.get(key) === true) {
-                            // Skip updating this entry
-                        }
-                        else {
-                            this.values.set(key, result[key]);
-                            this.lastUploadedValues.set(key, result[key]);
+                        this.values = savedValues;
+                        this.lastUploadedValues.clear();
+                        const result = JSON.parse(text);
+                        for (let key in result) {
+                            if (this.focused.get(key) === true) {
+                                // Skip updating this entry
+                            }
+                            else {
+                                this.values.set(key, result[key]);
+                                this.lastUploadedValues.set(key, result[key]);
+                            }
                         }
                     }
-                }
-                catch (e) {
-                    console.error("Bad JSON format for file \"" + this.path + "\", got: \"" + text + "\"");
-                    this.values.clear();
-                }
-            })).finally(action(() => {
+                    catch (e) {
+                        console.error("Bad JSON format for file \"" + this.path + "\", got: \"" + text + "\"");
+                        this.values.clear();
+                    }
+                })).finally(action(() => {
+                    console.log("Finished loading JSON file: " + this.path);
+                    this.loading = false;
+                    this.loadedListeners.forEach((listener) => {
+                        listener();
+                    });
+                    this.loadedListeners = [];
+                }));
+            }
+            else {
+                console.log("JSON file does not exist: " + this.path);
+                this.values.clear();
                 this.loading = false;
-            }));
-        }
-        else {
-            this.values.clear();
-        }
-    };
+                this.loadedListeners.forEach((listener) => {
+                    listener();
+                });
+                this.loadedListeners = [];
+            }
+        }));
+    });
 
     /**
      * @returns True if we're loading the file AND have no contents cached. False otherwise.
      */
     isLoadingFirstTime = () => {
         return this.loading && this.values.size === 0;
+    }
+
+    /**
+     * This only calls the callback once we've loaded the file for the first time
+     */
+    callOnceLoaded = (callback: () => void) => {
+        if (this.loading) {
+            this.loadedListeners.push(callback);
+        }
+        else {
+            callback();
+        }
     }
 
     /**
@@ -196,6 +223,7 @@ class ReactiveJsonFile {
         // change. So in that case, we don't have to change our listeners.
         if (!this.isPathGlobal || forceRefreshEvenIfGlobal) {
             console.log('Adding listener to: '+ this.getAbsolutePath() );
+            this.values.clear();
             this.cursor.index.addMetadataListener(this.getAbsolutePath(), this.onFileChanged);
             this.refreshFile();
         }
@@ -206,8 +234,7 @@ class ReactiveJsonFile {
      */
     fileExist = () => {
         if (this.isPathGlobal) {
-            let cursorGlobal:ReactiveCursor = new ReactiveCursor(this.cursor.index, this.getAbsolutePath())
-            return cursorGlobal.getExistsAbsolute();
+            return this.cursor.index.getExists(this.path);
         }
         else
             return this.cursor.getExists(this.path);
@@ -369,21 +396,23 @@ class ReactiveTextFile {
     /**
      * This will do a refresh of the contents of the file from S3
      */
-    refreshFile = () => {
-        console.log("File exists: " + this.fileExist());
-        if (this.fileExist()) {
-            this.loading = true;
-            const absolutePath = this.getAbsolutePath();
-            this.cursor.index.downloadText(absolutePath).then(action((text: string) => {
-                this.text = text;
-            })).finally(action(() => {
+    refreshFile = action(() => {
+        this.loading = true;
+        this.cursor.index.callOnceLoaded(action(() => {
+            if (this.fileExist()) {
+                const absolutePath = this.getAbsolutePath();
+                this.cursor.index.downloadText(absolutePath).then(action((text: string) => {
+                    this.text = text;
+                })).finally(action(() => {
+                    this.loading = false;
+                }));
+            }
+            else {
+                this.text = null;
                 this.loading = false;
-            }));
-        }
-        else {
-            this.text = null;
-        }
-    };
+            }
+        }));
+    });
 
     /**
      * @returns True if we're loading the file AND have no contents cached. False otherwise.
@@ -1254,18 +1283,19 @@ class ReactiveIndex {
      * This does a complete refresh, overwriting the paths
      */
     fullRefresh = async (recreateClient: boolean = true) => {
+        // Always recreate the client, even if we're in the middle of a refresh
+        if (recreateClient) {
+            this.s3client = this.createFreshS3Client();
+            // Wait for the client to establish, which updates this.myIdentityId
+            await this.s3client;
+        }
+
         if (this.fullRefreshInProgress) {
             console.log("Ignoring call to fullRefresh(), since we're in the middle of another full refresh.")
             return;
         }
         this.fullRefreshInProgress = true;
         this.setIsLoading(true);
-
-        if (recreateClient) {
-            this.s3client = this.createFreshS3Client();
-            // Wait for the client to establish, which updates this.myIdentityId
-            await this.s3client;
-        }
 
         let paths = ['protected/'];
         if (this.authenticated && this.myIdentityId !== '') {
@@ -1528,6 +1558,36 @@ class ReactiveIndex {
     };
 
     /**
+     * This adds a listener that gets called when the loading state of the index changes.
+     */
+    removeLoadingListener = (onLoading: (loading: boolean) => void) => {
+        const index: number = this.loadingListeners.indexOf(onLoading) ?? -1;
+        if (index !== -1) {
+            this.loadingListeners.splice(index, 1);
+        }
+    };
+
+    /**
+     * This ensures that a callback will only get called once the index is loaded.
+     * 
+     * @param callback This callback will be called when the index is loaded.
+     */
+    callOnceLoaded = (callback: () => void) => {
+        if (this.loading) {
+            const toCall = (isLoading: boolean) => {
+                if (!isLoading) {
+                    this.removeLoadingListener(toCall);
+                    callback();
+                }
+            };
+            this.addLoadingListener(toCall);
+        }
+        else {
+            callback();
+        }
+    };
+
+    /**
      * This returns true if a file exists, and false if it doesn't.
      * 
      * @param path The exact path to check
@@ -1535,6 +1595,13 @@ class ReactiveIndex {
      */
     getMetadata = (path: string) => {
         return this.files.get(path) ?? null;
+    };
+
+    /**
+     * @returns True if the file pointed to at "path" exists in S3
+     */
+    getExists = (path: string) => {
+        return this.files.has(path);
     };
 
     /**

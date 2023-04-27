@@ -46,7 +46,7 @@ const FileManager = observer((props: FileManagerProps) => {
   const type = props.cursor.getFileType();
 
   let body = <Outlet />;
-  if (type === "folder" && props.cursor.authenticated) {
+  if (type === "folder" && props.cursor.s3Index.authenticated) {
     let dropdown = null;
     if (path.type === 'mine' || path.type === 'private') {
       dropdown = (
@@ -302,96 +302,96 @@ const FileManager = observer((props: FileManagerProps) => {
               if (path.type !== 'mine' && path.type != 'private') {
                 return (
                   <>
-                      {(() => {
-                        let sidebarContent = []
+                    {(() => {
+                      let sidebarContent = []
 
-                        if (props.cursor.searchJson.getAttribute("title", "") !== "") {
-                          sidebarContent.push (
-                            <li key="title">
-                              <br></br>
-                              <h2 style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("title", "")}</h2>
-                            </li>
-                          )
-                        }
-
-                        if (props.cursor.searchJson.getAttribute("notes", "") !== "") {
-                          sidebarContent.push (
-                            <li key="notes">
-                              <br></br>
-                              <label>
-                                <i className="mdi mdi-account me-1 vertical-middle"></i>
-                                Dataset Information:
-                                <OverlayTrigger
-                                  placement="right"
-                                  delay={{ show: 50, hide: 400 }}
-                                  overlay={(props) => (
-                                    <Tooltip id="button-tooltip" {...props}>
-                                      Public notes about the dataset (purpose, description, number of subjects, etc.) inserted by the authors.
-                                    </Tooltip>
-                                  )}>
-                                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                                </OverlayTrigger>
-                              </label>
-                              <br></br>
-                              <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("notes", "")}</div>
-                            </li>
-                          )
-                        }
-                        
-                        if (props.cursor.searchJson.getAttribute("citation", "") !== "") {
-                          sidebarContent.push (
-                            <li key="citation">
-                              <br></br>
-                              <label>
-                                <i className="mdi mdi-account me-1 vertical-middle"></i>
-                                Citation:
-                                <OverlayTrigger
-                                  placement="right"
-                                  delay={{ show: 50, hide: 400 }}
-                                  overlay={(props) => (
-                                    <Tooltip id="button-tooltip" {...props}>
-                                      This is how the authors of this dataset prefer to be cited.
-                                    </Tooltip>
-                                  )}>
-                                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                                </OverlayTrigger>
-                              </label>
-                              <br></br>
-                              <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("citation", "")}</div>
-                            </li>
-                          )
-                        }
-                        if (props.cursor.searchJson.getAttribute("funding", "") !== "") {
-                          sidebarContent.push (
-                            <li key="funding">
-                              <br></br>
-                              <label>
-                                <i className="mdi mdi-account me-1 vertical-middle"></i>
-                                Funding:
-                                <OverlayTrigger
-                                  placement="right"
-                                  delay={{ show: 50, hide: 400 }}
-                                  overlay={(props) => (
-                                    <Tooltip id="button-tooltip" {...props}>
-                                      This is the funding the authors have received to create this dataset.
-                                    </Tooltip>
-                                  )}>
-                                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
-                                </OverlayTrigger>
-                              </label>
-                              <br></br>
-                              <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("funding", "")}</div>
-                            </li>
-                          )
-                        }
-                        return (
-                          <fieldset>
-                            <ul className="no-bullets">{sidebarContent}</ul>
-                          </fieldset>
+                      if (props.cursor.searchJson.getAttribute("title", "") !== "") {
+                        sidebarContent.push(
+                          <li key="title">
+                            <br></br>
+                            <h2 style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("title", "")}</h2>
+                          </li>
                         )
-                          
-                      })()}
-                    
+                      }
+
+                      if (props.cursor.searchJson.getAttribute("notes", "") !== "") {
+                        sidebarContent.push(
+                          <li key="notes">
+                            <br></br>
+                            <label>
+                              <i className="mdi mdi-account me-1 vertical-middle"></i>
+                              Dataset Information:
+                              <OverlayTrigger
+                                placement="right"
+                                delay={{ show: 50, hide: 400 }}
+                                overlay={(props) => (
+                                  <Tooltip id="button-tooltip" {...props}>
+                                    Public notes about the dataset (purpose, description, number of subjects, etc.) inserted by the authors.
+                                  </Tooltip>
+                                )}>
+                                <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                              </OverlayTrigger>
+                            </label>
+                            <br></br>
+                            <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("notes", "")}</div>
+                          </li>
+                        )
+                      }
+
+                      if (props.cursor.searchJson.getAttribute("citation", "") !== "") {
+                        sidebarContent.push(
+                          <li key="citation">
+                            <br></br>
+                            <label>
+                              <i className="mdi mdi-account me-1 vertical-middle"></i>
+                              Citation:
+                              <OverlayTrigger
+                                placement="right"
+                                delay={{ show: 50, hide: 400 }}
+                                overlay={(props) => (
+                                  <Tooltip id="button-tooltip" {...props}>
+                                    This is how the authors of this dataset prefer to be cited.
+                                  </Tooltip>
+                                )}>
+                                <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                              </OverlayTrigger>
+                            </label>
+                            <br></br>
+                            <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("citation", "")}</div>
+                          </li>
+                        )
+                      }
+                      if (props.cursor.searchJson.getAttribute("funding", "") !== "") {
+                        sidebarContent.push(
+                          <li key="funding">
+                            <br></br>
+                            <label>
+                              <i className="mdi mdi-account me-1 vertical-middle"></i>
+                              Funding:
+                              <OverlayTrigger
+                                placement="right"
+                                delay={{ show: 50, hide: 400 }}
+                                overlay={(props) => (
+                                  <Tooltip id="button-tooltip" {...props}>
+                                    This is the funding the authors have received to create this dataset.
+                                  </Tooltip>
+                                )}>
+                                <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                              </OverlayTrigger>
+                            </label>
+                            <br></br>
+                            <div style={{ width: '100%' }}>{props.cursor.searchJson.getAttribute("funding", "")}</div>
+                          </li>
+                        )
+                      }
+                      return (
+                        <fieldset>
+                          <ul className="no-bullets">{sidebarContent}</ul>
+                        </fieldset>
+                      )
+
+                    })()}
+
                   </>
                 )
               }
