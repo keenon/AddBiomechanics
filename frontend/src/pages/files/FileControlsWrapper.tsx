@@ -165,13 +165,13 @@ const FileManager = observer((props: FileManagerProps) => {
         securityNotice = (
           <>
             <h4>
-              <span className="badge rounded-pill p-1 px-2 bg-success mb-2">PUBLISHED SUBFOLDER</span>
+              <span className="badge rounded-pill p-1 px-2 bg-success mb-2">FINALIZED SUBFOLDER</span>
               <OverlayTrigger
                 placement="right"
                 delay={{ show: 50, hide: 800 }}
                 overlay={(props) => (
                   <Tooltip id="button-tooltip" {...props}>
-                    <p>This is a sub-folder in a <b>published dataset</b>, and can be found on the AddBiomechanics <Link to="/search">search page</Link>.</p>
+                    <p>This is a sub-folder in a <b>finalized dataset</b>, and can be found on the AddBiomechanics <Link to="/search">search page</Link>.</p>
                     <p>You can leave public notes to help others using the data (how to cite the data, etc). It is <b>your responsibility</b> to not include any Personally Identifiable Information (PII) about your subjects!</p>
                   </Tooltip>
                 )}>
@@ -191,13 +191,13 @@ const FileManager = observer((props: FileManagerProps) => {
         securityNotice = (
           <>
             <h4>
-              <span className="badge rounded-pill p-1 px-2 bg-success mb-2">PUBLISHED DATA</span>
+              <span className="badge rounded-pill p-1 px-2 bg-success mb-2">FINALIZED DATA</span>
               <OverlayTrigger
                 placement="right"
                 delay={{ show: 50, hide: 800 }}
                 overlay={(props) => (
                   <Tooltip id="button-tooltip" {...props}>
-                    <p>This folder is <b>published data</b>, and can be found on the AddBiomechanics <Link to="/search">search page</Link>.</p>
+                    <p>This folder is <b>finalized data</b>, and can be found on the AddBiomechanics <Link to="/search">search page</Link>.</p>
                     <p>You can leave public notes to help others using the data (how to cite the data, etc). It is <b>your responsibility</b> to not include any Personally Identifiable Information (PII) about your subjects!</p>
                   </Tooltip>
                 )}>
@@ -207,7 +207,7 @@ const FileManager = observer((props: FileManagerProps) => {
             <div className="FileControlsWrapper-folder-description">
               {getEditableDescriptionSection(props.cursor.searchJson)}
               <button type="submit" className="btn btn-light mt-2" onClick={() => props.cursor.markNotSearchable()}>
-                <i className="mdi mdi-earth-minus"></i> Remove from Search
+                <i className="mdi mdi-earth-minus"></i> Mark as a Draft
               </button>
             </div>
           </>
@@ -217,13 +217,13 @@ const FileManager = observer((props: FileManagerProps) => {
         securityNotice = (
           <>
             <h4>
-              <span className="badge rounded-pill p-1 px-2 bg-warning">UNPUBLISHED DRAFT</span>
+              <span className="badge rounded-pill p-1 px-2 bg-warning">UNFINALIZED DRAFT</span>
               <OverlayTrigger
                 placement="right"
                 delay={{ show: 50, hide: 800 }}
                 overlay={(props) => (
                   <Tooltip id="button-tooltip" {...props}>
-                    <p>This folder is a <b>draft</b>. It is accessible to anyone who has the link, but will not show up on the AddBiomechanics <Link to="/search">search page</Link>.</p>
+                    <p>This folder is a <b>draft</b>. It is accessible to anyone who has the link, and will show up on the AddBiomechanics <Link to="/search">search page</Link> marked as a draft.</p>
                     <p>You can leave public notes to help others using the data (how to cite the data, etc). It is <b>your responsibility</b> to not include any Personally Identifiable Information (PII) about your subjects!</p>
                   </Tooltip>
                 )}>
@@ -233,9 +233,9 @@ const FileManager = observer((props: FileManagerProps) => {
             <div className="FileControlsWrapper-folder-description">
               {getEditableDescriptionSection(props.cursor.searchJson)}
               <button type="submit" className="btn btn-primary mt-2" onClick={() => props.cursor.markSearchable()}>
-                <i className="mdi mdi-earth-plus"></i> Publish Data to Search Index
+                <i className="mdi mdi-earth-plus"></i> Mark Dataset as Finalized
               </button>
-              <p className="mt-2"><small>(You can always remove from the search index again later if you change your mind)</small></p>
+              <p className="mt-2"><small>(You can always mark it as a drafw again later if you change your mind)</small></p>
             </div>
           </>
         );
