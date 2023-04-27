@@ -476,7 +476,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         for forcePlate in forcePlateList:
             totalForce += sum([np.linalg.norm(f)
                                 for f in forcePlate.forces])
-    fitDynamics = totalForce > 1e-10 and not disableDynamics
+    fitDynamics = (totalForce > 1e-10) and (not disableDynamics)
 
     if fitDynamics:
         print('******** Attempting to fit dynamics... ********', flush=True)
@@ -670,6 +670,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             finalPoses = dynamicsInit.poseTrials
             finalMarkers = dynamicsInit.updatedMarkerMap
             trialForcePlates = dynamicsInit.forcePlateTrials
+    else:
+        print('Will not attempt to fit dynamics. Total forces over all timesteps: '+str(totalForce)+'N, disableDynamics: '+str(disableDynamics), flush=True)
 
 
     # 8.2. Write out the usable OpenSim results
