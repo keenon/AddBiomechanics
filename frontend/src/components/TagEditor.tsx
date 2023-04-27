@@ -34,12 +34,12 @@ const subjectOptions: Option[] = [
         { value: 'stroke_left_hemiparesis', label: 'Stroke Left Hemiparesis' },
         { value: 'stroke_right_hemiparesis', label: 'Stroke Right Hemiparesis' },
      ]},
-     { value: 'multiple_sclerosis', label: 'multiple sclerosis' },
+     { value: 'multiple_sclerosis', label: 'Multiple Sclerosis' },
      { value: 'dystonia', label: 'Dystonia' },
      { value: 'alzheimers', label: 'Alzheimers' },
-     { value: 'chronic_pain', label: 'chronic pain' },
-     { value: 'traumatic_brain_injury', label: 'traumatic brain injury' },
-     { value: 'ptsd', label: 'ptsd' },
+     { value: 'chronic_pain', label: 'Chronic Pain' },
+     { value: 'traumatic_brain_injury', label: 'Traumatic Brain Injury' },
+     { value: 'ptsd', label: 'Post-Traumatic Stress Disorder (PTSD)' },
      { value: 'tbi', label: 'Traumatic Brain Injury (TBI)' },
      { value: 'concussion', label: 'Concussion' },
      { value: 'cognitive_impairment', label: 'Cognitive Impairment' },
@@ -53,14 +53,14 @@ const subjectOptions: Option[] = [
      { value: 'blind', label: 'Blind' },
      { value: 'visually_impaired', label: 'Visually Impaired' },
      { value: 'limb_loss_amputation', label: 'Limb Loss/Amputation', isHeader:true, children: [
-        { value: 'trans_femoral_amputation_left', label: 'Trans-femoral Amputation - Left' },
-        { value: 'trans_femoral_amputation_right', label: 'Trans-femoral Amputation - Right' },
-        { value: 'trans_tibial_amputation_left', label: 'Trans-tibial Amputation - Left' },
-        { value: 'trans_tibial_amputation_right', label: 'Trans-tibial Amputation - Right' },
-        { value: 'trans_radial_amputation_left', label: 'Trans-radial Amputation - Left' },
-        { value: 'trans_radial_amputation_right', label: 'Trans-radial Amputation - Right' },
-        { value: 'trans_humeral_amputation_left', label: 'Trans-humeral Amputation - Left' },
-        { value: 'trans_humeral_amputation_right', label: 'Trans-humeral Amputation - Right' },
+        { value: 'trans_femoral_amputation_left', label: 'Trans-Femoral Amputation - Left' },
+        { value: 'trans_femoral_amputation_right', label: 'Trans-Femoral Amputation - Right' },
+        { value: 'trans_tibial_amputation_left', label: 'Trans-Tibial Amputation - Left' },
+        { value: 'trans_tibial_amputation_right', label: 'Trans-Tibial Amputation - Right' },
+        { value: 'trans_radial_amputation_left', label: 'Trans-Radial Amputation - Left' },
+        { value: 'trans_radial_amputation_right', label: 'Trans-Radial Amputation - Right' },
+        { value: 'trans_humeral_amputation_left', label: 'Trans-Humeral Amputation - Left' },
+        { value: 'trans_humeral_amputation_right', label: 'Trans-Humeral Amputation - Right' },
      ]},
      { value: 'athlete', label: 'Athlete' },
   ]},
@@ -86,8 +86,8 @@ const trialOptions: Option[] = [
      { value: 'cutting', label: 'Cutting' },
      { value: 'lifting', label: 'Lifting' },
      { value: 'swimming', label: 'Swimming' },
-     { value: 'carrying_in_the_hands', label: 'Carrying in the hands' },
-     { value: 'carrying_in_the_arms', label: 'Carrying in the arms' },
+     { value: 'carrying_in_the_hands', label: 'Carrying in the Hands' },
+     { value: 'carrying_in_the_arms', label: 'Carrying in the Arms' },
      { value: 'carrying_on_shoulders_hip_back', label: 'Carrying on Shoulders, Hips, and Back' },
      { value: 'putting_down_objects', label: 'Putting Down Objects' },
      { value: 'gait_initiation', label: 'Gait Initiation' },
@@ -124,7 +124,7 @@ const trialOptions: Option[] = [
      { value: 'calibration', label: 'Calibration' },
      { value: 'arms_crossed', label: 'Arms Crossed' },
      { value: 'timed_up_and_go', label: 'Timed Up and Go (TUG)' },
-     { value: 'six_minute_walk', label: '6MWT' },
+     { value: 'six_minute_walk', label: 'Six Minute Walk Test (6MWT)' },
      { value: 'walking_with_turns', label: 'Walking with Turns' },
   ]},
   { value: 'terrain', label: 'Terrain', isHeader:true, isNonSelectable: true, children: [
@@ -248,7 +248,7 @@ const TagEditor = (props: TagEditorProps) => {
     // Check if any child has unselected descendants
     return option.children?.some(child => hasUnselectedDescendants(child, selectedOptions)) ?? false;
   }
-  
+
   let customStyles;
   if (props.error) {
     customStyles = {
