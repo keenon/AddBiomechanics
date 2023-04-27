@@ -280,7 +280,6 @@ class MocapS3Cursor {
     datasetIndex: MocapDatasetIndex;
 
     region: string;
-    authenticated: boolean;
 
     showValidationControls: boolean;
     cachedLogFile: Promise<string> | null;
@@ -294,8 +293,6 @@ class MocapS3Cursor {
     resultsJson: ReactiveJsonFile;
     searchJson: ReactiveJsonFile;
     myProfileJson: ReactiveJsonFile;
-    otherProfileJsons: Map<string, ReactiveJsonFile>;
-    datasetSearchJsons: Map<string, ReactiveJsonFile>;
     customModelFile: ReactiveTextFile;
 
     socket: RobustMqtt;
@@ -326,8 +323,6 @@ class MocapS3Cursor {
         this.resultsJson = this.rawCursor.getJsonFile("_results.json");
         this.searchJson = this.rawCursor.getJsonFile("_search.json");
         this.myProfileJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+s3Index.myIdentityId+"/profile.json", true);
-        this.otherProfileJsons = new Map();
-        this.datasetSearchJsons = new Map();
         this.customModelFile = this.rawCursor.getTextFile("unscaled_generic.osim");
 
         this.socket = socket;
@@ -338,9 +333,7 @@ class MocapS3Cursor {
         this.processingServersLastUpdatedTimestamp = new Map();
         this.lastSeenPong = new Map();
 
-        this.authenticated = false;
         Auth.currentCredentials().then(action((credentials) => {
-            this.authenticated = credentials.authenticated;
             this.myProfileJson.setGlobalPath('protected/'+this.region+":"+s3Index.myIdentityId+"/profile.json");
         }))
 
@@ -361,7 +354,10 @@ class MocapS3Cursor {
     getFullName = () => {
         let name:string = this.myProfileJson.getAttribute("name", "");
         let surname:string = this.myProfileJson.getAttribute("surname", "");
-        if (name !== "" && surname !== "") {
+        if (this.myProfileJson.loading) {
+            return "(Loading...)";
+        }
+        else if (name !== "" && surname !== "") {
             return name + " " + surname;
         }
         else if  (name === "" && surname !== "") {
@@ -377,17 +373,18 @@ class MocapS3Cursor {
 
     getOtherProfileJson = (userId: string) => {
         console.log('Get profile JSON for user '+userId);
-        let otherProfileJson = this.otherProfileJsons.get(userId);
-        if (otherProfileJson == null) {
-            otherProfileJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+userId+"/profile.json", true);
-            this.otherProfileJsons.set(userId, otherProfileJson);
-        }
-        return otherProfileJson;
+        return this.rawCursor.getJsonFile('protected/'+this.region+":"+userId+"/profile.json", true);
     };
 
     getOtherProfileFullName = (userId: string) => {
+        if (userId === this.s3Index.myIdentityId) {
+            return this.getFullName();
+        }
         console.log('Get full name for user '+userId);
         const otherProfileJson = this.getOtherProfileJson(userId);
+        if (otherProfileJson.loading) {
+            return "(Loading...)";
+        }
         let name:string = otherProfileJson.getAttribute("name", "");
         let surname:string = otherProfileJson.getAttribute("surname", "");
         if (name !== "" && surname !== "") {
@@ -400,17 +397,13 @@ class MocapS3Cursor {
             return name;
         }
         else {
+            console.log("Returning No Profile!");
             return "(No Profile - " + userId.substring(0, 6)+")";
         }
     }
 
     getDatasetSearchJson = (filteredPath: string) => {
-        let otherSearchJson = this.datasetSearchJsons.get(filteredPath);
-        if (otherSearchJson == null) {
-            otherSearchJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+filteredPath+'/_search.json', true);
-            this.datasetSearchJsons.set(filteredPath, otherSearchJson);
-        }
-        return otherSearchJson;
+        return this.rawCursor.getJsonFile('protected/'+this.region+":"+filteredPath+'/_search.json', true);
     };
 
     /**
@@ -418,8 +411,9 @@ class MocapS3Cursor {
      * 
      * @param email The email of the user
      */
-    setUserEmail = (email: string) => {
+    userLoggedIn = (email: string) => {
         this.userEmail = email;
+        this.myProfileJson.setGlobalPath('protected/'+this.region+":"+this.s3Index.myIdentityId+"/profile.json");
     }
 
     /**

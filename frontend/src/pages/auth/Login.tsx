@@ -16,6 +16,7 @@ import VerticalForm from "../../components/VerticalForm";
 import FormInput from "../../components/FormInput";
 
 import AccountLayout from "./AccountLayout";
+import MocapS3Cursor from "../../state/MocapS3Cursor";
 
 /* bottom link of account pages */
 const BottomLink = () => {
@@ -37,6 +38,7 @@ const BottomLink = () => {
 
 type LoginProps = {
   onLogin?: (email: string) => void;
+  cursor: MocapS3Cursor;
 };
 
 const Login = (props: LoginProps) => {
@@ -52,15 +54,10 @@ const Login = (props: LoginProps) => {
     from = '/';
   }
 
-  useEffect(() => {
-    Auth.currentAuthenticatedUser()
-      .then((user: any) => {
-        console.log("User is already logged in. Navigating to " + from);
-        navigate(from, { replace: true });
-      }).catch((e) => {
-        // Ignore, we're already supposed to be logged in
-      });
-  }, [])
+  if (props.cursor.s3Index.authenticated) {
+    console.log("User is already logged in. Navigating to " + from);
+    navigate(from, { replace: true });
+  }
 
   function handleSubmit(value: { [key: string]: any }) {
     let email = value["username"] as string;
@@ -69,16 +66,23 @@ const Login = (props: LoginProps) => {
     setLoading(true);
     Auth.signIn(email, password)
       .then(() => {
-        if (props.onLogin) {
-          props.onLogin(email);
-        }
-        // Send them back to the page they tried to visit when they were
-        // redirected to the login page. Use { replace: true } so we don't create
-        // another entry in the history stack for the login page.  This means that
-        // when they get to the protected page and click the back button, they
-        // won't end up back on the login page, which is also really nice for the
-        // user experience.
-        navigate(from, { replace: true });
+        return Auth.currentCredentials().then((credentials) => {
+          props.cursor.s3Index.authenticated = credentials.authenticated;
+          props.cursor.s3Index.myIdentityId = credentials.identityId.replace("us-west-2:", "");
+          console.log("Logged in successfully, got auth " + props.cursor.s3Index.authenticated + ", identity ID " + props.cursor.s3Index.myIdentityId);
+
+          if (props.onLogin) {
+            props.onLogin(email);
+          }
+
+          // Send them back to the page they tried to visit when they were
+          // redirected to the login page. Use { replace: true } so we don't create
+          // another entry in the history stack for the login page.  This means that
+          // when they get to the protected page and click the back button, they
+          // won't end up back on the login page, which is also really nice for the
+          // user experience.
+          navigate(from, { replace: true });
+        });
       })
       .catch((reason: Error) => {
         setLoading(false);
@@ -93,6 +97,7 @@ const Login = (props: LoginProps) => {
             }
           );
         } else {
+          console.log("Got login error: " + reason.name + ' - ' + reason.message);
           setError(reason.message);
         }
       });

@@ -24,9 +24,8 @@ import MocapS3Cursor from "./state/MocapS3Cursor";
 import Amplify, { API, Auth } from "aws-amplify";
 import awsExports from "./aws-exports";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import RequireAuth from "./pages/auth/RequireAuth";
 import RobustMqtt from "./state/RobustMqtt";
-import {toast } from 'react-toastify';
+import { toast } from 'react-toastify';
 import { showToast } from "./utils";
 
 // Verify TS is configured correctly
@@ -56,7 +55,7 @@ const cursor = new MocapS3Cursor(s3Index, socket);
 
 function afterLogin(email: string) {
   console.log("Logged in as " + email);
-  cursor.setUserEmail(email);
+  cursor.userLoggedIn(email);
   console.log("Refreshing S3 data...");
   s3Index.fullRefresh(true).then(() => {
     console.log("Running PostAuthAPI...");
@@ -83,15 +82,20 @@ function afterLogin(email: string) {
         //   This way, we let users explore the tool the first time they log in, and we only ask them to create the profile the following times.
         // - If the file profile.json file exists, the toast is shown only if there are no values on the file. This is true for users that have
         //   never created a profile page, and for users that have removed their information from their profile page. 
-        if(cursor.myProfileJson && cursor.myProfileJson.values && [...cursor.myProfileJson.values.values()].every(value => value === '')) {
-
-          const CustomToastWithLink = () => (
-            <div>
-              We noticed you have not created a profile. Please click <Link to="/profile">here</Link> to create one!.
-            </div>
-          );
-          showToast(CustomToastWithLink, "info", toast.POSITION.BOTTOM_CENTER, 10000);
-        }
+        cursor.s3Index.callOnceLoaded(() => {
+          if (!cursor.s3Index.loading && cursor.myProfileJson) {
+            cursor.myProfileJson.callOnceLoaded(() => {
+              if (cursor.myProfileJson.values && [...cursor.myProfileJson.values.values()].every(value => value === '')) {
+                const CustomToastWithLink = () => (
+                  <div>
+                    We noticed you have not created a profile. Please click <Link to="/profile">here</Link> to create one!.
+                  </div>
+                );
+                showToast(CustomToastWithLink, "info", toast.POSITION.BOTTOM_CENTER, 20000);
+              }
+            });
+          }
+        });
       })
       .catch((error) => {
         console.log("Got error with PostAuthAPI!");
@@ -162,6 +166,7 @@ ReactDOM.render(
           path="/login"
           element={
             <Login
+              cursor={cursor}
               onLogin={(email: string) => {
                 afterLogin(email);
               }}

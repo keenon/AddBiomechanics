@@ -80,12 +80,12 @@ const ProfileView = observer((props: ProfileViewProps) => {
   // Only do navigation checks if we're not currently loading
   if (!props.cursor.getIsLoading()) {
     // If the user is authenticated, but the current path is profile...
-    if (props.cursor.authenticated && (location.pathname === '/profile' || location.pathname === '/profile/')) {
+    if (props.cursor.s3Index.authenticated && (location.pathname === '/profile' || location.pathname === '/profile/')) {
       // Go to user's profile.
       navigate("/profile/" + encodeURIComponent(s3Index.myIdentityId));
       urlId = s3Index.myIdentityId;
       // If the user is not authenticated...
-    } else if (!props.cursor.authenticated) {
+    } else if (!props.cursor.s3Index.authenticated) {
       // Go to login.
       navigate("/login/");
     }

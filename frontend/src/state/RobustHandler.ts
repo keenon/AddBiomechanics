@@ -43,8 +43,6 @@ export class AxiosHttpHandler implements HttpHandler {
     request: HttpRequest,
     options?: AxiosHttpHandlerOptions
   ): Promise<{ response: HttpResponse }> {
-    console.log("Starting upload request");
-
     let path = request.path;
     if (request.query) {
       const queryString = buildQueryString(request.query);
@@ -99,7 +97,6 @@ export class AxiosHttpHandler implements HttpHandler {
       axios
         .request(axiosRequest)
         .then(response => {
-          console.log("RobustHandler finished network call");
           return {
             response: new HttpResponse({
               headers: response.headers,
