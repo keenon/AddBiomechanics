@@ -71,8 +71,8 @@ const SearchView = observer((props: SearchViewProps) => {
   }
   else {
     header = <>
-      <h3>Published Folders</h3>
-      <p>All folders still in "draft" mode will not show up here. Authors must mark their folder as published to have it appear here.</p>
+      <h3>Finalized Folders</h3>
+      <p>All folders still in "draft" mode will not show up here. Authors must mark their folder as finalized to have it appear here.</p>
     </>;
   }
 
