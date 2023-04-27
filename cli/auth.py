@@ -46,8 +46,8 @@ def get_id_token(poolClientId: str, username: str, password: str) -> str:
                 ClientId=poolClientId,
                 AuthFlow='USER_PASSWORD_AUTH',
                 AuthParameters={
-                    'USERNAME': username,  # 'biomechanics.db@gmail.com',
-                    'PASSWORD': password  # '^EH3i2WI35A%@Pr'
+                    'USERNAME': username, 
+                    'PASSWORD': password
                 }
             )
             id_token = resp['AuthenticationResult']['IdToken']

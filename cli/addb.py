@@ -54,6 +54,47 @@ def ls(session: boto3.Session, deployment: Dict[str, str], user_identity_id: str
             break
 
 
+def download_dataset(session: boto3.Session, deployment: Dict[str, str], output_path: str):
+    s3 = session.client('s3')
+    # Call list_objects_v2() with the continuation token
+    response = s3.list_objects_v2(
+        Bucket=deployment['BUCKET'], Prefix='protected/')
+    
+    binaryFiles = []
+    totalSize = 0
+    # Retrieve the first set of objects
+    while True:
+        # Process the objects in the response
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                key = obj['Key']
+                size = obj['Size']
+                if key.endswith('.bin'):
+                    binaryFiles.append((key, size))
+                    totalSize += size
+
+        # Check if there are more objects to retrieve
+        if response['IsTruncated']:
+            continuation_token = response['NextContinuationToken']
+            response = s3.list_objects_v2(
+                Bucket=deployment['BUCKET'], Prefix='protected/'+user_identity_id, ContinuationToken=continuation_token)
+        else:
+            break
+    
+    print('Found '+str(len(binaryFiles))+' binary files totalling '+str(round(totalSize / 1e6, 2))+' Mb:')
+    if not output_path.endswith('/'):
+        output_path += '/'
+    for i, (file, size) in enumerate(binaryFiles):
+        display_name = '/'.join(file.split('/')[-2:])
+        file_name = file.replace('/', '_')
+        dest_path = output_path+file_name
+        print('Downloading '+str(i+1)+'/'+str(len(binaryFiles))+' '+display_name+' ('+str(round(size / 1e6, 2))+' Mb)')
+        directory = os.path.dirname(dest_path)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        s3.download_file(deployment['BUCKET'], file, dest_path)
+
+
 def upload_subject(session: boto3.Session,
                    deployment: Dict[str, str],
                    user_email: str,
@@ -264,6 +305,12 @@ if __name__ == '__main__':
     ls_parser = subparsers.add_parser(
         'ls', help='List the contents of your uploads on AddBiomechanics')
 
+    # Add a parser for the download command
+    download_parser = subparsers.add_parser(
+        'download', help='Download a training dataset from AddBiomechanics')
+    download_parser.add_argument(
+        'output_path', type=str, help='The path to the folder to put the downloaded data')
+
     # Add a parser for the process command
     process_parser = subparsers.add_parser(
         'upload', help='Upload a subject-worth of data to AddBiomechanics to process')
@@ -309,6 +356,8 @@ if __name__ == '__main__':
     # Call the main function with the parsed arguments
     if args.command == 'ls':
         ls(aws_session, deployment, user_identity_id)
+    if args.command == 'download':
+        download_dataset(aws_session, deployment, args.output_path)
     elif args.command == 'upload':
         upload_subject(aws_session,
                        deployment,
