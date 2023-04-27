@@ -4,6 +4,7 @@ import boto3
 import requests
 from typing import Dict, List, Tuple
 import json
+import time
 from auth import ensure_login, get_id_token, get_user_identity_id, get_temp_aws_access_keys, get_temp_aws_session
 
 
@@ -15,7 +16,8 @@ PROD_DEPLOYMENT = {
     'ID_POOL': 'us-west-2:8817f48e-9e7b-46a4-91ea-42f4b35a55b3',
     'BUCKET': "biomechanics-uploads83039-prod",
     'REGION': "us-west-2",
-    'ROLE_ARN': "arn:aws:iam::756193201945:role/amplify-biomechanicsfrontend-prod-83039-authRole"
+    'ROLE_ARN': "arn:aws:iam::756193201945:role/amplify-biomechanicsfrontend-prod-83039-authRole",
+    'MQTT_PREFIX': "PROD"
 }
 
 DEV_DEPLOYMENT = {
@@ -26,7 +28,8 @@ DEV_DEPLOYMENT = {
     'ID_POOL': 'us-west-2:3c433c8f-9b94-44b5-83c0-bae84529e0f7',
     'BUCKET': "biomechanics-uploads161949-dev",
     'REGION': "us-west-2",
-    'ROLE_ARN': "arn:aws:iam::756193201945:role/amplify-biomechanicsfrontend-dev-161949-authRole"
+    'ROLE_ARN': "arn:aws:iam::756193201945:role/amplify-biomechanicsfrontend-dev-161949-authRole",
+    'MQTT_PREFIX': "DEV"
 }
 
 
@@ -173,6 +176,21 @@ def upload_subject(session: boto3.Session,
 
     # Upload the files
     s3 = session.client('s3')
+    pubsub = session.client('iot-data')
+
+    # Send real-time updates to PubSub saying that this file was uploaded
+    def notifyFileChanged(key: str, size_bytes: int = 0):
+        parts = key.split('/')
+        topic = '/' + deployment['MQTT_PREFIX'] + '/UPDATE/'
+        if len(parts) > 0:
+            topic += parts[0]
+        if len(parts) > 1:
+            topic += '/' + parts[1]
+        print('publishing to '+topic)
+        pubsub.publish(
+            topic=topic,
+            qos=1,
+            payload=json.dumps({'key': key, 'topic': topic, 'size': size_bytes, 'lastModified': int(time.time()*1000)}))
 
     s3_prefix = 'protected/'+user_identity_id + \
         '/data/' + dataset_name + '/' + subject_name + '/'
@@ -188,13 +206,19 @@ def upload_subject(session: boto3.Session,
     }
     s3.put_object(Body=json.dumps(subject_json),
                   Bucket=deployment['BUCKET'], Key=s3_prefix+'_subject.json')
+    notifyFileChanged(s3_prefix+'_subject.json')
     s3.put_object(Body='',
                   Bucket=deployment['BUCKET'], Key=s3_prefix+'trials/')
+    notifyFileChanged(s3_prefix+'trials/')
 
     # Upload the opensim unscaled model
     if skeleton_preset == 'custom':
+        osim_file_key = s3_prefix + 'unscaled_generic.osim'
         s3.upload_file(opensim_unscaled,
-                       deployment['BUCKET'], s3_prefix + 'opensim_unscaled.osim')
+                       deployment['BUCKET'], osim_file_key)
+        print(f'Uploading {opensim_unscaled} to {osim_file_key}')
+        notifyFileChanged(osim_file_key,
+                          size_bytes=os.path.getsize(opensim_unscaled))
 
     for trial in trials:
         trial_name = trial.trial_name
@@ -206,12 +230,20 @@ def upload_subject(session: boto3.Session,
         marker_file_key = s3_prefix+'trials/'+trial_name+'/markers.'+marker_data_type
         print(f'Uploading {marker_file} to {marker_file_key}')
         s3.upload_file(marker_file, deployment['BUCKET'], marker_file_key)
+        notifyFileChanged(
+            marker_file_key, size_bytes=os.path.getsize(marker_file))
 
         # Upload the grf file
         if grf_file is not None:
             grf_file_key = s3_prefix+'trials/'+trial_name+'/grf.mot'
             print(f'Uploading {grf_file} to {grf_file_key}')
             s3.upload_file(grf_file, deployment['BUCKET'], grf_file_key)
+            notifyFileChanged(
+                grf_file_key, size_bytes=os.path.getsize(grf_file))
+    # Mark to begin processing immediately
+    s3.put_object(Body='',
+                  Bucket=deployment['BUCKET'], Key=s3_prefix+'READY_TO_PROCESS')
+    notifyFileChanged(s3_prefix+'READY_TO_PROCESS')
 
 
 if __name__ == '__main__':
