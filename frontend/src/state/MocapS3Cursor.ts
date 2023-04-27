@@ -193,7 +193,6 @@ class MocapDatasetIndex {
             }
             if (key.indexOf("_SEARCH") !== -1) {
                 const filteredKey = key.replaceAll("_SEARCH", "");
-                console.log(filteredKey);
 
                 const parts = filteredKey.split("/");
                 // assert(parts[0] === "protected");
