@@ -1,1 +1,2 @@
-nimblephysics == 0.8.93
+nimblephysics == 0.8.97
+pandas

@@ -395,8 +395,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
         DATA_FOLDER_PATH + '/ANSUR_metrics.xml')
     cols = anthropometrics.getMetricNames()
-    cols.append('Heightin')
-    cols.append('Weightlbs')
+    cols.append('weightkg')
     if sex == 'male':
         gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
             DATA_FOLDER_PATH + '/ANSUR_II_MALE_Public.csv',
@@ -413,12 +412,14 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             cols,
             0.001)  # mm -> m
     observedValues = {
-        'Heightin': heightM * 39.37 * 0.001,
-        'Weightlbs': massKg * 2.204 * 0.001,
+        'stature': heightM,
+        'weightkg': massKg * 0.01,
     }
     gauss = gauss.condition(observedValues)
     anthropometrics.setDistribution(gauss)
     markerFitter.setAnthropometricPrior(anthropometrics, 0.1)
+    markerFitter.setExplicitHeightPrior(heightM, 0.1)
+    markerFitter.setRegularizePelvisJointsWithVirtualSpring(0.1)
 
     # Run the kinematics pipeline
     results: List[nimble.biomechanics.MarkerInitialization] = markerFitter.runMultiTrialKinematicsPipeline(
@@ -550,7 +551,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 else:
                     # Run an optimization to figure out the model parameters
                     dynamicsFitter.setIterationLimit(200)
-                    dynamicsFitter.setLBFGSHistoryLength(300)
+                    dynamicsFitter.setLBFGSHistoryLength(100) # Used to be 300. Reducing LBFGS history to speed up solves
                     dynamicsFitter.runIPOPTOptimization(
                         dynamicsInit,
                         nimble.biomechanics.DynamicsFitProblemConfig(
@@ -575,10 +576,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     for trial in range(len(dynamicsInit.poseTrials)):
                         if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
                             dynamicsFitter.setIterationLimit(200)
-                            dynamicsFitter.setLBFGSHistoryLength(100)
+                            dynamicsFitter.setLBFGSHistoryLength(30) # Used to be 100. Reducing LBFGS history to speed up solves
                         elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
                             dynamicsFitter.setIterationLimit(100)
-                            dynamicsFitter.setLBFGSHistoryLength(30)
+                            dynamicsFitter.setLBFGSHistoryLength(20) # Used to be 30. Reducing LBFGS history to speed up solves
                         else:
                             dynamicsFitter.setIterationLimit(50)
                             dynamicsFitter.setLBFGSHistoryLength(3)
