@@ -521,14 +521,25 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             print("Avg Force: " + str(secondPair[0]) + " N", flush=True)
             print("Avg Torque: " + str(secondPair[1]) + " Nm", flush=True)
 
-            dynamicsFitter.boundPush(dynamicsInit)
+            dynamicsFitter.addJointBoundSlack(finalSkeleton, 0.1)
+
+            # We don't actually want to do this. This pushes the state away from the initial state 
+            # if it near bounds, on the theory that this will lead to easier initialization with 
+            # an interior-point solver (since we won't be pushed so far in early iterations). The 
+            # cost seems to be greater than the reward, though.
+            # dynamicsFitter.boundPush(dynamicsInit)
+
             dynamicsFitter.smoothAccelerations(dynamicsInit)
             initializeSuccess = dynamicsFitter.timeSyncAndInitializePipeline(
                 dynamicsInit,
                 useReactionWheels=useReactionWheels,
                 shiftGRF=shiftGRF,
+                maxShiftGRF=4,
+                iterationsPerShift=20,
                 maxTrialsToSolveMassOver=maxTrialsToSolveMassOver,
-                reoptimizeMarkerOffsets=dynamicsMarkerOffsets
+                avgPositionChangeThreshold=0.08,
+                avgAngularChangeThreshold=0.08,
+                reoptimizeTrackingMarkers=dynamicsMarkerOffsets,
             )
 
             # If initialization succeeded, we will proceed with the kitchen sink optimization.
@@ -551,7 +562,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 else:
                     # Run an optimization to figure out the model parameters
                     dynamicsFitter.setIterationLimit(200)
-                    dynamicsFitter.setLBFGSHistoryLength(100) # Used to be 300. Reducing LBFGS history to speed up solves
+                    dynamicsFitter.setLBFGSHistoryLength(20) # Used to be 300. Reducing LBFGS history to speed up solves
                     dynamicsFitter.runIPOPTOptimization(
                         dynamicsInit,
                         nimble.biomechanics.DynamicsFitProblemConfig(
@@ -576,10 +587,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     for trial in range(len(dynamicsInit.poseTrials)):
                         if len(dynamicsInit.probablyMissingGRF[i]) < 1000:
                             dynamicsFitter.setIterationLimit(200)
-                            dynamicsFitter.setLBFGSHistoryLength(30) # Used to be 100. Reducing LBFGS history to speed up solves
+                            dynamicsFitter.setLBFGSHistoryLength(20) # Used to be 100. Reducing LBFGS history to speed up solves
                         elif len(dynamicsInit.probablyMissingGRF[i]) < 5000:
                             dynamicsFitter.setIterationLimit(100)
-                            dynamicsFitter.setLBFGSHistoryLength(20) # Used to be 30. Reducing LBFGS history to speed up solves
+                            dynamicsFitter.setLBFGSHistoryLength(15) # Used to be 30. Reducing LBFGS history to speed up solves
                         else:
                             dynamicsFitter.setIterationLimit(50)
                             dynamicsFitter.setLBFGSHistoryLength(3)
@@ -935,6 +946,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             dynamicsFitter.writeCSVData(
                 path + 'results/ID/'+trialName+'_full.csv', dynamicsInit, i, False, timestamps)
         else:
+            # TODO: someday we'll support loading IMU data. Once available, we'll want to pass it in to the GUI here
+            accObservations = []
+            gyroObservations = []
             if (goldOsim is not None) and (goldMot is not None):
                 print('Saving trajectory, markers, and the manual IK to a GUI log ' +
                       trialPath+'preview.bin', flush=True)
@@ -942,12 +956,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 print('goldMot.poses.shape: ' +
                       str(goldMot.poses.shape), flush=True)
                 markerFitter.saveTrajectoryAndMarkersToGUI(
-                    trialPath+'preview.bin', results[i], markerTimesteps, framesPerSecond, forcePlates, goldOsim, goldMot.poses)
+                    trialPath+'preview.bin', results[i], markerTimesteps, accObservations, gyroObservations, framesPerSecond, forcePlates, goldOsim, goldMot.poses)
             else:
                 print('Saving trajectory and markers to a GUI log ' +
                       trialPath+'preview.bin', flush=True)
                 markerFitter.saveTrajectoryAndMarkersToGUI(
-                    trialPath+'preview.bin', results[i], markerTimesteps, framesPerSecond, forcePlates)
+                    trialPath+'preview.bin', results[i], markerTimesteps, accObservations, gyroObservations, framesPerSecond, forcePlates)
         # 8.3.2. Zip it up
         print('Zipping up '+trialPath+'preview.bin', flush=True)
         subprocess.run(["zip", "-r", 'preview.bin.zip',
