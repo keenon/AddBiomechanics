@@ -21,7 +21,8 @@ const subjectOptions: Option[] = [
   ]},
   { value: 'phenotypes', label: 'Phenotypes', isHeader:true, isNonSelectable: true, children: [
      { value: 'healthy', label: 'Unimpaired' },
-     { value: 'parkinsons', label: 'Parkinsons', isHeader:true, children: [
+     { value: 'parkinsons_header', label: 'Parkinsons', isHeader:true, isNonSelectable: true, children: [
+        { value: 'parkinsons', label: 'Parkinsons' },
         { value: 'freezing_of_gait', label: 'Freezing of Gait' },
         { value: 'tremor', label: 'Tremor' },
         { value: 'rigidity', label: 'Rigidity' },
@@ -30,7 +31,8 @@ const subjectOptions: Option[] = [
      { value: 'muscular_distrophy', label: 'Muscular Dystrophy' },
      { value: 'cerebral_palsy', label: 'Cerebral Palsy' },
      { value: 'spina_bifida', label: 'Spina Bifida' },
-     { value: 'stroke', label: 'Stroke', isHeader:true, children: [
+     { value: 'stroke_header', label: 'Stroke', isHeader:true, isNonSelectable: true, children: [
+        { value: 'stroke', label: 'Stroke' },
         { value: 'stroke_left_hemiparesis', label: 'Stroke Left Hemiparesis' },
         { value: 'stroke_right_hemiparesis', label: 'Stroke Right Hemiparesis' },
      ]},
@@ -44,7 +46,8 @@ const subjectOptions: Option[] = [
      { value: 'concussion', label: 'Concussion' },
      { value: 'cognitive_impairment', label: 'Cognitive Impairment' },
      { value: 'dementia', label: 'Dementia' },
-     { value: 'osteoarthritis', label: 'Osteoarthritis', isHeader:true, children: [
+     { value: 'osteoarthritis_header', label: 'Osteoarthritis', isHeader:true, isNonSelectable: true, children: [
+        { value: 'osteoarthritis', label: 'Osteoarthritis'},
         { value: 'knee_osteoarthritis_right', label: 'Knee Osteoarthritis - Right' },
         { value: 'knee_osteoarthritis_left', label: 'Knee Osteoarthritis - Left' },
      ]},
@@ -52,7 +55,8 @@ const subjectOptions: Option[] = [
      { value: 'post_partum', label: 'Postpartum' },
      { value: 'blind', label: 'Blind' },
      { value: 'visually_impaired', label: 'Visually Impaired' },
-     { value: 'limb_loss_amputation', label: 'Limb Loss/Amputation', isHeader:true, children: [
+     { value: 'limb_loss_amputation', label: 'Limb Loss/Amputation', isHeader:true, isNonSelectable: true, children: [
+        { value: 'limb_loss_amputation', label: 'Limb Loss/Amputation'},
         { value: 'trans_femoral_amputation_left', label: 'Trans-Femoral Amputation - Left' },
         { value: 'trans_femoral_amputation_right', label: 'Trans-Femoral Amputation - Right' },
         { value: 'trans_tibial_amputation_left', label: 'Trans-Tibial Amputation - Left' },
