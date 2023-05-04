@@ -55,7 +55,7 @@ const subjectOptions: Option[] = [
      { value: 'post_partum', label: 'Postpartum' },
      { value: 'blind', label: 'Blind' },
      { value: 'visually_impaired', label: 'Visually Impaired' },
-     { value: 'limb_loss_amputation', label: 'Limb Loss/Amputation', isHeader:true, isNonSelectable: true, children: [
+     { value: 'limb_loss_amputation_header', label: 'Limb Loss/Amputation', isHeader:true, isNonSelectable: true, children: [
         { value: 'limb_loss_amputation', label: 'Limb Loss/Amputation'},
         { value: 'trans_femoral_amputation_left', label: 'Trans-Femoral Amputation - Left' },
         { value: 'trans_femoral_amputation_right', label: 'Trans-Femoral Amputation - Right' },
