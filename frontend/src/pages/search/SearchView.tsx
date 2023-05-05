@@ -71,8 +71,8 @@ const SearchView = observer((props: SearchViewProps) => {
   }
   else {
     header = <>
-      <h3>Published Folders</h3>
-      <p>All folders still in "draft" mode will not show up here. Authors must mark their folder as published to have it appear here.</p>
+      <h3>Finalized Folders</h3>
+      <p>All folders still in "draft" mode will not show up here. Authors must mark their folder as finalized to have it appear here.</p>
     </>;
   }
 
@@ -85,13 +85,13 @@ const SearchView = observer((props: SearchViewProps) => {
         <div className="col-md-12">
           <label>
             <i className={"mdi me-1 vertical-middle mdi-account"}></i>
-            Include Raw Draft Data
+            Include Unfinalized Data
             <OverlayTrigger
               placement="right"
               delay={{ show: 50, hide: 400 }}
               overlay={(props) => (
                 <Tooltip id="button-tooltip" {...props}>
-                  Checking this box will include datasets that the author has not marked as "published" in your results. This data is still under construction and should be treated with caution!
+                  Checking this box will include datasets that the author has not marked as "finalized" in your results. This data is still under construction and should be treated with caution!
                 </Tooltip>
               )}>
               <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
@@ -141,7 +141,7 @@ const SearchView = observer((props: SearchViewProps) => {
                             placeholder="Your keywords..."
                             value={searchText}
                             onChange={function (e) { setSearchText(e.target.value) }}
-                            onKeyPress={(e) => {e.key === 'Enter' && e.preventDefault();}}>
+                            onKeyPress={(e) => { e.key === 'Enter' && e.preventDefault(); }}>
                           </input>
                         </div>
                       </form>
