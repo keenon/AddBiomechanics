@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import copy
 import sys
 import nimblephysics as nimble
 import os
@@ -322,7 +323,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialsNoStatic.append(trialName)
 
     # Process the non-"static" trials in the subject folder
-    for trialName in trialsNoStatic:
+    for itrial, trialName in enumerate(trialsNoStatic):
         trialNames.append(trialName)
         trialPath = trialsFolderPath + trialName + '/'
         trialProcessingResult: Dict[str, Any] = {}
@@ -350,7 +351,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialFramesPerSecond.append(trcFile.framesPerSecond)
             trialMarkerSet[trialName] = list(trcFile.markerLines.keys())
             grfFilePath = trialPath + 'grf.mot'
-            ignoreFootNotOverForcePlate = True  # .mot files do not contain force plate geometry
+            # ignoreFootNotOverForcePlate = True  # .mot files do not contain force plate geometry
             if os.path.exists(grfFilePath):
                 forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
                     grfFilePath, trcFile.framesPerSecond)
@@ -363,18 +364,135 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                   c3dFilePath+' and '+trcFilePath+', neither exist. Quitting.')
             exit(1)
 
-        # Step 1: Find the intersection of the time vectors in the marker data and the force plate data and
-        #         remove any data outside of that intersection.
-
-
-        # Step 2: Scan through the timestamps in the data and find segments longer than a certain threshold that have
-        #         zero forces.
-
-
-        import pdb
-        pdb.set_trace()
-
         trialProcessingResults.append(trialProcessingResult)
+
+        # If ground reaction forces were provided, trim the marker and force data to the
+        # intersection of the time ranges between the two.
+        if len(trialForcePlates[itrial]) > 0 and not disableDynamics:
+            # Find the intersection of the time ranges between the marker and force data.
+            newStartTime = 0.0
+            newEndTime = 0.0
+            if trialTimestamps[itrial][0] <= trialForcePlates[itrial][0].timestamps[0]:
+                newStartTime = trialForcePlates[itrial][0].timestamps[0]
+            else:
+                newStartTime = trialTimestamps[itrial][0]
+
+            if trialTimestamps[itrial][-1] >= trialForcePlates[itrial][0].timestamps[-1]:
+                newEndTime = trialForcePlates[itrial][0].timestamps[-1]
+            else:
+                newEndTime = trialTimestamps[itrial][-1]
+
+            # Trim the force data.
+            for forcePlate in trialForcePlates[itrial]:
+                forcePlate.trim(newStartTime, newEndTime)
+
+            # Trim the marker data.
+            timestamps = np.array(trialTimestamps[itrial])
+            startTimeIndex = np.argmin(np.abs(timestamps - newStartTime))
+            endTimeIndex = np.argmin(np.abs(timestamps - newEndTime))
+            markerTrials[itrial] = markerTrials[itrial][startTimeIndex:endTimeIndex+1]
+            trialTimestamps[itrial] = trialTimestamps[itrial][startTimeIndex:endTimeIndex+1]
+
+            # Scan through the timestamps in the force data and find segments longer than a certain threshold that have
+            # zero forces.
+            print(f'Checking trial "{trialName}" for non-zero force segments...')
+            forceTimestamps = trialForcePlates[itrial][0].timestamps
+            nonzeroForceSegments = []
+            nonzeroForceSegmentStart = None
+            for itime in range(len(forceTimestamps)):
+                totalForce = 0
+                totalMoment = 0
+                for forcePlate in trialForcePlates[itrial]:
+                    totalForce += np.linalg.norm(forcePlate.forces[itime])
+                    totalMoment += np.linalg.norm(forcePlate.moments[itime])
+                totalLoad = totalForce + totalMoment
+
+                if totalLoad > 1e-10:
+                    if nonzeroForceSegmentStart is None:
+                        nonzeroForceSegmentStart = forceTimestamps[itime]
+                    elif nonzeroForceSegmentStart is not None and itime == len(forceTimestamps)-1:
+                        nonzeroForceSegments.append(
+                            (nonzeroForceSegmentStart, forceTimestamps[itime]))
+                        nonzeroForceSegmentStart = None
+                else:
+                    if nonzeroForceSegmentStart is not None:
+                        nonzeroForceSegments.append(
+                            (nonzeroForceSegmentStart, forceTimestamps[itime]))
+                        nonzeroForceSegmentStart = None
+
+            # Determine if the trial should be segmented. If there are multiple non-zero force segments, or if a single
+            # non-zero force segment does not span the entire trial, then the trial should be segmented.
+            segmentTrial = False
+            if len(nonzeroForceSegments) > 0:
+                segmentsInsideTimeRange = (nonzeroForceSegments[0][0] > newStartTime or
+                                           nonzeroForceSegments[-1][1] < newEndTime)
+                if len(nonzeroForceSegments) > 1 or segmentsInsideTimeRange:
+                    segmentTrial = True
+
+            # Split the trial into individual segments where there are non-zero forces.
+            if segmentTrial:
+                print(f' --> {len(nonzeroForceSegments)} non-zero force segment(s) found!')
+                if len(nonzeroForceSegments) > 1:
+                    print(f' --> Splitting trial "{trialName}" into {len(nonzeroForceSegments)} separate trials.')
+                else:
+                    print(f' --> Trimming trial "{trialName}" to non-zero force range.')
+                baseTrialName = trialNames.pop(itrial)
+                baseForcePlates = trialForcePlates.pop(itrial)
+                baseTimestamps = trialTimestamps.pop(itrial)
+                baseFramesPerSecond = trialFramesPerSecond.pop(itrial)
+                baseMarkerSet = trialMarkerSet.pop(trialName)
+                baseMarkerTrial = markerTrials.pop(itrial)
+                for iseg, segment in enumerate(nonzeroForceSegments):
+                    # Segment time range.
+                    if len(nonzeroForceSegments) > 1:
+                        print(f' --> Segment {iseg+1}: {segment[0]:1.2f} to {segment[1]:1.2f} s')
+                        trialSegmentName = f'{baseTrialName}_{iseg + 1}'
+                    else:
+                        print(f' --> Trimmed time range: {segment[0]:1.2f} to {segment[1]:1.2f} s')
+                        trialSegmentName = baseTrialName
+
+                    # Create a new trial name for this segment.
+                    trialNames.append(baseTrialName)
+
+                    # Create a new set of force plate for this segment.
+                    forcePlates = []
+                    for forcePlate in baseForcePlates:
+                        forcePlateCopy = nimble.biomechanics.ForcePlate.copyForcePlate(forcePlate)
+                        forcePlateCopy.trim(segment[0], segment[1])
+                        forcePlates.append(forcePlateCopy)
+                    trialForcePlates.append(forcePlates)
+
+                    # Create a new set of timestamps for this segment.
+                    timestamps = []
+                    for timestamp in baseTimestamps:
+                        if timestamp >= segment[0] and timestamp <= segment[1]:
+                            timestamps.append(timestamp)
+                    trialTimestamps.append(timestamps)
+
+                    # Create a new set of frames per second for this segment.
+                    trialFramesPerSecond.append(baseFramesPerSecond)
+
+                    # Create a new marker set for this segment.
+                    trialMarkerSet[trialSegmentName] = baseMarkerSet
+
+                    # Create a new marker trial for this segment.
+                    markerTrial = []
+                    for itime, timestamp in enumerate(baseTimestamps):
+                        if timestamp >= segment[0] and timestamp <= segment[1]:
+                            markerTrial.append(baseMarkerTrial[itime])
+                    markerTrials.append(markerTrial)
+
+                # If this trial is from a c3d file, then assign the original c3d file to the segments.
+                if os.path.exists(c3dFilePath):
+                    baseC3DFile = c3dFiles.pop(trialName)
+                    for iseg, segment in enumerate(nonzeroForceSegments):
+                        if len(nonzeroForceSegments) > 1:
+                            c3dFiles[f'{baseTrialName}_{iseg+1}'] = baseC3DFile
+                        else:
+                            c3dFiles[baseTrialName] = baseC3DFile
+            else:
+                print(f' --> No non-zero force segments found for trial "{baseTrialName}"! Skipping dynamics fitting...')
+                disableDynamics = True
 
     print('Fitting trials '+str(trialNames), flush=True)
 
@@ -538,7 +656,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 useReactionWheels=useReactionWheels,
                 shiftGRF=shiftGRF,
                 maxTrialsToSolveMassOver=maxTrialsToSolveMassOver,
-                reoptimizeMarkerOffsets=dynamicsMarkerOffsets
+                reoptimizeMarkerOffsets=dynamicsMarkerOffsets,
+                trimMissingGRFs=True
             )
 
             # If initialization succeeded, we will proceed with the kitchen sink optimization.
@@ -677,10 +796,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                 trialProcessingResults[trial]['numBadDynamicsFrames'] = numBadDynamicsFrames
                 trialBadDynamicsFrames.append(badDynamicsFrames)
+                trialTimestamps[trial] = dynamicsInit.forcePlateTrials[trial][0].timestamps
 
             finalPoses = dynamicsInit.poseTrials
             finalMarkers = dynamicsInit.updatedMarkerMap
             trialForcePlates = dynamicsInit.forcePlateTrials
+            markerTrials = dynamicsInit.markerObservationTrials
 
 
     # 8.2. Write out the usable OpenSim results
@@ -956,8 +1077,12 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             else:
                 print('Saving trajectory and markers to a GUI log ' +
                       trialPath+'preview.bin', flush=True)
+                accObservations: List[Dict[str, np.ndarray[np.float64[3, 1]]]] = []
+                gyroObservations: List[Dict[str, np.ndarray[np.float64[3, 1]]]] = []
                 markerFitter.saveTrajectoryAndMarkersToGUI(
-                    trialPath+'preview.bin', results[i], markerTimesteps, framesPerSecond, forcePlates)
+                    trialPath+'preview.bin', results[i], markerTimesteps, accObservations, gyroObservations,
+                    framesPerSecond, forcePlates)
+
         # 8.3.2. Zip it up
         print('Zipping up '+trialPath+'preview.bin', flush=True)
         subprocess.run(["zip", "-r", 'preview.bin.zip',
@@ -1124,7 +1249,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         totalMarkerRMSE = processingResult['autoAvgRMSE'] * 100
         totalMarkerMax = processingResult['autoAvgMax'] * 100
         f.write(f'- Avg. Marker RMSE      = {totalMarkerRMSE:1.2f} cm\n')
-        f.write(f'- Avg. Max Marker Error = {totalMarkerMax:.2f} cm\n')
+        f.write(f'- Avg. Max Marker Error = {totalMarkerMax:1.2f} cm\n')
         f.write("\n")
         if fitDynamics and dynamicsInit is not None:
             f.write(textwrap.fill(
