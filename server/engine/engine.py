@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-import copy
 import sys
 import nimblephysics as nimble
 import os
@@ -211,7 +210,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
     skeleton = customOsim.skeleton
     markerSet = customOsim.markersMap
-
 
     # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
     if exportSDF or exportMJCF:
@@ -809,12 +807,10 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                 trialProcessingResults[trial]['numBadDynamicsFrames'] = numBadDynamicsFrames
                 trialBadDynamicsFrames.append(badDynamicsFrames)
-                trialTimestamps[trial] = dynamicsInit.forcePlateTrials[trial][0].timestamps
 
             finalPoses = dynamicsInit.poseTrials
             finalMarkers = dynamicsInit.updatedMarkerMap
             trialForcePlates = dynamicsInit.forcePlateTrials
-            markerTrials = dynamicsInit.markerObservationTrials
 
 
     # 8.2. Write out the usable OpenSim results
