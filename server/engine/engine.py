@@ -669,9 +669,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 maxTrialsToSolveMassOver=maxTrialsToSolveMassOver,
                 avgPositionChangeThreshold=0.08,
                 avgAngularChangeThreshold=0.08,
-                reoptimizeTrackingMarkers=False,
-                reoptimizeAnatomicalMarkers=dynamicsMarkerOffsets,
-                trimMissingGRFs=True
+                reoptimizeTrackingMarkers=True,
+                reoptimizeAnatomicalMarkers=dynamicsMarkerOffsets
             )
 
             # If initialization succeeded, we will proceed with the kitchen sink optimization.
