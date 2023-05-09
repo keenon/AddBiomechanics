@@ -212,6 +212,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     skeleton = customOsim.skeleton
     markerSet = customOsim.markersMap
 
+
     # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
     if exportSDF or exportMJCF:
         print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
@@ -351,7 +352,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialFramesPerSecond.append(trcFile.framesPerSecond)
             trialMarkerSet[trialName] = list(trcFile.markerLines.keys())
             grfFilePath = trialPath + 'grf.mot'
-            # ignoreFootNotOverForcePlate = True  # .mot files do not contain force plate geometry
+            ignoreFootNotOverForcePlate = True  # .mot files do not contain force plate geometry
             if os.path.exists(grfFilePath):
                 forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
                     grfFilePath, trcFile.framesPerSecond)
@@ -668,8 +669,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 maxTrialsToSolveMassOver=maxTrialsToSolveMassOver,
                 avgPositionChangeThreshold=0.08,
                 avgAngularChangeThreshold=0.08,
-                reoptimizeTrackingMarkers=dynamicsMarkerOffsets,
-                reoptimizeMarkerOffsets=dynamicsMarkerOffsets,
+                reoptimizeTrackingMarkers=False,
+                reoptimizeAnatomicalMarkers=dynamicsMarkerOffsets,
                 trimMissingGRFs=True
             )
 
