@@ -406,7 +406,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                     totalMoment += np.linalg.norm(forcePlate.moments[itime])
                 totalLoad = totalForce + totalMoment
 
-                if totalLoad > 1e-10:
+                if totalLoad > 1e-3:
                     if nonzeroForceSegmentStart is None:
                         nonzeroForceSegmentStart = forceTimestamps[itime]
                     elif nonzeroForceSegmentStart is not None and itime == len(forceTimestamps)-1:
@@ -430,6 +430,25 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
             # Split the trial into individual segments where there are non-zero forces.
             if segmentTrial:
+                # Remove segments that are too short.
+                minSegmentDuration = 0.05
+                nonzeroForceSegments = [seg for seg in nonzeroForceSegments if seg[1] - seg[0] > minSegmentDuration]
+
+                # Merge adjacent non-zero force segments that are within a certain time threshold.
+                mergeZeroForceSegmentsThreshold = 1.0
+                mergedNonzeroForceSegments = []
+                mergedNonzeroForceSegments.append(nonzeroForceSegments[0])
+                for iseg in range(1, len(nonzeroForceSegments)):
+                    zeroForceSegment = nonzeroForceSegments[iseg][0] - nonzeroForceSegments[iseg - 1][1]
+                    if zeroForceSegment < mergeZeroForceSegmentsThreshold:
+                        mergedNonzeroForceSegments[-1] = (
+                            mergedNonzeroForceSegments[-1][0], nonzeroForceSegments[iseg][1])
+                    else:
+                        mergedNonzeroForceSegments.append(
+                            nonzeroForceSegments[iseg])
+                nonzeroForceSegments = mergedNonzeroForceSegments
+
+                # Segment the trial.
                 print(f' --> {len(nonzeroForceSegments)} non-zero force segment(s) found!')
                 if len(nonzeroForceSegments) > 1:
                     print(f' --> Splitting trial "{trialName}" into {len(nonzeroForceSegments)} separate trials.')
@@ -1627,6 +1646,23 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                             'data, an unmeasured external torque was still detected in the following frames:'), '   '))
                         f.write('\n')
                         frameRanges = getConsecutiveValues(badDynamicsFrames['torqueDiscrepancy'])
+                        for frames in frameRanges:
+                            if frames[0] is frames[-1]:
+                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
+                            else:
+                                f.write(f'     - frames {frames[0]}-{frames[-1]} '
+                                        f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
+                        reasonNumber += 1
+
+                    if 'footContactButNoGRF' in badDynamicsFrames:
+                        f.write('\n')
+                        f.write(f'{reasonNumber}. "Foot in contact, but no measured GRF."\n')
+                        f.write(f'   ---------------------------------\n')
+                        f.write(textwrap.indent(textwrap.fill(
+                            'A foot was detected to be in contact with the ground, but no measured '
+                            'ground reaction force was present in the following frames:'), '   '))
+                        f.write('\n')
+                        frameRanges = getConsecutiveValues(badDynamicsFrames['footContactButNoGRF'])
                         for frames in frameRanges:
                             if frames[0] is frames[-1]:
                                 f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
