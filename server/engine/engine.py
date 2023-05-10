@@ -636,7 +636,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
     # If we've got ground reaction force data, and we didn't disable dynamics, then run the dynamics pipeline
     totalForce = 0.0
-    import pdb; pdb.set_trace()
     for forcePlateList in trialForcePlates:
         for forcePlate in forcePlateList:
             totalForce += sum([np.linalg.norm(f)
