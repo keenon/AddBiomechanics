@@ -13,28 +13,16 @@ import textwrap
 import glob
 import traceback
 from plotting import plotIKResults, plotIDResults, plotMarkerErrors, plotGRFData
+from helpers import detectNonZeroForceSegments,  filterNonZeroForceSegments, getConsecutiveValues
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
-
 
 def requireExists(path: str, reason: str):
     if not os.path.exists(path):
         print('ERROR: File "'+path+'" required as "' +
               reason+'" does not exist. Quitting.')
         exit(1)
-
-
-def getConsecutiveValues(data):
-    from operator import itemgetter
-    from itertools import groupby
-    ranges = []
-    for key, group in groupby(enumerate(data), lambda x: x[0]-x[1]):
-        group = list(map(itemgetter(1), group))
-        ranges.append((group[0], group[-1]))
-
-    return ranges
-
 
 def processLocalSubjectFolder(path: str, outputName: str = None, href: str = ''):
     if not path.endswith('/'):
@@ -205,7 +193,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             print('Unrecognized skeleton preset "'+str(skeletonPreset) +
                   '"! Behaving as though this is "custom"')
         if not os.path.exists(path + 'unscaled_generic.osim'):
-            print('We are using a custom OpenSim skeleton, and yet there is no unscaled_generic.osim file present. Quitting.')
+            print('We are using a custom OpenSim skeleton, and yet there is no unscaled_generic.osim file present. '
+                  'Quitting...')
             exit(1)
 
     # 3.1. Rationalize CustomJoint's in the osim file
@@ -226,7 +215,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     skeleton = customOsim.skeleton
     markerSet = customOsim.markersMap
 
-    # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
+    # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're
+    # familiar with
     if exportSDF or exportMJCF:
         print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
         mergeBodiesInto: Dict[str, str] = {}
@@ -271,7 +261,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         markerFitter.setTrackingMarkers(customOsim.trackingMarkers)
     else:
         print('NOTE: The input *.osim file specified suspiciously few ('+str(len(customOsim.anatomicalMarkers)) +
-              ', less than the minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
+              ', less than the minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default '
+              'to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
         markerFitter.setTriadsToTracking()
         guessedTrackingMarkers = True
     # This is 1.0x the values in the default code
@@ -408,32 +399,18 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialTimestamps[itrial] = trialTimestamps[itrial][startTimeIndex:endTimeIndex+1]
 
             if segmentTrials:
-                # Scan through the timestamps in the force data and find segments longer than a certain threshold that
-                # have zero forces.
+                # Find the segments of the trial where there are non-zero forces.
                 print(f'Checking trial "{trialName}" for non-zero force segments...')
-                forceTimestamps = trialForcePlates[itrial][0].timestamps
-                nonzeroForceSegments = []
-                nonzeroForceSegmentStart = None
-                for itime in range(len(forceTimestamps)):
+                totalLoad = np.zeros(len(trialForcePlates[itrial][0].timestamps))
+                for itime in range(len(totalLoad)):
                     totalForce = 0
                     totalMoment = 0
-                    for forcePlate in trialForcePlates[itrial]:
+                    for forcePlate in forcePlates:
                         totalForce += np.linalg.norm(forcePlate.forces[itime])
                         totalMoment += np.linalg.norm(forcePlate.moments[itime])
-                    totalLoad = totalForce + totalMoment
+                    totalLoad[itime] = totalForce + totalMoment
 
-                    if totalLoad > 1e-3:
-                        if nonzeroForceSegmentStart is None:
-                            nonzeroForceSegmentStart = forceTimestamps[itime]
-                        elif nonzeroForceSegmentStart is not None and itime == len(forceTimestamps)-1:
-                            nonzeroForceSegments.append(
-                                (nonzeroForceSegmentStart, forceTimestamps[itime]))
-                            nonzeroForceSegmentStart = None
-                    else:
-                        if nonzeroForceSegmentStart is not None:
-                            nonzeroForceSegments.append(
-                                (nonzeroForceSegmentStart, forceTimestamps[itime]))
-                            nonzeroForceSegmentStart = None
+                nonzeroForceSegments = detectNonZeroForceSegments(trialForcePlates[itrial][0].timestamps, totalLoad)
 
                 # Determine if the trial should be segmented. If there are multiple non-zero force segments, or if a
                 # single non-zero force segment does not span the entire trial, then the trial should be segmented.
@@ -446,22 +423,9 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
 
                 # Split the trial into individual segments where there are non-zero forces.
                 if segmentTrial:
-                    # Remove segments that are too short.
-                    nonzeroForceSegments = [seg for seg in nonzeroForceSegments if seg[1] - seg[0] > minSegmentDuration]
-
-                    # Merge adjacent non-zero force segments that are within a certain time threshold.
-                    mergedNonzeroForceSegments = []
-                    mergedNonzeroForceSegments.append(nonzeroForceSegments[0])
-                    for iseg in range(1, len(nonzeroForceSegments)):
-                        zeroForceSegment = nonzeroForceSegments[iseg][0] - nonzeroForceSegments[iseg - 1][1]
-                        if zeroForceSegment < mergeZeroForceSegmentsThreshold:
-                            mergedNonzeroForceSegments[-1] = (
-                                mergedNonzeroForceSegments[-1][0], nonzeroForceSegments[iseg][1])
-                        else:
-                            mergedNonzeroForceSegments.append(
-                                nonzeroForceSegments[iseg])
-                    nonzeroForceSegments = mergedNonzeroForceSegments
-
+                    nonzeroForceSegments = filterNonZeroForceSegments(nonzeroForceSegments,
+                                                                      minSegmentDuration,
+                                                                      mergeZeroForceSegmentsThreshold)
                     # Segment the trial.
                     print(f' --> {len(nonzeroForceSegments)} non-zero force segment(s) found!')
                     if len(nonzeroForceSegments) > 1:
