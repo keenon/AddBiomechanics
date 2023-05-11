@@ -1670,23 +1670,6 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                                         f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                         reasonNumber += 1
 
-                    if 'footContactButNoGRF' in badDynamicsFrames:
-                        f.write('\n')
-                        f.write(f'{reasonNumber}. "Foot in contact, but no measured GRF."\n')
-                        f.write(f'   ---------------------------------\n')
-                        f.write(textwrap.indent(textwrap.fill(
-                            'A foot was detected to be in contact with the ground, but no measured '
-                            'ground reaction force was present in the following frames:'), '   '))
-                        f.write('\n')
-                        frameRanges = getConsecutiveValues(badDynamicsFrames['footContactButNoGRF'])
-                        for frames in frameRanges:
-                            if frames[0] is frames[-1]:
-                                f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
-                            else:
-                                f.write(f'     - frames {frames[0]}-{frames[-1]} '
-                                        f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
-                        reasonNumber += 1
-
                     if 'notOverForcePlate' in badDynamicsFrames:
                         f.write('\n')
                         f.write(f'{reasonNumber}. "Foot not over a force plate."\n')
