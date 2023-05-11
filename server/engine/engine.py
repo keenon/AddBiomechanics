@@ -418,7 +418,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 if len(nonzeroForceSegments) > 0:
                     segmentsInsideTimeRange = (nonzeroForceSegments[0][0] > newStartTime or
                                                nonzeroForceSegments[-1][1] < newEndTime)
-                    if len(nonzeroForceSegments) > 1 or segmentsInsideTimeRange:
+                    if len(nonzeroForceSegments) >= 1 or segmentsInsideTimeRange:
                         segmentTrial = True
 
                 # Split the trial into individual segments where there are non-zero forces.
