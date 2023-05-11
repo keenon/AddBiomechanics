@@ -13,28 +13,16 @@ import textwrap
 import glob
 import traceback
 from plotting import plotIKResults, plotIDResults, plotMarkerErrors, plotGRFData
+from helpers import detectNonZeroForceSegments,  filterNonZeroForceSegments, getConsecutiveValues
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
-
 
 def requireExists(path: str, reason: str):
     if not os.path.exists(path):
         print('ERROR: File "'+path+'" required as "' +
               reason+'" does not exist. Quitting.')
         exit(1)
-
-
-def getConsecutiveValues(data):
-    from operator import itemgetter
-    from itertools import groupby
-    ranges = []
-    for key, group in groupby(enumerate(data), lambda x: x[0]-x[1]):
-        group = list(map(itemgetter(1), group))
-        ranges.append((group[0], group[-1]))
-
-    return ranges
-
 
 def processLocalSubjectFolder(path: str, outputName: str = None, href: str = ''):
     if not path.endswith('/'):
@@ -165,6 +153,21 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     else:
         disableDynamics = False
 
+    if 'segmentTrials' in subjectJson:
+        segmentTrials = subjectJson['segmentTrials']
+    else:
+        segmentTrials = False
+
+    if 'minSegmentDuration' in subjectJson:
+        minSegmentDuration = subjectJson['minSegmentDuration']
+    else:
+        minSegmentDuration = 0.05
+
+    if 'mergeZeroForceSegmentsThreshold' in subjectJson:
+        mergeZeroForceSegmentsThreshold = subjectJson['mergeZeroForceSegmentsThreshold']
+    else:
+        mergeZeroForceSegmentsThreshold = 1.0
+
     if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
         footBodyNames = ['calcn_l', 'calcn_r']
     else:
@@ -190,7 +193,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             print('Unrecognized skeleton preset "'+str(skeletonPreset) +
                   '"! Behaving as though this is "custom"')
         if not os.path.exists(path + 'unscaled_generic.osim'):
-            print('We are using a custom OpenSim skeleton, and yet there is no unscaled_generic.osim file present. Quitting.')
+            print('We are using a custom OpenSim skeleton, and yet there is no unscaled_generic.osim file present. '
+                  'Quitting...')
             exit(1)
 
     # 3.1. Rationalize CustomJoint's in the osim file
@@ -211,7 +215,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     skeleton = customOsim.skeleton
     markerSet = customOsim.markersMap
 
-    # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're familiar with
+    # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages they're
+    # familiar with
     if exportSDF or exportMJCF:
         print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
         mergeBodiesInto: Dict[str, str] = {}
@@ -256,7 +261,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         markerFitter.setTrackingMarkers(customOsim.trackingMarkers)
     else:
         print('NOTE: The input *.osim file specified suspiciously few ('+str(len(customOsim.anatomicalMarkers)) +
-              ', less than the minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
+              ', less than the minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default '
+              'to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
         markerFitter.setTriadsToTracking()
         guessedTrackingMarkers = True
     # This is 1.0x the values in the default code
@@ -322,7 +328,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialsNoStatic.append(trialName)
 
     # Process the non-"static" trials in the subject folder
-    for trialName in trialsNoStatic:
+    for itrial, trialName in enumerate(trialsNoStatic):
         trialNames.append(trialName)
         trialPath = trialsFolderPath + trialName + '/'
         trialProcessingResult: Dict[str, Any] = {}
@@ -350,7 +356,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialFramesPerSecond.append(trcFile.framesPerSecond)
             trialMarkerSet[trialName] = list(trcFile.markerLines.keys())
             grfFilePath = trialPath + 'grf.mot'
-            ignoreFootNotOverForcePlate = True # .mot files do not contain force plate geometry
+            ignoreFootNotOverForcePlate = True  # .mot files do not contain force plate geometry
             if os.path.exists(grfFilePath):
                 forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
                     grfFilePath, trcFile.framesPerSecond)
@@ -364,6 +370,127 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             exit(1)
 
         trialProcessingResults.append(trialProcessingResult)
+
+        # If ground reaction forces were provided, trim the marker and force data to the
+        # intersection of the time ranges between the two.
+        if len(trialForcePlates[itrial]) > 0 and not disableDynamics:
+            # Find the intersection of the time ranges between the marker and force data.
+            newStartTime = 0.0
+            newEndTime = 0.0
+            if trialTimestamps[itrial][0] <= trialForcePlates[itrial][0].timestamps[0]:
+                newStartTime = trialForcePlates[itrial][0].timestamps[0]
+            else:
+                newStartTime = trialTimestamps[itrial][0]
+
+            if trialTimestamps[itrial][-1] >= trialForcePlates[itrial][0].timestamps[-1]:
+                newEndTime = trialForcePlates[itrial][0].timestamps[-1]
+            else:
+                newEndTime = trialTimestamps[itrial][-1]
+
+            # Trim the force data.
+            for forcePlate in trialForcePlates[itrial]:
+                forcePlate.trim(newStartTime, newEndTime)
+
+            # Trim the marker data.
+            timestamps = np.array(trialTimestamps[itrial])
+            startTimeIndex = np.argmin(np.abs(timestamps - newStartTime))
+            endTimeIndex = np.argmin(np.abs(timestamps - newEndTime))
+            markerTrials[itrial] = markerTrials[itrial][startTimeIndex:endTimeIndex+1]
+            trialTimestamps[itrial] = trialTimestamps[itrial][startTimeIndex:endTimeIndex+1]
+
+            if segmentTrials:
+                # Find the segments of the trial where there are non-zero forces.
+                print(f'Checking trial "{trialName}" for non-zero force segments...')
+                totalLoad = np.zeros(len(trialForcePlates[itrial][0].timestamps))
+                for itime in range(len(totalLoad)):
+                    totalForce = 0
+                    totalMoment = 0
+                    for forcePlate in forcePlates:
+                        totalForce += np.linalg.norm(forcePlate.forces[itime])
+                        totalMoment += np.linalg.norm(forcePlate.moments[itime])
+                    totalLoad[itime] = totalForce + totalMoment
+
+                nonzeroForceSegments = detectNonZeroForceSegments(trialForcePlates[itrial][0].timestamps, totalLoad)
+
+                # Determine if the trial should be segmented. If there are multiple non-zero force segments, or if a
+                # single non-zero force segment does not span the entire trial, then the trial should be segmented.
+                segmentTrial = False
+                if len(nonzeroForceSegments) > 0:
+                    segmentsInsideTimeRange = (nonzeroForceSegments[0][0] > newStartTime or
+                                               nonzeroForceSegments[-1][1] < newEndTime)
+                    if len(nonzeroForceSegments) > 1 or segmentsInsideTimeRange:
+                        segmentTrial = True
+
+                # Split the trial into individual segments where there are non-zero forces.
+                if segmentTrial:
+                    nonzeroForceSegments = filterNonZeroForceSegments(nonzeroForceSegments,
+                                                                      minSegmentDuration,
+                                                                      mergeZeroForceSegmentsThreshold)
+                    # Segment the trial.
+                    print(f' --> {len(nonzeroForceSegments)} non-zero force segment(s) found!')
+                    if len(nonzeroForceSegments) > 1:
+                        print(f' --> Splitting trial "{trialName}" into {len(nonzeroForceSegments)} separate trials.')
+                    else:
+                        print(f' --> Trimming trial "{trialName}" to non-zero force range.')
+
+                    baseTrialName = trialNames.pop(itrial)
+                    baseForcePlates = trialForcePlates.pop(itrial)
+                    baseTimestamps = trialTimestamps.pop(itrial)
+                    baseFramesPerSecond = trialFramesPerSecond.pop(itrial)
+                    baseMarkerSet = trialMarkerSet.pop(trialName)
+                    baseMarkerTrial = markerTrials.pop(itrial)
+                    for iseg, segment in enumerate(nonzeroForceSegments):
+                        # Segment time range.
+                        if len(nonzeroForceSegments) > 1:
+                            print(f' --> Segment {iseg+1}: {segment[0]:1.2f} to {segment[1]:1.2f} s')
+                            trialSegmentName = f'{baseTrialName}_{iseg + 1}'
+                        else:
+                            print(f' --> Trimmed time range: {segment[0]:1.2f} to {segment[1]:1.2f} s')
+                            trialSegmentName = baseTrialName
+
+                        # Create a new trial name for this segment.
+                        trialNames.append(baseTrialName)
+
+                        # Create a new set of force plate for this segment.
+                        forcePlates = []
+                        for forcePlate in baseForcePlates:
+                            forcePlateCopy = nimble.biomechanics.ForcePlate.copyForcePlate(forcePlate)
+                            forcePlateCopy.trim(segment[0], segment[1])
+                            forcePlates.append(forcePlateCopy)
+                        trialForcePlates.append(forcePlates)
+
+                        # Create a new set of timestamps for this segment.
+                        timestamps = []
+                        for timestamp in baseTimestamps:
+                            if timestamp >= segment[0] and timestamp <= segment[1]:
+                                timestamps.append(timestamp)
+                        trialTimestamps.append(timestamps)
+
+                        # Create a new set of frames per second for this segment.
+                        trialFramesPerSecond.append(baseFramesPerSecond)
+
+                        # Create a new marker set for this segment.
+                        trialMarkerSet[trialSegmentName] = baseMarkerSet
+
+                        # Create a new marker trial for this segment.
+                        markerTrial = []
+                        for itime, timestamp in enumerate(baseTimestamps):
+                            if timestamp >= segment[0] and timestamp <= segment[1]:
+                                markerTrial.append(baseMarkerTrial[itime])
+                        markerTrials.append(markerTrial)
+
+                    # If this trial is from a c3d file, then assign the original c3d file to the segments.
+                    if os.path.exists(c3dFilePath):
+                        baseC3DFile = c3dFiles.pop(trialName)
+                        for iseg, segment in enumerate(nonzeroForceSegments):
+                            if len(nonzeroForceSegments) > 1:
+                                c3dFiles[f'{baseTrialName}_{iseg+1}'] = baseC3DFile
+                            else:
+                                c3dFiles[baseTrialName] = baseC3DFile
+                else:
+                    print(f' --> No non-zero force segments found for trial "{baseTrialName}"! '
+                          f'Skipping dynamics fitting...')
+                    disableDynamics = True
 
     print('Fitting trials '+str(trialNames), flush=True)
 
@@ -539,7 +666,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 maxTrialsToSolveMassOver=maxTrialsToSolveMassOver,
                 avgPositionChangeThreshold=0.08,
                 avgAngularChangeThreshold=0.08,
-                reoptimizeTrackingMarkers=dynamicsMarkerOffsets,
+                reoptimizeTrackingMarkers=True,
+                reoptimizeAnatomicalMarkers=dynamicsMarkerOffsets
             )
 
             # If initialization succeeded, we will proceed with the kitchen sink optimization.
@@ -960,6 +1088,8 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             else:
                 print('Saving trajectory and markers to a GUI log ' +
                       trialPath+'preview.bin', flush=True)
+                accObservations: List[Dict[str, np.ndarray[np.float64[3, 1]]]] = []
+                gyroObservations: List[Dict[str, np.ndarray[np.float64[3, 1]]]] = []
                 markerFitter.saveTrajectoryAndMarkersToGUI(
                     trialPath+'preview.bin', results[i], markerTimesteps, accObservations, gyroObservations, framesPerSecond, forcePlates)
         # 8.3.2. Zip it up
@@ -1128,7 +1258,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         totalMarkerRMSE = processingResult['autoAvgRMSE'] * 100
         totalMarkerMax = processingResult['autoAvgMax'] * 100
         f.write(f'- Avg. Marker RMSE      = {totalMarkerRMSE:1.2f} cm\n')
-        f.write(f'- Avg. Max Marker Error = {totalMarkerMax:.2f} cm\n')
+        f.write(f'- Avg. Max Marker Error = {totalMarkerMax:1.2f} cm\n')
         f.write("\n")
         if fitDynamics and dynamicsInit is not None:
             f.write(textwrap.fill(
