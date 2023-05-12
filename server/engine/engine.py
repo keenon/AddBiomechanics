@@ -1080,9 +1080,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 path + f'results/ID/{trialName}_full.csv', dynamicsInit, i, False, timestamps)
         else:
             markerFitter.writeCSVData(
-                trialPath + 'plot.csv', markerFitterResults[i], resultIK, timestamps)
+                trialPath + 'plot.csv', markerFitterResults[i], resultIK.rootMeanSquaredError,
+                    resultIK.maxError, timestamps)
             markerFitter.writeCSVData(
-                path + f'results/IK/{trialName}_full.csv', markerFitterResults[i], resultIK, timestamps)
+                path + f'results/IK/{trialName}_full.csv', markerFitterResults[i], resultIK.rootMeanSquaredError,
+                    resultIK.maxError, timestamps)
 
             # TODO: someday we'll support loading IMU data. Once available, we'll want to pass it in to the GUI here
             accObservations = []
