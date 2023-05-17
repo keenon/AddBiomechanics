@@ -549,7 +549,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     markerFitter.setRegularizePelvisJointsWithVirtualSpring(0.1)
 
     # Run the kinematics pipeline
-    results: List[nimble.biomechanics.MarkerInitialization] = markerFitter.runMultiTrialKinematicsPipeline(
+    markerFitterResults: List[nimble.biomechanics.MarkerInitialization] = markerFitter.runMultiTrialKinematicsPipeline(
         markerTrials,
         nimble.biomechanics.InitialMarkerFitParams()
         .setMaxTrialsToUseForMultiTrialScaling(5)
@@ -574,26 +574,26 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     # Check for any flipped markers, now that we've done a first pass
     anySwapped = False
     for i in range(len(trialNames)):
-        if markerFitter.checkForFlippedMarkers(markerTrials[i], results[i], trialErrorReports[i]):
+        if markerFitter.checkForFlippedMarkers(markerTrials[i], markerFitterResults[i], trialErrorReports[i]):
             anySwapped = True
             markerTrials[i] = trialErrorReports[i].markerObservationsAttemptedFixed
 
     if anySwapped:
         print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, so we have to run the whole pipeline again with unswapped markers. ********", flush=True)
-        results = markerFitter.runMultiTrialKinematicsPipeline(
+        markerFitterResults = markerFitter.runMultiTrialKinematicsPipeline(
             markerTrials,
             nimble.biomechanics.InitialMarkerFitParams()
             .setMaxTrialsToUseForMultiTrialScaling(5)
             .setMaxTimestepsToUseForMultiTrialScaling(4000),
             150)
 
-    skeleton.setGroupScales(results[0].groupScales)
+    skeleton.setGroupScales(markerFitterResults[0].groupScales)
     fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
-                                np.ndarray]] = results[0].updatedMarkerMap
+                                np.ndarray]] = markerFitterResults[0].updatedMarkerMap
 
     # Set up some interchangeable data structures, so that we can write out the results using the same code, regardless of whether we used dynamics or not
     finalSkeleton = skeleton
-    finalPoses = [result.poses for result in results]
+    finalPoses = [result.poses for result in markerFitterResults]
     finalMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
                                   np.ndarray]] = fitMarkers
     finalInverseDynamics = []
@@ -631,7 +631,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 finalSkeleton, footBodies, customOsim.trackingMarkers)
             dynamicsInit: nimble.biomechanics.DynamicsInitialization = nimble.biomechanics.DynamicsFitter.createInitialization(
                 finalSkeleton,
-                results,
+                markerFitterResults,
                 customOsim.trackingMarkers,
                 footBodies,
                 trialForcePlates,
@@ -866,8 +866,13 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
         os.remove(path + 'results/opensim.log')
 
     # 8.2.4. Overwrite the inertia properties of the resulting OpenSim skeleton file
-    nimble.biomechanics.OpenSimParser.replaceOsimInertia(
-        path + 'results/Models/optimized_scale_and_markers.osim', finalSkeleton, path + 'results/Models/final.osim')
+    if fitDynamics and dynamicsInit is not None:
+        nimble.biomechanics.OpenSimParser.replaceOsimInertia(
+            path + 'results/Models/optimized_scale_and_markers.osim', finalSkeleton,
+            path + 'results/Models/final.osim')
+    else:
+        shutil.copyfile(path + 'results/Models/optimized_scale_and_markers.osim',
+                        path + 'results/Models/final.osim')
 
     # Get ready to count the number of times we run up against joint limits during the IK
     dofNames: List[str] = []
@@ -1070,10 +1075,17 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 round(1.0 / dynamicsInit.trialTimesteps[i]))
 
             dynamicsFitter.writeCSVData(
-                trialPath+'plot.csv', dynamicsInit, i, False, timestamps)
+                trialPath + 'plot.csv', dynamicsInit, i, False, timestamps)
             dynamicsFitter.writeCSVData(
-                path + 'results/ID/'+trialName+'_full.csv', dynamicsInit, i, False, timestamps)
+                path + f'results/ID/{trialName}_full.csv', dynamicsInit, i, False, timestamps)
         else:
+            markerFitter.writeCSVData(
+                trialPath + 'plot.csv', markerFitterResults[i], resultIK.rootMeanSquaredError,
+                    resultIK.maxError, timestamps)
+            markerFitter.writeCSVData(
+                path + f'results/IK/{trialName}_full.csv', markerFitterResults[i], resultIK.rootMeanSquaredError,
+                    resultIK.maxError, timestamps)
+
             # TODO: someday we'll support loading IMU data. Once available, we'll want to pass it in to the GUI here
             accObservations = []
             gyroObservations = []
@@ -1084,14 +1096,16 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 print('goldMot.poses.shape: ' +
                       str(goldMot.poses.shape), flush=True)
                 markerFitter.saveTrajectoryAndMarkersToGUI(
-                    trialPath+'preview.bin', results[i], markerTimesteps, accObservations, gyroObservations, framesPerSecond, forcePlates, goldOsim, goldMot.poses)
+                    trialPath+'preview.bin', markerFitterResults[i], markerTimesteps, accObservations, gyroObservations,
+                    framesPerSecond, forcePlates, goldOsim, goldMot.poses)
             else:
                 print('Saving trajectory and markers to a GUI log ' +
                       trialPath+'preview.bin', flush=True)
                 accObservations: List[Dict[str, np.ndarray[np.float64[3, 1]]]] = []
                 gyroObservations: List[Dict[str, np.ndarray[np.float64[3, 1]]]] = []
                 markerFitter.saveTrajectoryAndMarkersToGUI(
-                    trialPath+'preview.bin', results[i], markerTimesteps, accObservations, gyroObservations, framesPerSecond, forcePlates)
+                    trialPath+'preview.bin', markerFitterResults[i], markerTimesteps, accObservations, gyroObservations,
+                    framesPerSecond, forcePlates)
         # 8.3.2. Zip it up
         print('Zipping up '+trialPath+'preview.bin', flush=True)
         subprocess.run(["zip", "-r", 'preview.bin.zip',
