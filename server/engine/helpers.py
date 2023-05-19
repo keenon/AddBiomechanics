@@ -1,3 +1,4 @@
+import os
 def detectNonZeroForceSegments(timestamps, totalLoad):
     # Scan through the timestamps in the force data and find segments longer than a certain threshold that
     # have zero forces.

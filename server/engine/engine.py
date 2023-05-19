@@ -18,163 +18,145 @@ from helpers import detectNonZeroForceSegments,  filterNonZeroForceSegments, get
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
 
-def requireExists(path: str, reason: str):
-    if not os.path.exists(path):
-        print('ERROR: File "'+path+'" required as "' +
-              reason+'" does not exist. Quitting.')
-        exit(1)
+class Engine(object):
+    def __init__(self,
+                 path: str,
+                 subjectJsonPath: str,
+                 outputName: str,
+                 href: str):
+        self.path = path
+        self.subjectJsonPath = subjectJsonPath
+        self.outputName = outputName
+        self.href = href
+        self.massKg = 68.0
+        self.heightM = 1.6
+        self.sex = 'unknown'
+        self.skeletonPreset = 'custom'
+        self.exportSDF = False
+        self.exportMJCF = False
+        self.exportOSIM = True
+        self.ignoreJointLimits = False
+        self.residualsToZero = False
+        self.useReactionWheels = False
+        self.tuneResidualLoss = 1.0
+        self.shiftGRF = False
+        self.maxTrialsToSolveMassOver = 4
+        self.regularizeJointAcc = 0
+        self.dynamicsMarkerOffsets = False
+        self.dynamicsMarkerWeight = 50.0
+        self.dynamicsJointWeight = 0.01
+        self.dynamicsRegularizePoses = 0.01
 
-def processLocalSubjectFolder(path: str, outputName: str = None, href: str = ''):
-    if not path.endswith('/'):
-        path += '/'
 
-    if outputName is None:
-        outputName = 'osim_results'
 
-    processingResult: Dict[str, Any] = {}
 
-    if not os.path.exists(GEOMETRY_FOLDER_PATH):
-        print('ERROR: No folder at GEOMETRY_FOLDER_PATH=' +
-              str(GEOMETRY_FOLDER_PATH))
-        exit(1)
 
-    # 1. Symlink in Geometry, if it doesn't come with the folder,
-    # so we can load meshes for the visualizer
-    if not os.path.exists(path + 'Geometry'):
-        os.symlink(GEOMETRY_FOLDER_PATH, path + 'Geometry')
+    def parseSubjectJSON(self):
+        # Read the subject parameters from the JSON file.
+        with open(self.subjectJsonPath) as subj:
+            subjectJson = json.loads(subj.read())
 
-    # 2. Load the main subject JSON
-    requireExists(path+'_subject.json', 'subject status file')
-    with open(path+'_subject.json') as subj:
-        subjectJson = json.loads(subj.read())
-    print(subjectJson, flush=True)
-
-    # 2.1. Get the basic measurements from _subject.json
-    if 'massKg' in subjectJson:
-        massKg = float(subjectJson['massKg'])
-    else:
-        print('!!WARNING!! No Mass specified for subject. Defaulting to 68 kg.')
-        massKg = 68.0
-
-    if 'heightM' in subjectJson:
-        heightM = float(subjectJson['heightM'])
-    else:
-        print('!!WARNING!! No Height specified for subject. Defaulting to 1.6 m.')
-        heightM = 1.6
-
-    if 'sex' in subjectJson:
-        sex = subjectJson['sex']
-    else:
-        print('!!WARNING!! No sex specified for subject. Defaulting to "unknown".')
-        sex = 'unknown'
-
-    if 'skeletonPreset' in subjectJson:
-        skeletonPreset = subjectJson['skeletonPreset']
-    else:
-        print(
-            '!!WARNING!! No skeletonPreset specified for subject. Defaulting to "custom".')
-        skeletonPreset = 'custom'
-
-    if 'exportSDF' in subjectJson:
-        exportSDF = subjectJson['exportSDF']
-    else:
-        exportSDF = False
-
-    if 'exportMJCF' in subjectJson:
-        exportMJCF = subjectJson['exportMJCF']
-    else:
-        exportMJCF = False
-
-    # Only export OpenSim files if we're not exporting MJCF or SDF files, since they use incompatible skeletons
-    exportOSIM = not (exportMJCF or exportSDF)
-
-    if 'ignoreJointLimits' in subjectJson:
-        ignoreJointLimits = subjectJson['ignoreJointLimits']
-    else:
-        ignoreJointLimits = False
-
-    if 'residualsToZero' in subjectJson:
-        residualsToZero = subjectJson['residualsToZero']
-    else:
-        residualsToZero = False
-
-    if 'useReactionWheels' in subjectJson:
-        useReactionWheels = subjectJson['useReactionWheels']
-    else:
-        useReactionWheels = False
-
-    if 'tuneResidualLoss' in subjectJson:
-        tuneResidualLoss = subjectJson['tuneResidualLoss']
-    else:
-        tuneResidualLoss = 1.0
-
-    if 'shiftGRF' in subjectJson:
-        shiftGRF = subjectJson['shiftGRF']
-    else:
-        shiftGRF = False
-
-    if 'maxTrialsToSolveMassOver' in subjectJson:
-        maxTrialsToSolveMassOver = subjectJson['maxTrialsToSolveMassOver']
-    else:
-        maxTrialsToSolveMassOver = 4
-
-    if 'regularizeJointAcc' in subjectJson:
-        regularizeJointAcc = subjectJson['regularizeJointAcc']
-    else:
-        regularizeJointAcc = 0
-
-    if 'dynamicsMarkerOffsets' in subjectJson:
-        dynamicsMarkerOffsets = subjectJson['dynamicsMarkerOffsets']
-    else:
-        dynamicsMarkerOffsets = False
-
-    if 'dynamicsMarkerWeight' in subjectJson:
-        dynamicsMarkerWeight = subjectJson['dynamicsMarkerWeight']
-    else:
-        dynamicsMarkerWeight = 50.0
-
-    if 'dynamicsJointWeight' in subjectJson:
-        dynamicsJointWeight = subjectJson['dynamicsJointWeight']
-    else:
-        dynamicsJointWeight = 0.01
-
-    if 'dynamicsRegularizePoses' in subjectJson:
-        dynamicsRegularizePoses = subjectJson['dynamicsRegularizePoses']
-    else:
-        dynamicsRegularizePoses = 0.01
-
-    if 'ignoreFootNotOverForcePlate' in subjectJson:
-        ignoreFootNotOverForcePlate = subjectJson['ignoreFootNotOverForcePlate']
-    else:
-        ignoreFootNotOverForcePlate = False
-
-    if 'disableDynamics' in subjectJson:
-        disableDynamics = subjectJson['disableDynamics']
-    else:
-        disableDynamics = False
-
-    if 'segmentTrials' in subjectJson:
-        segmentTrials = subjectJson['segmentTrials']
-    else:
-        segmentTrials = False
-
-    if 'minSegmentDuration' in subjectJson:
-        minSegmentDuration = subjectJson['minSegmentDuration']
-    else:
-        minSegmentDuration = 0.05
-
-    if 'mergeZeroForceSegmentsThreshold' in subjectJson:
-        mergeZeroForceSegmentsThreshold = subjectJson['mergeZeroForceSegmentsThreshold']
-    else:
-        mergeZeroForceSegmentsThreshold = 1.0
-
-    if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
-        footBodyNames = ['calcn_l', 'calcn_r']
-    else:
-        if 'footBodyNames' in subjectJson:
-            footBodyNames = subjectJson['footBodyNames']
+        if 'massKg' in subjectJson:
+            self.massKg = float(subjectJson['massKg'])
         else:
-            footBodyNames = []
+            print('ERROR: No mass specified for subject. Exiting...')
+            exit(1)
+
+        if 'heightM' in subjectJson:
+            self.heightM = float(subjectJson['heightM'])
+        else:
+            print('ERROR: No height specified for subject. Exiting...')
+            exit(1)
+
+        if 'sex' in subjectJson:
+            self.sex = subjectJson['sex']
+        else:
+            print('WARNING: No sex specified for subject. Defaulting to "unknown".')
+
+        if 'skeletonPreset' in subjectJson:
+            self.skeletonPreset = subjectJson['skeletonPreset']
+        else:
+            print('WARNING: No skeletonPreset specified for subject. Defaulting to "custom".')
+
+        if 'exportSDF' in subjectJson:
+            self.exportSDF = subjectJson['exportSDF']
+
+        if 'exportMJCF' in subjectJson:
+            self.exportMJCF = subjectJson['exportMJCF']
+
+        # Only export OpenSim files if we're not exporting MJCF or SDF files, since they use incompatible skeletons.
+        self.exportOSIM = not (self.exportMJCF or self.exportSDF)
+
+        if 'ignoreJointLimits' in subjectJson:
+            self.ignoreJointLimits = subjectJson['ignoreJointLimits']
+
+        if 'residualsToZero' in subjectJson:
+            self.residualsToZero = subjectJson['residualsToZero']
+
+        if 'useReactionWheels' in subjectJson:
+            self.useReactionWheels = subjectJson['useReactionWheels']
+
+        if 'tuneResidualLoss' in subjectJson:
+            self.tuneResidualLoss = subjectJson['tuneResidualLoss']
+
+        if 'shiftGRF' in subjectJson:
+            self.shiftGRF = subjectJson['shiftGRF']
+
+        if 'maxTrialsToSolveMassOver' in subjectJson:
+            self.maxTrialsToSolveMassOver = subjectJson['maxTrialsToSolveMassOver']
+
+        if 'regularizeJointAcc' in subjectJson:
+            self.regularizeJointAcc = subjectJson['regularizeJointAcc']
+
+        if 'dynamicsMarkerOffsets' in subjectJson:
+            self.dynamicsMarkerOffsets = subjectJson['dynamicsMarkerOffsets']
+
+        if 'dynamicsMarkerWeight' in subjectJson:
+            self.dynamicsMarkerWeight = subjectJson['dynamicsMarkerWeight']
+
+        if 'dynamicsJointWeight' in subjectJson:
+            self.dynamicsJointWeight = subjectJson['dynamicsJointWeight']
+
+        if 'dynamicsRegularizePoses' in subjectJson:
+            self.dynamicsRegularizePoses = subjectJson['dynamicsRegularizePoses']
+
+        if 'ignoreFootNotOverForcePlate' in subjectJson:
+            ignoreFootNotOverForcePlate = subjectJson['ignoreFootNotOverForcePlate']
+        else:
+            ignoreFootNotOverForcePlate = False
+
+        if 'disableDynamics' in subjectJson:
+            disableDynamics = subjectJson['disableDynamics']
+        else:
+            disableDynamics = False
+
+        if 'segmentTrials' in subjectJson:
+            segmentTrials = subjectJson['segmentTrials']
+        else:
+            segmentTrials = False
+
+        if 'minSegmentDuration' in subjectJson:
+            minSegmentDuration = subjectJson['minSegmentDuration']
+        else:
+            minSegmentDuration = 0.05
+
+        if 'mergeZeroForceSegmentsThreshold' in subjectJson:
+            mergeZeroForceSegmentsThreshold = subjectJson['mergeZeroForceSegmentsThreshold']
+        else:
+            mergeZeroForceSegmentsThreshold = 1.0
+
+        if skeletonPreset == 'vicon' or skeletonPreset == 'cmu' or skeletonPreset == 'complete':
+            footBodyNames = ['calcn_l', 'calcn_r']
+        else:
+            if 'footBodyNames' in subjectJson:
+                footBodyNames = subjectJson['footBodyNames']
+            else:
+                footBodyNames = []
+
+
+
+
+def processLocalSubjectFolder():
 
     # 3. Load the unscaled Osim file, which we can then scale and format
 
@@ -1743,13 +1725,63 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     #         break
     print('Done!', flush=True)
 
+def main():
+
+    # Process input arguments.
+    # ------------------------
+    if len(sys.argv) < 2:
+        print('ERROR: Must provide a path to a subject folder.')
+        exit(1)
+
+    # Subject folder path.
+    path = sys.argv[1]
+    if not path.endswith('/'):
+        path += '/'
+
+    # Symlink in Geometry, if it doesn't come with the folder,
+    # so we can load meshes for the visualizer
+    if not os.path.exists(path + 'Geometry'):
+        os.symlink(GEOMETRY_FOLDER_PATH, path + 'Geometry')
+
+    # Get the subject JSON file path.
+    subjectJsonPath = path + '_subject.json'
+    if not os.path.exists(subjectJsonPath):
+        print(f'ERROR: No file at subjectJsonPath={str(subjectJsonPath)}. Exiting...')
+        exit(1)
+
+    # Output name.
+    outputName = sys.argv[2] if len(sys.argv) > 2 else 'osim_results'
+
+    # Subject href.
+    href = sys.argv[3] if len(sys.argv) > 3 else ''
+
+    # Construct the engine.
+    # ---------------------
+    engine = Engine(path=path,
+                    subjectJsonPath=subjectJsonPath,
+                    outputName=outputName,
+                    href=href)
+
+    # Run the pipeline.
+    # -----------------
+
+
+
+
+    processingResult: Dict[str, Any] = {}
+
+    if not os.path.exists(GEOMETRY_FOLDER_PATH):
+        print('ERROR: No folder at GEOMETRY_FOLDER_PATH=' +
+              str(GEOMETRY_FOLDER_PATH))
+        exit(1)
+
 
 if __name__ == "__main__":
     print(sys.argv, flush=True)
-    # processLocalSubjectFolder("/tmp/tmpa4sqewbz", "some_user_name_results")
-    # processLocalSubjectFolder("/tmp/tmpqg3u6hdr", "some_user_name_results")
-    # processLocalSubjectFolder("/tmp/tmpa0c7p0na")
-    # processLocalSubjectFolder("/tmp/tmp_287z04g")
-    # processLocalSubjectFolder("/tmp/tmp99d3lw9v/")
+
+
+
+
+
     processLocalSubjectFolder(
         sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None, sys.argv[3] if len(sys.argv) > 3 else '')
