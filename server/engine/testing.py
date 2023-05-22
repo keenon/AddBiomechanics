@@ -129,7 +129,7 @@ class TestRajagopal2015(unittest.TestCase):
 
         # Run the pipeline.
         # -----------------
-        engine.parseSubjectJSON()
+        engine.parse_subject_json()
         engine.processLocalSubjectFolder()
 
 
