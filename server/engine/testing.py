@@ -7,6 +7,7 @@ from nimblephysics.loader import absPath
 from helpers import detectNonZeroForceSegments, filterNonZeroForceSegments
 from engine import Engine
 import shutil
+import json
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
@@ -123,15 +124,28 @@ class TestRajagopal2015(unittest.TestCase):
         # Construct the engine.
         # ---------------------
         engine = Engine(path=absPath(path),
-                        subject_json_path=json_dst,
                         output_name='osim_results',
                         href='')
 
         # Run the pipeline.
         # -----------------
+        engine.validate_paths()
         engine.parse_subject_json()
+        engine.load_model_files()
         engine.processLocalSubjectFolder()
 
+        # Check the results
+        # -----------------
+        results_fpath = os.path.join(processed_fpath, '_results.json')
+        with open(results_fpath) as file:
+            results = json.loads(file.read())
+
+        self.assertAlmostEqual(results['autoAvgRMSE'], 0.020053, places=5)
+        self.assertAlmostEqual(results['autoAvgMax'], 0.040665, places=5)
+        self.assertAlmostEqual(results['linearResidual'], 7.29849, places=5)
+        self.assertAlmostEqual(results['angularResidual'], 1.210387, places=5)
+
+        # TODO add more comprehensive tests
 
 if __name__ == '__main__':
     unittest.main()

@@ -23,6 +23,8 @@ DATA_FOLDER_PATH = absPath('../data')
 # class ExceptionHandlingMeta(type):
 #     def __new__(cls, name, bases, attrs):
 #         for attr_name, attr_value in attrs.items():
+#             if attr_name == '__init__':
+#                 continue  # Skip __init__ method
 #             if callable(attr_value):
 #                 attrs[attr_name] = cls.wrap_method(attr_value)
 #         return super().__new__(cls, name, bases, attrs)
@@ -40,14 +42,17 @@ DATA_FOLDER_PATH = absPath('../data')
 class Engine(object): #metaclass=ExceptionHandlingMeta):
     def __init__(self,
                  path: str,
-                 subject_json_path: str,
                  output_name: str,
                  href: str):
+        # Basic inputs.
         self.path = path
-        self.subject_json_path = subject_json_path
+        self.trialsFolderPath = self.path + 'trials/'
+        self.subject_json_path = self.path + '_subject.json'
+        self.geometry_symlink_path = self.path + 'Geometry'
         self.output_name = output_name
         self.href = href
         self.processingResult: Dict[str, Any] = {}
+        # Subject pipeline parameters.
         self.massKg = 68.0
         self.heightM = 1.6
         self.sex = 'unknown'
@@ -72,9 +77,35 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
         self.minSegmentDuration = 0.05
         self.mergeZeroForceSegmentsThreshold = 1.0
         self.footBodyNames = ['calcn_l', 'calcn_r']
+        # Shared data structures.
+        self.skeleton = None
+        self.markerSet = None
+        self.customOsim = None
+        self.goldOsim = None
+        self.simplified = None
+
+    def validate_paths(self):
+        # 1. Validate all data input paths.
+        # ---------------------------------
+        # 1.1. Check that the Geometry folder exists.
+        if not os.path.exists(GEOMETRY_FOLDER_PATH):
+            raise Exception('Geometry folder "' + GEOMETRY_FOLDER_PATH + '" does not exist. Quitting...')
+
+        # 1.2. Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer.
+        if not os.path.exists(self.geometry_symlink_path):
+            os.symlink(GEOMETRY_FOLDER_PATH, self.geometry_symlink_path)
+
+        # 1.3. Get the subject JSON file path.
+        if not os.path.exists(self.subject_json_path):
+            raise Exception('Subject JSON file "' + self.subject_json_path + '" does not exist. Quitting...')
+
+        # 1.4. Check that the trials folder exists.
+        if not os.path.exists(self.trialsFolderPath):
+            raise Exception('Trials folder "' + self.trialsFolderPath + '" does not exist. Quitting...')
 
     def parse_subject_json(self):
-        # Read the subject parameters from the JSON file.
+        # 2. Read the subject parameters from the JSON file.
+        # --------------------------------------------------
         with open(self.subject_json_path) as subj:
             subjectJson = json.loads(subj.read())
 
@@ -162,10 +193,10 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
         elif 'footBodyNames' in subjectJson:
             self.footBodyNames = subjectJson['footBodyNames']
 
-    def processLocalSubjectFolder(self):
-
-        # 3. Load the unscaled Osim file, which we can then scale and format
-        # 3.0. Check for if we're using a preset OpenSim model, and if so, then copy that in
+    def load_model_files(self):
+        # 3. Load the unscaled OSIM file.
+        # -------------------------------
+        # 3.0. Check for if we're using a preset OpenSim model. Otherwise, use the custom one provided by the user.
         if self.skeletonPreset == 'vicon':
             shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_ViconPlugInGait.osim',
                         self.path + 'unscaled_generic.osim')
@@ -177,77 +208,72 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
                         self.path + 'unscaled_generic.osim')
         else:
             if self.skeletonPreset != 'custom':
-                print('Unrecognized skeleton preset "'+str(self.skeletonPreset) +
+                print('Unrecognized skeleton preset "' + str(self.skeletonPreset) +
                       '"! Behaving as though this is "custom"')
             if not os.path.exists(self.path + 'unscaled_generic.osim'):
-                print('We are using a custom OpenSim skeleton, and yet there is no unscaled_generic.osim file present. '
-                      'Quitting...')
-                exit(1)
+                raise Exception('We are using a custom OpenSim skeleton, but there is no unscaled_generic.osim '
+                                'file present. Quitting...')
 
-        # 3.1. Rationalize CustomJoint's in the osim file
+        # 3.1. Rationalize CustomJoint's in the OSIM file.
         shutil.move(self.path + 'unscaled_generic.osim',
                     self.path + 'unscaled_generic_raw.osim')
         nimble.biomechanics.OpenSimParser.rationalizeJoints(self.path + 'unscaled_generic_raw.osim',
                                                             self.path + 'unscaled_generic.osim')
 
-        # 3.2. load the rational file
-        customOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
+        # 3.2. Load the rational file.
+        self.customOsim: nimble.biomechanics.OpenSimFile = nimble.biomechanics.OpenSimParser.parseOsim(
             self.path + 'unscaled_generic.osim')
-        customOsim.skeleton.autogroupSymmetricSuffixes()
-        if customOsim.skeleton.getBodyNode("hand_r") is not None:
-            customOsim.skeleton.setScaleGroupUniformScaling(
-                customOsim.skeleton.getBodyNode("hand_r"))
-        customOsim.skeleton.autogroupSymmetricPrefixes("ulna", "radius")
+        self.customOsim.skeleton.autogroupSymmetricSuffixes()
+        if self.customOsim.skeleton.getBodyNode("hand_r") is not None:
+            self.customOsim.skeleton.setScaleGroupUniformScaling(
+                self.customOsim.skeleton.getBodyNode("hand_r"))
+        self.customOsim.skeleton.autogroupSymmetricPrefixes("ulna", "radius")
 
-        skeleton = customOsim.skeleton
-        markerSet = customOsim.markersMap
+        self.skeleton = self.customOsim.skeleton
+        self.markerSet = self.customOsim.markersMap
 
-        # Output both SDF and MJCF versions of the skeleton, so folks in AI/graphics can use the results in packages
-        # they're familiar with.
+        # 3.3. Output both SDF and MJCF versions of the skeleton.
         if self.exportSDF or self.exportMJCF:
             print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
             mergeBodiesInto: Dict[str, str] = {}
             mergeBodiesInto['ulna_r'] = 'radius_r'
             mergeBodiesInto['ulna_l'] = 'radius_l'
-            customOsim.skeleton.setPositions(
-                np.zeros(customOsim.skeleton.getNumDofs()))
-            simplified = customOsim.skeleton.simplifySkeleton(
-                customOsim.skeleton.getName(), mergeBodiesInto)
-            simplified.setPositions(np.zeros(simplified.getNumDofs()))
-            skeleton = simplified
+            self.customOsim.skeleton.setPositions(
+                np.zeros(self.customOsim.skeleton.getNumDofs()))
+            self.simplified = self.customOsim.skeleton.simplifySkeleton(
+                self.customOsim.skeleton.getName(), mergeBodiesInto)
+            self.simplified.setPositions(np.zeros(simplified.getNumDofs()))
+            self.skeleton = self.simplified
 
             simplifiedMarkers = {}
-            for key in markerSet:
-                simplifiedMarkers[key] = (simplified.getBodyNode(
-                    markerSet[key][0].getName()), markerSet[key][1])
-            markerSet = simplifiedMarkers
+            for key in self.markerSet:
+                simplifiedMarkers[key] = (self.simplified.getBodyNode(
+                    self.markerSet[key][0].getName()), self.markerSet[key][1])
+            self.markerSet = simplifiedMarkers
 
-        # 4. Load the hand-scaled Osim file, if it exists
-        goldOsim: nimble.biomechanics.OpenSimFile = None
+        # 3.4. Load the hand-scaled OSIM file, if it exists.
+        self.goldOsim: nimble.biomechanics.OpenSimFile = None
         if os.path.exists(self.path + 'manually_scaled.osim'):
-            goldOsim = nimble.biomechanics.OpenSimParser.parseOsim(
+            self.goldOsim = nimble.biomechanics.OpenSimParser.parseOsim(
                 self.path + 'manually_scaled.osim')
 
-        trialsFolderPath = self.path + 'trials/'
-        if not os.path.exists(trialsFolderPath):
-            print('ERROR: Trials folder "'+trialsFolderPath +
-                  '" does not exist. Quitting.')
-            exit(1)
 
-        # 7. Process the trial
+    def processLocalSubjectFolder(self):
+
+
+        # . Process the trial
         markerFitter = nimble.biomechanics.MarkerFitter(
-            skeleton, markerSet)
+            self.skeleton, self.markerSet)
         markerFitter.setInitialIKSatisfactoryLoss(1e-5)
         markerFitter.setInitialIKMaxRestarts(150)
-        # markerFitter.setIterationLimit(40)
         markerFitter.setIterationLimit(500)
         markerFitter.setIgnoreJointLimits(self.ignoreJointLimits)
 
         guessedTrackingMarkers = False
-        if len(customOsim.anatomicalMarkers) > 10:
-            markerFitter.setTrackingMarkers(customOsim.trackingMarkers)
+        if len(self.customOsim.anatomicalMarkers) > 10:
+            markerFitter.setTrackingMarkers(self.customOsim.trackingMarkers)
         else:
-            print('NOTE: The input *.osim file specified suspiciously few ('+str(len(customOsim.anatomicalMarkers)) +
+            print('NOTE: The input *.osim file specified suspiciously few ('+str(len(self.customOsim.anatomicalMarkers)) +
                   ', less than the minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default '
                   'to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"', flush=True)
             markerFitter.setTriadsToTracking()
@@ -275,11 +301,11 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
 
         # Get the static trial, if it exists.
         trialsNoStatic = list()
-        for trialName in os.listdir(trialsFolderPath):
+        for trialName in os.listdir(self.trialsFolderPath):
             if trialName == 'static':
                 staticMarkers = dict()
-                c3dFilePath = os.path.join(trialsFolderPath, 'static', 'markers.c3d')
-                trcFilePath = os.path.join(trialsFolderPath, 'static', 'markers.trc')
+                c3dFilePath = os.path.join(self.trialsFolderPath, 'static', 'markers.c3d')
+                trcFilePath = os.path.join(self.trialsFolderPath, 'static', 'markers.trc')
                 if os.path.exists(c3dFilePath):
                     c3dFile: nimble.biomechanics.C3D = nimble.biomechanics.C3DLoader.loadC3D(
                         c3dFilePath)
@@ -297,8 +323,8 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
                 upperArmBodies = ['humerus', 'radius', 'ulna', 'hand']
                 markersToRemove = list()
                 for marker in staticMarkers.keys():
-                    if marker in markerSet:
-                        bodyName = markerSet[marker][0].getName()
+                    if marker in self.markerSet:
+                        bodyName = self.markerSet[marker][0].getName()
                         for upperArmBody in upperArmBodies:
                             if upperArmBody in bodyName:
                                 markersToRemove.append(marker)
@@ -308,7 +334,7 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
                     print(f'  --> {marker}')
                     staticMarkers.pop(marker)
 
-                zeroPose = np.zeros(skeleton.getNumDofs())
+                zeroPose = np.zeros(self.skeleton.getNumDofs())
                 markerFitter.setStaticTrial(staticMarkers, zeroPose)
                 markerFitter.setStaticTrialWeight(50.0)
             else:
@@ -317,7 +343,7 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
         # Process the non-"static" trials in the subject folder
         for itrial, trialName in enumerate(trialsNoStatic):
             trialNames.append(trialName)
-            trialPath = trialsFolderPath + trialName + '/'
+            trialPath = self.trialsFolderPath + trialName + '/'
             trialProcessingResult: Dict[str, Any] = {}
 
             # Load the markers file
@@ -544,19 +570,19 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
             150)
 
         # Set the masses based on the change in mass of the model
-        unscaledSkeletonMass = skeleton.getMass()
+        unscaledSkeletonMass = self.skeleton.getMass()
         massScaleFactor = self.massKg / unscaledSkeletonMass
         print(f'Unscaled skeleton mass: {unscaledSkeletonMass}')
         print(f'Mass scale factor: {massScaleFactor}')
         bodyMasses = dict()
-        for ibody in range(skeleton.getNumBodyNodes()):
-            body = skeleton.getBodyNode(ibody)
+        for ibody in range(self.skeleton.getNumBodyNodes()):
+            body = self.skeleton.getBodyNode(ibody)
             body.setMass(body.getMass() * massScaleFactor)
             bodyMasses[body.getName()] = body.getMass()
 
         err_msg = (f'ERROR: expected final skeleton mass to equal {self.massKg} kg after scaling, '
-                   f'but the final mass is {skeleton.getMass()}')
-        np.testing.assert_almost_equal(skeleton.getMass(), self.massKg, err_msg=err_msg, decimal=1e-3)
+                   f'but the final mass is {self.skeleton.getMass()}')
+        np.testing.assert_almost_equal(self.skeleton.getMass(), self.massKg, err_msg=err_msg, decimal=1e-3)
 
         # Check for any flipped markers, now that we've done a first pass
         anySwapped = False
@@ -574,12 +600,12 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
                 .setMaxTimestepsToUseForMultiTrialScaling(4000),
                 150)
 
-        skeleton.setGroupScales(markerFitterResults[0].groupScales)
+        self.skeleton.setGroupScales(markerFitterResults[0].groupScales)
         fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
                                     np.ndarray]] = markerFitterResults[0].updatedMarkerMap
 
         # Set up some interchangeable data structures, so that we can write out the results using the same code, regardless of whether we used dynamics or not
-        finalSkeleton = skeleton
+        finalSkeleton = self.skeleton
         finalPoses = [result.poses for result in markerFitterResults]
         finalMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode,
                                       np.ndarray]] = fitMarkers
@@ -615,11 +641,11 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
 
                 finalSkeleton.setGravity([0, -9.81, 0])
                 dynamicsFitter = nimble.biomechanics.DynamicsFitter(
-                    finalSkeleton, footBodies, customOsim.trackingMarkers)
+                    finalSkeleton, footBodies, self.customOsim.trackingMarkers)
                 dynamicsInit: nimble.biomechanics.DynamicsInitialization = nimble.biomechanics.DynamicsFitter.createInitialization(
                     finalSkeleton,
                     markerFitterResults,
-                    customOsim.trackingMarkers,
+                    self.customOsim.trackingMarkers,
                     footBodies,
                     trialForcePlates,
                     trialFramesPerSecond,
@@ -845,8 +871,10 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
         command = 'cd '+self.path+'results && opensim-cmd run-tool ' + \
             self.path + 'results/Models/rescaling_setup.xml'
         print('Scaling OpenSim files: '+command, flush=True)
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-        process.wait()
+        # process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+        # process.wait()
+        with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE) as p:
+            p.wait()
 
         # Delete the OpenSim log from running the scale tool
         if os.path.exists(self.path + 'results/opensim.log'):
@@ -926,13 +954,13 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
 
             # Load the gold .mot file, if one exists
             goldMot: nimble.biomechanics.OpenSimMot = None
-            if os.path.exists(trialPath + 'manual_ik.mot') and goldOsim is not None:
+            if os.path.exists(trialPath + 'manual_ik.mot') and self.goldOsim is not None:
                 if c3dFile is not None:
                     goldMot = nimble.biomechanics.OpenSimParser.loadMotAtLowestMarkerRMSERotation(
-                        goldOsim, trialPath + 'manual_ik.mot', c3dFile)
+                        self.goldOsim, trialPath + 'manual_ik.mot', c3dFile)
                 else:
                     goldMot = nimble.biomechanics.OpenSimParser.loadMot(
-                        goldOsim.skeleton, trialPath + 'manual_ik.mot')
+                        self.goldOsim.skeleton, trialPath + 'manual_ik.mot')
 
                 shutil.copyfile(trialPath + 'manual_ik.mot', self.path +
                                 'results/IK/' + trialName + '_manual_scaling_ik.mot')
@@ -940,7 +968,7 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
                     trialName, markerNames, "../Models/manually_scaled.osim", '../MarkerData/'+trialName+'.trc', trialName+'_ik_on_manual_scaling_by_opensim.mot', self.path + 'results/IK/'+trialName+'_ik_on_manually_scaled_setup.xml')
 
                 originalIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
-                    goldOsim.skeleton, goldOsim.markersMap, goldMot.poses, markerTimesteps)
+                    self.goldOsim.skeleton, self.goldOsim.markersMap, goldMot.poses, markerTimesteps)
                 print('manually scaled average RMSE cm: ' +
                       str(originalIK.averageRootMeanSquaredError), flush=True)
                 print('manually scaled average max cm: ' +
@@ -1076,15 +1104,15 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
                 # TODO: someday we'll support loading IMU data. Once available, we'll want to pass it in to the GUI here
                 accObservations = []
                 gyroObservations = []
-                if (goldOsim is not None) and (goldMot is not None):
+                if (self.goldOsim is not None) and (goldMot is not None):
                     print('Saving trajectory, markers, and the manual IK to a GUI log ' +
                           trialPath+'preview.bin', flush=True)
-                    print('goldOsim: '+str(goldOsim), flush=True)
+                    print('goldOsim: '+str(self.goldOsim), flush=True)
                     print('goldMot.poses.shape: ' +
                           str(goldMot.poses.shape), flush=True)
                     markerFitter.saveTrajectoryAndMarkersToGUI(
                         trialPath+'preview.bin', markerFitterResults[i], markerTimesteps, accObservations, gyroObservations,
-                        framesPerSecond, forcePlates, goldOsim, goldMot.poses)
+                        framesPerSecond, forcePlates, self.goldOsim, goldMot.poses)
                 else:
                     print('Saving trajectory and markers to a GUI log ' +
                           trialPath+'preview.bin', flush=True)
@@ -1283,12 +1311,12 @@ class Engine(object): #metaclass=ExceptionHandlingMeta):
                     "Individual body mass changes:"))
                 f.write("\n\n")
                 maxBodyNameLen = 0
-                for ibody in range(skeleton.getNumBodyNodes()):
-                    body = skeleton.getBodyNode(ibody)
+                for ibody in range(self.skeleton.getNumBodyNodes()):
+                    body = self.skeleton.getBodyNode(ibody)
                     bodyName = body.getName()
                     maxBodyNameLen = max(maxBodyNameLen, len(bodyName))
-                for ibody in range(skeleton.getNumBodyNodes()):
-                    body = skeleton.getBodyNode(ibody)
+                for ibody in range(self.skeleton.getNumBodyNodes()):
+                    body = self.skeleton.getBodyNode(ibody)
                     bodyName = body.getName()
                     bodyMass = body.getMass()
                     bodyMassChange = bodyMass - bodyMasses[bodyName]
@@ -1737,22 +1765,6 @@ def main():
     if not path.endswith('/'):
         path += '/'
 
-    # Check that the Geometry folder exists.
-    if not os.path.exists(GEOMETRY_FOLDER_PATH):
-        print(f'ERROR: No Geometry folder found at path {str(GEOMETRY_FOLDER_PATH)}. Exiting...')
-        exit(1)
-
-    # Symlink in Geometry, if it doesn't come with the folder,
-    # so we can load meshes for the visualizer.
-    if not os.path.exists(path + 'Geometry'):
-        os.symlink(GEOMETRY_FOLDER_PATH, path + 'Geometry')
-
-    # Get the subject JSON file path.
-    subject_json_path = path + '_subject.json'
-    if not os.path.exists(subject_json_path):
-        print(f'ERROR: No file at subjectJsonPath={str(subject_json_path)}. Exiting...')
-        exit(1)
-
     # Output name.
     output_name = sys.argv[2] if len(sys.argv) > 2 else 'osim_results'
 
@@ -1762,13 +1774,14 @@ def main():
     # Construct the engine.
     # ---------------------
     engine = Engine(path=path,
-                    subject_json_path=subject_json_path,
                     output_name=output_name,
                     href=href)
 
     # Run the pipeline.
     # -----------------
+    engine.validate_paths()
     engine.parse_subject_json()
+    engine.load_model_files()
     engine.processLocalSubjectFolder()
 
 
