@@ -13,7 +13,8 @@ import textwrap
 import glob
 import traceback
 from plotting import plotIKResults, plotIDResults, plotMarkerErrors, plotGRFData
-from helpers import detectNonZeroForceSegments,  filterNonZeroForceSegments, getConsecutiveValues
+from helpers import detectNonZeroForceSegments,  filterNonZeroForceSegments, getConsecutiveValues, \
+                    detectMarkeredSegments, reconcileMarkeredAndNonzeroForceSegments
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
@@ -328,8 +329,11 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             trialsNoStatic.append(trialName)
 
     # Process the non-"static" trials in the subject folder
-    for itrial, trialName in enumerate(trialsNoStatic):
-        trialNames.append(trialName)
+    itrial = 0
+    trialNames = [name for name in trialsNoStatic]
+    while itrial < len(trialNames):
+        numSegments = 1
+        trialName = trialNames[itrial]
         trialPath = trialsFolderPath + trialName + '/'
         trialProcessingResult: Dict[str, Any] = {}
 
@@ -398,99 +402,118 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
             markerTrials[itrial] = markerTrials[itrial][startTimeIndex:endTimeIndex+1]
             trialTimestamps[itrial] = trialTimestamps[itrial][startTimeIndex:endTimeIndex+1]
 
-            if segmentTrials:
-                # Find the segments of the trial where there are non-zero forces.
-                print(f'Checking trial "{trialName}" for non-zero force segments...')
+            # Check that the marker and force data have the same length.
+            if len(timestamps) != len(trialForcePlates[itrial][0].timestamps):
+                raise Exception('ERROR: Marker and force plate data have different lengths after trimming. Quitting...')
+
+        # Split the trial into individual segments where there is marker data and, if applicable, non-zero forces.
+        if segmentTrials:
+            print(f'Checking trial "{trialName}" for non-zero segments...')
+
+            # Find the markered segments.
+            markeredSegments = detectMarkeredSegments(trialTimestamps[itrial], markerTrials[itrial])
+
+            # Find the segments of the trial where there are non-zero forces.
+            nonzeroForceSegments = [[trialTimestamps[itrial][0], trialTimestamps[itrial][-1]]]
+            if len(trialForcePlates[itrial]) > 0 and not disableDynamics:
                 totalLoad = np.zeros(len(trialForcePlates[itrial][0].timestamps))
                 for itime in range(len(totalLoad)):
                     totalForce = 0
                     totalMoment = 0
-                    for forcePlate in forcePlates:
+                    for forcePlate in trialForcePlates[itrial]:
                         totalForce += np.linalg.norm(forcePlate.forces[itime])
                         totalMoment += np.linalg.norm(forcePlate.moments[itime])
                     totalLoad[itime] = totalForce + totalMoment
 
                 nonzeroForceSegments = detectNonZeroForceSegments(trialForcePlates[itrial][0].timestamps, totalLoad)
+                nonzeroForceSegments = filterNonZeroForceSegments(nonzeroForceSegments,
+                                                                  minSegmentDuration,
+                                                                  mergeZeroForceSegmentsThreshold)
+                if len(nonzeroForceSegments) == 0:
+                    raise Exception('ERROR: No non-zero force segments found. Quitting...')
 
-                # Determine if the trial should be segmented. If there are multiple non-zero force segments, or if a
-                # single non-zero force segment does not span the entire trial, then the trial should be segmented.
-                segmentTrial = False
-                if len(nonzeroForceSegments) > 0:
-                    segmentsInsideTimeRange = (nonzeroForceSegments[0][0] > newStartTime or
-                                               nonzeroForceSegments[-1][1] < newEndTime)
-                    if len(nonzeroForceSegments) >= 1 or segmentsInsideTimeRange:
-                        segmentTrial = True
+            # Find the intersection of the markered and non-zero force segments.
+            segments = reconcileMarkeredAndNonzeroForceSegments(trialTimestamps[itrial],
+                                                                markeredSegments, nonzeroForceSegments)
+            numSegments = len(segments)
 
-                # Split the trial into individual segments where there are non-zero forces.
-                if segmentTrial:
-                    nonzeroForceSegments = filterNonZeroForceSegments(nonzeroForceSegments,
-                                                                      minSegmentDuration,
-                                                                      mergeZeroForceSegmentsThreshold)
-                    # Segment the trial.
-                    print(f' --> {len(nonzeroForceSegments)} non-zero force segment(s) found!')
-                    if len(nonzeroForceSegments) > 1:
-                        print(f' --> Splitting trial "{trialName}" into {len(nonzeroForceSegments)} separate trials.')
-                    else:
-                        print(f' --> Trimming trial "{trialName}" to non-zero force range.')
+            # Segment the trial.
+            print(f' --> {len(segments)} markered and non-zero force segment(s) found!')
+            if len(segments) > 1:
+                print(f' --> Splitting trial "{trialName}" into {len(segments)} separate trials.')
+            else:
+                print(f' --> Trimming trial "{trialName}" to markered and non-zero force range.')
 
-                    baseTrialName = trialNames.pop(itrial)
-                    baseForcePlates = trialForcePlates.pop(itrial)
-                    baseTimestamps = trialTimestamps.pop(itrial)
-                    baseFramesPerSecond = trialFramesPerSecond.pop(itrial)
-                    baseMarkerSet = trialMarkerSet.pop(trialName)
-                    baseMarkerTrial = markerTrials.pop(itrial)
-                    for iseg, segment in enumerate(nonzeroForceSegments):
-                        # Segment time range.
-                        if len(nonzeroForceSegments) > 1:
-                            print(f' --> Segment {iseg+1}: {segment[0]:1.2f} to {segment[1]:1.2f} s')
-                            trialSegmentName = f'{baseTrialName}_{iseg + 1}'
-                        else:
-                            print(f' --> Trimmed time range: {segment[0]:1.2f} to {segment[1]:1.2f} s')
-                            trialSegmentName = baseTrialName
-
-                        # Create a new trial name for this segment.
-                        trialNames.append(baseTrialName)
-
-                        # Create a new set of force plate for this segment.
-                        forcePlates = []
-                        for forcePlate in baseForcePlates:
-                            forcePlateCopy = nimble.biomechanics.ForcePlate.copyForcePlate(forcePlate)
-                            forcePlateCopy.trim(segment[0], segment[1])
-                            forcePlates.append(forcePlateCopy)
-                        trialForcePlates.append(forcePlates)
-
-                        # Create a new set of timestamps for this segment.
-                        timestamps = []
-                        for timestamp in baseTimestamps:
-                            if timestamp >= segment[0] and timestamp <= segment[1]:
-                                timestamps.append(timestamp)
-                        trialTimestamps.append(timestamps)
-
-                        # Create a new set of frames per second for this segment.
-                        trialFramesPerSecond.append(baseFramesPerSecond)
-
-                        # Create a new marker set for this segment.
-                        trialMarkerSet[trialSegmentName] = baseMarkerSet
-
-                        # Create a new marker trial for this segment.
-                        markerTrial = []
-                        for itime, timestamp in enumerate(baseTimestamps):
-                            if timestamp >= segment[0] and timestamp <= segment[1]:
-                                markerTrial.append(baseMarkerTrial[itime])
-                        markerTrials.append(markerTrial)
-
-                    # If this trial is from a c3d file, then assign the original c3d file to the segments.
-                    if os.path.exists(c3dFilePath):
-                        baseC3DFile = c3dFiles.pop(trialName)
-                        for iseg, segment in enumerate(nonzeroForceSegments):
-                            if len(nonzeroForceSegments) > 1:
-                                c3dFiles[f'{baseTrialName}_{iseg+1}'] = baseC3DFile
-                            else:
-                                c3dFiles[baseTrialName] = baseC3DFile
+            baseTrialName = trialNames.pop(itrial)
+            baseForcePlates = trialForcePlates.pop(itrial)
+            baseTimestamps = trialTimestamps.pop(itrial)
+            baseFramesPerSecond = trialFramesPerSecond.pop(itrial)
+            baseMarkerSet = trialMarkerSet.pop(trialName)
+            baseMarkerTrial = markerTrials.pop(itrial)
+            segmentTrialNames = []
+            segmentForcePlates = []
+            segmentTimestamps = []
+            segmentFramesPerSecond = []
+            segmentMarkerTrials = []
+            for iseg, segment in enumerate(segments):
+                # Segment time range.
+                if len(segments) > 1:
+                    print(f' --> Segment {iseg+1}: {segment[0]:1.2f} to {segment[1]:1.2f} s')
+                    trialSegmentName = f'{baseTrialName}_{iseg + 1}'
                 else:
-                    print(f' --> No non-zero force segments found for trial "{baseTrialName}"! '
-                          f'Skipping dynamics fitting...')
-                    disableDynamics = True
+                    print(f' --> Trimmed time range: {segment[0]:1.2f} to {segment[1]:1.2f} s')
+                    trialSegmentName = baseTrialName
+
+                # Create a new trial name for this segment.
+                segmentTrialNames.append(trialSegmentName)
+
+                # Create a new set of force plates for this segment.
+                forcePlates = []
+                for forcePlate in baseForcePlates:
+                    forcePlateCopy = nimble.biomechanics.ForcePlate.copyForcePlate(forcePlate)
+                    forcePlateCopy.trim(segment[0], segment[1])
+                    forcePlates.append(forcePlateCopy)
+                segmentForcePlates.append(forcePlates)
+
+                # Create a new set of timestamps for this segment.
+                timestamps = []
+                for timestamp in baseTimestamps:
+                    if timestamp >= segment[0] and timestamp <= segment[1]:
+                        timestamps.append(timestamp)
+                segmentTimestamps.append(timestamps)
+
+                # Create a new set of frames per second for this segment.
+                segmentFramesPerSecond.append(baseFramesPerSecond)
+
+                # Create a new marker set for this segment.
+                trialMarkerSet[trialSegmentName] = baseMarkerSet
+
+                # Create a new marker trial for this segment.
+                markerTrial = []
+                for itime, timestamp in enumerate(baseTimestamps):
+                    if timestamp >= segment[0] and timestamp <= segment[1]:
+                        markerTrial.append(baseMarkerTrial[itime])
+                segmentMarkerTrials.append(markerTrial)
+
+            # Insert the new segments into the list of trials.
+            trialNames[itrial:itrial] = segmentTrialNames
+            trialForcePlates[itrial:itrial] = segmentForcePlates
+            trialTimestamps[itrial:itrial] = segmentTimestamps
+            trialFramesPerSecond[itrial:itrial] = segmentFramesPerSecond
+            markerTrials[itrial:itrial] = segmentMarkerTrials
+
+            # If this trial is from a c3d file, then assign the original c3d file to the segments.
+            if os.path.exists(c3dFilePath):
+                baseC3DFile = c3dFiles.pop(trialName)
+                for iseg, segment in enumerate(nonzeroForceSegments):
+                    if len(nonzeroForceSegments) > 1:
+                        c3dFiles[f'{baseTrialName}_{iseg+1}'] = baseC3DFile
+                    else:
+                        c3dFiles[baseTrialName] = baseC3DFile
+
+        # If we didn't segment anything, numSegments is 1. Otherwise, we need to skip over the new "trials" that are
+        # actually just segments of the current trial.
+        itrial += numSegments
 
     print('Fitting trials '+str(trialNames), flush=True)
 
