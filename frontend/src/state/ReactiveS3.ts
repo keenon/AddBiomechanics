@@ -38,6 +38,10 @@ function makeTopicPubSubSafe(path: string) {
             else {
                 break;
             }
+
+            if (segmentCursor > 7) {
+                break;
+            }
         }
         return reconstructed;
     }
@@ -876,13 +880,13 @@ class ReactiveCursor {
         return this.index.deleteByPrefix(totalPrefix);
     };
 
-    _metadataListener = (file: ReactiveFileMetadata | null) => {
+    _metadataListener = action((file: ReactiveFileMetadata | null) => {
         this.metadata = file;
-    };
+    });
 
-    _onChildrenListener = (children: Map<string, ReactiveFileMetadata>) => {
+    _onChildrenListener = action((children: Map<string, ReactiveFileMetadata>) => {
         this.children = children;
-    };
+    });
 }
 
 /// This holds the low-level copy of the S3 output, without nulls
