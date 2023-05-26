@@ -12,7 +12,8 @@ import textwrap
 import glob
 import traceback
 from plotting import plotIKResults, plotIDResults, plotMarkerErrors, plotGRFData
-from helpers import detectNonZeroForceSegments,  filterNonZeroForceSegments, getConsecutiveValues
+from helpers import detectNonZeroForceSegments,  filterNonZeroForceSegments, getConsecutiveValues, \
+                    detectMarkeredSegments, reconcileMarkeredAndNonzeroForceSegments
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
