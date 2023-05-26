@@ -1,0 +1,17 @@
+{
+  "subjectTags": [
+    "healthy"
+  ],
+  "sex": "unknown",
+  "massKg": "85.0668",
+  "heightM": "1.829",
+  "email": "nbianco@stanford.edu",
+  "skeletonPreset": "custom",
+  "disableDynamics": false,
+  "footBodyNames": [
+    "calcn_r",
+    "calcn_l"
+  ],
+  "shiftGRF": false,
+  "maxTrialsToSolveMassOver": 4
+}
