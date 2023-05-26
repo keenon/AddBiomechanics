@@ -396,14 +396,15 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
                 forcePlate.trim(newStartTime, newEndTime)
 
             # Trim the marker data.
+            numForceTimestamps = len(trialForcePlates[itrial][0].timestamps)
             timestamps = np.array(trialTimestamps[itrial])
             startTimeIndex = np.argmin(np.abs(timestamps - newStartTime))
-            endTimeIndex = np.argmin(np.abs(timestamps - newEndTime))
-            markerTrials[itrial] = markerTrials[itrial][startTimeIndex:endTimeIndex+1]
-            trialTimestamps[itrial] = trialTimestamps[itrial][startTimeIndex:endTimeIndex+1]
+            endTimeIndex = startTimeIndex + numForceTimestamps
+            markerTrials[itrial] = markerTrials[itrial][startTimeIndex:endTimeIndex]
+            trialTimestamps[itrial] = trialTimestamps[itrial][startTimeIndex:endTimeIndex]
 
             # Check that the marker and force data have the same length.
-            if len(timestamps) != len(trialForcePlates[itrial][0].timestamps):
+            if len(trialTimestamps[itrial]) != len(trialForcePlates[itrial][0].timestamps):
                 raise Exception('ERROR: Marker and force plate data have different lengths after trimming. Quitting...')
 
         # Split the trial into individual segments where there is marker data and, if applicable, non-zero forces.
