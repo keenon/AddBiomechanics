@@ -1,6 +1,17 @@
+def getConsecutiveValues(data):
+    from operator import itemgetter
+    from itertools import groupby
+    ranges = []
+    for key, group in groupby(enumerate(data), lambda x: x[0]-x[1]):
+        group = list(map(itemgetter(1), group))
+        ranges.append((group[0], group[-1]))
+
+    return ranges
+
+
 def detectNonZeroForceSegments(timestamps, totalLoad):
     # Scan through the timestamps in the force data and find segments longer than a certain threshold that
-    # have zero forces.
+    # have non-zero forces.
     nonzeroForceSegments = []
     nonzeroForceSegmentStart = None
     for itime in range(len(timestamps)):
@@ -14,7 +25,7 @@ def detectNonZeroForceSegments(timestamps, totalLoad):
         else:
             if nonzeroForceSegmentStart is not None:
                 nonzeroForceSegments.append(
-                    (nonzeroForceSegmentStart, timestamps[itime]))
+                    (nonzeroForceSegmentStart, timestamps[itime-1]))
                 nonzeroForceSegmentStart = None
 
     return nonzeroForceSegments
@@ -39,12 +50,69 @@ def filterNonZeroForceSegments(nonzeroForceSegments, minSegmentDuration, mergeZe
     return mergedNonzeroForceSegments
 
 
-def getConsecutiveValues(data):
-    from operator import itemgetter
-    from itertools import groupby
-    ranges = []
-    for key, group in groupby(enumerate(data), lambda x: x[0]-x[1]):
-        group = list(map(itemgetter(1), group))
-        ranges.append((group[0], group[-1]))
+def detectMarkeredSegments(timestamps, markers):
+    # Scan through the timestamps in the marker data and find segments longer than a certain threshold that
+    # have zero forces.
+    markeredSegments = []
+    markeredSegmentStart = None
+    for itime in range(len(timestamps)):
+        if len(markers[itime]) > 0:
+            if markeredSegmentStart is None:
+                markeredSegmentStart = timestamps[itime]
+            elif markeredSegmentStart is not None and itime == len(timestamps) - 1:
+                markeredSegments.append(
+                    (markeredSegmentStart, timestamps[itime]))
+                markeredSegmentStart = None
+        else:
+            if markeredSegmentStart is not None:
+                markeredSegments.append(
+                    (markeredSegmentStart, timestamps[itime-1]))
+                markeredSegmentStart = None
 
-    return ranges
+    return markeredSegments
+
+
+def reconcileMarkeredAndNonzeroForceSegments(timestamps, markeredSegments, nonzeroForceSegments):
+    import numpy as np
+
+    # Create boolean arrays of length timestamps that is True if the timestamp is in a markered or nonzero force segment.
+    markeredTimestamps = np.zeros(len(timestamps), dtype=bool)
+    nonzeroForceTimestamps = np.zeros(len(timestamps), dtype=bool)
+    for itime in range(len(timestamps)):
+        for markeredSegment in markeredSegments:
+            if markeredSegment[0] <= timestamps[itime] <= markeredSegment[-1]:
+                print(itime, markeredSegment[0], timestamps[itime], markeredSegment[-1])
+                timestampToCheck = itime
+                markeredTimestamps[itime] = True
+                break
+
+        for nonzeroForceSegment in nonzeroForceSegments:
+            if nonzeroForceSegment[0] <= timestamps[itime] <= nonzeroForceSegment[-1]:
+                nonzeroForceTimestamps[itime] = True
+                break
+
+    # Find the intersection between the markered timestamps and the non-zero force timestamps.
+    reconciledTimestamps = np.logical_and(markeredTimestamps, nonzeroForceTimestamps)
+    print(reconciledTimestamps[timestampToCheck])
+    print(reconciledTimestamps[timestampToCheck+1])
+    print(reconciledTimestamps[timestampToCheck+2])
+    print(reconciledTimestamps[timestampToCheck+3])
+
+    # Create a new set of segments from the reconciled timestamps.
+    reconciledSegments = []
+    reconciledSegmentStart = None
+    for itime in range(len(timestamps)):
+        if reconciledTimestamps[itime]:
+            if reconciledSegmentStart is None:
+                reconciledSegmentStart = timestamps[itime]
+            elif reconciledSegmentStart is not None and itime == len(timestamps) - 1:
+                reconciledSegments.append(
+                    (reconciledSegmentStart, timestamps[itime]))
+                reconciledSegmentStart = None
+        else:
+            if reconciledSegmentStart is not None:
+                reconciledSegments.append(
+                    (reconciledSegmentStart, timestamps[itime-1]))
+                reconciledSegmentStart = None
+
+    return reconciledSegments

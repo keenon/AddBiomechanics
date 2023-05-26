@@ -4,7 +4,7 @@ import nimblephysics as nimble
 from typing import List
 import numpy as np
 from nimblephysics.loader import absPath
-from helpers import detectNonZeroForceSegments, filterNonZeroForceSegments
+from helpers import detectNonZeroForceSegments, filterNonZeroForceSegments, reconcileMarkeredAndNonzeroForceSegments
 
 DATA_FOLDER_PATH = absPath('../data')
 
@@ -15,7 +15,7 @@ class TestTrialSegmentation(unittest.TestCase):
         timestamps = np.linspace(0, 6.0, 601)
         totalLoad = np.zeros(len(timestamps))
 
-        # Add a legimate load segment.
+        # Add a legitimate load segment.
         totalLoad[50:100] = 1.0
         # Add a load segment that is too short.
         totalLoad[250:254] = 1.0
@@ -75,6 +75,32 @@ class TestTrialSegmentation(unittest.TestCase):
         self.assertEqual(nonzeroForceSegments[0], (0.005, 5.92))
         self.assertEqual(nonzeroForceSegments[1], (7.365, 8.455))
         self.assertEqual(nonzeroForceSegments[2], (11.895, 15.335))
+
+    def test_reconcileMarkeredAndNonzeroForceSegments(self):
+        # Create force plate data with intermittent loads.
+        timestamps = np.linspace(0, 10.0, 1001)
+
+        # Create marker segments
+        markerSegments = list()
+        markerSegments.append(timestamps[0:200])
+        markerSegments.append(timestamps[500:600])
+        markerSegments.append(timestamps[800:1000])
+
+        # Create force segments
+        forceSegments = list()
+        forceSegments.append(timestamps[100:300])
+        forceSegments.append(timestamps[350:400])
+        forceSegments.append(timestamps[550:600])
+        forceSegments.append(timestamps[700:950])
+
+        # Reconcile the segments.
+        finalSegments = reconcileMarkeredAndNonzeroForceSegments(timestamps, markerSegments, forceSegments)
+
+        # Check that the correct segments were detected.
+        self.assertEqual(len(finalSegments), 3)
+        self.assertEqual(finalSegments[0], (1.0, 2.0))
+        self.assertEqual(finalSegments[1], (5.5, 6.0))
+        self.assertEqual(finalSegments[2], (8.0, 9.5))
 
 
 if __name__ == '__main__':
