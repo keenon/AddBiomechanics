@@ -7,7 +7,7 @@
   "heightM": "1.829",
   "email": "nbianco@stanford.edu",
   "skeletonPreset": "custom",
-  "disableDynamics": true,
+  "disableDynamics": false,
   "footBodyNames": [
     "calcn_r",
     "calcn_l"
