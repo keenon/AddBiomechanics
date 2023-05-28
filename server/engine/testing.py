@@ -143,9 +143,6 @@ class TestRajagopal2015(unittest.TestCase):
         path = os.path.join(data_fpath, 'processed')
         if not path.endswith('/'):
             path += '/'
-        # Geometry folder.
-        # if not os.path.exists(path + 'Geometry'):
-        #     os.symlink(GEOMETRY_FOLDER_PATH, path + 'Geometry')
 
         # Construct the engine.
         # ---------------------
