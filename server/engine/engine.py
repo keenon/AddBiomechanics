@@ -157,7 +157,7 @@ def processLocalSubjectFolder(path: str, outputName: str = None, href: str = '')
     if 'segmentTrials' in subjectJson:
         segmentTrials = subjectJson['segmentTrials']
     else:
-        segmentTrials = False
+        segmentTrials = True
 
     if 'minSegmentDuration' in subjectJson:
         minSegmentDuration = subjectJson['minSegmentDuration']
