@@ -1,4 +1,11 @@
 #!/usr/bin/python3
+"""
+engine.py
+---------
+Description: The main pipeline that servers as the "engine" for the AddBiomechanics data processing software.
+Author(s): Keenon Werling, Nicholas Bianco
+"""
+
 import sys
 import nimblephysics as nimble
 import os
@@ -11,9 +18,10 @@ import shutil
 import textwrap
 import glob
 import traceback
-from plotting import plotIKResults, plotIDResults, plotMarkerErrors, plotGRFData
-from helpers import detectNonZeroForceSegments, filterNonZeroForceSegments, getConsecutiveValues, \
-    detectMarkeredSegments, reconcileMarkeredAndNonzeroForceSegments
+from plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
+from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, get_consecutive_values, \
+    reconcile_markered_and_nonzero_force_segments, detect_markered_segments
+
 
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
@@ -24,9 +32,11 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                  path: str,
                  output_name: str,
                  href: str):
+
         # 0. Initialize the engine.
         # -------------------------
-        # 0.1 Basic inputs.
+
+        # 0.1. Basic inputs.
         self.path = path
         self.trialsFolderPath = self.path + 'trials/'
         self.subject_json_path = self.path + '_subject.json'
@@ -34,7 +44,8 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.output_name = output_name
         self.href = href
         self.processingResult: Dict[str, Any] = {}
-        # 0.2 Subject pipeline parameters.
+
+        # 0.2. Subject pipeline parameters.
         self.massKg = 68.0
         self.heightM = 1.6
         self.sex = 'unknown'
@@ -61,7 +72,8 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.footBodyNames = ['calcn_l', 'calcn_r']
         self.totalForce = 0.0
         self.fitDynamics = False
-        # 0.3 Shared data structures.
+
+        # 0.3. Shared data structures.
         self.skeleton = None
         self.markerSet = None
         self.customOsim = None
@@ -81,11 +93,13 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.finalMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]] = {}
         self.finalInverseDynamics = []
         self.bodyMasses = []
-        # 0.4 Solvers.
+
+        # 0.4. Solvers.
         self.markerFitter = None
         self.dynamicsFitter = None
         self.dynamicsInit = None
-        # 0.5 Outputs.
+
+        # 0.5. Outputs.
         self.guessedTrackingMarkers = False
         self.markerFitterResults = None
         self.totalFrames = 0
@@ -249,9 +263,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         # 3.3. Output both SDF and MJCF versions of the skeleton.
         if self.exportSDF or self.exportMJCF:
             print('Simplifying OpenSim skeleton to prepare for writing other skeleton formats', flush=True)
-            mergeBodiesInto: Dict[str, str] = {}
-            mergeBodiesInto['ulna_r'] = 'radius_r'
-            mergeBodiesInto['ulna_l'] = 'radius_l'
+            mergeBodiesInto: Dict[str, str] = {'ulna_r': 'radius_r', 'ulna_l': 'radius_l'}
             self.customOsim.skeleton.setPositions(
                 np.zeros(self.customOsim.skeleton.getNumDofs()))
             self.simplified = self.customOsim.skeleton.simplifySkeleton(
@@ -283,13 +295,13 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.markerFitter.setIgnoreJointLimits(self.ignoreJointLimits)
 
         # 5.1. Set the tracking markers.
-        if len(self.customOsim.anatomicalMarkers) > 10:
+        numAnatomicalMarkers = len(self.customOsim.anatomicalMarkers)
+        if numAnatomicalMarkers > 10:
             self.markerFitter.setTrackingMarkers(self.customOsim.trackingMarkers)
         else:
-            print('NOTE: The input *.osim file specified suspiciously few (' + str(len(
-                self.customOsim.anatomicalMarkers)) +
-                  ', less than the minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default '
-                  'to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"',
+            print(f'NOTE: The input *.osim file specified suspiciously few ({numAnatomicalMarkers} less than the '
+                  f'minimum 10) anatomical landmark markers (with <fixed>true</fixed>), so we will default '
+                  f'to treating all markers as anatomical except triad markers with the suffix "1", "2", or "3"',
                   flush=True)
             self.markerFitter.setTriadsToTracking()
             self.guessedTrackingMarkers = True
@@ -428,7 +440,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                 print(f'Checking trial "{trialName}" for non-zero segments...')
 
                 # Find the markered segments.
-                markeredSegments = detectMarkeredSegments(self.trialTimestamps[itrial], self.markerTrials[itrial])
+                markeredSegments = detect_markered_segments(self.trialTimestamps[itrial], self.markerTrials[itrial])
 
                 # Find the segments of the trial where there are non-zero forces.
                 nonzeroForceSegments = [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]
@@ -442,17 +454,17 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                             totalMoment += np.linalg.norm(forcePlate.moments[itime])
                         totalLoad[itime] = totalForce + totalMoment
 
-                    nonzeroForceSegments = detectNonZeroForceSegments(self.trialForcePlates[itrial][0].timestamps,
-                                                                      totalLoad)
-                    nonzeroForceSegments = filterNonZeroForceSegments(nonzeroForceSegments,
-                                                                      self.minSegmentDuration,
-                                                                      self.mergeZeroForceSegmentsThreshold)
+                    nonzeroForceSegments = detect_nonzero_force_segments(self.trialForcePlates[itrial][0].timestamps,
+                                                                         totalLoad)
+                    nonzeroForceSegments = filter_nonzero_force_segments(nonzeroForceSegments,
+                                                                         self.minSegmentDuration,
+                                                                         self.mergeZeroForceSegmentsThreshold)
                     if len(nonzeroForceSegments) == 0:
                         raise Exception('ERROR: No non-zero force segments found. Quitting...')
 
                 # Find the intersection of the markered and non-zero force segments.
-                segments = reconcileMarkeredAndNonzeroForceSegments(self.trialTimestamps[itrial],
-                                                                    markeredSegments, nonzeroForceSegments)
+                segments = reconcile_markered_and_nonzero_force_segments(self.trialTimestamps[itrial],
+                                                                         markeredSegments, nonzeroForceSegments)
                 numSegments = len(segments)
 
                 # Segment the trial.
@@ -633,7 +645,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
 
         err_msg = (f'ERROR: expected final skeleton mass to equal {self.massKg} kg after scaling, '
                    f'but the final mass is {self.skeleton.getMass()}')
-        np.testing.assert_almost_equal(self.skeleton.getMass(), self.massKg, err_msg=err_msg, decimal=1e-3)
+        np.testing.assert_almost_equal(self.skeleton.getMass(), self.massKg, err_msg=err_msg, decimal=4)
 
         # 7.5. Check for any flipped markers, now that we've done a first pass
         anySwapped = False
@@ -853,7 +865,8 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
             badDynamicsFrames: Dict[str, List[int]] = {}
             numBadDynamicsFrames = 0
             for iframe, reason in enumerate(self.dynamicsInit.missingGRFReason[trial]):
-                if not reason.name in badDynamicsFrames: badDynamicsFrames[reason.name] = []
+                if reason.name not in badDynamicsFrames:
+                    badDynamicsFrames[reason.name] = []
                 badDynamicsFrames[reason.name].append(iframe)
                 if not reason.name == 'notMissingGRF':
                     numBadDynamicsFrames += 1
@@ -865,11 +878,11 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.finalMarkers = self.dynamicsInit.updatedMarkerMap
         self.trialForcePlates = self.dynamicsInit.forcePlateTrials
 
-    def write_results(self):
+    def write_result_files(self):
 
         # 9. Write out the result files.
         # -----------------------------
-        print('Outputting result files...', flush=True)
+        print('Writing the result files...', flush=True)
 
         # 9.1. Create result directories.
         if not os.path.exists(self.path + 'results'):
@@ -970,7 +983,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
             for filePath in modelList:
                 try:
                     os.remove(filePath)
-                except:
+                except RuntimeError:
                     print("Error while deleting Model file: ", filePath)
 
             if self.exportSDF:
@@ -1316,20 +1329,20 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                 print('Caught an error when computing trial joint limits:')
                 traceback.print_exc()
                 print('Continuing...')
-            print('Finished computing details about joint limit hits for the README')
+            print('Finished computing details about joint limit hits for the README.')
 
             # 9.9.11. Plot results.
             print(f'Plotting results for trial {trialName}')
-            plotIKResults(ik_fpath)
-            plotMarkerErrors(marker_errors_fpath, ik_fpath)
+            plot_ik_results(ik_fpath)
+            plot_marker_errors(marker_errors_fpath, ik_fpath)
             if os.path.exists(id_fpath):
-                plotIDResults(id_fpath)
+                plot_id_results(id_fpath)
 
             if os.path.exists(grf_fpath):
-                plotGRFData(grf_fpath)
+                plot_grf_data(grf_fpath)
 
             if os.path.exists(grf_raw_fpath):
-                plotGRFData(grf_raw_fpath)
+                plot_grf_data(grf_raw_fpath)
 
             print('Success! Done with ' + trialName + '.', flush=True)
 
@@ -1355,9 +1368,13 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
             shutil.copytree(DATA_FOLDER_PATH + '/SDFGeometry', self.path +
                             'results/SDF/Geometry')
 
-    def processLocalSubjectFolder(self):
+    def generate_readme(self):
 
-        # Generate the overall summary result
+        # 10. Generate the README file.
+        # -----------------------------
+        print('Generating README file...')
+
+        # 10.1. Fill out the results dictionary.
         autoTotalLen = 0
         goldTotalLen = 0
         self.processingResult['autoAvgRMSE'] = 0
@@ -1376,7 +1393,6 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                 self.processingResult['linearResidual'] += trialProcessingResult['linearResidual'] * trialLen
                 self.processingResult['angularResidual'] += trialProcessingResult['angularResidual'] * trialLen
             autoTotalLen += trialLen
-
             if 'goldAvgRMSE' in trialProcessingResult and 'goldAvgMax' in trialProcessingResult:
                 self.processingResult['goldAvgRMSE'] += trialProcessingResult['goldAvgRMSE'] * trialLen
                 self.processingResult['goldAvgMax'] += trialProcessingResult['goldAvgMax'] * trialLen
@@ -1392,7 +1408,6 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.processingResult['guessedTrackingMarkers'] = self.guessedTrackingMarkers
         self.processingResult['trialMarkerSets'] = self.trialMarkerSet
         self.processingResult['osimMarkers'] = list(self.finalMarkers.keys())
-
         trialWarnings: Dict[str, List[str]] = {}
         trialInfo: Dict[str, List[str]] = {}
         badMarkerThreshold = 4  # cm
@@ -1405,12 +1420,11 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.processingResult["fewFramesWarning"] = self.totalFrames < 300
         self.processingResult['jointLimitsHits'] = self.jointLimitsHits
 
-        # Write out the README for the data
+        # 10.2. Create the README file for this subject.
         with open(self.path + 'results/README.txt', 'w') as f:
-            f.write(
-                "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
-            f.write(
-                "AddBiomechanics was written by Keenon Werling.\n")
+            # 10.2.1. Write out the header and summary results across all trials.
+            f.write("*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
+            f.write("AddBiomechanics was written by Keenon Werling.\n")
             f.write("\n")
             f.write(textwrap.fill(
                 "Automatic processing achieved the following marker errors (averaged over all frames of all trials):"))
@@ -1422,8 +1436,8 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
             f.write("\n")
             if self.fitDynamics and self.dynamicsInit is not None:
                 f.write(textwrap.fill(
-                    "Automatic processing reduced the residual loads needed for dynamic consistency to the following magnitudes "
-                    "(averaged over all frames of all trials):"))
+                    "Automatic processing reduced the residual loads needed for dynamic consistency to the following "
+                    "magnitudes (averaged over all frames of all trials):"))
                 f.write("\n\n")
                 residualForce = self.processingResult['linearResidual']
                 residualTorque = self.processingResult['angularResidual']
@@ -1459,6 +1473,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                             f'({percentMassChange:+1.2f}% change from original {self.bodyMasses[bodyName]:1.2f} kg)\n')
                 f.write("\n")
 
+            # 10.2.2. Write out the results for each trial.
             if self.fitDynamics and self.dynamicsInit is not None:
                 f.write(textwrap.fill(
                     "The following trials were processed to perform automatic body scaling, marker registration, "
@@ -1490,7 +1505,8 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
 
                 numBadMarkers = 0
                 for markerError in trialProcessingResult['markerErrors']:
-                    if 100 * markerError[1] > badMarkerThreshold: numBadMarkers += 1
+                    if 100 * markerError[1] > badMarkerThreshold:
+                        numBadMarkers += 1
 
                 trialBadMarkers[trialName] = numBadMarkers
                 if numBadMarkers > 0:
@@ -1513,6 +1529,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                     f.write(f'  --> See IK/{trialName}_ik_summary.txt for more details.\n')
                 f.write(f'\n')
 
+            # 10.2.3. Write out the final model information.
             f.write('\n')
             if self.fitDynamics and self.dynamicsInit is not None:
                 f.write(textwrap.fill(
@@ -1543,19 +1560,28 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                 f.write("Models/optimized_scale_and_markers.osim")
             else:
                 f.write(textwrap.fill(
-                    "Since you did not choose to run the dynamics fitting step, Models/optimized_scale_and_markers.osim "
-                    "contains the same model as Models/final.osim."))
+                    "Since you did not choose to run the dynamics fitting step, "
+                    "Models/optimized_scale_and_markers.osim contains the same model as Models/final.osim."))
             f.write("\n\n")
             if self.exportOSIM:
                 f.write(textwrap.fill(
-                    "If you want to manually edit the marker offsets, you can modify the <MarkerSet> in \"Models/unscaled_but_with_optimized_markers.osim\" (by default this file contains the marker offsets found by the optimizer). If you want to tweak the Scaling, you can edit \"Models/rescaling_setup.xml\". If you change either of these files, then run (FROM THE \"Models\" FOLDER, and not including the leading \"> \"):"))
+                    "If you want to manually edit the marker offsets, you can modify the <MarkerSet> in "
+                    "\"Models/unscaled_but_with_optimized_markers.osim\" (by default this file contains the marker "
+                    "offsets found by the optimizer). If you want to tweak the Scaling, you can edit "
+                    "\"Models/rescaling_setup.xml\". If you change either of these files, then run "
+                    "(FROM THE \"Models\" FOLDER, and not including the leading \"> \"):"))
                 f.write("\n\n")
                 f.write(" > opensim-cmd run-tool rescaling_setup.xml\n")
                 f.write(
                     '           # This will re-generate Models/optimized_scale_and_markers.osim\n')
                 f.write("\n\n")
                 f.write(textwrap.fill(
-                    "You do not need to re-run Inverse Kinematics unless you change scaling, because the output motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to verify the results of AddBiomechanics, you can use the automatically generated XML configuration files. Here are the command-line commands you can run (FROM THE \"IK\" FOLDER, and not including the leading \"> \") to verify IK results for each trial:"))
+                    "You do not need to re-run Inverse Kinematics unless you change scaling, because the output "
+                    "motion files are already generated for you as \"*_ik.mot\" files for each trial, but you are "
+                    "welcome to confirm our results using OpenSim. To re-run Inverse Kinematics with OpenSim, to "
+                    "verify the results of AddBiomechanics, you can use the automatically generated XML configuration "
+                    "files. Here are the command-line commands you can run (FROM THE \"IK\" FOLDER, and not including "
+                    "the leading \"> \") to verify IK results for each trial:"))
                 f.write("\n\n")
                 for i in range(len(self.trialNames)):
                     trialName = self.trialNames[i]
@@ -1567,7 +1593,11 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
 
                 if os.path.exists(self.path + 'manually_scaled.osim'):
                     f.write(textwrap.fill(
-                        "You included a manually scaled model to compare against. That model has been copied into this folder as \"manually_scaled.osim\". You can use the automatically generated XML configuration files to run IK using your manual scaling as well. Here are the command-line commands you can run (FROM THE \"IK\" FOLDER, and not including the leading \"> \") to compare IK results for each trial:"))
+                        "You included a manually scaled model to compare against. That model has been copied into "
+                        "this folder as \"manually_scaled.osim\". You can use the automatically generated XML "
+                        "configuration files to run IK using your manual scaling as well. Here are the command-line "
+                        "commands you can run (FROM THE \"IK\" FOLDER, and not including the leading \"> \") to "
+                        "compare IK results for each trial:"))
                     f.write("\n\n")
                     for i in range(len(self.trialNames)):
                         trialName = self.trialNames[i]
@@ -1579,7 +1609,12 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
 
                 if self.fitDynamics and self.dynamicsInit is not None:
                     f.write(textwrap.fill(
-                        "To re-run Inverse Dynamics using OpenSim, you can also use automatically generated XML configuration files. WARNING: Inverse Dynamics in OpenSim uses a different time-step definition to the one used in AddBiomechanics (AddBiomechanics uses semi-implicit Euler, OpenSim uses splines). This means that your OpenSim inverse dynamics results WILL NOT MATCH your AddBiomechanics results, and YOU SHOULD NOT EXPECT THEM TO. The following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
+                        "To re-run Inverse Dynamics using OpenSim, you can also use automatically generated XML "
+                        "configuration files. WARNING: Inverse Dynamics in OpenSim uses a different time-step "
+                        "definition to the one used in AddBiomechanics (AddBiomechanics uses semi-implicit Euler, "
+                        "OpenSim uses splines). This means that your OpenSim inverse dynamics results WILL NOT MATCH "
+                        "your AddBiomechanics results, and YOU SHOULD NOT EXPECT THEM TO. The following commands "
+                        "should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
                     f.write("\n\n")
                     for i in range(len(self.trialNames)):
                         trialName = self.trialNames[i]
@@ -1601,7 +1636,12 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                                     trialName + '_osim_id.sto\n')
                 else:
                     f.write(textwrap.fill(
-                        "To run Inverse Dynamics with OpenSim, you can also use automatically generated XML configuration files. WARNING: This AddBiomechanics run did not attempt to fit dynamics (you need to have GRF data and enable physics fitting in the web app), so the residuals will not be small and YOU SHOULD NOT EXPECT THEM TO BE. That being said, to run inverse dynamics the following commands should work (FROM THE \"ID\" FOLDER, and not including the leading \"> \"):\n"))
+                        "To run Inverse Dynamics with OpenSim, you can also use automatically generated XML "
+                        "configuration files. WARNING: This AddBiomechanics run did not attempt to fit dynamics "
+                        "(you need to have GRF data and enable physics fitting in the web app), so the residuals will "
+                        "not be small and YOU SHOULD NOT EXPECT THEM TO BE. That being said, to run inverse dynamics "
+                        "the following commands should work (FROM THE \"ID\" FOLDER, and not including the "
+                        "leading \"> \"):\n"))
                     f.write("\n\n")
                     for i in range(len(self.trialNames)):
                         trialName = self.trialNames[i]
@@ -1621,13 +1661,18 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                 f.write("Models/unscaled_but_with_optimized_markers.osim")
             else:
                 f.write(textwrap.fill(
-                    "Because you chose to export MuJoCo and/or SDF files, we had to simplify the OpenSim skeleton we started out with (replacing <CustomJoint> objects with simpler joint types, etc). This means that the output is no longer compatible with OpenSim, and so the normal OpenSim files are not present. If you want the OpenSim files, please re-run AddBiomechanics with those options turned off"))
+                    "Because you chose to export MuJoCo and/or SDF files, we had to simplify the OpenSim skeleton we "
+                    "started out with (replacing <CustomJoint> objects with simpler joint types, etc). This means "
+                    "that the output is no longer compatible with OpenSim, and so the normal OpenSim files are not "
+                    "present. If you want the OpenSim files, please re-run AddBiomechanics with those options "
+                    "turned off"))
             f.write("\n\n")
             f.write(textwrap.fill(
                 "If you encounter errors, please submit a post to the AddBiomechanics user forum on SimTK.org\n:"))
             f.write('\n\n')
             f.write('   https://simtk.org/projects/addbiomechanics')
 
+        # 10.3. If requested, create the MuJoCo README file.
         if self.exportMJCF:
             with open(self.path + 'results/MuJoCo/README.txt', 'w') as f:
                 f.write(
@@ -1636,14 +1681,22 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                     "AddBiomechanics was written by Keenon Werling <keenon@cs.stanford.edu>\n")
                 f.write("\n")
                 f.write(textwrap.fill(
-                    "Our automatic conversion to MuJoCo is in early beta! Bug reports are welcome at keenon@cs.stanford.edu."))
+                    "Our automatic conversion to MuJoCo is in early beta! Bug reports are welcome at "
+                    "keenon@cs.stanford.edu."))
                 f.write("\n\n")
                 f.write(textwrap.fill(
-                    "This folder contains a MuJoCo skeleton (with simplified joints from the original OpenSim), and the joint positions over time for the skeleton."))
+                    "This folder contains a MuJoCo skeleton (with simplified joints from the original OpenSim), "
+                    "and the joint positions over time for the skeleton."))
                 f.write("\n\n")
                 f.write(textwrap.fill(
-                    "The MuJoCo skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. It's actually an open research question to approximate realistic foot-ground contact in physics engines. Instead of giving you pre-made foot colliders, you'll instead find the ground-reaction-force data, with the center-of-pressure, force direction, and torque between the feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in combination with the joint positions over time to develop your own foot colliders. Good luck!"))
+                    "The MuJoCo skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. "
+                    "It's actually an open research question to approximate realistic foot-ground contact in physics "
+                    "engines. Instead of giving you pre-made foot colliders, you'll instead find the "
+                    "ground-reaction-force data, with the center-of-pressure, force direction, and torque between the "
+                    "feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in "
+                    "combination with the joint positions over time to develop your own foot colliders. Good luck!"))
 
+        # 10.4. If requested, create the SDF README file.
         if self.exportSDF:
             with open(self.path + 'results/SDF/README.txt', 'w') as f:
                 f.write(
@@ -1652,18 +1705,26 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                     "AddBiomechanics was written by Keenon Werling <keenon@cs.stanford.edu>\n")
                 f.write("\n")
                 f.write(textwrap.fill(
-                    "Our automatic conversion to SDF is in early beta! Bug reports are welcome at keenon@cs.stanford.edu."))
+                    "Our automatic conversion to SDF is in early beta! Bug reports are welcome at "
+                    "keenon@cs.stanford.edu."))
                 f.write("\n\n")
                 f.write(textwrap.fill(
-                    "This folder contains a SDF skeleton that is compatible with PyBullet (with simplified joints from the original OpenSim), and the joint positions over time for the skeleton."))
+                    "This folder contains a SDF skeleton that is compatible with PyBullet (with simplified joints "
+                    "from the original OpenSim), and the joint positions over time for the skeleton."))
                 f.write("\n\n")
                 f.write(textwrap.fill(
-                    "The SDF skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. It's actually an open research question to approximate realistic foot-ground contact in physics engines. Instead of giving you pre-made foot colliders, you'll instead find the ground-reaction-force data, with the center-of-pressure, force direction, and torque between the feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in combination with the joint positions over time to develop your own foot colliders. Good luck!"))
+                    "The SDF skeleton DOES NOT HAVE ANY COLLIDERS! It will fall straight through the ground. It's "
+                    "actually an open research question to approximate realistic foot-ground contact in physics "
+                    "engines. Instead of giving you pre-made foot colliders, you'll instead find the "
+                    "ground-reaction-force data, with the center-of-pressure, force direction, and torque between the "
+                    "feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in "
+                    "combination with the joint positions over time to develop your own foot colliders. Good luck!"))
 
-        # Write out summary files for individual trials.
+        # 10.5. Write out summary README files for individual trials.
         for itrial, trialName in enumerate(self.trialNames):
             timestamps = self.trialTimestamps[itrial]
             trialProcessingResult = self.trialProcessingResults[i]
+            # 10.5.1. Marker fitting and inverse kinematics results.
             with open(f'{self.path}/results/IK/{trialName}_ik_summary.txt', 'w') as f:
                 f.write('-' * len(trialName) + '--------------------------------------\n')
                 f.write(f'Trial {trialName}: Inverse Kinematics Summary\n')
@@ -1671,7 +1732,8 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                 f.write('\n')
 
                 f.write(textwrap.fill(
-                    "Automatic processing achieved the following marker errors, averaged over all frames of this trial:"))
+                    "Automatic processing achieved the following marker errors, averaged over all frames of this "
+                    "trial:"))
                 f.write('\n\n')
                 markerRMSE = trialProcessingResult['autoAvgRMSE'] * 100
                 markerMax = trialProcessingResult['autoAvgMax'] * 100
@@ -1709,6 +1771,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                     for info in trialInfo[trialName]:
                         f.write(f'  - INFO: {info}.\n')
 
+            # 10.5.1. Dynamics fitting and inverse dynamics results.
             if self.fitDynamics and self.dynamicsInit is not None:
                 badDynamicsFrames = self.trialBadDynamicsFrames[itrial]
                 with open(f'{self.path}/results/ID/{trialName}_id_summary.txt', 'w') as f:
@@ -1747,7 +1810,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                                 'No external ground reaction forces was present, but a non-zero whole-body '
                                 'acceleration was detected in the following frames:'), '   '))
                             f.write('\n')
-                            frameRanges = getConsecutiveValues(
+                            frameRanges = get_consecutive_values(
                                 badDynamicsFrames['measuredGrfZeroWhenAccelerationNonZero'])
                             for frames in frameRanges:
                                 if frames[0] is frames[-1]:
@@ -1765,7 +1828,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                                 'External ground reaction forces were present, but the whole-body acceleration was '
                                 'zero in the following frames:'), '   '))
                             f.write('\n')
-                            frameRanges = getConsecutiveValues(badDynamicsFrames['unmeasuredExternalForceDetected'])
+                            frameRanges = get_consecutive_values(badDynamicsFrames['unmeasuredExternalForceDetected'])
                             for frames in frameRanges:
                                 if frames[0] is frames[-1]:
                                     f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
@@ -1783,7 +1846,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                                 'data, an unmeasured external force was still detected in the following frames:'),
                                 '   '))
                             f.write('\n')
-                            frameRanges = getConsecutiveValues(badDynamicsFrames['forceDiscrepancy'])
+                            frameRanges = get_consecutive_values(badDynamicsFrames['forceDiscrepancy'])
                             for frames in frameRanges:
                                 if frames[0] is frames[-1]:
                                     f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
@@ -1801,7 +1864,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                                 'data, an unmeasured external torque was still detected in the following frames:'),
                                 '   '))
                             f.write('\n')
-                            frameRanges = getConsecutiveValues(badDynamicsFrames['torqueDiscrepancy'])
+                            frameRanges = get_consecutive_values(badDynamicsFrames['torqueDiscrepancy'])
                             for frames in frameRanges:
                                 if frames[0] is frames[-1]:
                                     f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
@@ -1819,7 +1882,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                                 'to be penetrating the ground, but the foot was not located over any '
                                 'known force plate in the following frames:'), '   '))
                             f.write('\n')
-                            frameRanges = getConsecutiveValues(badDynamicsFrames['notOverForcePlate'])
+                            frameRanges = get_consecutive_values(badDynamicsFrames['notOverForcePlate'])
                             for frames in frameRanges:
                                 if frames[0] is frames[-1]:
                                     f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
@@ -1837,7 +1900,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                                 'impact detection algorithm in nimblephysics. If you receive this message, then we '
                                 'assume that you know what you are doing.'), '   '))
                             f.write('\n')
-                            frameRanges = getConsecutiveValues(badDynamicsFrames['missingImpact'])
+                            frameRanges = get_consecutive_values(badDynamicsFrames['missingImpact'])
                             for frames in frameRanges:
                                 if frames[0] is frames[-1]:
                                     f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
@@ -1855,7 +1918,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                                 'by several frames of zero force data. Therefore, these \'blips\' in the data were '
                                 'removed:'), '   '))
                             f.write('\n')
-                            frameRanges = getConsecutiveValues(badDynamicsFrames['missingBlip'])
+                            frameRanges = get_consecutive_values(badDynamicsFrames['missingBlip'])
                             for frames in frameRanges:
                                 if frames[0] is frames[-1]:
                                     f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
@@ -1873,7 +1936,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                                 'shifting the force data to better match marker data. If you receive this message, '
                                 'then an error has occurred. '), '   '))
                             f.write('\n')
-                            frameRanges = getConsecutiveValues(badDynamicsFrames['shiftGRF'])
+                            frameRanges = get_consecutive_values(badDynamicsFrames['shiftGRF'])
                             for frames in frameRanges:
                                 if frames[0] is frames[-1]:
                                     f.write(f'     - frame {frames[0]} (time = {timestamps[frames[0]]:.3f} s)\n')
@@ -1882,12 +1945,19 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                                             f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                             reasonNumber += 1
 
-        shutil.move(self.path + 'results', self.path + self.output_name)
-        print('Zipping up OpenSim files', flush=True)
-        shutil.make_archive(self.path + self.output_name, 'zip', self.path, self.output_name)
-        print('Finished outputting OpenSim files', flush=True)
+    def create_output_folder(self):
 
-        # Write out the result summary JSON
+        # 11. Create the output folder.
+        # -----------------------------
+
+        # 11.1. Move the results to the output folder.
+        shutil.move(self.path + 'results', self.path + self.output_name)
+        print('Zipping up OpenSim files...', flush=True)
+        shutil.make_archive(self.path + self.output_name, 'zip', self.path, self.output_name)
+        print('Finished outputting OpenSim files.', flush=True)
+
+        # 11.2. Write out the result summary JSON file.
+        print('Writing the _results.json file...', flush=True)
         try:
             with open(self.path + '_results.json', 'w') as f:
                 json.dump(self.processingResult, f)
@@ -1895,7 +1965,8 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
             print('Had an error writing _results.json:', flush=True)
             print(e, flush=True)
 
-        print('Generated a final zip file at ' + self.path + self.output_name + '.zip')
+        # 11.3. Generate final zip file.
+        print('Generated a final zip file at ' + self.path + self.output_name + '.zip.')
         print('Done!', flush=True)
 
 
@@ -1934,8 +2005,9 @@ def main():
     engine.run_marker_fitting()
     if engine.fitDynamics:
         engine.run_dynamics_fitting()
-    engine.write_results()
-    engine.processLocalSubjectFolder()
+    engine.write_result_files()
+    engine.generate_readme()
+    engine.create_output_folder()
 
 
 if __name__ == "__main__":
