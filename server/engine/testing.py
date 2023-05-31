@@ -1,12 +1,24 @@
+"""
+testing.py
+----------
+Description: Testing for the AddBiomechanics processing engine.
+Author(s): Nicholas Bianco
+"""
+
 import os
 import unittest
 import nimblephysics as nimble
 from typing import List
 import numpy as np
 from nimblephysics.loader import absPath
-from helpers import detectNonZeroForceSegments, filterNonZeroForceSegments, reconcileMarkeredAndNonzeroForceSegments
+from engine import Engine
+import shutil
+import json
+from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, \
+    reconcile_markered_and_nonzero_force_segments
 
 DATA_FOLDER_PATH = absPath('../data')
+GEOMETRY_FOLDER_PATH = absPath('Geometry')
 
 
 class TestTrialSegmentation(unittest.TestCase):
@@ -26,7 +38,7 @@ class TestTrialSegmentation(unittest.TestCase):
         totalLoad[550:601] = 1.0
 
         # Detect the non-zero force segments.
-        nonzeroForceSegments = detectNonZeroForceSegments(timestamps, totalLoad)
+        nonzeroForceSegments = detect_nonzero_force_segments(timestamps, totalLoad)
 
         # Check that the correct segments were detected, before filtering.
         self.assertEqual(len(nonzeroForceSegments), 5)
@@ -38,7 +50,7 @@ class TestTrialSegmentation(unittest.TestCase):
         self.assertEqual(nonzeroForceSegments[4], (5.5, 6.0))
 
         # Now filter the segments.
-        nonzeroForceSegments = filterNonZeroForceSegments(nonzeroForceSegments, 0.05, 1.0)
+        nonzeroForceSegments = filter_nonzero_force_segments(nonzeroForceSegments, 0.05, 1.0)
 
         # Check that the correct segments were detected, after filtering.
         self.assertEqual(len(nonzeroForceSegments), 3)
@@ -65,10 +77,10 @@ class TestTrialSegmentation(unittest.TestCase):
             totalLoad[itime] = totalForce + totalMoment
 
         # Detect the non-zero force segments.
-        nonzeroForceSegments = detectNonZeroForceSegments(forcePlates[0].timestamps, totalLoad)
+        nonzeroForceSegments = detect_nonzero_force_segments(forcePlates[0].timestamps, totalLoad)
 
         # Filter the segments.
-        nonzeroForceSegments = filterNonZeroForceSegments(nonzeroForceSegments, 0.05, 1.0)
+        nonzeroForceSegments = filter_nonzero_force_segments(nonzeroForceSegments, 0.05, 1.0)
 
         # Check that the correct segments were detected.
         self.assertEqual(len(nonzeroForceSegments), 3)
@@ -94,13 +106,82 @@ class TestTrialSegmentation(unittest.TestCase):
         forceSegments.append(timestamps[700:950])
 
         # Reconcile the segments.
-        finalSegments = reconcileMarkeredAndNonzeroForceSegments(timestamps, markerSegments, forceSegments)
+        finalSegments = reconcile_markered_and_nonzero_force_segments(timestamps, markerSegments, forceSegments)
 
         # Check that the correct segments were detected.
         self.assertEqual(len(finalSegments), 3)
         self.assertEqual(finalSegments[0], (1.0, 2.0))
         self.assertEqual(finalSegments[1], (5.5, 6.0))
         self.assertEqual(finalSegments[2], (8.0, 9.5))
+
+
+class TestRajagopal2015(unittest.TestCase):
+    def test_Rajagopal2015(self):
+
+        # Copy the data to the local folder.
+        # ----------------------------------
+        data_fpath = '../data/Rajagopal2015'
+        processed_fpath = os.path.join(data_fpath, 'processed')
+        if not os.path.isdir(processed_fpath):
+            os.mkdir(processed_fpath)
+        model_src = os.path.join(data_fpath, 'raw', 'Rajagopal2015_CustomMarkerSet.osim')
+        model_dst = os.path.join(data_fpath, 'processed', 'unscaled_generic.osim')
+        shutil.copyfile(model_src, model_dst)
+
+        json_src = os.path.join(data_fpath, 'raw', '_subject.json')
+        json_dst = os.path.join(processed_fpath, '_subject.json')
+        shutil.copyfile(json_src, json_dst)
+
+        trials_fpath = os.path.join(processed_fpath, 'trials')
+        if not os.path.isdir(trials_fpath):
+            os.mkdir(trials_fpath)
+        trial_fpath = os.path.join(trials_fpath, 'walk')
+        if not os.path.isdir(trial_fpath):
+            os.mkdir(trial_fpath)
+
+        trc_src = os.path.join(data_fpath, 'raw', 'motion_capture_walk.trc')
+        trc_dst = os.path.join(trial_fpath, 'markers.trc')
+        shutil.copyfile(trc_src, trc_dst)
+
+        grf_src = os.path.join(data_fpath, 'raw', 'grf_walk.mot')
+        grf_dst = os.path.join(trial_fpath, 'grf.mot')
+        shutil.copyfile(grf_src, grf_dst)
+
+        # Main path.
+        path = os.path.join(data_fpath, 'processed')
+        if not path.endswith('/'):
+            path += '/'
+
+        # Construct the engine.
+        # ---------------------
+        engine = Engine(path=absPath(path),
+                        output_name='osim_results',
+                        href='')
+
+        # Run the pipeline.
+        # -----------------
+        engine.validate_paths()
+        engine.parse_subject_json()
+        engine.load_model_files()
+        engine.configure_marker_fitter()
+        engine.segment_trials()
+        engine.run_marker_fitting()
+        if engine.fitDynamics:
+            engine.run_dynamics_fitting()
+        engine.write_result_files()
+        engine.generate_readme()
+        engine.create_output_folder()
+
+        # Check the results
+        # -----------------
+        results_fpath = os.path.join(processed_fpath, '_results.json')
+        with open(results_fpath) as file:
+            results = json.loads(file.read())
+
+        self.assertAlmostEqual(results['autoAvgRMSE'], 0.0175, delta=0.002)
+        self.assertAlmostEqual(results['autoAvgMax'], 0.043, delta=0.005)
+        self.assertAlmostEqual(results['linearResidual'], 3.0, delta=5)
+        self.assertAlmostEqual(results['angularResidual'], 1.0, delta=5)
 
 
 if __name__ == '__main__':
