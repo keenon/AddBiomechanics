@@ -81,7 +81,6 @@ def reconcileMarkeredAndNonzeroForceSegments(timestamps, markeredSegments, nonze
     for itime in range(len(timestamps)):
         for markeredSegment in markeredSegments:
             if markeredSegment[0] <= timestamps[itime] <= markeredSegment[-1]:
-                print(itime, markeredSegment[0], timestamps[itime], markeredSegment[-1])
                 timestampToCheck = itime
                 markeredTimestamps[itime] = True
                 break
@@ -93,10 +92,6 @@ def reconcileMarkeredAndNonzeroForceSegments(timestamps, markeredSegments, nonze
 
     # Find the intersection between the markered timestamps and the non-zero force timestamps.
     reconciledTimestamps = np.logical_and(markeredTimestamps, nonzeroForceTimestamps)
-    print(reconciledTimestamps[timestampToCheck])
-    print(reconciledTimestamps[timestampToCheck+1])
-    print(reconciledTimestamps[timestampToCheck+2])
-    print(reconciledTimestamps[timestampToCheck+3])
 
     # Create a new set of segments from the reconciled timestamps.
     reconciledSegments = []
