@@ -1,4 +1,12 @@
-def getConsecutiveValues(data):
+"""
+helpers.py
+----------
+Description: Helper functions used by the AddBiomechanics processing engine.
+Author(s): Nicholas Bianco
+"""
+
+
+def get_consecutive_values(data):
     from operator import itemgetter
     from itertools import groupby
     ranges = []
@@ -9,13 +17,13 @@ def getConsecutiveValues(data):
     return ranges
 
 
-def detectNonZeroForceSegments(timestamps, totalLoad):
+def detect_nonzero_force_segments(timestamps, total_load):
     # Scan through the timestamps in the force data and find segments longer than a certain threshold that
     # have non-zero forces.
     nonzeroForceSegments = []
     nonzeroForceSegmentStart = None
     for itime in range(len(timestamps)):
-        if totalLoad[itime] > 1e-3:
+        if total_load[itime] > 1e-3:
             if nonzeroForceSegmentStart is None:
                 nonzeroForceSegmentStart = timestamps[itime]
             elif nonzeroForceSegmentStart is not None and itime == len(timestamps) - 1:
@@ -31,26 +39,25 @@ def detectNonZeroForceSegments(timestamps, totalLoad):
     return nonzeroForceSegments
 
 
-def filterNonZeroForceSegments(nonzeroForceSegments, minSegmentDuration, mergeZeroForceSegmentsThreshold):
+def filter_nonzero_force_segments(nonzero_force_segments, min_segment_duration, merge_zero_force_segments_threshold):
     # Remove segments that are too short.
-    nonzeroForceSegments = [seg for seg in nonzeroForceSegments if seg[1] - seg[0] > minSegmentDuration]
+    nonzero_force_segments = [seg for seg in nonzero_force_segments if seg[1] - seg[0] > min_segment_duration]
 
     # Merge adjacent non-zero force segments that are within a certain time threshold.
-    mergedNonzeroForceSegments = []
-    mergedNonzeroForceSegments.append(nonzeroForceSegments[0])
-    for iseg in range(1, len(nonzeroForceSegments)):
-        zeroForceSegment = nonzeroForceSegments[iseg][0] - nonzeroForceSegments[iseg - 1][1]
-        if zeroForceSegment < mergeZeroForceSegmentsThreshold:
+    mergedNonzeroForceSegments = [nonzero_force_segments[0]]
+    for iseg in range(1, len(nonzero_force_segments)):
+        zeroForceSegment = nonzero_force_segments[iseg][0] - nonzero_force_segments[iseg - 1][1]
+        if zeroForceSegment < merge_zero_force_segments_threshold:
             mergedNonzeroForceSegments[-1] = (
-                mergedNonzeroForceSegments[-1][0], nonzeroForceSegments[iseg][1])
+                mergedNonzeroForceSegments[-1][0], nonzero_force_segments[iseg][1])
         else:
             mergedNonzeroForceSegments.append(
-                nonzeroForceSegments[iseg])
+                nonzero_force_segments[iseg])
 
     return mergedNonzeroForceSegments
 
 
-def detectMarkeredSegments(timestamps, markers):
+def detect_markered_segments(timestamps, markers):
     # Scan through the timestamps in the marker data and find segments longer than a certain threshold that
     # have zero forces.
     markeredSegments = []
@@ -72,19 +79,20 @@ def detectMarkeredSegments(timestamps, markers):
     return markeredSegments
 
 
-def reconcileMarkeredAndNonzeroForceSegments(timestamps, markeredSegments, nonzeroForceSegments):
+def reconcile_markered_and_nonzero_force_segments(timestamps, markered_segments, nonzero_force_segments):
     import numpy as np
 
-    # Create boolean arrays of length timestamps that is True if the timestamp is in a markered or nonzero force segment.
+    # Create boolean arrays of length timestamps that is True if the timestamp is in a markered or nonzero force
+    # segment.
     markeredTimestamps = np.zeros(len(timestamps), dtype=bool)
     nonzeroForceTimestamps = np.zeros(len(timestamps), dtype=bool)
     for itime in range(len(timestamps)):
-        for markeredSegment in markeredSegments:
+        for markeredSegment in markered_segments:
             if markeredSegment[0] <= timestamps[itime] <= markeredSegment[-1]:
                 markeredTimestamps[itime] = True
                 break
 
-        for nonzeroForceSegment in nonzeroForceSegments:
+        for nonzeroForceSegment in nonzero_force_segments:
             if nonzeroForceSegment[0] <= timestamps[itime] <= nonzeroForceSegment[-1]:
                 nonzeroForceTimestamps[itime] = True
                 break
