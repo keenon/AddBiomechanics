@@ -89,7 +89,6 @@ def reconcile_markered_and_nonzero_force_segments(timestamps, markered_segments,
     for itime in range(len(timestamps)):
         for markeredSegment in markered_segments:
             if markeredSegment[0] <= timestamps[itime] <= markeredSegment[-1]:
-                timestampToCheck = itime
                 markeredTimestamps[itime] = True
                 break
 
