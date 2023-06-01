@@ -391,7 +391,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                 self.ignoreFootNotOverForcePlate = True  # .mot files do not contain force plate geometry
                 if os.path.exists(grfFilePath):
                     forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
-                        grfFilePath, trcFile.framesPerSecond)
+                        grfFilePath, trcFile.timestamps)
                     self.trialForcePlates.append(forcePlates)
                 else:
                     print('Warning: No ground reaction forces specified for ' + trialName)
