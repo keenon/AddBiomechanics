@@ -382,6 +382,20 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                             }
                         };
                     }
+                } else {
+                    if (scales[""] == null) {
+                        scales[""] = {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            ticks: {
+                                beginAtZero: true,
+                                callback: function (value: any, index: any, values: any) {
+                                    return value + ' ""';
+                                }
+                            }
+                        };
+                    }
                 }
             }
 
@@ -397,7 +411,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                         data.push(plotCSV[i].get(label) as number);
                     }
                 }
-                let yAxisID = '';
+                let yAxisID = "";
                 if (label.indexOf("tau") !== -1) {
                     yAxisID = "Nm";
                 }
