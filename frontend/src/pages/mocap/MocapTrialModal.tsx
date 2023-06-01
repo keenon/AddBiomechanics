@@ -309,7 +309,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
             for (let j = 0; j < plotTags.length; j++) {
                 let label = plotTags[j];
                 if (label.indexOf("tau") !== -1) {
-                    if (scales['Nm'] == null) {
+                    if (!scales.hasOwnProperty("Nm")) {
                         scales['Nm'] = {
                             type: 'linear',
                             display: true,
@@ -324,7 +324,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                     }
                 }
                 else if (label.indexOf("force") !== -1) {
-                    if (scales['N'] == null) {
+                    if (!scales.hasOwnProperty("N")) {
                         scales['N'] = {
                             type: 'linear',
                             display: true,
@@ -339,7 +339,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                     }
                 }
                 else if (label.indexOf("pos") !== -1) {
-                    if (scales['units'] == null) {
+                    if (!scales.hasOwnProperty("units")) {
                         scales['units'] = {
                             type: 'linear',
                             display: true,
@@ -354,7 +354,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                     }
                 }
                 else if (label.indexOf("vel") !== -1) {
-                    if (scales['units/s'] == null) {
+                    if (!scales.hasOwnProperty("units/s")) {
                         scales['units/s'] = {
                             type: 'linear',
                             display: true,
@@ -369,7 +369,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                     }
                 }
                 else if (label.indexOf("acc") !== -1) {
-                    if (scales['units/s^2'] == null) {
+                    if (!scales.hasOwnProperty("units/s^2")) {
                         scales['units/s^2'] = {
                             type: 'linear',
                             display: true,
@@ -383,7 +383,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                         };
                     }
                 } else {
-                    if (scales[""] == null) {
+                    if (!scales.hasOwnProperty("")) {
                         scales[""] = {
                             type: 'linear',
                             display: true,
