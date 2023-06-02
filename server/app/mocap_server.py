@@ -684,8 +684,7 @@ class MocapServer:
                         # Now launch a SLURM job to process this subject
                         raw_command = 'singularity run --env PROCESS_SUBJECT_S3_PATH="' + \
                             self.currentlyProcessing.subjectPath+'" '+self.singularity_image_path
-                        sbatch_command = 'sbatch '+raw_command
-                        sbatch_command = 'sbatch --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
+                        sbatch_command = 'sbatch -p bioe --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
                             raw_command.replace('"', '\\"')+'"'
                         os.execv(sbatch_command)
                     else:
@@ -729,8 +728,8 @@ if __name__ == "__main__":
         # If we're launched with PROCESS_SUBJECT_S3_PATH set, then we'll only process the subject we're given, and then immediately exit.
 
         # 1. Set up the connection to S3 and PubSub
-        self.index = ReactiveS3Index(bucket, deployment)
-        self.index.refreshIndex()
+        index = ReactiveS3Index(args.bucket, args.deployment)
+        index.refreshIndex()
         subject = SubjectToProcess(index, subjectPath)
 
         # 2. Process the subject, and then exit
