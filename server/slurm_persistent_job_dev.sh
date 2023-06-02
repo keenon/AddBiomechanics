@@ -6,6 +6,7 @@
 #SBATCH --signal=B:SIGUSR1@90
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=1000M
+#SBATCH --partition=bioe
 
 # catch the SIGUSR1 signal
 _resubmit() {
@@ -16,4 +17,4 @@ _resubmit() {
 trap _resubmit SIGUSR1
 
 ## Run the mocap server, in SLURM mode, in the background so that we don't lose the trap signal
-python3 /app/mocap_server.py --bucket biomechanics-uploads161949-dev --deployment DEV --singularity_image_path $GROUP_HOME/keenon/simg/biomechnet_dev_latest.spk &
+CERT_HOME="/home/users/keenon/certs" python3 ~/AddBiomechanics/server/app/mocap_server.py --bucket biomechanics-uploads161949-dev --deployment DEV --singularity_image_path $GROUP_HOME/keenon/simg/biomechnet_dev_latest.spk &

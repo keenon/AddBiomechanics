@@ -494,7 +494,7 @@ class MocapServer:
     queue: List[SubjectToProcess]
     bucket: str
     deployment: str
-    singularity_image_path: bool
+    singularity_image_path: str
 
     # Status reporting quantities
     serverId: str
@@ -502,7 +502,7 @@ class MocapServer:
     lastUploadedStatusTimestamp: float
     lastSeenPong: Dict[str, float]
 
-    def __init__(self, bucket: str, deployment: str, singularity_image_path: bool) -> None:
+    def __init__(self, bucket: str, deployment: str, singularity_image_path: str) -> None:
         self.bucket = bucket
         self.deployment = deployment
         self.singularity_image_path = singularity_image_path
@@ -718,7 +718,7 @@ if __name__ == "__main__":
     parser.add_argument('--deployment', type=str,
                         default='DEV',
                         help='The deployment to target (must be DEV or PROD)')
-    parser.add_argument('--singularity_image_path', type=bool,
+    parser.add_argument('--singularity_image_path', type=str,
                         default='',
                         help='If set, this assumes we are running as a SLURM job, and will process subjects by launching child SLURM jobs that use a singularity image to run the processing server.')
     args = parser.parse_args()
