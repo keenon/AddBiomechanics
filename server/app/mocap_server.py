@@ -686,7 +686,7 @@ class MocapServer:
                             self.currentlyProcessing.subjectPath+'" '+self.singularity_image_path
                         sbatch_command = 'sbatch -p bioe --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
                             raw_command.replace('"', '\\"')+'"'
-                        os.execv(sbatch_command)
+                        subprocess.run(sbatch_command, shell=True)
                     else:
                         # Launch the subject as a normal process on this local machine
                         self.currentlyProcessing.process()
