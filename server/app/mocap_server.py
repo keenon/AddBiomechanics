@@ -684,7 +684,7 @@ class MocapServer:
                         # Now launch a SLURM job to process this subject
                         raw_command = 'singularity run --env PROCESS_SUBJECT_S3_PATH="' + \
                             self.currentlyProcessing.subjectPath+'" '+self.singularity_image_path
-                        sbatch_command = 'sbatch -p bioe --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
+                        sbatch_command = 'sbatch -p bioe --name addbiomechanics_process --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
                             raw_command.replace('"', '\\"')+'"'
                         subprocess.run(sbatch_command, shell=True)
                     else:
