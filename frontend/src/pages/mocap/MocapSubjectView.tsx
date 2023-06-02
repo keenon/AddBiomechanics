@@ -568,7 +568,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let jointLimitsHits = props.cursor.resultsJson.getAttribute("jointLimitsHits", {});
   let osimMarkers: string[] = props.cursor.resultsJson.getAttribute("osimMarkers", {});
 
-  let status: 'done' | 'processing' | 'could-process' | 'error' | 'waiting' | 'empty' = props.cursor.getSubjectStatus();
+  let status: 'done' | 'processing' | 'could-process' | 'error' | 'waiting' | 'slurm' | 'empty' = props.cursor.getSubjectStatus();
   let statusBadge = null;
   let statusDetails = null;
   if (status === "done") {
@@ -873,6 +873,27 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         >See what the processing servers are working on</Link>
       </div>
       We'll send you an email when your data has finished processing!
+    </div>
+  }
+  else if (status === "slurm") {
+    statusBadge = <span className="badge bg-secondary">Queued on SLURM cluster</span>;
+    statusDetails = <div>
+      <div>
+        We'll send you an email when your data has finished processing!
+      </div>
+      <Dropdown>
+        <Dropdown.Toggle size="sm" variant="light" id="dropdown-basic">
+          Advanced Options
+        </Dropdown.Toggle>
+
+        <Dropdown.Menu>
+          <Dropdown.Item variant="danger" onClick={() => {
+            if (window.confirm("DANGER! Only do this if your processing server has crashed. Are you fairly confident your processing server crashed?")) {
+              props.cursor.requestReprocessSubject();
+            }
+          }}>DANGER: Reprocess now, ignoring current processing attempt</Dropdown.Item>
+        </Dropdown.Menu>
+      </Dropdown>
     </div>
   }
   else if (status === 'empty') {
