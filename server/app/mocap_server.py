@@ -681,11 +681,13 @@ class MocapServer:
                     if len(self.singularity_image_path) > 0:
                         # Mark the subject as having been queued in SLURM, so that we don't try to process it again
                         self.currentlyProcessing.markAsQueuedOnSlurm()
+                        print('Queueing subject for processing on SLURM: ' +self.currentlyProcessing.subjectPath)
                         # Now launch a SLURM job to process this subject
                         raw_command = 'singularity run --env PROCESS_SUBJECT_S3_PATH="' + \
                             self.currentlyProcessing.subjectPath+'" '+self.singularity_image_path
                         sbatch_command = 'sbatch -p bioe --name addbiomechanics_process --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
                             raw_command.replace('"', '\\"')+'"'
+                        print('Running command: '+sbatch_command)
                         subprocess.run(sbatch_command, shell=True)
                     else:
                         # Launch the subject as a normal process on this local machine
