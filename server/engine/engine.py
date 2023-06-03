@@ -72,6 +72,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.footBodyNames = ['calcn_l', 'calcn_r']
         self.totalForce = 0.0
         self.fitDynamics = False
+        self.skippedDynamicsReason = None
 
         # 0.3. Shared data structures.
         self.skeleton = None
@@ -456,11 +457,30 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
 
                     nonzeroForceSegments = detect_nonzero_force_segments(self.trialForcePlates[itrial][0].timestamps,
                                                                          totalLoad)
+                    if len(nonzeroForceSegments) == 0:
+                        print(f'WARNING: No non-zero force segments detected for trial "{self.trialNames[itrial]}". '
+                              f'We must now skip dynamics fitting for all trials...')
+                        self.disableDynamics = True
+                        self.fitDynamics = False
+                        self.skippedDynamicsReason = f'Force plates were provided and trial segmentation was ' \
+                                                     f'enabled, but trial "{self.trialNames[itrial]}" had zero ' \
+                                                     f'forces at all time points. '
+                        nonzeroForceSegments = [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]
+
                     nonzeroForceSegments = filter_nonzero_force_segments(nonzeroForceSegments,
                                                                          self.minSegmentDuration,
                                                                          self.mergeZeroForceSegmentsThreshold)
                     if len(nonzeroForceSegments) == 0:
-                        raise Exception('ERROR: No non-zero force segments found. Quitting...')
+                        print(f'WARNING: No non-zero force segments left in trial "{self.trialNames[itrial]}"q after '
+                              f'filtering out segments shorter than {self.minSegmentDuration} seconds. '
+                              f'We must now skip dynamics fitting for all trials...')
+                        self.disableDynamics = True
+                        self.fitDynamics = False
+                        self.skippedDynamicsReason = f'Force plates were provided and trial segmentation was ' \
+                                                     f'enabled, but trial "{self.trialNames[itrial]}" had no ' \
+                                                     f'non-zero force segments longer than {self.minSegmentDuration} ' \
+                                                     f'seconds. '
+                        nonzeroForceSegments = [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]
 
                 # Find the intersection of the markered and non-zero force segments.
                 segments = reconcile_markered_and_nonzero_force_segments(self.trialTimestamps[itrial],
@@ -551,6 +571,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
             if len(self.trialForcePlates) == 0:
                 self.fitDynamics = False
                 print('ERROR: No force plate data provided! Dynamics fitting will be skipped...', flush=True)
+                self.skippedDynamicsReason = 'No force plate data was provided.'
             else:
                 for forcePlateList in self.trialForcePlates:
                     for forcePlate in forcePlateList:
@@ -560,10 +581,12 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                 if not self.fitDynamics:
                     print('ERROR: Force plates had zero force data across all time stemps! '
                           'Dynamics fitting will be skipped...', flush=True)
+                    self.skippedDynamicsReason = 'Force plates had zero force data across all time steps.'
 
             if len(self.footBodyNames) == 0:
                 print('ERROR: No foot bodies were specified! Dynamics fitting will be skipped...', flush=True)
                 self.fitDynamics = False
+                self.skippedDynamicsReason = 'No foot bodies were specified.'
 
     def run_marker_fitting(self):
 
@@ -1472,6 +1495,12 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                     f.write(f'{prefix} mass = {bodyMass:1.2f} kg '
                             f'({percentMassChange:+1.2f}% change from original {self.bodyMasses[bodyName]:1.2f} kg)\n')
                 f.write("\n")
+            elif self.skippedDynamicsReason is not None:
+                f.write(textwrap.fill(
+                    "WARNING! Dynamics fitting was skipped for the following reason:"))
+                f.write("\n\n")
+                f.write(textwrap.indent(textwrap.fill(self.skippedDynamicsReason), '  '))
+                f.write("\n\n")
 
             # 10.2.2. Write out the results for each trial.
             if self.fitDynamics and self.dynamicsInit is not None:
