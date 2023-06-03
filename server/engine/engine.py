@@ -456,11 +456,21 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
 
                     nonzeroForceSegments = detect_nonzero_force_segments(self.trialForcePlates[itrial][0].timestamps,
                                                                          totalLoad)
+                    if len(nonzeroForceSegments) == 0:
+                        print(f'WARNING: No non-zero force segments detected for trial "{self.trialNames[itrial]}". '
+                              f'We must now skip dynamics fitting for all trials...')
+                        self.disableDynamics = True
+                        nonzeroForceSegments = [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]
+
                     nonzeroForceSegments = filter_nonzero_force_segments(nonzeroForceSegments,
                                                                          self.minSegmentDuration,
                                                                          self.mergeZeroForceSegmentsThreshold)
                     if len(nonzeroForceSegments) == 0:
-                        raise Exception('ERROR: No non-zero force segments found. Quitting...')
+                        print(f'WARNING: No non-zero force segments left in trial "{self.trialNames[itrial]}"q after '
+                              f'filtering out segments shorter than {self.minSegmentDuration} seconds. '
+                              f'We must now skip dynamics fitting for all trials...')
+                        self.disableDynamics = True
+                        nonzeroForceSegments = [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]
 
                 # Find the intersection of the markered and non-zero force segments.
                 segments = reconcile_markered_and_nonzero_force_segments(self.trialTimestamps[itrial],
