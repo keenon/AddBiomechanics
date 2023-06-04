@@ -746,6 +746,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         # dynamicsFitter.boundPush(dynamicsInit)
 
         self.dynamicsFitter.smoothAccelerations(self.dynamicsInit)
+        detectUnmeasuredTorque = not self.useReactionWheels
         initializeSuccess = self.dynamicsFitter.timeSyncAndInitializePipeline(
             self.dynamicsInit,
             useReactionWheels=self.useReactionWheels,
@@ -753,10 +754,11 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
             maxShiftGRF=4,
             iterationsPerShift=20,
             maxTrialsToSolveMassOver=self.maxTrialsToSolveMassOver,
-            avgPositionChangeThreshold=0.08,
-            avgAngularChangeThreshold=0.08,
+            avgPositionChangeThreshold=0.20,
+            avgAngularChangeThreshold=0.20,
             reoptimizeTrackingMarkers=True,
-            reoptimizeAnatomicalMarkers=self.dynamicsMarkerOffsets
+            reoptimizeAnatomicalMarkers=self.dynamicsMarkerOffsets,
+            detectUnmeasuredTorque=detectUnmeasuredTorque
         )
 
         # 8.3. If initialization succeeded, we will proceed with the bilevel optimization.
@@ -1752,7 +1754,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         # 10.5. Write out summary README files for individual trials.
         for itrial, trialName in enumerate(self.trialNames):
             timestamps = self.trialTimestamps[itrial]
-            trialProcessingResult = self.trialProcessingResults[i]
+            trialProcessingResult = self.trialProcessingResults[itrial]
             # 10.5.1. Marker fitting and inverse kinematics results.
             with open(f'{self.path}/results/IK/{trialName}_ik_summary.txt', 'w') as f:
                 f.write('-' * len(trialName) + '--------------------------------------\n')
