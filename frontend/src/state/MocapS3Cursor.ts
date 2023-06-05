@@ -669,6 +669,7 @@ class MocapS3Cursor {
 
         const hasReadyToProcessFlag = this.rawCursor.getExists(path + "READY_TO_PROCESS");
         const hasProcessingFlag = this.rawCursor.getExists(path + "PROCESSING");
+        const hasSlurmFlag = this.rawCursor.getExists(path + "SLURM");
         const hasErrorFlag = this.rawCursor.getExists(path + "ERROR");
 
         const logMetadata = this.rawCursor.getChildMetadata(path + "log.txt");
@@ -705,6 +706,9 @@ class MocapS3Cursor {
         else if (hasProcessingFlag) {
             return 'processing';
         }
+        else if (hasSlurmFlag) {
+            return 'slurm';
+        }
         else if (hasReadyToProcessFlag) {
             return 'waiting';
         }
@@ -723,7 +727,7 @@ class MocapS3Cursor {
 
         let contents = this.getFolderContents(path);
         for (let i = 0; i < contents.length; i++) {
-            let childStatus: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' | 'empty' = 'done';
+            let childStatus: 'processing' | 'slurm' | 'waiting' | 'could-process' | 'error' | 'done' | 'empty' = 'done';
             if (contents[i].type === 'folder') {
                 childStatus = this.getFolderStatus(path + contents[i].key);
             }
@@ -869,6 +873,7 @@ class MocapS3Cursor {
         this.rawCursor.deleteChild("log.txt");
         this.rawCursor.deleteChild("_results.json");
         this.rawCursor.deleteChild("PROCESSING");
+        this.rawCursor.deleteChild("SLURM");
         this.rawCursor.deleteChild("ERROR");
     };
 
