@@ -2,10 +2,14 @@
 
 This tool allows you to conveniently upload large datasets to be bulk processed on SLURM by AddBiomechanics, as well as do bulk downloads and collect statistics about datasets.
 
-Primary usage:
+To install, just run (from the root of this repository):
 
-`python3 addb.py upload <path_to_your_folder>`
+`pip3 install ./cli`
+
+Then you can use the new `addb` tool on the command line, like so:
+
+`addb upload <path_to_your_folder>`
 
 For more info and other commands:
 
-`python3 addb.py --help`
+`addb --help`

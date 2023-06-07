@@ -1,12 +1,12 @@
-from commands.abtract_command import AbstractCommand
+from addbiomechanics.commands.abtract_command import AbstractCommand
 import argparse
-from auth import AuthContext
+from addbiomechanics.auth import AuthContext
 
 
 class DownloadCommand(AbstractCommand):
     def register_subcommand(self, subparsers: argparse._SubParsersAction):
         download_parser = subparsers.add_parser(
-            'download', help='Download a training dataset from AddBiomechanics')
+            'download', help='Download a dataset from AddBiomechanics')
         download_parser.add_argument(
             'output_path', type=str, help='The path to the folder to put the downloaded data')
 

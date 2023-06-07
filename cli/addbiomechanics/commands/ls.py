@@ -1,6 +1,6 @@
-from commands.abtract_command import AbstractCommand
+from addbiomechanics.commands.abtract_command import AbstractCommand
 import argparse
-from auth import AuthContext
+from addbiomechanics.auth import AuthContext
 
 
 class LsCommand(AbstractCommand):

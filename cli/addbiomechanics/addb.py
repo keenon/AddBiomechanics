@@ -5,10 +5,10 @@ import requests
 from typing import Dict, List, Tuple
 import json
 import time
-from auth import AuthContext
-from commands.download import DownloadCommand
-from commands.ls import LsCommand
-from commands.upload import UploadCommand
+from addbiomechanics.auth import AuthContext
+from addbiomechanics.commands.download import DownloadCommand
+from addbiomechanics.commands.ls import LsCommand
+from addbiomechanics.commands.upload import UploadCommand
 
 
 PROD_DEPLOYMENT = {
@@ -36,7 +36,7 @@ DEV_DEPLOYMENT = {
 }
 
 
-if __name__ == '__main__':
+def main():
     commands = [LsCommand(), DownloadCommand(), UploadCommand()]
 
     # Create an ArgumentParser object
@@ -70,3 +70,7 @@ if __name__ == '__main__':
     for command in commands:
         # Each command is responsible for ignoring commands that aren't theirs
         command.run(context, args)
+
+
+if __name__ == '__main__':
+    main()

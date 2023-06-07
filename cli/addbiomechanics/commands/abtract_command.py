@@ -1,5 +1,5 @@
 import argparse
-from auth import AuthContext
+from addbiomechanics.auth import AuthContext
 
 
 class AbstractCommand:

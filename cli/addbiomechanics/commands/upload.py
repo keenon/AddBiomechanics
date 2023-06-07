@@ -1,6 +1,6 @@
-from commands.abtract_command import AbstractCommand
+from addbiomechanics.commands.abtract_command import AbstractCommand
 import argparse
-from auth import AuthContext
+from addbiomechanics.auth import AuthContext
 from typing import Dict, List, Tuple
 import os
 import json
@@ -91,7 +91,7 @@ class ParserFolderStructure:
         self.inferred_dataset_name = ''
         self.inferred_subject_name = ''
 
-    def attempt_parse_as_preformatted_dataset(self, verbose=False, dont_read_files=False) -> bool:
+    def attempt_parse_as_preformatted_dataset(self, verbose=False, dont_read_files=False, override_osim_file: str = '', filter_out_trials: str = '') -> bool:
         """
         This method attempts to parse the input file list as a pre-formatted dataset, where the 
         _subject.json files already exist, and everything is in the AddBiomechanics S3 disk format 
@@ -150,7 +150,7 @@ class ParserFolderStructure:
 
             # Load and parse the _subject.json file
             if dont_read_files:
-                if subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
+                if override_osim_file is '' and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
                     if verbose:
                         print(
                             f' > we have dont_read_files=True and {subjectJsonFile} could therefore have skeletonPreset=custom but we do not have a "unscaled_generic.osim" file, failing as invalid')
@@ -178,7 +178,7 @@ class ParserFolderStructure:
                             print(
                                 f' > {subjectJsonFile} does not have a "footBodyNames" field, failing as invalid')
                         return False
-                    if ('skeletonPreset' not in subjectJson or subjectJson['skeletonPreset'] == 'custom') and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
+                    if ('skeletonPreset' not in subjectJson or subjectJson['skeletonPreset'] == 'custom') and override_osim_file is '' and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
                         if verbose:
                             print(
                                 f' > {subjectJsonFile} has skeletonPreset=custom but does not have a "unscaled_generic.osim" file, failing as invalid')
@@ -190,9 +190,17 @@ class ParserFolderStructure:
                 print(
                     f' > Subject "{subjectFolder}" is valid, with {len(trialNames)} trials')
             for file in filesInSubjectFolder:
+                if filter_out_trials is not '' and filter_out_trials in file:
+                    if verbose:
+                        print(
+                            ' > Skipping '+file+' because it matches filter "' + filter_out_trials + '"')
+                    continue
                 if file.endswith(".json") or file.endswith(".mot") or file.endswith(".trc") or file.endswith(".c3d") or file.endswith(".osim"):
                     self.s3_to_local_file[
                         file] = self.common_prefix+file
+                if override_osim_file is not '':
+                    self.s3_to_local_file[
+                        subjectFolder+'unscaled_generic.osim'] = override_osim_file
             self.s3_ready_flags.append(subjectFolder+'READY_TO_PROCESS')
 
             num_subjects += 1
@@ -250,6 +258,8 @@ class UploadCommand(AbstractCommand):
                                     help='This is the path on AddBiomechanics where the data will be uploaded. If not specified, we will guess based on the dataset path')
         process_parser.add_argument('-o', '--opensim_unscaled', type=str, default='vicon',
                                     help='Either "vicon" or "cmu" (to use a preset Rajagopal model with markerset), or a path to the unscaled *.OSIM file you would like to use to fit the data')
+        process_parser.add_argument('-u', '--unscaled_model', type=str, default=None,
+                                    help='This is the path to the unscaled model you would like to use to fit all the data. If specified, this will override any other unscaled models found with the data.')
         process_parser.add_argument('-m', '--height_m', type=float, default=1.68,
                                     help='The height of the subject, in meters')
         process_parser.add_argument('-k', '--mass_kg', type=float, default=68.0,
@@ -258,8 +268,8 @@ class UploadCommand(AbstractCommand):
                                     'male', 'female', 'unknown'], default='unknown', help='The biological sex of the subject')
         process_parser.add_argument('-b', '--foot_body_names', type=List[str], default=['calcn_r', 'calcn_l'],
                                     help='The names of the bodies in the model that will be used to fit the GRF data. See the AddBiomechanics paper for more details about how these bodies are used.')
-        process_parser.add_argument('-f', '--filter_markers', type=str, default='',
-                                    help='Marker data will only be included if it contains this string in the path')
+        process_parser.add_argument('-f', '--filter_out_trials', type=str, default='',
+                                    help='Trials will be excluded from the upload if they contain this string in their name')
         process_parser.add_argument('-n', '--subject_name', type=str, default='',
                                     help='The name of the subject. If not specified, we will guess based on the dataset path')
         process_parser.add_argument('-d', '--dataset_name', type=str, default='',
@@ -275,27 +285,27 @@ class UploadCommand(AbstractCommand):
         session: boto3.Session = ctx.aws_session
         deployment: Dict[str, str] = ctx.deployment
         user_email: str = ctx.user_email
-        dataset_path: str = args.dataset_path,
+        dataset_path: str = args.dataset_path
         target_path: str = args.target_path
-        opensim_unscaled: str = args.opensim_unscaled,
-        filter_markers: str = args.filter_markers,
-        subject_name: str = args.subject_name,
-        dataset_name: str = args.dataset_name,
-        subject_height_m: float = args.height_m,
-        subject_weight_kg: float = args.mass_kg,
-        subject_sex: str = args.sex,
-        foot_body_names: List[str] = args.foot_body_names,
+        opensim_unscaled: str = args.opensim_unscaled
+        filter_out_trials: str = args.filter_out_trials
+        subject_name: str = args.subject_name
+        dataset_name: str = args.dataset_name
+        subject_height_m: float = args.height_m
+        subject_weight_kg: float = args.mass_kg
+        subject_sex: str = args.sex
+        foot_body_names: List[str] = args.foot_body_names
         skip_confirm: bool = args.yes
 
         dir_files: List[str] = []
 
         # Get the list of files in the dataset
-        for root, dirs, files in os.walk(dataset_path[0]):
+        for root, dirs, files in os.walk(dataset_path):
             for file in files:
                 dir_files.append(os.path.join(root, file))
 
         structure = ParserFolderStructure(dir_files)
-        if structure.attempt_parse_as_preformatted_dataset(verbose=True):
+        if structure.attempt_parse_as_preformatted_dataset(verbose=True, override_osim_file=opensim_unscaled, filter_out_trials=filter_out_trials):
             print('Detected pre-formatted dataset')
         else:
             print('Failed to parse folder as pre-formatted dataset')
@@ -306,11 +316,13 @@ class UploadCommand(AbstractCommand):
             prefix += target_path
             if not target_path.endswith('/'):
                 prefix += '/'
+        dataset_name = dataset_name if dataset_name != '' else structure.inferred_dataset_name
         if structure.inferred_as_single_subject:
-            prefix += structure.inferred_dataset_name + \
-                '/' + structure.inferred_subject_name + '/'
+            subject_name = subject_name if subject_name != '' else structure.inferred_subject_name
+            prefix += dataset_name + \
+                '/' + subject_name + '/'
         else:
-            prefix += structure.inferred_dataset_name + '/'
+            prefix += dataset_name + '/'
 
         if structure.confirm_with_user(prefix):
             print('Uploading...')
