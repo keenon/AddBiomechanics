@@ -9,6 +9,7 @@ from addbiomechanics.auth import AuthContext
 from addbiomechanics.commands.download import DownloadCommand
 from addbiomechanics.commands.ls import LsCommand
 from addbiomechanics.commands.upload import UploadCommand
+from addbiomechanics.commands.analytics import AnalyticsCommand
 
 
 PROD_DEPLOYMENT = {
@@ -37,7 +38,8 @@ DEV_DEPLOYMENT = {
 
 
 def main():
-    commands = [LsCommand(), DownloadCommand(), UploadCommand()]
+    commands = [LsCommand(), DownloadCommand(),
+                UploadCommand(), AnalyticsCommand()]
 
     # Create an ArgumentParser object
     parser = argparse.ArgumentParser(
