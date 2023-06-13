@@ -38,7 +38,7 @@ class PathError(Error):
     """Raised when a input data path is invalid."""
     def get_message(self):
         return "PathError: Error encountered when detecting the Geometry folder, subject JSON file, and trials " \
-               "directory. These files and/or folder may be missing or invalid."
+               "directory. These files and/or folders may be missing or invalid."
 
 
 class SubjectConfigurationError(Error):
