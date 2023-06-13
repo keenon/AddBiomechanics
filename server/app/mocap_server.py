@@ -359,9 +359,6 @@ class SubjectToProcess:
                 if os.path.exists(path + '_errors.json'):
                     self.index.uploadFile(
                         self.errorsFile, path + '_errors.json')
-                else:
-                    print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
-                          path + '_errors.json', flush=True)
 
                 # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
                 # and it starts to be able
