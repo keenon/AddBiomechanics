@@ -20,14 +20,38 @@ import glob
 import traceback
 from plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
 from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, get_consecutive_values, \
-    reconcile_markered_and_nonzero_force_segments, detect_markered_segments
+                    reconcile_markered_and_nonzero_force_segments, detect_markered_segments
+from exceptions import PathError
 
-
+# Global paths to the geometry and data folders.
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
 
 
-class Engine(object):  # metaclass=ExceptionHandlingMeta):
+# This metaclass wraps all methods in the Engine class with a try/except block, except for the __init__ method.
+class ExceptionHandlingMeta(type):
+    def __new__(cls, name, bases, attrs):
+        for attr_name, attr_value in attrs.items():
+            if attr_name == '__init__':
+                continue  # Skip __init__ method
+            if callable(attr_value):
+                attrs[attr_name] = cls.wrap_method(attr_value)
+        return super().__new__(cls, name, bases, attrs)
+
+    @staticmethod
+    def wrap_method(method):
+        def wrapper(*args, **kwargs):
+            try:
+                method(*args, **kwargs)
+            except Exception as e:
+                msg = f"Exception caught in {method.__name__}: {e}"
+                if method.__name__ is 'validate_paths':
+                    raise PathError(msg)
+
+        return wrapper
+
+
+class Engine(metaclass=ExceptionHandlingMeta):
     def __init__(self,
                  path: str,
                  output_name: str,
@@ -40,6 +64,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.path = path
         self.trialsFolderPath = self.path + 'trials/'
         self.subject_json_path = self.path + '_subject.json'
+        self.errors_json_path = self.path + '_errors.json'
         self.geometry_symlink_path = self.path + 'Geometry'
         self.output_name = output_name
         self.href = href
