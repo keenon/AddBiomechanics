@@ -254,11 +254,11 @@ class UploadCommand(AbstractCommand):
             'upload', help='Upload data to AddBiomechanics to process. This command attempts to be smart about auto-detecting the common structures of datasets on disk.')
         process_parser.add_argument(
             'dataset_path', type=str, help='The path to the folder containing the data you wish to process')
-        process_parser.add_argument('-t', '--target_path', type=str, default='',
+        process_parser.add_argument('-t', '--target-path', type=str, default='',
                                     help='This is the path on AddBiomechanics where the data will be uploaded. If not specified, we will guess based on the dataset path')
-        process_parser.add_argument('-o', '--opensim_unscaled', type=str, default='vicon',
+        process_parser.add_argument('-o', '--opensim-unscaled', type=str, default='vicon',
                                     help='Either "vicon" or "cmu" (to use a preset Rajagopal model with markerset), or a path to the unscaled *.OSIM file you would like to use to fit the data')
-        process_parser.add_argument('-u', '--unscaled_model', type=str, default=None,
+        process_parser.add_argument('-u', '--override-model', type=str, default='',
                                     help='This is the path to the unscaled model you would like to use to fit all the data. If specified, this will override any other unscaled models found with the data.')
         process_parser.add_argument('-m', '--height_m', type=float, default=1.68,
                                     help='The height of the subject, in meters')
@@ -266,16 +266,18 @@ class UploadCommand(AbstractCommand):
                                     help='The mass of the subject, in kilograms')
         process_parser.add_argument('-s', '--sex', type=str, choices=[
                                     'male', 'female', 'unknown'], default='unknown', help='The biological sex of the subject')
-        process_parser.add_argument('-b', '--foot_body_names', type=List[str], default=['calcn_r', 'calcn_l'],
+        process_parser.add_argument('-b', '--foot-body-names', type=List[str], default=['calcn_r', 'calcn_l'],
                                     help='The names of the bodies in the model that will be used to fit the GRF data. See the AddBiomechanics paper for more details about how these bodies are used.')
-        process_parser.add_argument('-f', '--filter_out_trials', type=str, default='',
+        process_parser.add_argument('-f', '--filter-out-trials', type=str, default='',
                                     help='Trials will be excluded from the upload if they contain this string in their name')
-        process_parser.add_argument('-n', '--subject_name', type=str, default='',
+        process_parser.add_argument('-n', '--subject-name', type=str, default='',
                                     help='The name of the subject. If not specified, we will guess based on the dataset path')
-        process_parser.add_argument('-d', '--dataset_name', type=str, default='',
+        process_parser.add_argument('-d', '--dataset-name', type=str, default='',
                                     help='The name of the dataset to include the subject in on AddBiomechanics. If not specified, we will guess based on the dataset path')
         process_parser.add_argument('-y', '--yes', type=bool, default=False,
                                     help='This skips the manual confirmation step')
+        process_parser.add_argument('--private', type=bool, default=False,
+                                    help='Add this flag to upload the data to your private folder to be processed, instead of the normal workspace.')
         pass
 
     def run(self, ctx: AuthContext, args: argparse.Namespace):
@@ -288,6 +290,7 @@ class UploadCommand(AbstractCommand):
         dataset_path: str = args.dataset_path
         target_path: str = args.target_path
         opensim_unscaled: str = args.opensim_unscaled
+        override_model: str = args.override_model
         filter_out_trials: str = args.filter_out_trials
         subject_name: str = args.subject_name
         dataset_name: str = args.dataset_name
@@ -296,7 +299,8 @@ class UploadCommand(AbstractCommand):
         subject_sex: str = args.sex
         foot_body_names: List[str] = args.foot_body_names
         skip_confirm: bool = args.yes
-
+        private: bool = args.private
+        print(args)
         dir_files: List[str] = []
 
         # Get the list of files in the dataset
@@ -305,13 +309,17 @@ class UploadCommand(AbstractCommand):
                 dir_files.append(os.path.join(root, file))
 
         structure = ParserFolderStructure(dir_files)
-        if structure.attempt_parse_as_preformatted_dataset(verbose=True, override_osim_file=opensim_unscaled, filter_out_trials=filter_out_trials):
+        if structure.attempt_parse_as_preformatted_dataset(verbose=True, override_osim_file=override_model, filter_out_trials=filter_out_trials):
             print('Detected pre-formatted dataset')
         else:
             print('Failed to parse folder as pre-formatted dataset')
 
         # Compute the prefix for S3
-        prefix = 'protected/'+ctx.user_identity_id + '/data/'
+        if not private:
+            prefix = 'protected/'+ctx.user_identity_id + '/data/'
+        else:
+            prefix = 'private/'+ctx.user_identity_id + '/data/'
+
         if target_path != '':
             prefix += target_path
             if not target_path.endswith('/'):
