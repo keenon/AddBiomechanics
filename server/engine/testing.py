@@ -15,7 +15,8 @@ from engine import Engine
 import shutil
 import json
 from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, \
-    reconcile_markered_and_nonzero_force_segments
+                    reconcile_markered_and_nonzero_force_segments
+from exceptions import Error
 
 DATA_FOLDER_PATH = absPath('../data')
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
@@ -160,17 +161,28 @@ class TestRajagopal2015(unittest.TestCase):
 
         # Run the pipeline.
         # -----------------
-        engine.validate_paths()
-        engine.parse_subject_json()
-        engine.load_model_files()
-        engine.configure_marker_fitter()
-        engine.segment_trials()
-        engine.run_marker_fitting()
-        if engine.fitDynamics:
-            engine.run_dynamics_fitting()
-        engine.write_result_files()
-        engine.generate_readme()
-        engine.create_output_folder()
+        try:
+            engine.validate_paths()
+            engine.parse_subject_json()
+            engine.load_model_files()
+            engine.configure_marker_fitter()
+            engine.preprocess_trials()
+            engine.run_marker_fitting()
+            if engine.fitDynamics:
+                engine.run_dynamics_fitting()
+            engine.write_result_files()
+            engine.generate_readme()
+            engine.create_output_folder()
+
+            # If we succeeded, write an empty JSON file.
+            with open(engine.errors_json_path, "w") as json_file:
+                json_file.write("{}")
+
+        except Error as e:
+            # If we failed, write a JSON file with the error information.
+            json_data = json.dumps(e.get_error_dict(), indent=4)
+            with open(engine.errors_json_path, "w") as json_file:
+                json_file.write(json_data)
 
         # Check the results
         # -----------------
@@ -182,6 +194,39 @@ class TestRajagopal2015(unittest.TestCase):
         self.assertAlmostEqual(results['autoAvgMax'], 0.043, delta=0.005)
         self.assertAlmostEqual(results['linearResidual'], 3.0, delta=5)
         self.assertAlmostEqual(results['angularResidual'], 1.0, delta=5)
+
+
+class TestErrorReporting(unittest.TestCase):
+    def test_ErrorReportingBasics(self):
+        testing_dir = os.path.join('testing')
+        if not os.path.isdir(testing_dir):
+            os.mkdir(testing_dir)
+        empty_subject_folder = os.path.join(testing_dir, 'empty_subject')
+        if not os.path.isdir(empty_subject_folder):
+            os.mkdir(empty_subject_folder)
+        empty_subject_folder += '/'
+        engine = Engine(path=absPath(empty_subject_folder),
+                        output_name='osim_results',
+                        href='')
+
+        # Run the pipeline.
+        # -----------------
+        try:
+            engine.validate_paths()
+        except Error as e:
+            # If we failed, write a JSON file with the error information.
+            json_data = json.dumps(e.get_error_dict(), indent=4)
+            with open(engine.errors_json_path, "w") as json_file:
+                json_file.write(json_data)
+
+        # Check the results
+        # -----------------
+        errors_fpath = os.path.join(empty_subject_folder, '_errors.json')
+        with open(errors_fpath) as file:
+            errors = json.loads(file.read())
+
+        self.assertTrue(len(errors) == 3)
+        self.assertEqual(errors['type'], 'PathError')
 
 
 if __name__ == '__main__':

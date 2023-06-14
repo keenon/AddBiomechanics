@@ -20,14 +20,57 @@ import glob
 import traceback
 from plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
 from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, get_consecutive_values, \
-    reconcile_markered_and_nonzero_force_segments, detect_markered_segments
+                    reconcile_markered_and_nonzero_force_segments, detect_markered_segments
+from exceptions import Error, PathError, SubjectConfigurationError, ModelFileError, TrialPreprocessingError, \
+                       MarkerFitterError, DynamicsFitterError, WriteError
 
-
+# Global paths to the geometry and data folders.
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
 
 
-class Engine(object):  # metaclass=ExceptionHandlingMeta):
+# This metaclass wraps all methods in the Engine class with a try-except block, except for the __init__ method.
+class ExceptionHandlingMeta(type):
+    def __new__(cls, name, bases, attrs):
+        for attr_name, attr_value in attrs.items():
+            if attr_name == '__init__':
+                continue  # Skip __init__ method
+            if callable(attr_value):
+                attrs[attr_name] = cls.wrap_method(attr_value)
+        return super().__new__(cls, name, bases, attrs)
+
+    @staticmethod
+    def wrap_method(method):
+        def wrapper(*args, **kwargs):
+            try:
+                method(*args, **kwargs)
+            except Exception as e:
+                msg = f"Exception caught in {method.__name__}: {e}"
+                if method.__name__ == 'validate_paths':
+                    raise PathError(msg)
+                elif method.__name__ == 'parse_subject_json':
+                    raise SubjectConfigurationError(msg)
+                elif method.__name__ == 'load_model_files':
+                    raise ModelFileError(msg)
+                elif method.__name__ == 'configure_marker_fitter':
+                    raise MarkerFitterError(msg)
+                elif method.__name__ == 'segment_trials':
+                    raise TrialPreprocessingError(msg)
+                elif method.__name__ == 'run_marker_fitting':
+                    raise MarkerFitterError(msg)
+                elif method.__name__ == 'run_dynamics_fitting':
+                    raise DynamicsFitterError(msg)
+                elif method.__name__ == 'write_result_files':
+                    raise WriteError(msg)
+                elif method.__name__ == 'generate_readme':
+                    raise WriteError(msg)
+                elif method.__name__ == 'create_output_folder':
+                    raise WriteError(msg)
+
+        return wrapper
+
+
+class Engine(metaclass=ExceptionHandlingMeta):
     def __init__(self,
                  path: str,
                  output_name: str,
@@ -40,6 +83,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.path = path
         self.trialsFolderPath = self.path + 'trials/'
         self.subject_json_path = self.path + '_subject.json'
+        self.errors_json_path = self.path + '_errors.json'
         self.geometry_symlink_path = self.path + 'Geometry'
         self.output_name = output_name
         self.href = href
@@ -116,7 +160,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         # ---------------------------------
         # 1.1. Check that the Geometry folder exists.
         if not os.path.exists(GEOMETRY_FOLDER_PATH):
-            raise Exception('Geometry folder "' + GEOMETRY_FOLDER_PATH + '" does not exist. Quitting...')
+            raise IsADirectoryError('Geometry folder "' + GEOMETRY_FOLDER_PATH + '" does not exist.')
 
         # 1.2. Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer.
         if not os.path.exists(self.geometry_symlink_path):
@@ -124,11 +168,11 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
 
         # 1.3. Get the subject JSON file path.
         if not os.path.exists(self.subject_json_path):
-            raise Exception('Subject JSON file "' + self.subject_json_path + '" does not exist. Quitting...')
+            raise FileNotFoundError('Subject JSON file "' + self.subject_json_path + '" does not exist.')
 
         # 1.4. Check that the trials folder exists.
         if not os.path.exists(self.trialsFolderPath):
-            raise Exception('Trials folder "' + self.trialsFolderPath + '" does not exist. Quitting...')
+            raise IsADirectoryError('Trials folder "' + self.trialsFolderPath + '" does not exist.')
 
     def parse_subject_json(self):
 
@@ -140,24 +184,22 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         if 'massKg' in subjectJson:
             self.massKg = float(subjectJson['massKg'])
         else:
-            print('ERROR: No mass specified for subject. Exiting...')
-            exit(1)
+            raise RuntimeError('No mass specified for subject.')
 
         if 'heightM' in subjectJson:
             self.heightM = float(subjectJson['heightM'])
         else:
-            print('ERROR: No height specified for subject. Exiting...')
-            exit(1)
+            raise RuntimeError('No height specified for subject.')
 
         if 'sex' in subjectJson:
             self.sex = subjectJson['sex']
         else:
-            print('WARNING: No sex specified for subject. Defaulting to "unknown".')
+            raise RuntimeError('No sex specified for subject.')
 
         if 'skeletonPreset' in subjectJson:
             self.skeletonPreset = subjectJson['skeletonPreset']
         else:
-            print('WARNING: No skeletonPreset specified for subject. Defaulting to "custom".')
+            raise RuntimeError('No skeletonPreset specified for subject.')
 
         if 'exportSDF' in subjectJson:
             self.exportSDF = subjectJson['exportSDF']
@@ -240,8 +282,8 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                 print('Unrecognized skeleton preset "' + str(self.skeletonPreset) +
                       '"! Behaving as though this is "custom"')
             if not os.path.exists(self.path + 'unscaled_generic.osim'):
-                raise Exception('We are using a custom OpenSim skeleton, but there is no unscaled_generic.osim '
-                                'file present. Quitting...')
+                raise FileNotFoundError('We are using a custom OpenSim skeleton, but there is no unscaled_generic.osim '
+                                        'file present.')
 
         # 3.1. Rationalize CustomJoint's in the OSIM file.
         shutil.move(self.path + 'unscaled_generic.osim',
@@ -314,10 +356,10 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         self.markerFitter.setMinAxisFitScore(0.001)
         self.markerFitter.setMaxJointWeight(1.0)
 
-    def segment_trials(self):
+    def preprocess_trials(self):
 
-        # 6. Segment the trials.
-        # ----------------------
+        # 6. Preprocess the trials.
+        # -------------------------
         # 6.1. Get the static trial, if it exists.
         for trialName in os.listdir(self.trialsFolderPath):
             if trialName == 'static':
@@ -400,7 +442,8 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
             else:
                 print('ERROR: No marker files exist for trial ' + trialName + '. Checked both ' +
                       c3dFilePath + ' and ' + trcFilePath + ', neither exist. Quitting.')
-                exit(1)
+                raise RuntimeError(f'No marker files exist for trial {trialName}. '
+                                   f'Checked both {c3dFilePath} and {trcFilePath}, but neither exist.')
 
             self.trialProcessingResults.append(trialProcessingResult)
 
@@ -432,8 +475,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
 
                 # Check that the marker and force data have the same length.
                 if len(self.trialTimestamps[itrial]) != len(self.trialForcePlates[itrial][0].timestamps):
-                    raise Exception(
-                        'ERROR: Marker and force plate data have different lengths after trimming. Quitting...')
+                    raise RuntimeError('Marker and force plate data have different lengths after trimming.')
 
             # 6.2.3. Split the trial into individual segments where there is marker data and, if applicable, non-zero
             # forces.
@@ -612,8 +654,8 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
                       str(self.trialMarkerSet[self.trialNames[i]]), flush=True)
                 anyHasTooFewMarkers = True
         if anyHasTooFewMarkers:
-            print("Some trials don't match the OpenSim model's marker set. Quitting.", flush=True)
-            exit(1)
+            raise RuntimeError('Some trials do not match the OpenSim model\'s marker set.')
+
         print('All trial markers have been cleaned up!', flush=True)
 
         # 7.2. Create an anthropometric prior.
@@ -709,8 +751,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         for name in self.footBodyNames:
             foot = self.finalSkeleton.getBodyNode(name)
             if foot is None:
-                raise Exception(f'ERROR: foot "{str(name)}" not found in skeleton! Dynamics fitter will break as a '
-                                f'result.')
+                raise RuntimeError(f'Foot "{str(name)}" not found in skeleton! Cannot run dynamics fitting.')
             footBodies.append(self.finalSkeleton.getBodyNode(name))
 
         self.finalSkeleton.setGravity([0, -9.81, 0])
@@ -1992,7 +2033,7 @@ class Engine(object):  # metaclass=ExceptionHandlingMeta):
         try:
             with open(self.path + '_results.json', 'w') as f:
                 json.dump(self.processingResult, f)
-        except Exception as e:
+        except RuntimeError as e:
             print('Had an error writing _results.json:', flush=True)
             print(e, flush=True)
 
@@ -2006,8 +2047,7 @@ def main():
     # ------------------------
     print(sys.argv, flush=True)
     if len(sys.argv) < 2:
-        print('ERROR: Must provide a path to a subject folder. Exiting...')
-        exit(1)
+        raise RuntimeError('Must provide a path to a subject folder.')
 
     # Subject folder path.
     path = sys.argv[1]
@@ -2028,17 +2068,30 @@ def main():
 
     # Run the pipeline.
     # -----------------
-    engine.validate_paths()
-    engine.parse_subject_json()
-    engine.load_model_files()
-    engine.configure_marker_fitter()
-    engine.segment_trials()
-    engine.run_marker_fitting()
-    if engine.fitDynamics:
-        engine.run_dynamics_fitting()
-    engine.write_result_files()
-    engine.generate_readme()
-    engine.create_output_folder()
+    try:
+        # Each method is automatically wrapped in a try-catch block so
+        # that the pipeline will continue running if an error occurs.
+        engine.validate_paths()
+        engine.parse_subject_json()
+        engine.load_model_files()
+        engine.configure_marker_fitter()
+        engine.preprocess_trials()
+        engine.run_marker_fitting()
+        if engine.fitDynamics:
+            engine.run_dynamics_fitting()
+        engine.write_result_files()
+        engine.generate_readme()
+        engine.create_output_folder()
+
+        # If we succeeded, write an empty JSON file.
+        with open(engine.errors_json_path, "w") as json_file:
+            json_file.write("{}")
+
+    except Error as e:
+        # If we failed, write a JSON file with the error information.
+        json_data = json.dumps(e.get_error_dict(), indent=4)
+        with open(engine.errors_json_path, "w") as json_file:
+            json_file.write(json_data)
 
 
 if __name__ == "__main__":

@@ -121,6 +121,7 @@ class SubjectToProcess:
     readyFlagFile: str
     processingFlagFile: str
     resultsFile: str
+    errorsFile: str
     logfile: str
 
     # Trial objects
@@ -153,6 +154,7 @@ class SubjectToProcess:
         self.processingFlagFile = self.subjectPath + 'PROCESSING'
         self.errorFlagFile = self.subjectPath + 'ERROR'
         self.resultsFile = self.subjectPath + '_results.json'
+        self.errorsFile = self.subjectPath + '_errors.json'
         self.osimResults = self.subjectPath + self.subjectName + '.zip'
         self.pytorchResults = self.subjectPath + self.subjectName + '.bin'
         self.logfile = self.subjectPath + 'log.txt'
@@ -352,6 +354,12 @@ class SubjectToProcess:
                 if os.path.exists(path + self.subjectName + '.bin'):
                     self.index.uploadFile(
                         self.pytorchResults, path + self.subjectName + '.bin')
+
+                # 5.1.3. Upload the _errors.json file.
+                if os.path.exists(path + '_errors.json'):
+                    self.index.uploadFile(
+                        self.errorsFile, path + '_errors.json')
+
                 # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
                 # and it starts to be able
                 if os.path.exists(path + '_results.json'):
