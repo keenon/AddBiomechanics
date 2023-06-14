@@ -81,7 +81,10 @@ class ParserFolderStructure:
     s3_ready_flags: List[str]
 
     def __init__(self, input_file_list: List[str]):
-        self.common_prefix = os.path.commonprefix(input_file_list)
+        self.common_prefix = os.path.commonpath(input_file_list)
+        if not self.common_prefix.endswith('/'):
+            self.common_prefix += '/'
+
         self.input_file_list = [
             f.replace(self.common_prefix, "") for f in input_file_list]
         self.s3_to_local_file = {}
@@ -274,9 +277,9 @@ class UploadCommand(AbstractCommand):
                                     help='The name of the subject. If not specified, we will guess based on the dataset path')
         process_parser.add_argument('-d', '--dataset-name', type=str, default='',
                                     help='The name of the dataset to include the subject in on AddBiomechanics. If not specified, we will guess based on the dataset path')
-        process_parser.add_argument('-y', '--yes', type=bool, default=False,
+        process_parser.add_argument('-y', '--yes', action='store_true',
                                     help='This skips the manual confirmation step')
-        process_parser.add_argument('--private', type=bool, default=False,
+        process_parser.add_argument('--private', action='store_true',
                                     help='Add this flag to upload the data to your private folder to be processed, instead of the normal workspace.')
         pass
 
@@ -300,7 +303,7 @@ class UploadCommand(AbstractCommand):
         foot_body_names: List[str] = args.foot_body_names
         skip_confirm: bool = args.yes
         private: bool = args.private
-        print(args)
+
         dir_files: List[str] = []
 
         # Get the list of files in the dataset
@@ -325,6 +328,7 @@ class UploadCommand(AbstractCommand):
             if not target_path.endswith('/'):
                 prefix += '/'
         dataset_name = dataset_name if dataset_name != '' else structure.inferred_dataset_name
+
         if structure.inferred_as_single_subject:
             subject_name = subject_name if subject_name != '' else structure.inferred_subject_name
             prefix += dataset_name + \
@@ -332,7 +336,7 @@ class UploadCommand(AbstractCommand):
         else:
             prefix += dataset_name + '/'
 
-        if structure.confirm_with_user(prefix):
+        if skip_confirm or structure.confirm_with_user(prefix):
             print('Uploading...')
             upload_files(ctx, structure.s3_to_local_file,
                          structure.s3_to_contents, structure.s3_ready_flags, prefix)
