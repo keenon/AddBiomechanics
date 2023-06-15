@@ -16,7 +16,7 @@ import shutil
 import json
 from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, \
                     reconcile_markered_and_nonzero_force_segments
-from exceptions import Error
+from exceptions import Error, TrialPreprocessingError
 
 DATA_FOLDER_PATH = absPath('../data')
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
@@ -227,6 +227,17 @@ class TestErrorReporting(unittest.TestCase):
 
         self.assertTrue(len(errors) == 3)
         self.assertEqual(errors['type'], 'PathError')
+
+    def test_loadGRF(self):
+        grf_fpath = absPath(os.path.join('../data/Rajagopal2015', 'raw', 'grf_walk.mot'))
+        # Create a bad vector of timestamps to cause a GRF load error.
+        timestamps = np.linspace(0, 10, 100)
+        try:
+            forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
+                grf_fpath, timestamps)
+            self.assertTrue(False, 'Should have raised an error.')
+        except Exception as e:
+            self.assertTrue(True, 'Raised an error as expected.')
 
 
 if __name__ == '__main__':
