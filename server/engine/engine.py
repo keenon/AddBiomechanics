@@ -637,7 +637,6 @@ class Engine(metaclass=ExceptionHandlingMeta):
         print('Fitting trials ' + str(self.trialNames), flush=True)
 
         # 7.1. Clean up the marker data.
-        anyHasTooFewMarkers = False
         for i in range(len(self.trialNames)):
             print('Checking and repairing marker data quality on trial ' +
                   str(self.trialNames[i]) + '. This can take a while, depending on trial length...', flush=True)
@@ -648,13 +647,10 @@ class Engine(metaclass=ExceptionHandlingMeta):
             hasEnoughMarkers = self.markerFitter.checkForEnoughMarkers(self.markerTrials[i])
             self.totalFrames += len(self.markerTrials[i])
             if not hasEnoughMarkers:
-                print("There are fewer than 8 markers that show up in the OpenSim model and in trial " +
-                      self.trialNames[i], flush=True)
-                print("The markers in this trial are: " +
-                      str(self.trialMarkerSet[self.trialNames[i]]), flush=True)
-                anyHasTooFewMarkers = True
-        if anyHasTooFewMarkers:
-            raise RuntimeError('Some trials do not match the OpenSim model\'s marker set.')
+                msg = f'There are fewer than 8 markers that show up in the OpenSim model and in trial ' \
+                      f'{self.trialNames[i]}. The markers in this trial are: ' \
+                      f'{str(self.trialMarkerSet[self.trialNames[i]])}'
+                raise RuntimeError(msg)
 
         print('All trial markers have been cleaned up!', flush=True)
 
