@@ -617,6 +617,24 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       );
     }
 
+    let errorList:any = [];
+    if (props.cursor.hasErrorsFile()) {
+      props.cursor.getErrorsFileText().then((text: string) => {
+        var jsonErrors = JSON.parse(text);
+
+        for (var error of jsonErrors) 
+        {
+          errorList.push(error)
+        }
+        
+      }).catch(() => {
+        // TODO
+      });
+    }
+    else {
+      // TODO
+    }
+
     let warningList = [];
 
     if (guessedTrackingMarkers == true) {
@@ -731,6 +749,25 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     }
 
     let guessedMarkersWarning = null;
+    let guessedErrors = null;
+    if (errorList.length > 0) {
+      guessedErrors = <div className="alert alert-error">
+        <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
+        <p>
+          There were some errors while processing teh data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
+        </p>
+        <hr />
+        <ul>
+          {errorList.type}
+          {errorList.message}
+          {errorList.original_message}
+        </ul>
+        <hr />
+        <p>
+          Please, fix the errors and update your data and/or your OpenSim Model and Markerset and then hit "Reprocess" (below in yellow) to fix the problem.
+        </p>
+      </div>;
+    }
     if (warningList.length > 0) {
       guessedMarkersWarning = <div className="alert alert-warning">
         <h4><i className="mdi mdi-alert me-2 vertical-middle"></i> Warning: Results may be suboptimal!</h4>
