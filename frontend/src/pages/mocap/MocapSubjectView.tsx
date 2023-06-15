@@ -638,34 +638,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       );
     }
 
-    let error:any = undefined;
-    // var text = '{"type": "PathError", "message": "PathError: This is a custom message. Below is the original error message, which may contain useful information about your issue. If you are unable to resolve the issue, please, submit a forum post at https://simtk.org/projects/addbiomechanics or submit a GitHub issue at https://github.com/keenon/AddBiomechanics/issues with all error message included.", "original_message": "Exception caught in validate_paths: This is a test exception."}'
-    // var jsonError = JSON.parse(text);
-    // error = <li>
-    //           <p>
-    //             <strong>{jsonError.type} - </strong>
-    //             {parseLinks(jsonError.message)}
-    //           </p>
-    //           <p>
-    //             {parseLinks(jsonError.original_message)}
-    //           </p>
-    //         </li>
-    
-    if (props.cursor.hasErrorsFile()) {
-      props.cursor.getErrorsFileText().then((text: string) => {
-        var jsonError = JSON.parse(text);
-        error = <li>
-                  <p>
-                    <strong>{jsonError.type} - </strong>
-                    {parseLinks(jsonError.message)}
-                  </p>
-                  <p>
-                    {parseLinks(jsonError.original_message)}
-                  </p>
-                </li>
-      });
-    }
-
     let warningList = [];
 
     if (guessedTrackingMarkers == true) {
@@ -780,23 +752,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     }
 
     let guessedMarkersWarning = null;
-    let guessedErrors = null;
-    if (error != undefined) {
-      guessedErrors = <div className="alert alert-danger">
-        <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
-        <p>
-          There were some errors while processing teh data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
-        </p>
-        <hr />
-        <ul>
-          {error}
-        </ul>
-        <hr />
-        <p>
-          Please, fix the errors and update your data and/or your OpenSim Model and Markerset and then hit "Reprocess" (below in yellow) to fix the problem.
-        </p>
-      </div>;
-    }
     if (warningList.length > 0) {
       guessedMarkersWarning = <div className="alert alert-warning">
         <h4><i className="mdi mdi-alert me-2 vertical-middle"></i> Warning: Results may be suboptimal!</h4>
@@ -836,7 +791,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     }
     statusDetails = <>
       <h4>Results: {(autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE {residualText}</h4>
-      {guessedErrors}
       {guessedMarkersWarning}
       {downloadOpenSim}
       {downloadSubjectOnDisk}
@@ -862,8 +816,55 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     </>;
   }
   else if (status === "error") {
+    let error:any = undefined;
+    // var text = '{"type": "PathError", "message": "PathError: This is a custom message. Below is the original error message, which may contain useful information about your issue. If you are unable to resolve the issue, please, submit a forum post at https://simtk.org/projects/addbiomechanics or submit a GitHub issue at https://github.com/keenon/AddBiomechanics/issues with all error message included.", "original_message": "Exception caught in validate_paths: This is a test exception."}'
+    // var jsonError = JSON.parse(text);
+    // error = <li>
+    //           <p>
+    //             <strong>{jsonError.type} - </strong>
+    //             {parseLinks(jsonError.message)}
+    //           </p>
+    //           <p>
+    //             {parseLinks(jsonError.original_message)}
+    //           </p>
+    //         </li>
+            
+    if (props.cursor.hasErrorsFile()) {
+      props.cursor.getErrorsFileText().then((text: string) => {
+        var jsonError = JSON.parse(text);
+        error = <li>
+                  <p>
+                    <strong>{jsonError.type} - </strong>
+                    {parseLinks(jsonError.message)}
+                  </p>
+                  <p>
+                    {parseLinks(jsonError.original_message)}
+                  </p>
+                </li>
+      });
+    }
+
+    let guessedErrors = null;
+    if (error != undefined) {
+      guessedErrors = <div className="alert alert-danger">
+        <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
+        <p>
+          There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
+        </p>
+        <hr />
+        <ul>
+          {error}
+        </ul>
+        <hr />
+        <p>
+          Please, fix the errors and update your data and/or your OpenSim Model and Markerset and then hit "Reprocess" (below in yellow) to fix the problem.
+        </p>
+      </div>;
+    }
+
     statusBadge = <span className="badge bg-danger">Error</span>;
     statusDetails = <>
+      {guessedErrors}
       <Button variant="warning" onClick={props.cursor.requestReprocessSubject}>
         <i className="mdi mdi-refresh me-2 vertical-middle"></i>
         Reprocess
