@@ -19,6 +19,7 @@ import MocapTagModal from "./MocapTagModal";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
 import TagEditor from '../../components/TagEditor';
 import { attachEventProps } from "@aws-amplify/ui-react/lib-esm/react-component-lib/utils";
+import { AnyMessageParams } from "yup/lib/types";
 
 type ProcessingResultsJSON = {
   autoAvgMax: number;
@@ -40,6 +41,26 @@ type MocapTrialRowViewProps = {
   onMultipleManualIK: (files: File[]) => void;
   onMultipleGRF: (files: File[]) => void;
 };
+
+function parseLinks(text:string) {
+  const pattern = /(https?:\/\/[^\s]+)/g; // Regular expression to match URLs
+
+  const parts = text.split(pattern); // Split the text into parts using the pattern
+
+  return parts.map((part, index) => {
+    if (pattern.test(part)) {
+      // If the part matches the pattern, it's a link
+      return (
+        <a key={index} href={part} target="_blank" rel="noopener noreferrer">
+          {part}
+        </a>
+      );
+    } else {
+      // Otherwise, it's regular text
+      return <span key={index}>{part}</span>;
+    }
+  });
+}
 
 const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   const navigate = useNavigate();
@@ -617,22 +638,32 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       );
     }
 
-    let errorList:any = [];
+    let error:any = undefined;
+    // var text = '{"type": "PathError", "message": "PathError: This is a custom message. Below is the original error message, which may contain useful information about your issue. If you are unable to resolve the issue, please, submit a forum post at https://simtk.org/projects/addbiomechanics or submit a GitHub issue at https://github.com/keenon/AddBiomechanics/issues with all error message included.", "original_message": "Exception caught in validate_paths: This is a test exception."}'
+    // var jsonError = JSON.parse(text);
+    // error = <li>
+    //           <p>
+    //             <strong>{jsonError.type} - </strong>
+    //             {parseLinks(jsonError.message)}
+    //           </p>
+    //           <p>
+    //             {parseLinks(jsonError.original_message)}
+    //           </p>
+    //         </li>
+    
     if (props.cursor.hasErrorsFile()) {
       props.cursor.getErrorsFileText().then((text: string) => {
-        var jsonErrors = JSON.parse(text);
-
-        for (var error of jsonErrors) 
-        {
-          errorList.push(error)
-        }
-        
-      }).catch(() => {
-        // TODO
+        var jsonError = JSON.parse(text);
+        error = <li>
+                  <p>
+                    <strong>{jsonError.type} - </strong>
+                    {parseLinks(jsonError.message)}
+                  </p>
+                  <p>
+                    {parseLinks(jsonError.original_message)}
+                  </p>
+                </li>
       });
-    }
-    else {
-      // TODO
     }
 
     let warningList = [];
@@ -750,17 +781,15 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
     let guessedMarkersWarning = null;
     let guessedErrors = null;
-    if (errorList.length > 0) {
-      guessedErrors = <div className="alert alert-error">
+    if (error != undefined) {
+      guessedErrors = <div className="alert alert-danger">
         <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
         <p>
           There were some errors while processing teh data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
         </p>
         <hr />
         <ul>
-          {errorList.type}
-          {errorList.message}
-          {errorList.original_message}
+          {error}
         </ul>
         <hr />
         <p>
@@ -807,6 +836,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     }
     statusDetails = <>
       <h4>Results: {(autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm RMSE {residualText}</h4>
+      {guessedErrors}
       {guessedMarkersWarning}
       {downloadOpenSim}
       {downloadSubjectOnDisk}
