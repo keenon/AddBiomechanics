@@ -93,6 +93,10 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.massKg = 68.0
         self.heightM = 1.6
         self.sex = 'unknown'
+        self.ageYears = -1
+        self.subjectTags = []
+        # TODO: load trial tags from trial.json files
+        self.trialTags = []
         self.skeletonPreset = 'vicon'
         self.exportSDF = False
         self.exportMJCF = False
@@ -190,6 +194,12 @@ class Engine(metaclass=ExceptionHandlingMeta):
             self.heightM = float(subjectJson['heightM'])
         else:
             raise RuntimeError('No height specified for subject.')
+
+        if 'ageYears' in subjectJson:
+            self.ageYears = float(subjectJson['ageYears'])
+
+        if 'subjectTags' in subjectJson:
+            self.subjectTags = subjectJson['subjectTags']
 
         if 'sex' in subjectJson:
             self.sex = subjectJson['sex']
@@ -906,9 +916,9 @@ class Engine(metaclass=ExceptionHandlingMeta):
         print("Avg Marker RMSE: " +
               str(self.dynamicsFitter.computeAverageMarkerRMSE(self.dynamicsInit) * 100) + "cm", flush=True)
         pair = self.dynamicsFitter.computeAverageResidualForce(self.dynamicsInit)
-        print(f'Avg Residual Force: {pair[0]} N ({(pair[0] / secondPair[0]) * 100}% of original {secondPair[0]} N)',
+        print(f'Avg Residual Force: {pair[0]} N ({(pair[0] / secondPair[0] if secondPair[0] != 0 else 1.0) * 100}% of original {secondPair[0]} N)',
               flush=True)
-        print(f'Avg Residual Torque: {pair[1]} Nm ({(pair[1] / secondPair[1]) * 100}% of original {secondPair[1]} Nm)',
+        print(f'Avg Residual Torque: {pair[1]} Nm ({(pair[1] / secondPair[1] if secondPair[1] != 0 else 1.0) * 100}% of original {secondPair[1]} Nm)',
               flush=True)
         print("Avg CoP movement in 'perfect' GRFs: " +
               str(self.dynamicsFitter.computeAverageCOPChange(self.dynamicsInit)) + " m", flush=True)
@@ -1030,8 +1040,14 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 outputPath,
                 self.path + 'results/Models/final.osim',
                 self.dynamicsInit,
+                self.sex,
+                self.massKg,
+                self.heightM,
+                self.ageYears,
                 False,
                 self.trialNames,
+                self.subjectTags,
+                self.trialTags,
                 self.href,
                 notes)
 
