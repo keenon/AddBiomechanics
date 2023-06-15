@@ -54,7 +54,7 @@ class ExceptionHandlingMeta(type):
                     raise ModelFileError(msg)
                 elif method.__name__ == 'configure_marker_fitter':
                     raise MarkerFitterError(msg)
-                elif method.__name__ == 'segment_trials':
+                elif method.__name__ == 'preprocess_trials':
                     raise TrialPreprocessingError(msg)
                 elif method.__name__ == 'run_marker_fitting':
                     raise MarkerFitterError(msg)

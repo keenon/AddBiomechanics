@@ -16,7 +16,7 @@ import shutil
 import json
 from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, \
                     reconcile_markered_and_nonzero_force_segments
-from exceptions import Error
+from exceptions import Error, TrialPreprocessingError
 
 DATA_FOLDER_PATH = absPath('../data')
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
@@ -29,12 +29,12 @@ class TestTrialSegmentation(unittest.TestCase):
         totalLoad = np.zeros(len(timestamps))
 
         # Add a legitimate load segment.
-        totalLoad[50:100] = 1.0
+        totalLoad[50:101] = 1.0
         # Add a load segment that is too short.
-        totalLoad[250:254] = 1.0
+        totalLoad[250:255] = 1.0
         # Add two load segments that should be merged together.
-        totalLoad[300:340] = 1.0
-        totalLoad[360:400] = 1.0
+        totalLoad[300:341] = 1.0
+        totalLoad[360:401] = 1.0
         # Add a segment that has load up until the final time point.
         totalLoad[550:601] = 1.0
 
@@ -65,7 +65,7 @@ class TestTrialSegmentation(unittest.TestCase):
         grfFilePath = DATA_FOLDER_PATH + '/Camargo2021/levelground_ccw_fast_01_01_grf.mot'
         trcFile: nimble.biomechanics.OpenSimTRC = nimble.biomechanics.OpenSimParser.loadTRC(trcFilePath)
         forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
-            grfFilePath, trcFile.framesPerSecond)
+            grfFilePath)
 
         # Compute the total load.
         totalLoad = np.zeros(len(forcePlates[0].timestamps))
@@ -85,8 +85,8 @@ class TestTrialSegmentation(unittest.TestCase):
 
         # Check that the correct segments were detected.
         self.assertEqual(len(nonzeroForceSegments), 3)
-        self.assertEqual(nonzeroForceSegments[0], (0.005, 5.92))
-        self.assertEqual(nonzeroForceSegments[1], (7.365, 8.455))
+        self.assertEqual(nonzeroForceSegments[0], (0.005, 5.915))
+        self.assertEqual(nonzeroForceSegments[1], (7.365, 8.45))
         self.assertEqual(nonzeroForceSegments[2], (11.895, 15.335))
 
     def test_reconcileMarkeredAndNonzeroForceSegments(self):
@@ -95,16 +95,16 @@ class TestTrialSegmentation(unittest.TestCase):
 
         # Create marker segments
         markerSegments = list()
-        markerSegments.append(timestamps[0:200])
-        markerSegments.append(timestamps[500:600])
+        markerSegments.append(timestamps[0:201])
+        markerSegments.append(timestamps[500:601])
         markerSegments.append(timestamps[800:1000])
 
         # Create force segments
         forceSegments = list()
-        forceSegments.append(timestamps[100:300])
-        forceSegments.append(timestamps[350:400])
-        forceSegments.append(timestamps[550:600])
-        forceSegments.append(timestamps[700:950])
+        forceSegments.append(timestamps[100:301])
+        forceSegments.append(timestamps[350:401])
+        forceSegments.append(timestamps[550:601])
+        forceSegments.append(timestamps[700:951])
 
         # Reconcile the segments.
         finalSegments = reconcile_markered_and_nonzero_force_segments(timestamps, markerSegments, forceSegments)
@@ -227,6 +227,17 @@ class TestErrorReporting(unittest.TestCase):
 
         self.assertTrue(len(errors) == 3)
         self.assertEqual(errors['type'], 'PathError')
+
+    def test_loadGRF(self):
+        grf_fpath = absPath(os.path.join('../data/Rajagopal2015', 'raw', 'grf_walk.mot'))
+        # Create a bad vector of timestamps to cause a GRF load error.
+        timestamps = np.linspace(0, 10, 100)
+        try:
+            forcePlates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
+                grf_fpath, timestamps)
+            self.assertTrue(False, 'Should have raised an error.')
+        except Exception as e:
+            self.assertTrue(True, 'Raised an error as expected.')
 
 
 if __name__ == '__main__':
