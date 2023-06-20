@@ -20,6 +20,7 @@ import MocapS3Cursor from '../../state/MocapS3Cursor';
 import TagEditor from '../../components/TagEditor';
 import { attachEventProps } from "@aws-amplify/ui-react/lib-esm/react-component-lib/utils";
 import { AnyMessageParams } from "yup/lib/types";
+import { parseLinks } from "../../utils"
 
 type ProcessingResultsJSON = {
   autoAvgMax: number;
@@ -42,25 +43,7 @@ type MocapTrialRowViewProps = {
   onMultipleGRF: (files: File[]) => void;
 };
 
-function parseLinks(text:string) {
-  const pattern = /(https?:\/\/[^\s]+)/g; // Regular expression to match URLs
 
-  const parts = text.split(pattern); // Split the text into parts using the pattern
-
-  return parts.map((part, index) => {
-    if (pattern.test(part)) {
-      // If the part matches the pattern, it's a link
-      return (
-        <a key={index} href={part} target="_blank" rel="noopener noreferrer">
-          {part}
-        </a>
-      );
-    } else {
-      // Otherwise, it's regular text
-      return <span key={index}>{part}</span>;
-    }
-  });
-}
 
 const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   const navigate = useNavigate();
@@ -828,7 +811,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     //             {parseLinks(jsonError.original_message)}
     //           </p>
     //         </li>
-            
+
     if (props.cursor.hasErrorsFile()) {
       props.cursor.getErrorsFileText().then((text: string) => {
         var jsonError = JSON.parse(text);
