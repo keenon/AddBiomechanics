@@ -97,6 +97,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.exportSDF = False
         self.exportMJCF = False
         self.exportOSIM = True
+        self.exportMoco = False
         self.ignoreJointLimits = False
         self.residualsToZero = False
         self.useReactionWheels = True
@@ -209,6 +210,9 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
         # Only export OpenSim files if we're not exporting MJCF or SDF files, since they use incompatible skeletons.
         self.exportOSIM = not (self.exportMJCF or self.exportSDF)
+
+        if 'exportMoco' in subjectJson:
+            self.exportMoco = subjectJson['exportMoco']
 
         if 'ignoreJointLimits' in subjectJson:
             self.ignoreJointLimits = subjectJson['ignoreJointLimits']
@@ -961,6 +965,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
             os.mkdir(self.path + 'results/MuJoCo')
         if self.exportSDF and not os.path.exists(self.path + 'results/SDF'):
             os.mkdir(self.path + 'results/SDF')
+        if self.exportMoco and not os.path.exists(self.path + 'results/Moco'):
+            os.mkdir(self.path + 'results/Moco')
         if not os.path.exists(self.path + 'results/MarkerData'):
             os.mkdir(self.path + 'results/MarkerData')
         shutil.copyfile(self.path + 'unscaled_generic.osim', self.path +
