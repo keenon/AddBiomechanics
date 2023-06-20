@@ -877,6 +877,7 @@ class MocapS3Cursor {
     requestReprocessSubject = () => {
         this.rawCursor.deleteChild("log.txt");
         this.rawCursor.deleteChild("_results.json");
+        this.rawCursor.deleteChild("_errors.json");
         this.rawCursor.deleteChild("PROCESSING");
         this.rawCursor.deleteChild("SLURM");
         this.rawCursor.deleteChild("ERROR");
