@@ -31,7 +31,7 @@ const MocapLogModal = observer((props: MocapLogModalProps) => {
   };
 
   useEffect(() => {
-    if (show && subjectStatus === 'done') {
+    if (show && (subjectStatus === 'done' || subjectStatus === 'error')) {
       if (props.cursor.hasLogFile()) {
         props.cursor.getLogFileText().then((text: string) => {
           setLogText(text);
