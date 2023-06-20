@@ -455,7 +455,26 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showViewerHint, setShowViewerHint] = useState(false);
+  const [error, setError] = useState<React.ReactElement | null>(null);
+
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (props.cursor.hasErrorsFile()) {
+      props.cursor.getErrorsFileText().then((text: string) => {
+        var jsonError = JSON.parse(text);
+        setError(<li>
+                  <p>
+                    <strong>{jsonError.type} - </strong>
+                    {parseLinks(jsonError.message)}
+                  </p>
+                  <p>
+                    {parseLinks(jsonError.original_message)}
+                  </p>
+                </li>);
+      });
+    }
+  }, []);
 
   let trialViews: any[] = [];
 
@@ -799,7 +818,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     </>;
   }
   else if (status === "error") {
-    let error:any = undefined;
     // var text = '{"type": "PathError", "message": "PathError: This is a custom message. Below is the original error message, which may contain useful information about your issue. If you are unable to resolve the issue, please, submit a forum post at https://simtk.org/projects/addbiomechanics or submit a GitHub issue at https://github.com/keenon/AddBiomechanics/issues with all error message included.", "original_message": "Exception caught in validate_paths: This is a test exception."}'
     // var jsonError = JSON.parse(text);
     // error = <li>
@@ -812,23 +830,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     //           </p>
     //         </li>
 
-    if (props.cursor.hasErrorsFile()) {
-      props.cursor.getErrorsFileText().then((text: string) => {
-        var jsonError = JSON.parse(text);
-        error = <li>
-                  <p>
-                    <strong>{jsonError.type} - </strong>
-                    {parseLinks(jsonError.message)}
-                  </p>
-                  <p>
-                    {parseLinks(jsonError.original_message)}
-                  </p>
-                </li>
-      });
-    }
-
     let guessedErrors = null;
-    if (error != undefined) {
+    if (error != null) {
       guessedErrors = <div className="alert alert-danger">
         <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
         <p>
