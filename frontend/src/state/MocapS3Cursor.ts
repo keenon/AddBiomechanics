@@ -283,6 +283,7 @@ class MocapS3Cursor {
     showValidationControls: boolean;
     cachedLogFile: Promise<string> | null;
     cachedResultsFile: Promise<string> | null;
+    cachedErrorsFile: Promise<string> | null;
     cachedTrialResultsFiles: Map<string, Promise<string>>;
     cachedTrialPlotCSV: Map<string, Promise<string>>;
     cachedVisulizationFiles: Map<string, LargeZipBinaryObject>;
@@ -290,6 +291,7 @@ class MocapS3Cursor {
 
     subjectJson: ReactiveJsonFile;
     resultsJson: ReactiveJsonFile;
+    errorsJson: ReactiveJsonFile;
     searchJson: ReactiveJsonFile;
     myProfileJson: ReactiveJsonFile;
     customModelFile: ReactiveTextFile;
@@ -312,6 +314,7 @@ class MocapS3Cursor {
 
         this.cachedLogFile = null;
         this.cachedResultsFile = null;
+        this.cachedErrorsFile = null;
         this.cachedTrialResultsFiles = new Map();
         this.cachedTrialPlotCSV = new Map();
         this.cachedVisulizationFiles = new Map();
@@ -320,6 +323,7 @@ class MocapS3Cursor {
 
         this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
         this.resultsJson = this.rawCursor.getJsonFile("_results.json");
+        this.errorsJson = this.rawCursor.getJsonFile("_errors.json");
         this.searchJson = this.rawCursor.getJsonFile("_search.json");
         this.myProfileJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+s3Index.myIdentityId+"/profile.json", true);
         this.customModelFile = this.rawCursor.getTextFile("unscaled_generic.osim");
@@ -671,6 +675,7 @@ class MocapS3Cursor {
         const hasProcessingFlag = this.rawCursor.getExists(path + "PROCESSING");
         const hasSlurmFlag = this.rawCursor.getExists(path + "SLURM");
         const hasErrorFlag = this.rawCursor.getExists(path + "ERROR");
+        const hasErrorsJSonFlag = this.rawCursor.getExists(path + "_errors.json");
 
         const logMetadata = this.rawCursor.getChildMetadata(path + "log.txt");
         const resultsMetadata = this.rawCursor.getChildMetadata(path + "_results.json");
@@ -697,11 +702,11 @@ class MocapS3Cursor {
         if (anyTrialsMissingMarkers || anyConfigInvalid || (hasCustomFlag && !hasOsimFile) || !hasAnyTrials) {
             return 'empty';
         }
+        else if (hasErrorFlag || hasErrorsJSonFlag) {
+            return 'error';
+        }
         else if (logMetadata != null && resultsMetadata != null) {
             return 'done';
-        }
-        else if (hasErrorFlag) {
-            return 'error';
         }
         else if (hasProcessingFlag) {
             return 'processing';
@@ -1002,6 +1007,24 @@ class MocapS3Cursor {
             this.cachedResultsFile = this.rawCursor.downloadText("_results.json");
         }
         return this.cachedResultsFile;
+    };
+
+    /**
+     * @returns True if we've got a errors file, false otherwise
+     */
+    hasErrorsFile = () => {
+        return this.rawCursor.hasChildren(["_errors.json"]);
+    }
+
+    /**
+     * Gets the contents of the _errors.json for this subject, as a promise
+     */
+    getErrorsFileText = () => {
+        if (this.cachedErrorsFile == null) {
+            console.log("Getting errors file");
+            this.cachedErrorsFile = this.rawCursor.downloadText("_errors.json");
+        }
+        return this.cachedErrorsFile;
     };
 
     /**
