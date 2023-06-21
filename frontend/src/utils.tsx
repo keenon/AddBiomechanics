@@ -95,4 +95,24 @@ function getIdFromURL(url:string) {
     return url.match(/\/([\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12})\/?/)?.[1] ?? "";
 };
 
-export { humanFileSize, showToast, copyProfileUrlToClipboard, getIdFromURL };
+function parseLinks(text:string) {
+    const pattern = /(https?:\/\/[^\s]+)/g; // Regular expression to match URLs
+  
+    const parts = text.split(pattern); // Split the text into parts using the pattern
+  
+    return parts.map((part, index) => {
+      if (pattern.test(part)) {
+        // If the part matches the pattern, it's a link
+        return (
+          <a key={index} href={part} target="_blank" rel="noopener noreferrer">
+            {part}
+          </a>
+        );
+      } else {
+        // Otherwise, it's regular text
+        return <span key={index}>{part}</span>;
+      }
+    });
+  }
+
+export { humanFileSize, showToast, copyProfileUrlToClipboard, getIdFromURL, parseLinks };

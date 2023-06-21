@@ -355,11 +355,6 @@ class SubjectToProcess:
                     self.index.uploadFile(
                         self.pytorchResults, path + self.subjectName + '.bin')
 
-                # 5.1.3. Upload the _errors.json file.
-                if os.path.exists(path + '_errors.json'):
-                    self.index.uploadFile(
-                        self.errorsFile, path + '_errors.json')
-
                 # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
                 # and it starts to be able
                 if os.path.exists(path + '_results.json'):
@@ -390,6 +385,10 @@ class SubjectToProcess:
                 # 6. Clean up after ourselves
                 shutil.rmtree(path, ignore_errors=True)
             else:
+                if os.path.exists(path + '_errors.json'):
+                    self.index.uploadFile(
+                        self.errorsFile, path + '_errors.json')
+
                 # TODO: We should probably re-upload a copy of the whole setup that led to the error
                 # Let's upload a unique copy of the log to S3, so that we have it in case the user re-processes
                 if os.path.exists(path + 'log.txt'):
@@ -399,6 +398,7 @@ class SubjectToProcess:
                     print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                           self.logfile, flush=True)
 
+                # This uploads the ERROR flag
                 self.pushError(exitCode)
             print('Finished processing, returning from process() method.', flush=True)
         except Exception as e:
@@ -410,6 +410,7 @@ class SubjectToProcess:
                 self.index.uploadFile(self.subjectPath +
                                       'log_error_copy_' + str(time.time()) + '.txt', path + 'log.txt')
 
+            # This uploads the ERROR flag
             self.pushError(1)
 
     def pushProcessingFlag(self, procLogTopic: str):
@@ -689,7 +690,8 @@ class MocapServer:
                     if len(self.singularity_image_path) > 0:
                         # Mark the subject as having been queued in SLURM, so that we don't try to process it again
                         self.currentlyProcessing.markAsQueuedOnSlurm()
-                        print('Queueing subject for processing on SLURM: ' +self.currentlyProcessing.subjectPath)
+                        print('Queueing subject for processing on SLURM: ' +
+                              self.currentlyProcessing.subjectPath)
                         # Now launch a SLURM job to process this subject
                         raw_command = 'singularity run --env PROCESS_SUBJECT_S3_PATH="' + \
                             self.currentlyProcessing.subjectPath+'" '+self.singularity_image_path

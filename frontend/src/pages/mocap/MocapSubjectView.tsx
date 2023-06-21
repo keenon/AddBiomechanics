@@ -19,6 +19,8 @@ import MocapTagModal from "./MocapTagModal";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
 import TagEditor from '../../components/TagEditor';
 import { attachEventProps } from "@aws-amplify/ui-react/lib-esm/react-component-lib/utils";
+import { AnyMessageParams } from "yup/lib/types";
+import { parseLinks } from "../../utils"
 
 type ProcessingResultsJSON = {
   autoAvgMax: number;
@@ -40,6 +42,8 @@ type MocapTrialRowViewProps = {
   onMultipleManualIK: (files: File[]) => void;
   onMultipleGRF: (files: File[]) => void;
 };
+
+
 
 const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   const navigate = useNavigate();
@@ -451,7 +455,26 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showViewerHint, setShowViewerHint] = useState(false);
+  const [error, setError] = useState<React.ReactElement | null>(null);
+
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (props.cursor.hasErrorsFile()) {
+      props.cursor.getErrorsFileText().then((text: string) => {
+        var jsonError = JSON.parse(text);
+        setError(<li>
+                  <p>
+                    <strong>{jsonError.type} - </strong>
+                    {parseLinks(jsonError.message)}
+                  </p>
+                  <p>
+                    {parseLinks(jsonError.original_message)}
+                  </p>
+                </li>);
+      });
+    }
+  }, []);
 
   let trialViews: any[] = [];
 
@@ -795,8 +818,39 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     </>;
   }
   else if (status === "error") {
+    // var text = '{"type": "PathError", "message": "PathError: This is a custom message. Below is the original error message, which may contain useful information about your issue. If you are unable to resolve the issue, please, submit a forum post at https://simtk.org/projects/addbiomechanics or submit a GitHub issue at https://github.com/keenon/AddBiomechanics/issues with all error message included.", "original_message": "Exception caught in validate_paths: This is a test exception."}'
+    // var jsonError = JSON.parse(text);
+    // error = <li>
+    //           <p>
+    //             <strong>{jsonError.type} - </strong>
+    //             {parseLinks(jsonError.message)}
+    //           </p>
+    //           <p>
+    //             {parseLinks(jsonError.original_message)}
+    //           </p>
+    //         </li>
+
+    let guessedErrors = null;
+    if (error != null) {
+      guessedErrors = <div className="alert alert-danger">
+        <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
+        <p>
+          There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
+        </p>
+        <hr />
+        <ul>
+          {error}
+        </ul>
+        <hr />
+        <p>
+          Please, fix the errors and update your data and/or your OpenSim Model and Markerset and then hit "Reprocess" (below in yellow) to fix the problem.
+        </p>
+      </div>;
+    }
+
     statusBadge = <span className="badge bg-danger">Error</span>;
     statusDetails = <>
+      {guessedErrors}
       <Button variant="warning" onClick={props.cursor.requestReprocessSubject}>
         <i className="mdi mdi-refresh me-2 vertical-middle"></i>
         Reprocess
