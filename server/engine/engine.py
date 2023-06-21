@@ -20,13 +20,15 @@ import glob
 import traceback
 from plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
 from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, get_consecutive_values, \
-                    reconcile_markered_and_nonzero_force_segments, detect_markered_segments
+                    reconcile_markered_and_nonzero_force_segments, detect_markered_segments, \
+                    fill_moco_template, run_moco_problem
 from exceptions import Error, PathError, SubjectConfigurationError, ModelFileError, TrialPreprocessingError, \
-                       MarkerFitterError, DynamicsFitterError, WriteError
+                       MarkerFitterError, DynamicsFitterError, MocoError, WriteError
 
 # Global paths to the geometry and data folders.
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
+TEMPLATES_PATH = absPath('templates')
 
 
 # This metaclass wraps all methods in the Engine class with a try-except block, except for the __init__ method.
@@ -62,6 +64,8 @@ class ExceptionHandlingMeta(type):
                     raise DynamicsFitterError(msg)
                 elif method.__name__ == 'write_result_files':
                     raise WriteError(msg)
+                elif method.__name__ == 'run_moco':
+                    raise MocoError(msg)
                 elif method.__name__ == 'generate_readme':
                     raise WriteError(msg)
                 elif method.__name__ == 'create_output_folder':
@@ -965,8 +969,6 @@ class Engine(metaclass=ExceptionHandlingMeta):
             os.mkdir(self.path + 'results/MuJoCo')
         if self.exportSDF and not os.path.exists(self.path + 'results/SDF'):
             os.mkdir(self.path + 'results/SDF')
-        if self.exportMoco and not os.path.exists(self.path + 'results/Moco'):
-            os.mkdir(self.path + 'results/Moco')
         if not os.path.exists(self.path + 'results/MarkerData'):
             os.mkdir(self.path + 'results/MarkerData')
         shutil.copyfile(self.path + 'unscaled_generic.osim', self.path +
@@ -1032,14 +1034,24 @@ class Engine(metaclass=ExceptionHandlingMeta):
             outputPath: str = self.path + 'subject.bin'
             if self.output_name is not None:
                 outputPath: str = self.path + self.output_name + '.bin'
+            subjectTags: List[str] = []
+            trialTags: List[List[str]] = []
+            emgObservationTrials: List[List[Dict[str, np.ndarray[np.float64[1, 1]]]]] = []
             self.dynamicsFitter.writeSubjectOnDisk(
                 outputPath,
                 self.path + 'results/Models/final.osim',
                 self.dynamicsInit,
+                self.sex,
+                self.massKg,
+                self.heightM,
+                -1,
                 False,
                 self.trialNames,
+                subjectTags,
+                trialTags,
                 self.href,
-                notes)
+                notes,
+                emgObservationTrials)
 
         # 9.8. If requested, export the skeleton to MuJoCo and/or SDF.
         if self.exportSDF or self.exportMJCF:
@@ -1436,13 +1448,44 @@ class Engine(metaclass=ExceptionHandlingMeta):
             shutil.copytree(DATA_FOLDER_PATH + '/SDFGeometry', self.path +
                             'results/SDF/Geometry')
 
+    def run_moco(self):
+
+        # 10. Run a MocoProblem for each trial.
+        # -------------------------------------
+        import opensim as osim
+
+        # 10.1. Create the Moco results directory.
+        if not os.path.exists(self.path + 'results/Moco'):
+            os.mkdir(self.path + 'results/Moco')
+
+        for itrial in range(len(self.trialNames)):
+            # 10.2. Get the initial and final times for this trial.
+            ik_table = osim.TimeSeriesTable(self.path + f'results/IK/{self.trialNames[itrial]}_ik.mot')
+            initial_time = ik_table.getIndependentColumn()[0]
+            final_time = ik_table.getIndependentColumn()[-1]
+
+            # 10.3. Fill the template MocoInverse problem for this trial.
+            moco_template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py')
+            moco_inverse_fpath = self.path + f'results/Moco/{self.trialNames[itrial]}_moco.py'
+            fill_moco_template(moco_template_fpath, moco_inverse_fpath, self.trialNames[itrial],
+                               initial_time, final_time)
+
+            # 10.4. Run the MocoInverse problem for this trial.
+            model_fpath = self.path + f'results/Models/final.osim'
+            kinematics_fpath = self.path + f'results/IK/{self.trialNames[itrial]}_ik.mot'
+            extloads_fpath = self.path + f'results/ID/{self.trialNames[itrial]}_external_forces.xml'
+            solution_fpath = self.path + f'results/Moco/{self.trialNames[itrial]}_moco.sto'
+            report_fpath = self.path + f'results/Moco/{self.trialNames[itrial]}_moco.pdf'
+            run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, initial_time, final_time, solution_fpath,
+                             report_fpath)
+
     def generate_readme(self):
 
-        # 10. Generate the README file.
+        # 11. Generate the README file.
         # -----------------------------
         print('Generating README file...')
 
-        # 10.1. Fill out the results dictionary.
+        # 11.1. Fill out the results dictionary.
         autoTotalLen = 0
         goldTotalLen = 0
         self.processingResult['autoAvgRMSE'] = 0
@@ -1488,9 +1531,9 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.processingResult["fewFramesWarning"] = self.totalFrames < 300
         self.processingResult['jointLimitsHits'] = self.jointLimitsHits
 
-        # 10.2. Create the README file for this subject.
+        # 11.2. Create the README file for this subject.
         with open(self.path + 'results/README.txt', 'w') as f:
-            # 10.2.1. Write out the header and summary results across all trials.
+            # 11.2.1. Write out the header and summary results across all trials.
             f.write("*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
             f.write("AddBiomechanics was written by Keenon Werling.\n")
             f.write("\n")
@@ -1547,7 +1590,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 f.write(textwrap.indent(textwrap.fill(self.skippedDynamicsReason), '  '))
                 f.write("\n\n")
 
-            # 10.2.2. Write out the results for each trial.
+            # 11.2.2. Write out the results for each trial.
             if self.fitDynamics and self.dynamicsInit is not None:
                 f.write(textwrap.fill(
                     "The following trials were processed to perform automatic body scaling, marker registration, "
@@ -1603,7 +1646,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     f.write(f'  --> See IK/{trialName}_ik_summary.txt for more details.\n')
                 f.write(f'\n')
 
-            # 10.2.3. Write out the final model information.
+            # 11.2.3. Write out the final model information.
             f.write('\n')
             if self.fitDynamics and self.dynamicsInit is not None:
                 f.write(textwrap.fill(
@@ -1746,7 +1789,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
             f.write('\n\n')
             f.write('   https://simtk.org/projects/addbiomechanics')
 
-        # 10.3. If requested, create the MuJoCo README file.
+        # 11.3. If requested, create the MuJoCo README file.
         if self.exportMJCF:
             with open(self.path + 'results/MuJoCo/README.txt', 'w') as f:
                 f.write(
@@ -1770,7 +1813,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     "feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in "
                     "combination with the joint positions over time to develop your own foot colliders. Good luck!"))
 
-        # 10.4. If requested, create the SDF README file.
+        # 11.4. If requested, create the SDF README file.
         if self.exportSDF:
             with open(self.path + 'results/SDF/README.txt', 'w') as f:
                 f.write(
@@ -1794,7 +1837,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     "feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in "
                     "combination with the joint positions over time to develop your own foot colliders. Good luck!"))
 
-        # 10.5. Write out summary README files for individual trials.
+        # 11.5. Write out summary README files for individual trials.
         for itrial, trialName in enumerate(self.trialNames):
             timestamps = self.trialTimestamps[itrial]
             trialProcessingResult = self.trialProcessingResults[itrial]
@@ -1845,7 +1888,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     for info in trialInfo[trialName]:
                         f.write(f'  - INFO: {info}.\n')
 
-            # 10.5.1. Dynamics fitting and inverse dynamics results.
+            # 11.5.1. Dynamics fitting and inverse dynamics results.
             if self.fitDynamics and self.dynamicsInit is not None:
                 badDynamicsFrames = self.trialBadDynamicsFrames[itrial]
                 with open(f'{self.path}/results/ID/{trialName}_id_summary.txt', 'w') as f:
@@ -2021,16 +2064,16 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
     def create_output_folder(self):
 
-        # 11. Create the output folder.
+        # 12. Create the output folder.
         # -----------------------------
 
-        # 11.1. Move the results to the output folder.
+        # 12.1. Move the results to the output folder.
         shutil.move(self.path + 'results', self.path + self.output_name)
         print('Zipping up OpenSim files...', flush=True)
         shutil.make_archive(self.path + self.output_name, 'zip', self.path, self.output_name)
         print('Finished outputting OpenSim files.', flush=True)
 
-        # 11.2. Write out the result summary JSON file.
+        # 12.2. Write out the result summary JSON file.
         print('Writing the _results.json file...', flush=True)
         try:
             with open(self.path + '_results.json', 'w') as f:
@@ -2039,7 +2082,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
             print('Had an error writing _results.json:', flush=True)
             print(e, flush=True)
 
-        # 11.3. Generate final zip file.
+        # 12.3. Generate final zip file.
         print('Generated a final zip file at ' + self.path + self.output_name + '.zip.')
         print('Done!', flush=True)
 
@@ -2082,6 +2125,8 @@ def main():
         if engine.fitDynamics:
             engine.run_dynamics_fitting()
         engine.write_result_files()
+        if engine.exportMoco:
+            engine.run_moco()
         engine.generate_readme()
         engine.create_output_folder()
 
