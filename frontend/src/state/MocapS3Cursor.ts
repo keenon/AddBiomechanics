@@ -675,7 +675,6 @@ class MocapS3Cursor {
         const hasProcessingFlag = this.rawCursor.getExists(path + "PROCESSING");
         const hasSlurmFlag = this.rawCursor.getExists(path + "SLURM");
         const hasErrorFlag = this.rawCursor.getExists(path + "ERROR");
-        const hasErrorsJSonFlag = this.rawCursor.getExists(path + "_errors.json");
 
         const logMetadata = this.rawCursor.getChildMetadata(path + "log.txt");
         const resultsMetadata = this.rawCursor.getChildMetadata(path + "_results.json");
@@ -702,7 +701,7 @@ class MocapS3Cursor {
         if (anyTrialsMissingMarkers || anyConfigInvalid || (hasCustomFlag && !hasOsimFile) || !hasAnyTrials) {
             return 'empty';
         }
-        else if (hasErrorFlag || hasErrorsJSonFlag) {
+        else if (hasErrorFlag) {
             return 'error';
         }
         else if (logMetadata != null && resultsMetadata != null) {

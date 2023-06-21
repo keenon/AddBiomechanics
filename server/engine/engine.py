@@ -2095,15 +2095,13 @@ def main():
         engine.generate_readme()
         engine.create_output_folder()
 
-        # If we succeeded, write an empty JSON file.
-        with open(engine.errors_json_path, "w") as json_file:
-            json_file.write("{}")
-
     except Error as e:
         # If we failed, write a JSON file with the error information.
         json_data = json.dumps(e.get_error_dict(), indent=4)
         with open(engine.errors_json_path, "w") as json_file:
             json_file.write(json_data)
+        # Return a non-zero exit code to tell the `mocap_server.py` that we failed, so it can write an ERROR flag
+        exit(1)
 
 
 if __name__ == "__main__":
