@@ -97,7 +97,7 @@ class MocoError(Error):
     """Raised when an error occurs while running the Moco optimization problem."""
     def get_message(self):
         return "MocoError: Error encountered when running a Moco optimization problem. This step is highly " \
-               "dependent on the quality of the marker and ground reaction force data provided. Please check that " \    
+               "dependent on the quality of the marker and ground reaction force data provided. Please check that " \
                "the marker and ground reaction force data is smooth and does not contain any unexpected large gaps " \
                "or other artifacts (e.g., due to filtering). Try visualizing the marker and ground reaction force " \
                "data in the OpenSim GUI to check for any obvious issues (e.g., forces switching between feet or not " \
