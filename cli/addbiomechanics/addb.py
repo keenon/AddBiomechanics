@@ -1,15 +1,10 @@
 import argparse
-import os
-import boto3
-import requests
-from typing import Dict, List, Tuple
-import json
-import time
 from addbiomechanics.auth import AuthContext
 from addbiomechanics.commands.download import DownloadCommand
 from addbiomechanics.commands.ls import LsCommand
 from addbiomechanics.commands.upload import UploadCommand
 from addbiomechanics.commands.analytics import AnalyticsCommand
+from addbiomechanics.commands.transfer_markerset import TransferMarkersetCommand
 
 
 PROD_DEPLOYMENT = {
@@ -39,7 +34,7 @@ DEV_DEPLOYMENT = {
 
 def main():
     commands = [LsCommand(), DownloadCommand(),
-                UploadCommand(), AnalyticsCommand()]
+                UploadCommand(), AnalyticsCommand(), TransferMarkersetCommand()]
 
     # Create an ArgumentParser object
     parser = argparse.ArgumentParser(
