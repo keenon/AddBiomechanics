@@ -193,7 +193,6 @@ class MocapDatasetIndex {
             }
             if (key.indexOf("_SEARCH") !== -1) {
                 const filteredKey = key.replaceAll("_SEARCH", "");
-                console.log(filteredKey);
 
                 const parts = filteredKey.split("/");
                 // assert(parts[0] === "protected");
@@ -280,11 +279,11 @@ class MocapS3Cursor {
     datasetIndex: MocapDatasetIndex;
 
     region: string;
-    authenticated: boolean;
 
     showValidationControls: boolean;
     cachedLogFile: Promise<string> | null;
     cachedResultsFile: Promise<string> | null;
+    cachedErrorsFile: Promise<string> | null;
     cachedTrialResultsFiles: Map<string, Promise<string>>;
     cachedTrialPlotCSV: Map<string, Promise<string>>;
     cachedVisulizationFiles: Map<string, LargeZipBinaryObject>;
@@ -292,10 +291,9 @@ class MocapS3Cursor {
 
     subjectJson: ReactiveJsonFile;
     resultsJson: ReactiveJsonFile;
+    errorsJson: ReactiveJsonFile;
     searchJson: ReactiveJsonFile;
     myProfileJson: ReactiveJsonFile;
-    otherProfileJsons: Map<string, ReactiveJsonFile>;
-    datasetSearchJsons: Map<string, ReactiveJsonFile>;
     customModelFile: ReactiveTextFile;
 
     socket: RobustMqtt;
@@ -316,6 +314,7 @@ class MocapS3Cursor {
 
         this.cachedLogFile = null;
         this.cachedResultsFile = null;
+        this.cachedErrorsFile = null;
         this.cachedTrialResultsFiles = new Map();
         this.cachedTrialPlotCSV = new Map();
         this.cachedVisulizationFiles = new Map();
@@ -324,10 +323,9 @@ class MocapS3Cursor {
 
         this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
         this.resultsJson = this.rawCursor.getJsonFile("_results.json");
+        this.errorsJson = this.rawCursor.getJsonFile("_errors.json");
         this.searchJson = this.rawCursor.getJsonFile("_search.json");
         this.myProfileJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+s3Index.myIdentityId+"/profile.json", true);
-        this.otherProfileJsons = new Map();
-        this.datasetSearchJsons = new Map();
         this.customModelFile = this.rawCursor.getTextFile("unscaled_generic.osim");
 
         this.socket = socket;
@@ -338,9 +336,7 @@ class MocapS3Cursor {
         this.processingServersLastUpdatedTimestamp = new Map();
         this.lastSeenPong = new Map();
 
-        this.authenticated = false;
         Auth.currentCredentials().then(action((credentials) => {
-            this.authenticated = credentials.authenticated;
             this.myProfileJson.setGlobalPath('protected/'+this.region+":"+s3Index.myIdentityId+"/profile.json");
         }))
 
@@ -361,7 +357,10 @@ class MocapS3Cursor {
     getFullName = () => {
         let name:string = this.myProfileJson.getAttribute("name", "");
         let surname:string = this.myProfileJson.getAttribute("surname", "");
-        if (name !== "" && surname !== "") {
+        if (this.myProfileJson.loading) {
+            return "(Loading...)";
+        }
+        else if (name !== "" && surname !== "") {
             return name + " " + surname;
         }
         else if  (name === "" && surname !== "") {
@@ -377,17 +376,18 @@ class MocapS3Cursor {
 
     getOtherProfileJson = (userId: string) => {
         console.log('Get profile JSON for user '+userId);
-        let otherProfileJson = this.otherProfileJsons.get(userId);
-        if (otherProfileJson == null) {
-            otherProfileJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+userId+"/profile.json", true);
-            this.otherProfileJsons.set(userId, otherProfileJson);
-        }
-        return otherProfileJson;
+        return this.rawCursor.getJsonFile('protected/'+this.region+":"+userId+"/profile.json", true);
     };
 
     getOtherProfileFullName = (userId: string) => {
+        if (userId === this.s3Index.myIdentityId) {
+            return this.getFullName();
+        }
         console.log('Get full name for user '+userId);
         const otherProfileJson = this.getOtherProfileJson(userId);
+        if (otherProfileJson.loading) {
+            return "(Loading...)";
+        }
         let name:string = otherProfileJson.getAttribute("name", "");
         let surname:string = otherProfileJson.getAttribute("surname", "");
         if (name !== "" && surname !== "") {
@@ -400,17 +400,13 @@ class MocapS3Cursor {
             return name;
         }
         else {
+            console.log("Returning No Profile!");
             return "(No Profile - " + userId.substring(0, 6)+")";
         }
     }
 
     getDatasetSearchJson = (filteredPath: string) => {
-        let otherSearchJson = this.datasetSearchJsons.get(filteredPath);
-        if (otherSearchJson == null) {
-            otherSearchJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+filteredPath+'/_search.json', true);
-            this.datasetSearchJsons.set(filteredPath, otherSearchJson);
-        }
-        return otherSearchJson;
+        return this.rawCursor.getJsonFile('protected/'+this.region+":"+filteredPath+'/_search.json', true);
     };
 
     /**
@@ -418,8 +414,9 @@ class MocapS3Cursor {
      * 
      * @param email The email of the user
      */
-    setUserEmail = (email: string) => {
+    userLoggedIn = (email: string) => {
         this.userEmail = email;
+        this.myProfileJson.setGlobalPath('protected/'+this.region+":"+this.s3Index.myIdentityId+"/profile.json");
     }
 
     /**
@@ -676,6 +673,7 @@ class MocapS3Cursor {
 
         const hasReadyToProcessFlag = this.rawCursor.getExists(path + "READY_TO_PROCESS");
         const hasProcessingFlag = this.rawCursor.getExists(path + "PROCESSING");
+        const hasSlurmFlag = this.rawCursor.getExists(path + "SLURM");
         const hasErrorFlag = this.rawCursor.getExists(path + "ERROR");
 
         const logMetadata = this.rawCursor.getChildMetadata(path + "log.txt");
@@ -703,14 +701,17 @@ class MocapS3Cursor {
         if (anyTrialsMissingMarkers || anyConfigInvalid || (hasCustomFlag && !hasOsimFile) || !hasAnyTrials) {
             return 'empty';
         }
-        else if (logMetadata != null && resultsMetadata != null) {
-            return 'done';
-        }
         else if (hasErrorFlag) {
             return 'error';
         }
+        else if (logMetadata != null && resultsMetadata != null) {
+            return 'done';
+        }
         else if (hasProcessingFlag) {
             return 'processing';
+        }
+        else if (hasSlurmFlag) {
+            return 'slurm';
         }
         else if (hasReadyToProcessFlag) {
             return 'waiting';
@@ -730,7 +731,7 @@ class MocapS3Cursor {
 
         let contents = this.getFolderContents(path);
         for (let i = 0; i < contents.length; i++) {
-            let childStatus: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' | 'empty' = 'done';
+            let childStatus: 'processing' | 'slurm' | 'waiting' | 'could-process' | 'error' | 'done' | 'empty' = 'done';
             if (contents[i].type === 'folder') {
                 childStatus = this.getFolderStatus(path + contents[i].key);
             }
@@ -875,7 +876,9 @@ class MocapS3Cursor {
     requestReprocessSubject = () => {
         this.rawCursor.deleteChild("log.txt");
         this.rawCursor.deleteChild("_results.json");
+        this.rawCursor.deleteChild("_errors.json");
         this.rawCursor.deleteChild("PROCESSING");
+        this.rawCursor.deleteChild("SLURM");
         this.rawCursor.deleteChild("ERROR");
     };
 
@@ -1004,6 +1007,24 @@ class MocapS3Cursor {
             this.cachedResultsFile = this.rawCursor.downloadText("_results.json");
         }
         return this.cachedResultsFile;
+    };
+
+    /**
+     * @returns True if we've got a errors file, false otherwise
+     */
+    hasErrorsFile = () => {
+        return this.rawCursor.hasChildren(["_errors.json"]);
+    }
+
+    /**
+     * Gets the contents of the _errors.json for this subject, as a promise
+     */
+    getErrorsFileText = () => {
+        if (this.cachedErrorsFile == null) {
+            console.log("Getting errors file");
+            this.cachedErrorsFile = this.rawCursor.downloadText("_errors.json");
+        }
+        return this.cachedErrorsFile;
     };
 
     /**

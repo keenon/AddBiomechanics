@@ -19,6 +19,8 @@ import MocapTagModal from "./MocapTagModal";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
 import TagEditor from '../../components/TagEditor';
 import { attachEventProps } from "@aws-amplify/ui-react/lib-esm/react-component-lib/utils";
+import { AnyMessageParams } from "yup/lib/types";
+import { parseLinks } from "../../utils"
 
 type ProcessingResultsJSON = {
   autoAvgMax: number;
@@ -40,6 +42,8 @@ type MocapTrialRowViewProps = {
   onMultipleManualIK: (files: File[]) => void;
   onMultipleGRF: (files: File[]) => void;
 };
+
+
 
 const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   const navigate = useNavigate();
@@ -451,7 +455,26 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showViewerHint, setShowViewerHint] = useState(false);
+  const [error, setError] = useState<React.ReactElement | null>(null);
+
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (props.cursor.hasErrorsFile()) {
+      props.cursor.getErrorsFileText().then((text: string) => {
+        var jsonError = JSON.parse(text);
+        setError(<li>
+                  <p>
+                    <strong>{jsonError.type} - </strong>
+                    {parseLinks(jsonError.message)}
+                  </p>
+                  <p>
+                    {parseLinks(jsonError.original_message)}
+                  </p>
+                </li>);
+      });
+    }
+  }, []);
 
   let trialViews: any[] = [];
 
@@ -568,7 +591,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let jointLimitsHits = props.cursor.resultsJson.getAttribute("jointLimitsHits", {});
   let osimMarkers: string[] = props.cursor.resultsJson.getAttribute("osimMarkers", {});
 
-  let status: 'done' | 'processing' | 'could-process' | 'error' | 'waiting' | 'empty' = props.cursor.getSubjectStatus();
+  let status: 'done' | 'processing' | 'could-process' | 'error' | 'waiting' | 'slurm' | 'empty' = props.cursor.getSubjectStatus();
   let statusBadge = null;
   let statusDetails = null;
   if (status === "done") {
@@ -795,8 +818,39 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     </>;
   }
   else if (status === "error") {
+    // var text = '{"type": "PathError", "message": "PathError: This is a custom message. Below is the original error message, which may contain useful information about your issue. If you are unable to resolve the issue, please, submit a forum post at https://simtk.org/projects/addbiomechanics or submit a GitHub issue at https://github.com/keenon/AddBiomechanics/issues with all error message included.", "original_message": "Exception caught in validate_paths: This is a test exception."}'
+    // var jsonError = JSON.parse(text);
+    // error = <li>
+    //           <p>
+    //             <strong>{jsonError.type} - </strong>
+    //             {parseLinks(jsonError.message)}
+    //           </p>
+    //           <p>
+    //             {parseLinks(jsonError.original_message)}
+    //           </p>
+    //         </li>
+
+    let guessedErrors = null;
+    if (error != null) {
+      guessedErrors = <div className="alert alert-danger">
+        <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
+        <p>
+          There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
+        </p>
+        <hr />
+        <ul>
+          {error}
+        </ul>
+        <hr />
+        <p>
+          Please, fix the errors and update your data and/or your OpenSim Model and Markerset and then hit "Reprocess" (below in yellow) to fix the problem.
+        </p>
+      </div>;
+    }
+
     statusBadge = <span className="badge bg-danger">Error</span>;
     statusDetails = <>
+      {guessedErrors}
       <Button variant="warning" onClick={props.cursor.requestReprocessSubject}>
         <i className="mdi mdi-refresh me-2 vertical-middle"></i>
         Reprocess
@@ -875,6 +929,27 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       We'll send you an email when your data has finished processing!
     </div>
   }
+  else if (status === "slurm") {
+    statusBadge = <span className="badge bg-secondary">Queued on SLURM cluster</span>;
+    statusDetails = <div>
+      <div>
+        We'll send you an email when your data has finished processing!
+      </div>
+      <Dropdown>
+        <Dropdown.Toggle size="sm" variant="light" id="dropdown-basic">
+          Advanced Options
+        </Dropdown.Toggle>
+
+        <Dropdown.Menu>
+          <Dropdown.Item variant="danger" onClick={() => {
+            if (window.confirm("DANGER! Only do this if your processing server has crashed. Are you fairly confident your processing server crashed?")) {
+              props.cursor.requestReprocessSubject();
+            }
+          }}>DANGER: Reprocess now, ignoring current processing attempt</Dropdown.Item>
+        </Dropdown.Menu>
+      </Dropdown>
+    </div>
+  }
   else if (status === 'empty') {
     statusBadge = <span className="badge bg-danger">Missing required data</span>;
     statusDetails = <div>
@@ -886,9 +961,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let exportSDF = props.cursor.subjectJson.getAttribute("exportSDF", false);
   let exportMJCF = props.cursor.subjectJson.getAttribute("exportMJCF", false);
   let ignoreJointLimits = props.cursor.subjectJson.getAttribute("ignoreJointLimits", false);
-  let fitDynamics = props.cursor.subjectJson.getAttribute("fitDynamics", false);
+  let disableDynamics = props.cursor.subjectJson.getAttribute("disableDynamics", false);
   let residualsToZero = props.cursor.subjectJson.getAttribute("residualsToZero", false);
-  let useReactionWheels = props.cursor.subjectJson.getAttribute("useReactionWheels", false);
   let tuneResidualLoss = props.cursor.subjectJson.getAttribute("tuneResidualLoss", 1.0);
 
   let openSimText = props.cursor.customModelFile.getText();
@@ -898,46 +972,31 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   if (true) {
     let dynamicsOptions = <></>;
-    if (fitDynamics) {
+    if (!disableDynamics) {
       dynamicsOptions = <>
-        <div className="card card-body">
-          <h5>ADVANCED: Dynamics Fit Options (defaults should already work well for most cases)</h5>
-          <div className="mb-15">
-            <p>
-              Check this if your <b>model has no arms</b>:
-              <br />
-              <small>
-                Note: This will give up on trying to zero out angular residuals, and instead will simply try to ensure that the angular residuals could plausibly be generated by arms. If you're collecting your own data, the physics results will be much better if you collect arm data. This option is a last resort if you're dealing with legacy data that was collected without arms.
-              </small>
-            </p>
-            <input type="checkbox" checked={useReactionWheels} onChange={(e) => {
-              props.cursor.subjectJson.setAttribute("useReactionWheels", e.target.checked);
-            }}></input>
-          </div>
-          <div className="mb-15">
-            <p>
-              Change the weight of residuals in the main optimization (tuning joint poses, body scales, marker offsets, body COMs, body masses, and body inertia properties):{" "}
-              <br />
-              <small>
-                Note: This weighting is relative to the other terms in the optimization - 1.0 is default weighting, lower will prefer optimizing other terms (mostly marker RMSE), higher will prefer optimizing residuals.
-              </small>
-            </p>
-            <input type="number" value={tuneResidualLoss} onChange={(e) => {
-              props.cursor.subjectJson.setAttribute("tuneResidualLoss", parseFloat(e.target.value));
-            }} onFocus={() => props.cursor.subjectJson.onFocusAttribute("tuneResidualLoss")} onBlur={() => props.cursor.subjectJson.onBlurAttribute("tuneResidualLoss")}></input>
-          </div>
-          <div className="mb-15">
-            <p>
-              Run a last optimization pass to attempt to drive residuals to exactly zero at the end of the optimization, at the cost of more marker error:{" "}
-              <br />
-              <small>
-                Note: This optimization is non-convex and does not always succeed, and if it does not it will return results as if you hadn't enabled it.
-              </small>
-            </p>
-            <input type="checkbox" checked={residualsToZero} onChange={(e) => {
-              props.cursor.subjectJson.setAttribute("residualsToZero", e.target.checked);
-            }}></input>
-          </div>
+        <div className="mb-15">
+          <p>
+            Change the weight of residuals in the main optimization (tuning joint poses, body scales, marker offsets, body COMs, body masses, and body inertia properties):{" "}
+            <br />
+            <small>
+              Note: This weighting is relative to the other terms in the optimization - 1.0 is default weighting, lower will prefer optimizing other terms (mostly marker RMSE), higher will prefer optimizing residuals.
+            </small>
+          </p>
+          <input type="number" value={tuneResidualLoss} onChange={(e) => {
+            props.cursor.subjectJson.setAttribute("tuneResidualLoss", parseFloat(e.target.value));
+          }} onFocus={() => props.cursor.subjectJson.onFocusAttribute("tuneResidualLoss")} onBlur={() => props.cursor.subjectJson.onBlurAttribute("tuneResidualLoss")}></input>
+        </div>
+        <div className="mb-15">
+          <p>
+            Run a last optimization pass to attempt to drive residuals to exactly zero at the end of the optimization, at the cost of more marker error:{" "}
+            <br />
+            <small>
+              Note: This optimization is non-convex and does not always succeed, and if it does not it will return results as if you hadn't enabled it.
+            </small>
+          </p>
+          <input type="checkbox" checked={residualsToZero} onChange={(e) => {
+            props.cursor.subjectJson.setAttribute("residualsToZero", e.target.checked);
+          }}></input>
         </div>
       </>;
     }
@@ -999,10 +1058,21 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           </div>
           <div className="">
             <div className="alert alert-warning" role="alert">
-              Experimental - Attempt to Fit Dynamics:{" "}
-              <input type="checkbox" checked={fitDynamics} onChange={(e) => {
-                props.cursor.subjectJson.setAttribute("fitDynamics", e.target.checked);
+              Skip Dynamics Fit:{" "}
+              <input type="checkbox" checked={disableDynamics} onChange={(e) => {
+                props.cursor.subjectJson.setAttribute("disableDynamics", e.target.checked);
               }}></input>
+              <OverlayTrigger
+                placement="right"
+                delay={{ show: 50, hide: 400 }}
+                overlay={(props) => (
+                  <Tooltip id="button-tooltip" {...props}>
+                    This will ignore any ground-reaction-force data that you have provided, and will not attempt to fit any dynamics parameters. This is useful if you are only interested in fitting the skeleton and marker positions.
+                  </Tooltip>
+                )}
+              >
+                <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+              </OverlayTrigger>
             </div>
           </div>
           {dynamicsOptions}
@@ -1028,7 +1098,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
 
   let footSelector = null;
-  if (fitDynamics && skeletonPreset === 'custom') {
+  if (!disableDynamics && skeletonPreset === 'custom') {
     let footErrorMessage = null;
     if (footBodyNames.length < 2) {
       footErrorMessage = (

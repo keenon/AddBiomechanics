@@ -121,6 +121,7 @@ class SubjectToProcess:
     readyFlagFile: str
     processingFlagFile: str
     resultsFile: str
+    errorsFile: str
     logfile: str
 
     # Trial objects
@@ -149,9 +150,11 @@ class SubjectToProcess:
 
         # Trial files
         self.readyFlagFile = self.subjectPath + 'READY_TO_PROCESS'
+        self.queuedOnSlurmFlagFile = self.subjectPath + 'SLURM'
         self.processingFlagFile = self.subjectPath + 'PROCESSING'
         self.errorFlagFile = self.subjectPath + 'ERROR'
         self.resultsFile = self.subjectPath + '_results.json'
+        self.errorsFile = self.subjectPath + '_errors.json'
         self.osimResults = self.subjectPath + self.subjectName + '.zip'
         self.pytorchResults = self.subjectPath + self.subjectName + '.bin'
         self.logfile = self.subjectPath + 'log.txt'
@@ -170,7 +173,7 @@ class SubjectToProcess:
                 "Body": {
                     "Text": {
                         "Charset": CHARSET,
-                        "Data":  "Your subject \"{0}\" has finished processing. Visit https://addbiomechanics.org/my_data/{1} to view and download. You can view in-browser visualizations of the uploaded trial data by clicking on each trial name.\n\nThank you for using AddBiomechanics!\n-AddBiomechanics team\n\nP.S: Do not reply to this email. To give feedback on AddBiomechanics or if you have questions, please visit the AddBiomechanics forum on SimTK: https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB.format(name, path)"
+                        "Data":  "Your subject \"{0}\" has finished processing. Visit https://addbiomechanics.org/my_data/{1} to view and download. You can view in-browser visualizations of the uploaded trial data by clicking on each trial name.\n\nThank you for using AddBiomechanics!\n-AddBiomechanics team\n\nP.S: Do not reply to this email. To give feedback on AddBiomechanics or if you have questions, please visit the AddBiomechanics forum on SimTK: https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB".format(name, path)
                     }
                 },
                 "Subject": {
@@ -200,6 +203,12 @@ class SubjectToProcess:
             return 'https://dev.addbiomechanics.org/data/'+userId+'/'+filePath
         else:
             return 'https://app.addbiomechanics.org/data/'+userId+'/'+filePath
+
+    def markAsQueuedOnSlurm(self):
+        """
+        This marks a subject as having been queued for processing on a slurm cluster
+        """
+        self.index.uploadText(self.queuedOnSlurmFlagFile, '')
 
     def process(self):
         """
@@ -272,7 +281,8 @@ class SubjectToProcess:
                                     self.index.pubSub.sendMessage(
                                         '/LOG/'+procLogTopic, logLine)
                                 except e:
-                                    print('Failed to send live log message: '+str(e), flush=True)
+                                    print(
+                                        'Failed to send live log message: '+str(e), flush=True)
                                 unflushedLines = unflushedLines[20:]
                                 # Explicitly do NOT reset lastFlushed on this branch, because we want to immediately send the next batch of lines, until we've exhausted the queue.
                             else:
@@ -283,7 +293,8 @@ class SubjectToProcess:
                                     self.index.pubSub.sendMessage(
                                         '/LOG/'+procLogTopic, logLine)
                                 except e:
-                                    print('Failed to send live log message: '+str(e), flush=True)
+                                    print(
+                                        'Failed to send live log message: '+str(e), flush=True)
                                 unflushedLines = []
                                 # Reset lastFlushed, because we've sent everything, and we want to wait 3 seconds before sending again.
                                 lastFlushed = now
@@ -305,7 +316,8 @@ class SubjectToProcess:
                                 self.index.pubSub.sendMessage(
                                     '/LOG/'+procLogTopic, logLine)
                             except e:
-                                print('Failed to send live log message: '+str(e), flush=True)
+                                print('Failed to send live log message: ' +
+                                      str(e), flush=True)
                     line = 'exit: '+str(exitCode)
                     # Send to the log
                     logFile.write(line.encode("utf-8"))
@@ -317,7 +329,8 @@ class SubjectToProcess:
                         self.index.pubSub.sendMessage(
                             '/LOG/'+procLogTopic, logLine)
                     except e:
-                        print('Failed to send live log message: '+str(e), flush=True)
+                        print('Failed to send live log message: ' +
+                              str(e), flush=True)
                     print('Process return code: '+str(exitCode), flush=True)
 
             # 5. Upload the results back to S3
@@ -341,6 +354,7 @@ class SubjectToProcess:
                 if os.path.exists(path + self.subjectName + '.bin'):
                     self.index.uploadFile(
                         self.pytorchResults, path + self.subjectName + '.bin')
+
                 # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
                 # and it starts to be able
                 if os.path.exists(path + '_results.json'):
@@ -371,6 +385,10 @@ class SubjectToProcess:
                 # 6. Clean up after ourselves
                 shutil.rmtree(path, ignore_errors=True)
             else:
+                if os.path.exists(path + '_errors.json'):
+                    self.index.uploadFile(
+                        self.errorsFile, path + '_errors.json')
+
                 # TODO: We should probably re-upload a copy of the whole setup that led to the error
                 # Let's upload a unique copy of the log to S3, so that we have it in case the user re-processes
                 if os.path.exists(path + 'log.txt'):
@@ -380,6 +398,7 @@ class SubjectToProcess:
                     print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                           self.logfile, flush=True)
 
+                # This uploads the ERROR flag
                 self.pushError(exitCode)
             print('Finished processing, returning from process() method.', flush=True)
         except Exception as e:
@@ -391,6 +410,7 @@ class SubjectToProcess:
                 self.index.uploadFile(self.subjectPath +
                                       'log_error_copy_' + str(time.time()) + '.txt', path + 'log.txt')
 
+            # This uploads the ERROR flag
             self.pushError(1)
 
     def pushProcessingFlag(self, procLogTopic: str):
@@ -410,7 +430,7 @@ class SubjectToProcess:
         if not self.readyToProcess() or self.alreadyProcessed():
             return False
         # If nobody else has claimed this, it's a great bet
-        if not self.index.exists(self.processingFlagFile):
+        if not self.index.exists(self.processingFlagFile) and not self.index.exists(self.queuedOnSlurmFlagFile):
             return True
         # If there's already a processing flag, we need to check how old it is. Servers are
         # allowed to crash without finishing processing, so they're supposed to re-up their lock
@@ -483,6 +503,7 @@ class MocapServer:
     queue: List[SubjectToProcess]
     bucket: str
     deployment: str
+    singularity_image_path: str
 
     # Status reporting quantities
     serverId: str
@@ -490,9 +511,10 @@ class MocapServer:
     lastUploadedStatusTimestamp: float
     lastSeenPong: Dict[str, float]
 
-    def __init__(self, bucket: str, deployment: str) -> None:
+    def __init__(self, bucket: str, deployment: str, singularity_image_path: str) -> None:
         self.bucket = bucket
         self.deployment = deployment
+        self.singularity_image_path = singularity_image_path
         self.queue = []
         self.currentlyProcessing = None
 
@@ -619,7 +641,8 @@ class MocapServer:
                     try:
                         self.index.pubSub.sendMessage('/PING/'+k, {})
                     except e:
-                        print('Failed to send ping to '+k+': '+str(e), flush=True)
+                        print('Failed to send ping to ' +
+                              k+': '+str(e), flush=True)
 
             # Check for death
             for k in statusFiles:
@@ -664,9 +687,21 @@ class MocapServer:
                     # If it doesn't, then perhaps something went wrong and it's actually fine to process again. So the key idea is DON'T
                     # MANUALLY MANAGE THE WORK QUEUE! That happens in self.onChange()
 
-                    self.currentlyProcessing.process()
-                    # print("sleeping 10s to simulate that we're processing")
-                    # time.sleep(10)
+                    if len(self.singularity_image_path) > 0:
+                        # Mark the subject as having been queued in SLURM, so that we don't try to process it again
+                        self.currentlyProcessing.markAsQueuedOnSlurm()
+                        print('Queueing subject for processing on SLURM: ' +
+                              self.currentlyProcessing.subjectPath)
+                        # Now launch a SLURM job to process this subject
+                        raw_command = 'singularity run --env PROCESS_SUBJECT_S3_PATH="' + \
+                            self.currentlyProcessing.subjectPath+'" '+self.singularity_image_path
+                        sbatch_command = 'sbatch -p owners --job-name addbiomechanics_process --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
+                            raw_command.replace('"', '\\"')+'"'
+                        print('Running command: '+sbatch_command)
+                        subprocess.run(sbatch_command, shell=True)
+                    else:
+                        # Launch the subject as a normal process on this local machine
+                        self.currentlyProcessing.process()
 
                     # This helps our status thread to keep track of what we're doing
                     self.currentlyProcessing = None
@@ -695,10 +730,28 @@ if __name__ == "__main__":
     parser.add_argument('--deployment', type=str,
                         default='DEV',
                         help='The deployment to target (must be DEV or PROD)')
+    parser.add_argument('--singularity_image_path', type=str,
+                        default='',
+                        help='If set, this assumes we are running as a SLURM job, and will process subjects by launching child SLURM jobs that use a singularity image to run the processing server.')
     args = parser.parse_args()
 
-    # 1. Launch a processing server
-    server = MocapServer(args.bucket, args.deployment)
+    subjectPath = os.getenv('PROCESS_SUBJECT_S3_PATH', '')
+    if len(subjectPath) > 0:
+        # If we're launched with PROCESS_SUBJECT_S3_PATH set, then we'll only process the subject we're given, and then immediately exit.
 
-    # 2. Run forever
-    server.processQueueForever()
+        # 1. Set up the connection to S3 and PubSub
+        index = ReactiveS3Index(args.bucket, args.deployment)
+        index.refreshIndex()
+        subject = SubjectToProcess(index, subjectPath)
+
+        # 2. Process the subject, and then exit
+        subject.process()
+    else:
+        # If PROCESS_SUBJECT_S3_PATH is not set, then launch the regular processing server
+
+        # 1. Launch a processing server
+        server = MocapServer(args.bucket, args.deployment,
+                             args.singularity_image_path)
+
+        # 2. Run forever
+        server.processQueueForever()

@@ -1,0 +1,49 @@
+###########################
+License:
+GPL v3.0 - https://opensource.org/license/gpl-3-0/
+with the following modification:
+###########################
+
+Any software licensed under the terms of the GNU General Public License (GPL) 
+also requires that any data generated or processed using the software must be 
+publicly shared in accordance with the Data-Sharing Agreement between 
+Stanford University and you. By downloading, installing, or using the software, 
+you agree to be bound by the terms of the GPL license and the Data-Sharing Agreement.
+
+###########################
+Data-Sharing Agreement
+###########################
+
+This Data-Sharing Agreement ("Agreement") is entered into by and between Stanford University ("Provider") and you ("Recipient") as a condition of receiving a license to use this software.
+
+WHEREAS, Provider has developed and licensed certain software ("Software") that can be used to process motion capture data; and
+WHEREAS, Recipient desires to use the Software to process motion capture data, and Provider has agreed to grant Recipient a license to use the Software on the condition that any data generated or processed using the Software is shared publicly;
+
+NOW, THEREFORE, the parties agree as follows:
+
+Definitions.
+(a) "Data" means any motion capture data generated or processed using the Software.
+(b) "Publicly Share" means to make Data available to the public, free of charge and without restriction, through a publicly accessible platform or repository.
+
+License to Use Software.
+(a) Provider hereby grants Recipient a non-exclusive, non-transferable, revocable license to use the Software for the sole purpose of generating and processing Data.
+(b) Recipient agrees to use the Software only in accordance with the terms of the GNU General Public License (GPL).
+
+Data-Sharing Obligations.
+(a) Recipient agrees to Publicly Share all Data generated or processed using the Software.
+(b) Recipient agrees to provide attribution to Provider and the Software in any publication, presentation, or other public use of the Data.
+(c) Recipient agrees to provide Provider with a copy of all Data generated or processed using the Software.
+
+Termination.
+(a) Either party may terminate this Agreement upon written notice if the other party breaches any of its obligations under this Agreement.
+(b) Termination of this Agreement shall not affect Recipient's obligations to Publicly Share any Data generated or processed using the Software prior to termination.
+
+Limitation of Liability.
+(a) Provider makes no representations or warranties with respect to the Software or Data, and disclaims all implied warranties, including but not limited to the implied warranties of merchantability, fitness for a particular purpose, and non-infringement.
+(b) Provider shall not be liable for any direct, indirect, special, incidental, or consequential damages arising out of or in connection with the use of the Software or Data.
+
+Miscellaneous.
+(a) This Agreement constitutes the entire agreement between the parties and supersedes all prior or contemporaneous agreements or understandings, whether written or oral.
+(b) This Agreement shall be governed by and construed in accordance with the laws of [YOUR STATE/COUNTRY], without giving effect to any conflict of law principles.
+(c) This Agreement may not be amended or modified except in writing signed by both parties.
+(d) This Agreement shall be binding upon and inure to the benefit of the parties and their respective successors and assigns.

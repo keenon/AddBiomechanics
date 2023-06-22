@@ -19,7 +19,7 @@ const FolderView = observer((props: FolderViewProps) => {
   contents.forEach((entry) => {
     const name = entry.key;
 
-    let status: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' | 'empty' = 'done';
+    let status: 'processing' | 'waiting' | 'could-process' | 'error' | 'done' | 'empty' | 'slurm' = 'done';
     if (entry.type === 'folder') {
       status = props.cursor.getFolderStatus(entry.key);
     }
@@ -47,6 +47,9 @@ const FolderView = observer((props: FolderViewProps) => {
     }
     else if (status === "waiting") {
       statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
+    }
+    else if (status === "slurm") {
+      statusBadge = <span className="badge bg-secondary">Queued on SLURM cluster</span>;
     }
     else if (status === "empty") {
       statusBadge = <span className="badge bg-secondary">Waiting for you to upload data</span>;

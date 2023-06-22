@@ -7,17 +7,20 @@ from uuid import uuid4
 import json
 from typing import Callable, Any, Dict
 import datetime
+import os
 
 received_count = 0
+
+CERT_HOME = os.getenv("CERT_HOME", "/root/certs")
 
 # AWS IoT supports 443 and 8883
 PORT = 443
 # File path to your client certificate, in PEM format
-CERT = "/root/certs/device.pem.crt"
+CERT = CERT_HOME+"/device.pem.crt"
 # File path to your private key, in PEM format
-KEY = "/root/certs/private.pem.key"
+KEY = CERT_HOME+"/private.pem.key"
 # File path to root certificate authority, in PEM format.
-ROOT_CA = "/root/certs/Amazon-root-CA-1.pem"
+ROOT_CA = CERT_HOME+"/Amazon-root-CA-1.pem"
 # Your AWS IoT custom endpoint, not including a port.
 ENDPOINT = "adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com"
 # Client ID for MQTT connection.
