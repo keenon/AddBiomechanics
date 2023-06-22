@@ -252,10 +252,11 @@ def run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, initial_time
     inverse.setKinematics(tableProcessor)
 
     # Configure additional settings for the MocoInverse problem including the mesh
-    # interval, convergence tolerance, and constraint tolerance.
+    # interval, convergence tolerance, constraint tolerance, and max number of iterations.
     inverse.set_mesh_interval(0.02)
     inverse.set_convergence_tolerance(1e-4)
     inverse.set_constraint_tolerance(1e-4)
+    inverse.set_max_iterations(2000)
     # Skip any extra columns in the kinematics data source.
     inverse.set_kinematics_allow_extra_columns(True)
 
