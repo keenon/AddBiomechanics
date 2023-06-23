@@ -1012,8 +1012,14 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           <p>
             Export a Python script to allow you to run a local Moco Inverse problem to get muscle forces, using the results of the dynamics optimization:{" "}
           </p>
-          <input type="checkbox" checked={exportMoco} onChange={(e) => {
-            props.cursor.subjectJson.setAttribute("exportMoco", e.target.checked);
+          <input type="checkbox" checked={exportMoco || runMoco} onChange={(e) => {
+            if (e.target.checked) {
+              props.cursor.subjectJson.setAttribute("exportMoco", false);
+            }
+            else {
+              props.cursor.subjectJson.setAttribute("exportMoco", false);
+              props.cursor.subjectJson.setAttribute("runMoco", false);
+            }
           }}></input>
         </div>
       </>;
