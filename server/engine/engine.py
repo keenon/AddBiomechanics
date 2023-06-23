@@ -1844,8 +1844,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     "turned off"))
             f.write("\n\n")
             f.write(textwrap.fill(
-                "If you encounter errors, please submit a post to the AddBiomechanics user forum on SimTK.org\n:"))
-            f.write('\n\n')
+                "If you encounter errors, please submit a post to the AddBiomechanics user forum on SimTK.org:\n"))
+            f.write("\n\n")
             f.write('   https://simtk.org/projects/addbiomechanics')
 
         # 11.3. If requested, create the MuJoCo README file.
@@ -2162,7 +2162,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
                         f.write(textwrap.fill(
                             "For additional assistance, please submit a post on the OpenSim Moco user forum on "
-                            "SimTK.org\n:"))
+                            "SimTK.org:\n"))
                         f.write('   https://simtk.org/projects/opensim-moco')
 
                     else:
@@ -2174,8 +2174,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
                         f.write('\n\n')
                         f.write(textwrap.fill(
                             "For additional assistance, please submit a post on the OpenSim Moco user forum on "
-                            "SimTK.org\n:"))
-                        f.write('\n\n')
+                            "SimTK.org:\n"))
+                        f.write('\n')
                         f.write('   https://simtk.org/projects/opensim-moco')
 
     def create_output_folder(self):
