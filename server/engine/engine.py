@@ -1476,21 +1476,35 @@ class Engine(metaclass=ExceptionHandlingMeta):
         if not os.path.exists(self.path + 'results/Moco'):
             os.mkdir(self.path + 'results/Moco')
 
-        # 10.2. Check the model to see if this trial is appropriate for MocoInverse.
+        # 10.2. Check the model to see if it is appropriate for MocoInverse.
         model_fpath = self.path + f'results/Models/final.osim'
         model = osim.Model(model_fpath)
         model.initSystem()
         forceSet = model.getForceSet()
         numMuscles = 0
+        numContacts = 0
         for iforce in range(forceSet.getSize()):
             force = forceSet.get(iforce)
             if force.getConcreteClassName().endswith('Muscle'):
                 numMuscles += 1
+            elif force.getConcreteClassName().endswith('SmoothSphereHalfSpaceForce'):
+                numContacts += 1
+            elif force.getConcreteClassName().endswith('HuntCrossleyForce'):
+                numContacts += 1
+            elif force.getConcreteClassName().endswith('ElasticFoundationForce'):
+                numContacts += 1
 
         if numMuscles == 0:
             self.runMoco = False
             print(f'WARNING: The model has no muscles! Skipping MocoInverse...')
             self.skippedMocoReason = 'The model contains no muscles.'
+
+        if numContacts > 0:
+            self.runMoco = False
+            print(f'WARNING: The model has contact forces! Skipping MocoInverse...')
+            self.skippedMocoReason = 'The model contains contact force models, which typically do not work well with ' \
+                                     'MocoInverse. Try removing the contact force models and re-running the problem ' \
+                                     f'using the script(s) located in the directory results/Moco.'
 
         for itrial in range(len(self.trialNames)):
             # 10.3. Get the initial and final times for this trial.

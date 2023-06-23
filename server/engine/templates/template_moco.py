@@ -40,7 +40,7 @@ modelProcessor.append(osim.ModOpAddExternalLoads('../ID/@TRIAL@_external_forces.
 modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
 modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
 modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
-modelProcessor.append(osim.ModOpAddReserves(100.0))
+modelProcessor.append(osim.ModOpAddReserves(10.0))
 
 # Construct the MocoInverse tool.
 # -------------------------------

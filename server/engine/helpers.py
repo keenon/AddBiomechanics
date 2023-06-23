@@ -225,7 +225,7 @@ def run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, initial_time
     modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
     modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
     modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
-    modelProcessor.append(osim.ModOpAddReserves(100.0))
+    modelProcessor.append(osim.ModOpAddReserves(10.0))
 
     # Construct the MocoInverse tool.
     # -------------------------------
