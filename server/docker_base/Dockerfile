@@ -43,8 +43,6 @@ RUN apt-get install -y libpcre2-dev
 # Install yacc
 RUN apt-get install -y byacc
 
-#sudo apt-get install -y autotools-dev automake libxi-dev libxmu-dev libssl-dev libtool ninja-build patchelf
-
 # Install SWIG
 RUN wget -nc -q --show-progress https://github.com/swig/swig/archive/refs/tags/v4.1.1.tar.gz && \
     tar -xzf v4.1.1.tar.gz && \
