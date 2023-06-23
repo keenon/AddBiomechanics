@@ -1476,8 +1476,24 @@ class Engine(metaclass=ExceptionHandlingMeta):
         if not os.path.exists(self.path + 'results/Moco'):
             os.mkdir(self.path + 'results/Moco')
 
+        # 10.2. Check the model to see if this trial is appropriate for MocoInverse.
+        model_fpath = self.path + f'results/Models/final.osim'
+        model = osim.Model(model_fpath)
+        model.initSystem()
+        forceSet = model.getForceSet()
+        numMuscles = 0
+        for iforce in range(forceSet.getSize()):
+            force = forceSet.get(iforce)
+            if force.getConcreteClassName().endswith('Muscle'):
+                numMuscles += 1
+
+        if numMuscles == 0:
+            self.runMoco = False
+            print(f'WARNING: The model has no muscles! Skipping MocoInverse...')
+            self.skippedMocoReason = 'The model contains no muscles.'
+
         for itrial in range(len(self.trialNames)):
-            # 10.2. Get the initial and final times for this trial.
+            # 10.3. Get the initial and final times for this trial.
             ik_table = osim.TimeSeriesTable(self.path + f'results/IK/{self.trialNames[itrial]}_ik.mot')
             initial_time = ik_table.getIndependentColumn()[0]
             final_time = ik_table.getIndependentColumn()[-1]
@@ -1494,16 +1510,15 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 print(f'WARNING: Trial {self.trialNames[itrial]} is too long for Moco! Limiting the time range to '
                       f'[{initial_time}, {final_time}].')
 
-            # 10.3. Fill the template MocoInverse problem for this trial.
+            # 10.4. Fill the template MocoInverse problem for this trial.
             moco_template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py')
             moco_inverse_fpath = self.path + f'results/Moco/{self.trialNames[itrial]}_moco.py'
             fill_moco_template(moco_template_fpath, moco_inverse_fpath, self.trialNames[itrial],
                                initial_time, final_time)
 
-            # 10.4. Run the MocoInverse problem for this trial.
+            # 10.5. Run the MocoInverse problem for this trial.
             if self.runMoco:
                 print(f'Running MocoInverse for trial {self.trialNames[itrial]}')
-                model_fpath = self.path + f'results/Models/final.osim'
                 kinematics_fpath = self.path + f'results/IK/{self.trialNames[itrial]}_ik.mot'
                 extloads_fpath = self.path + f'results/ID/{self.trialNames[itrial]}_external_forces.xml'
                 solution_fpath = self.path + f'results/Moco/{self.trialNames[itrial]}_moco.sto'
@@ -2162,7 +2177,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
                         f.write(textwrap.fill(
                             "For additional assistance, please submit a post on the OpenSim Moco user forum on "
-                            "SimTK.org:\n"))
+                            "SimTK.org:"))
+                        f.write('\n\n')
                         f.write('   https://simtk.org/projects/opensim-moco')
 
                     else:
@@ -2174,8 +2190,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
                         f.write('\n\n')
                         f.write(textwrap.fill(
                             "For additional assistance, please submit a post on the OpenSim Moco user forum on "
-                            "SimTK.org:\n"))
-                        f.write('\n')
+                            "SimTK.org:"))
+                        f.write('\n\n')
                         f.write('   https://simtk.org/projects/opensim-moco')
 
     def create_output_folder(self):
