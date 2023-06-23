@@ -55,7 +55,7 @@ RUN wget -nc -q --show-progress https://github.com/swig/swig/archive/refs/tags/v
     rm -rf swig-4.1.1 v4.1.1.tar.gz
 
 # Install OpenSim dependencies
-RUN git clone https://github.com/keenon/opensim-core.git
+RUN git clone https://github.com/opensim-org/opensim-core.git
 RUN mkdir opensim_dependencies_build && \
     cd opensim_dependencies_build && \
     cmake ../opensim-core/dependencies \
