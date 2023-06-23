@@ -15,5 +15,6 @@
   ],
   "shiftGRF": false,
   "maxTrialsToSolveMassOver": 4,
-  "exportMoco": true
+  "exportMoco": true,
+  "runMoco": true
 }
