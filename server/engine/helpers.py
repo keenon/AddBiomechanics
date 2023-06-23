@@ -264,7 +264,8 @@ def run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, initial_time
     # ------------------
     # Solve the problem and write the solution to a Storage file.
     solution = inverse.solve()
-    solution.getMocoSolution().write(solution_fpath)
+    mocoSolution = solution.getMocoSolution()
+    mocoSolution.write(solution_fpath)
 
     # Generate a PDF with plots for the solution trajectory.
     model = modelProcessor.process()
@@ -274,3 +275,12 @@ def run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, initial_time
                                 bilateral=True)
     # The PDF is saved to the working directory.
     report.generate()
+
+    # Save dictionary of results to print to README.
+    results = dict()
+    results['mocoSuccess'] = mocoSolution.success()
+    results['mocoObjective'] = mocoSolution.getObjective()
+    results['mocoNumIterations'] = mocoSolution.getNumIterations()
+    results['mocoSolverDuration'] = mocoSolution.getSolverDuration()
+
+    return results
