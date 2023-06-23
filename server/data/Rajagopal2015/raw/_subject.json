@@ -14,5 +14,7 @@
     "calcn_l"
   ],
   "shiftGRF": false,
-  "maxTrialsToSolveMassOver": 4
+  "maxTrialsToSolveMassOver": 4,
+  "exportMoco": true,
+  "runMoco": true
 }

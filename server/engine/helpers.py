@@ -5,7 +5,6 @@ Description: Helper functions used by the AddBiomechanics processing engine.
 Author(s): Nicholas Bianco
 """
 
-
 def get_consecutive_values(data):
     from operator import itemgetter
     from itertools import groupby
@@ -118,3 +117,170 @@ def reconcile_markered_and_nonzero_force_segments(timestamps, markered_segments,
                 reconciledSegmentStart = None
 
     return reconciledSegments
+
+
+def update_model_for_moco(model_input_fpath, model_output_fpath):
+    import opensim as osim
+    # Replace locked coordinates with weld joints.
+    model = osim.Model(model_input_fpath)
+    model.initSystem()
+    coordinates = model.getCoordinateSet()
+    locked_joints = list()
+    locked_coordinates = list()
+    for icoord in range(coordinates.getSize()):
+        coord = coordinates.get(icoord)
+        if coord.get_locked():
+            locked_coordinates.append(coord.getName())
+            locked_joints.append(coord.getJoint().getName())
+
+    # Remove actuators associated with removed coordinates.
+    for coordinate in locked_coordinates:
+        forceSet = model.updForceSet()
+        for iforce in range(forceSet.getSize()):
+            force = forceSet.get(iforce)
+            if force.getConcreteClassName().endswith('CoordinateActuator'):
+                actu = osim.CoordinateActuator.safeDownCast(force)
+                if actu.get_coordinate() == coordinate:
+                    forceSet.remove(iforce)
+                    break
+
+    # Print new model to file.
+    model.finalizeConnections()
+    model.initSystem()
+    model.printToXML(model_output_fpath)
+
+
+def update_kinematics_for_moco(ik_fpath, model_output_fpath, kinematics_fpath):
+    import opensim as osim
+    table = osim.TimeSeriesTable(ik_fpath)
+    table.appendColumn('knee_angle_r_beta', table.getDependentColumn('knee_angle_r'))
+    table.appendColumn('knee_angle_l_beta', table.getDependentColumn('knee_angle_l'))
+    tableProcessor = osim.TableProcessor(table)
+    tableProcessor.append(osim.TabOpUseAbsoluteStateNames())
+    model = osim.Model(model_output_fpath)
+    model.initSystem()
+    newTable = tableProcessor.process(model)
+    sto = osim.STOFileAdapter()
+    sto.write(newTable, kinematics_fpath)
+
+    time = newTable.getIndependentColumn()
+    initial_time = time[0]
+    final_time = time[-1]
+
+    return initial_time, final_time
+
+
+def fill_moco_template(moco_template_fpath, output_fpath, trial_name, initial_time, final_time):
+    with open(moco_template_fpath) as ft:
+        content = ft.read()
+        content = content.replace('@TRIAL@', trial_name)
+        content = content.replace('@INITIAL_TIME@', str(initial_time))
+        content = content.replace('@FINAL_TIME@', str(final_time))
+
+    with open(output_fpath, 'w') as f:
+        f.write(content)
+
+
+def run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, initial_time, final_time, solution_fpath,
+                     report_fpath):
+    import opensim as osim
+    import matplotlib
+    matplotlib.use('Agg')
+
+    # Update the model.
+    # -----------------
+    # Replace locked coordinates with weld joints.
+    model = osim.Model(model_fpath)
+    model.initSystem()
+    coordinates = model.getCoordinateSet()
+    locked_joints = list()
+    locked_coordinates = list()
+    for icoord in range(coordinates.getSize()):
+        coord = coordinates.get(icoord)
+        if coord.get_locked():
+            locked_coordinates.append(coord.getName())
+            locked_joints.append(coord.getJoint().getName())
+
+    # Remove actuators associated with locked coordinates.
+    for coordinate in locked_coordinates:
+        forceSet = model.updForceSet()
+        for iforce in range(forceSet.getSize()):
+            force = forceSet.get(iforce)
+            if force.getConcreteClassName().endswith('CoordinateActuator'):
+                actu = osim.CoordinateActuator.safeDownCast(force)
+                if actu.get_coordinate() == coordinate:
+                    forceSet.remove(iforce)
+                    break
+
+    model.finalizeConnections()
+    model.initSystem()
+
+    # Construct a ModelProcessor. The default muscles in the model are replaced with
+    # optimization-friendly DeGrooteFregly2016Muscles, and adjustments are made to the
+    # default muscle parameters. We also add reserve actuators to the model and apply
+    # the external loads.
+    modelProcessor = osim.ModelProcessor(model)
+    modelProcessor.append(osim.ModOpReplaceJointsWithWelds(locked_joints))
+    modelProcessor.append(osim.ModOpAddExternalLoads(extloads_fpath))
+    modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
+    modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
+    modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
+    modelProcessor.append(osim.ModOpAddReserves(10.0))
+
+    # Construct the MocoInverse tool.
+    # -------------------------------
+    inverse = osim.MocoInverse()
+
+    # Set the model processor and time bounds.
+    inverse.setModel(modelProcessor)
+    inverse.set_initial_time(initial_time)
+    inverse.set_final_time(final_time)
+
+    # Load the kinematics data source.
+    # Add in the Rajagopal2015 patella coordinates to the kinematics table, if missing.
+    table = osim.TimeSeriesTable(kinematics_fpath)
+    labels = table.getColumnLabels()
+    if 'knee_angle_r' in labels and 'knee_angle_r_beta' not in labels:
+        table.appendColumn('knee_angle_r_beta', table.getDependentColumn('knee_angle_r'))
+    if 'knee_angle_l' in labels and 'knee_angle_l_beta' not in labels:
+        table.appendColumn('knee_angle_l_beta', table.getDependentColumn('knee_angle_l'))
+
+    # Construct a TableProcessor to update the kinematics table labels to use absolute path names.
+    # Add the kinematics to the MocoInverse tool.
+    tableProcessor = osim.TableProcessor(table)
+    tableProcessor.append(osim.TabOpUseAbsoluteStateNames())
+    inverse.setKinematics(tableProcessor)
+
+    # Configure additional settings for the MocoInverse problem including the mesh
+    # interval, convergence tolerance, constraint tolerance, and max number of iterations.
+    inverse.set_mesh_interval(0.02)
+    inverse.set_convergence_tolerance(1e-4)
+    inverse.set_constraint_tolerance(1e-4)
+    inverse.set_max_iterations(2000)
+    # Skip any extra columns in the kinematics data source.
+    inverse.set_kinematics_allow_extra_columns(True)
+
+    # Solve the problem.
+    # ------------------
+    # Solve the problem and write the solution to a Storage file.
+    solution = inverse.solve()
+    mocoSolution = solution.getMocoSolution()
+    mocoSolution.write(solution_fpath)
+
+    # Generate a PDF with plots for the solution trajectory.
+    model = modelProcessor.process()
+    report = osim.report.Report(model,
+                                solution_fpath,
+                                output=report_fpath,
+                                bilateral=True)
+    # The PDF is saved to the working directory.
+    report.generate()
+
+    # Save dictionary of results to print to README.
+    results = dict()
+    results['mocoSuccess'] = mocoSolution.success()
+    results['mocoObjective'] = mocoSolution.getObjective()
+    results['mocoNumIterations'] = mocoSolution.getNumIterations()
+    results['mocoSolverDuration'] = mocoSolution.getSolverDuration()
+
+    return results

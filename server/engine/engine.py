@@ -20,13 +20,15 @@ import glob
 import traceback
 from plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
 from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, get_consecutive_values, \
-                    reconcile_markered_and_nonzero_force_segments, detect_markered_segments
+                    reconcile_markered_and_nonzero_force_segments, detect_markered_segments, \
+                    fill_moco_template, run_moco_problem
 from exceptions import Error, PathError, SubjectConfigurationError, ModelFileError, TrialPreprocessingError, \
-                       MarkerFitterError, DynamicsFitterError, WriteError
+                       MarkerFitterError, DynamicsFitterError, MocoError, WriteError
 
 # Global paths to the geometry and data folders.
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
 DATA_FOLDER_PATH = absPath('../data')
+TEMPLATES_PATH = absPath('templates')
 
 
 # This metaclass wraps all methods in the Engine class with a try-except block, except for the __init__ method.
@@ -62,6 +64,8 @@ class ExceptionHandlingMeta(type):
                     raise DynamicsFitterError(msg)
                 elif method.__name__ == 'write_result_files':
                     raise WriteError(msg)
+                elif method.__name__ == 'run_moco':
+                    raise MocoError(msg)
                 elif method.__name__ == 'generate_readme':
                     raise WriteError(msg)
                 elif method.__name__ == 'create_output_folder':
@@ -101,6 +105,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.exportSDF = False
         self.exportMJCF = False
         self.exportOSIM = True
+        self.exportMoco = False
         self.ignoreJointLimits = False
         self.residualsToZero = False
         self.useReactionWheels = True
@@ -121,6 +126,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.totalForce = 0.0
         self.fitDynamics = False
         self.skippedDynamicsReason = None
+        self.runMoco = False
+        self.skippedMocoReason = None
 
         # 0.3. Shared data structures.
         self.skeleton = None
@@ -219,6 +226,13 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
         # Only export OpenSim files if we're not exporting MJCF or SDF files, since they use incompatible skeletons.
         self.exportOSIM = not (self.exportMJCF or self.exportSDF)
+
+        if 'exportMoco' in subjectJson:
+            self.exportMoco = subjectJson['exportMoco']
+
+        if 'runMoco' in subjectJson:
+            self.runMoco = subjectJson['runMoco']
+            self.exportMoco = True if self.runMoco else self.exportMoco
 
         if 'ignoreJointLimits' in subjectJson:
             self.ignoreJointLimits = subjectJson['ignoreJointLimits']
@@ -639,6 +653,12 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 print('ERROR: No foot bodies were specified! Dynamics fitting will be skipped...', flush=True)
                 self.fitDynamics = False
                 self.skippedDynamicsReason = 'No foot bodies were specified.'
+
+        if self.runMoco:
+            if not self.fitDynamics:
+                print('ERROR: Moco requires dynamics fitting! Running Moco will be skipped...', flush=True)
+                self.runMoco = False
+                self.skippedMocoReason = 'Dynamics fitting was not performed.'
 
     def run_marker_fitting(self):
 
@@ -1446,13 +1466,94 @@ class Engine(metaclass=ExceptionHandlingMeta):
             shutil.copytree(DATA_FOLDER_PATH + '/SDFGeometry', self.path +
                             'results/SDF/Geometry')
 
+    def run_moco(self):
+
+        # 10. Run a MocoProblem for each trial.
+        # -------------------------------------
+        import opensim as osim
+
+        # 10.1. Create the Moco results directory.
+        if not os.path.exists(self.path + 'results/Moco'):
+            os.mkdir(self.path + 'results/Moco')
+
+        # 10.2. Check the model to see if it is appropriate for MocoInverse.
+        model_fpath = self.path + f'results/Models/final.osim'
+        model = osim.Model(model_fpath)
+        model.initSystem()
+        forceSet = model.getForceSet()
+        numMuscles = 0
+        numContacts = 0
+        for iforce in range(forceSet.getSize()):
+            force = forceSet.get(iforce)
+            if force.getConcreteClassName().endswith('Muscle'):
+                numMuscles += 1
+            elif force.getConcreteClassName().endswith('SmoothSphereHalfSpaceForce'):
+                numContacts += 1
+            elif force.getConcreteClassName().endswith('HuntCrossleyForce'):
+                numContacts += 1
+            elif force.getConcreteClassName().endswith('ElasticFoundationForce'):
+                numContacts += 1
+
+        if numMuscles == 0:
+            self.runMoco = False
+            print(f'WARNING: The model has no muscles! Skipping MocoInverse...')
+            self.skippedMocoReason = 'The model contains no muscles.'
+
+        if numContacts > 0:
+            self.runMoco = False
+            print(f'WARNING: The model has contact forces! Skipping MocoInverse...')
+            self.skippedMocoReason = 'The model contains contact force models, which typically do not work well with ' \
+                                     'MocoInverse. Try removing the contact force models and re-running the problem ' \
+                                     f'using the script(s) located in the directory results/Moco.'
+
+        for itrial in range(len(self.trialNames)):
+            # 10.3. Get the initial and final times for this trial.
+            ik_table = osim.TimeSeriesTable(self.path + f'results/IK/{self.trialNames[itrial]}_ik.mot')
+            initial_time = ik_table.getIndependentColumn()[0]
+            final_time = ik_table.getIndependentColumn()[-1]
+            duration = final_time - initial_time
+            # Limit the duration to avoid very large MocoInverse problems.
+            max_duration = 3.0  # seconds
+            self.trialProcessingResults[itrial]['mocoInitialTime'] = initial_time
+            self.trialProcessingResults[itrial]['mocoFinalTime'] = final_time
+            self.trialProcessingResults[itrial]['mocoLimitedDuration'] = False
+            if duration > max_duration:
+                final_time = initial_time + duration
+                self.trialProcessingResults[itrial]['mocoFinalTime'] = final_time
+                self.trialProcessingResults[itrial]['mocoLimitedDuration'] = True
+                print(f'WARNING: Trial {self.trialNames[itrial]} is too long for Moco! Limiting the time range to '
+                      f'[{initial_time}, {final_time}].')
+
+            # 10.4. Fill the template MocoInverse problem for this trial.
+            moco_template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py')
+            moco_inverse_fpath = self.path + f'results/Moco/{self.trialNames[itrial]}_moco.py'
+            fill_moco_template(moco_template_fpath, moco_inverse_fpath, self.trialNames[itrial],
+                               initial_time, final_time)
+
+            # 10.5. Run the MocoInverse problem for this trial.
+            if self.runMoco:
+                print(f'Running MocoInverse for trial {self.trialNames[itrial]}')
+                kinematics_fpath = self.path + f'results/IK/{self.trialNames[itrial]}_ik.mot'
+                extloads_fpath = self.path + f'results/ID/{self.trialNames[itrial]}_external_forces.xml'
+                solution_fpath = self.path + f'results/Moco/{self.trialNames[itrial]}_moco.sto'
+                report_fpath = self.path + f'results/Moco/{self.trialNames[itrial]}_moco.pdf'
+                mocoResults = run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, initial_time, final_time,
+                                               solution_fpath, report_fpath)
+
+                # 10.5. Store the MocoInverse results.
+                if not os.path.exists(solution_fpath):
+                    self.trialProcessingResults[itrial]['mocoSuccess'] = False
+                else:
+                    for k, v in mocoResults.items():
+                        self.trialProcessingResults[itrial][k] = v
+
     def generate_readme(self):
 
-        # 10. Generate the README file.
+        # 11. Generate the README file.
         # -----------------------------
         print('Generating README file...')
 
-        # 10.1. Fill out the results dictionary.
+        # 11.1. Fill out the results dictionary.
         autoTotalLen = 0
         goldTotalLen = 0
         self.processingResult['autoAvgRMSE'] = 0
@@ -1498,9 +1599,9 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.processingResult["fewFramesWarning"] = self.totalFrames < 300
         self.processingResult['jointLimitsHits'] = self.jointLimitsHits
 
-        # 10.2. Create the README file for this subject.
+        # 11.2. Create the README file for this subject.
         with open(self.path + 'results/README.txt', 'w') as f:
-            # 10.2.1. Write out the header and summary results across all trials.
+            # 11.2.1. Write out the header and summary results across all trials.
             f.write("*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n")
             f.write("AddBiomechanics was written by Keenon Werling.\n")
             f.write("\n")
@@ -1557,7 +1658,18 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 f.write(textwrap.indent(textwrap.fill(self.skippedDynamicsReason), '  '))
                 f.write("\n\n")
 
-            # 10.2.2. Write out the results for each trial.
+            if self.runMoco:
+                f.write(textwrap.fill("Automatic processing ran the muscle redundancy problem with OpenSim Moco."))
+                f.write("\n\n")
+            elif self.skippedMocoReason is not None:
+                f.write(textwrap.fill(
+                    "WARNING! Solving the muscle redundancy problem with Moco was enabled, but was skipped for the '"
+                    "following reason: "))
+                f.write("\n\n")
+                f.write(textwrap.indent(textwrap.fill(self.skippedDynamicsReason), '  '))
+                f.write("\n\n")
+
+            # 11.2.2. Write out the results for each trial.
             if self.fitDynamics and self.dynamicsInit is not None:
                 f.write(textwrap.fill(
                     "The following trials were processed to perform automatic body scaling, marker registration, "
@@ -1582,6 +1694,11 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     residualTorque = trialProcessingResult['angularResidual']
                     f.write(f'  - Avg. Residual Force   = {residualForce:1.2f} N\n')
                     f.write(f'  - Avg. Residual Torque  = {residualTorque:1.2f} N-m\n')
+
+                if self.runMoco:
+                    mocoSuccess = trialProcessingResult['mocoSuccess']
+                    successMsg = 'Success!' if mocoSuccess else 'FAILED'
+                    f.write(f'  - Muscle redundancy problem = {successMsg}\n')
 
                 # Warning and error reporting.
                 if len(self.trialJointWarnings[trialName]) > 0:
@@ -1611,9 +1728,13 @@ class Engine(metaclass=ExceptionHandlingMeta):
                             f'details.\n')
                 else:
                     f.write(f'  --> See IK/{trialName}_ik_summary.txt for more details.\n')
+
+                if self.runMoco:
+                    f.write(f'  --> See Moco/{trialName}_moco_summary.txt for more details.\n')
+
                 f.write(f'\n')
 
-            # 10.2.3. Write out the final model information.
+            # 11.2.3. Write out the final model information.
             f.write('\n')
             if self.fitDynamics and self.dynamicsInit is not None:
                 f.write(textwrap.fill(
@@ -1752,11 +1873,11 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     "turned off"))
             f.write("\n\n")
             f.write(textwrap.fill(
-                "If you encounter errors, please submit a post to the AddBiomechanics user forum on SimTK.org\n:"))
-            f.write('\n\n')
+                "If you encounter errors, please submit a post to the AddBiomechanics user forum on SimTK.org:\n"))
+            f.write("\n\n")
             f.write('   https://simtk.org/projects/addbiomechanics')
 
-        # 10.3. If requested, create the MuJoCo README file.
+        # 11.3. If requested, create the MuJoCo README file.
         if self.exportMJCF:
             with open(self.path + 'results/MuJoCo/README.txt', 'w') as f:
                 f.write(
@@ -1780,7 +1901,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     "feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in "
                     "combination with the joint positions over time to develop your own foot colliders. Good luck!"))
 
-        # 10.4. If requested, create the SDF README file.
+        # 11.4. If requested, create the SDF README file.
         if self.exportSDF:
             with open(self.path + 'results/SDF/README.txt', 'w') as f:
                 f.write(
@@ -1804,15 +1925,15 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     "feet and the ground throughout the trial in ID/*_grf.mot files. You can use that information in "
                     "combination with the joint positions over time to develop your own foot colliders. Good luck!"))
 
-        # 10.5. Write out summary README files for individual trials.
+        # 11.5. Write out summary README files for individual trials.
         for itrial, trialName in enumerate(self.trialNames):
             timestamps = self.trialTimestamps[itrial]
             trialProcessingResult = self.trialProcessingResults[itrial]
             # 10.5.1. Marker fitting and inverse kinematics results.
             with open(f'{self.path}/results/IK/{trialName}_ik_summary.txt', 'w') as f:
-                f.write('-' * len(trialName) + '--------------------------------------\n')
-                f.write(f'Trial {trialName}: Inverse Kinematics Summary\n')
-                f.write('-' * len(trialName) + '--------------------------------------\n')
+                f.write('-' * len(trialName) + '----------------------------------------\n')
+                f.write(f"Trial '{trialName}': Inverse Kinematics Summary\n")
+                f.write('-' * len(trialName) + '----------------------------------------\n')
                 f.write('\n')
 
                 f.write(textwrap.fill(
@@ -1855,13 +1976,13 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     for info in trialInfo[trialName]:
                         f.write(f'  - INFO: {info}.\n')
 
-            # 10.5.1. Dynamics fitting and inverse dynamics results.
+            # 11.5.1. Dynamics fitting and inverse dynamics results.
             if self.fitDynamics and self.dynamicsInit is not None:
                 badDynamicsFrames = self.trialBadDynamicsFrames[itrial]
                 with open(f'{self.path}/results/ID/{trialName}_id_summary.txt', 'w') as f:
-                    f.write('-' * len(trialName) + '--------------------------------\n')
-                    f.write(f'Trial {trialName}: Inverse Dynamics Summary\n')
-                    f.write('-' * len(trialName) + '--------------------------------\n')
+                    f.write('-' * len(trialName) + '----------------------------------\n')
+                    f.write(f"Trial '{trialName}': Inverse Dynamics Summary\n")
+                    f.write('-' * len(trialName) + '----------------------------------\n')
                     f.write('\n')
 
                     f.write(textwrap.fill(
@@ -2029,18 +2150,76 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                             f'(times = {timestamps[frames[0]]:.3f}-{timestamps[frames[-1]]:.3f} s)\n')
                             reasonNumber += 1
 
+            # 11.5.2. Muscle redundancy problem (with Moco) results.
+            if self.runMoco:
+                with open(f'{self.path}/results/Moco/{trialName}_moco_summary.txt', 'w') as f:
+                    f.write('-' * len(trialName) + '-------------------------------------------\n')
+                    f.write(f"Trial '{trialName}': Muscle Redundancy Problem Summary\n")
+                    f.write('-' * len(trialName) + '-------------------------------------------\n')
+                    f.write('\n')
+
+                    mocoSuccess = trialProcessingResult['mocoSuccess']
+                    if mocoSuccess:
+                        f.write(textwrap.fill(
+                            "Automatic processing successfully ran the muscle redundancy problem using OpenSim Moco! "
+                            "The problem converged with the following statistics: "))
+                        f.write('\n\n')
+
+                        objective = trialProcessingResult['mocoObjective']
+                        num_iterations = trialProcessingResult['mocoNumIterations']
+                        duration = trialProcessingResult['mocoSolverDuration']
+                        f.write(f'  - Final objective value = {objective:.2f} \n')
+                        f.write(f'  - Number of iterations  = {num_iterations} \n')
+                        f.write(f'  - Solver duration       = {duration:.2f} s \n')
+                        f.write('\n')
+                        f.write(textwrap.fill("The objective value is the sum of squared muscle excitations squared. "
+                                              "Note that these values (especially the solver duration) may differ when "
+                                              "running the problem on your own computer."))
+                        f.write('\n\n')
+
+                        if trialProcessingResult['mocoLimitedDuration']:
+                            initial_time = trialProcessingResult['mocoInitialTime']
+                            final_time = trialProcessingResult['mocoFinalTime']
+                            f.write(textwrap.fill(f"The problem duration was limited to the time range "
+                                                  f"[{initial_time:.2f}, {final_time:.2f}] to keep the Moco problem "
+                                                  f"tractable."))
+                            f.write('\n\n')
+
+                        f.write(textwrap.fill(f'To further customize this problem, modify and run the script '
+                                              f'{trialName}_moco.py, located in this directory.'))
+                        f.write('\n\n')
+
+                        f.write(textwrap.fill(
+                            "For additional assistance, please submit a post on the OpenSim Moco user forum on "
+                            "SimTK.org:"))
+                        f.write('\n\n')
+                        f.write('   https://simtk.org/projects/opensim-moco')
+
+                    else:
+                        f.write(textwrap.fill(
+                            "Unfortunately, the muscle redundancy problem in OpenSim Moco did not succeed."))
+                        f.write('\n\n')
+                        f.write(textwrap.fill(f'If you would like to modify the problem and try again, see the script '
+                                              f'{trialName}_moco.py, located in this directory.'))
+                        f.write('\n\n')
+                        f.write(textwrap.fill(
+                            "For additional assistance, please submit a post on the OpenSim Moco user forum on "
+                            "SimTK.org:"))
+                        f.write('\n\n')
+                        f.write('   https://simtk.org/projects/opensim-moco')
+
     def create_output_folder(self):
 
-        # 11. Create the output folder.
+        # 12. Create the output folder.
         # -----------------------------
 
-        # 11.1. Move the results to the output folder.
+        # 12.1. Move the results to the output folder.
         shutil.move(self.path + 'results', self.path + self.output_name)
         print('Zipping up OpenSim files...', flush=True)
         shutil.make_archive(self.path + self.output_name, 'zip', self.path, self.output_name)
         print('Finished outputting OpenSim files.', flush=True)
 
-        # 11.2. Write out the result summary JSON file.
+        # 12.2. Write out the result summary JSON file.
         print('Writing the _results.json file...', flush=True)
         try:
             with open(self.path + '_results.json', 'w') as f:
@@ -2049,7 +2228,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
             print('Had an error writing _results.json:', flush=True)
             print(e, flush=True)
 
-        # 11.3. Generate final zip file.
+        # 12.3. Generate final zip file.
         print('Generated a final zip file at ' + self.path + self.output_name + '.zip.')
         print('Done!', flush=True)
 
@@ -2092,6 +2271,8 @@ def main():
         if engine.fitDynamics:
             engine.run_dynamics_fitting()
         engine.write_result_files()
+        if engine.exportMoco:
+            engine.run_moco()
         engine.generate_readme()
         engine.create_output_folder()
 
