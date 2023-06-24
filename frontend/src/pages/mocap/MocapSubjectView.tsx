@@ -1014,7 +1014,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           </p>
           <input type="checkbox" checked={exportMoco || runMoco} onChange={(e) => {
             if (e.target.checked) {
-              props.cursor.subjectJson.setAttribute("exportMoco", false);
+              props.cursor.subjectJson.setAttribute("exportMoco", true);
             }
             else {
               props.cursor.subjectJson.setAttribute("exportMoco", false);
