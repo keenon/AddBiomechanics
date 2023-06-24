@@ -964,6 +964,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let disableDynamics = props.cursor.subjectJson.getAttribute("disableDynamics", false);
   let residualsToZero = props.cursor.subjectJson.getAttribute("residualsToZero", false);
   let tuneResidualLoss = props.cursor.subjectJson.getAttribute("tuneResidualLoss", 1.0);
+  let runMoco = props.cursor.subjectJson.getAttribute("runMoco", false);
+  let exportMoco = props.cursor.subjectJson.getAttribute("exportMoco", false);
 
   let openSimText = props.cursor.customModelFile.getText();
   console.log("OpenSim text: " + openSimText);
@@ -996,6 +998,28 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           </p>
           <input type="checkbox" checked={residualsToZero} onChange={(e) => {
             props.cursor.subjectJson.setAttribute("residualsToZero", e.target.checked);
+          }}></input>
+        </div>
+        <div className="mb-15">
+          <p>
+            Run a Moco Inverse problem to get muscle forces, after the dynamics optimization is complete:{" "}
+          </p>
+          <input type="checkbox" checked={runMoco} onChange={(e) => {
+            props.cursor.subjectJson.setAttribute("runMoco", e.target.checked);
+          }}></input>
+        </div>
+        <div className="mb-15">
+          <p>
+            Export a Python script to allow you to run a local Moco Inverse problem to get muscle forces, using the results of the dynamics optimization:{" "}
+          </p>
+          <input type="checkbox" checked={exportMoco || runMoco} onChange={(e) => {
+            if (e.target.checked) {
+              props.cursor.subjectJson.setAttribute("exportMoco", true);
+            }
+            else {
+              props.cursor.subjectJson.setAttribute("exportMoco", false);
+              props.cursor.subjectJson.setAttribute("runMoco", false);
+            }
           }}></input>
         </div>
       </>;
