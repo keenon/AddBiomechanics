@@ -210,6 +210,12 @@ class SubjectToProcess:
         """
         self.index.uploadText(self.queuedOnSlurmFlagFile, '')
 
+    def markAsNotQueuedOnSlurm(self):
+        """
+        This un-marks a subject that was previously queued on the slurm cluster, because something went wrong
+        """
+        self.index.delete(self.queuedOnSlurmFlagFile)
+
     def process(self):
         """
         This tries to download the whole set of necessary files, launch the processor, and re-upload the results,
@@ -670,6 +676,22 @@ class MocapServer:
             time.sleep(30 * 60 * 60)
             print('Cueing an every ten minutes refresh', flush=True)
             self.index.refreshIndex()
+    
+    def getSlurmJobQueueLen(self) -> int:
+        """
+        This uses the `squeue` command to check how many jobs we currently have pending in the queue, if we're on the SLURM cluster.
+        """
+        if len(self.singularity_image_path) == 0:
+            return 0
+        # Fetch all jobs for the user
+        try:
+            cmd_all_jobs = f"squeue -u $USER | wc -l"
+            all_jobs_output = subprocess.check_output(cmd_all_jobs, shell=True)
+            all_jobs_count = int(all_jobs_output.strip()) - 1  # Subtracting 1 to exclude the header row
+            return all_jobs_count
+        except Exception as e:
+            print('Failed to get SLURM job queue length: '+str(e))
+            return 0
 
     def processQueueForever(self):
         """
@@ -686,19 +708,30 @@ class MocapServer:
                     # This will update the state of S3, which will in turn update and remove this element from our queue automatically.
                     # If it doesn't, then perhaps something went wrong and it's actually fine to process again. So the key idea is DON'T
                     # MANUALLY MANAGE THE WORK QUEUE! That happens in self.onChange()
-
+ 
                     if len(self.singularity_image_path) > 0:
-                        # Mark the subject as having been queued in SLURM, so that we don't try to process it again
-                        self.currentlyProcessing.markAsQueuedOnSlurm()
-                        print('Queueing subject for processing on SLURM: ' +
-                              self.currentlyProcessing.subjectPath)
-                        # Now launch a SLURM job to process this subject
-                        raw_command = 'singularity run --env PROCESS_SUBJECT_S3_PATH="' + \
-                            self.currentlyProcessing.subjectPath+'" '+self.singularity_image_path
-                        sbatch_command = 'sbatch -p owners --job-name addbiomechanics_process --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
-                            raw_command.replace('"', '\\"')+'"'
-                        print('Running command: '+sbatch_command)
-                        subprocess.run(sbatch_command, shell=True)
+                        # SLURM has resource limits, and will fail to queue our job with sbatch if we're too greedy. So we need to check 
+                        # the queue length before we queue up a new job, and not queue up more than 20 jobs at a time (though the precise limit
+                        # isn't documented anywhere, I figure 20 concurrent jobs is probably a reasonable limit).
+                        if self.getSlurmJobQueueLen() < 20:
+                            # Mark the subject as having been queued in SLURM, so that we don't try to process it again
+                            self.currentlyProcessing.markAsQueuedOnSlurm()
+                            print('Queueing subject for processing on SLURM: ' +
+                                self.currentlyProcessing.subjectPath)
+                            # Now launch a SLURM job to process this subject
+                            raw_command = 'singularity run --env PROCESS_SUBJECT_S3_PATH="' + \
+                                self.currentlyProcessing.subjectPath+'" '+self.singularity_image_path
+                            sbatch_command = 'sbatch -p owners --job-name ' + self.deployment + '_new_addb --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
+                                raw_command.replace('"', '\\"')+'"'
+                            print('Running command: '+sbatch_command)
+                            try:
+                                subprocess.run(sbatch_command, shell=True, check=True)
+                            except Exception as e:
+                                # If we fail to queue, then we need to mark the subject as not queued, so that we can try again later
+                                print('Failed to queue SLURM job: '+str(e))
+                                self.currentlyProcessing.markAsNotQueuedOnSlurm()
+                        else:
+                            print('Not queueing subject for processing on SLURM, because the queue is too long. Waiting for some jobs to finish')
                     else:
                         # Launch the subject as a normal process on this local machine
                         self.currentlyProcessing.process()
