@@ -212,7 +212,7 @@ class SubjectToProcess:
 
     def markAsNotQueuedOnSlurm(self):
         """
-        This marks a subject as having been queued for processing on a slurm cluster
+        This un-marks a subject that was previously queued on the slurm cluster, because something went wrong
         """
         self.index.delete(self.queuedOnSlurmFlagFile)
 
