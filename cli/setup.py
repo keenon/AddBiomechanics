@@ -12,6 +12,10 @@ setup(
             'addb=addbiomechanics.addb:main',
         ],
     },
+    include_package_data=True,
+    package_data={
+        'addbiomechanics': ['data/**'],
+    },
     install_requires=[
         'boto3'
     ]
