@@ -210,8 +210,6 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
         if 'sex' in subjectJson:
             self.sex = subjectJson['sex']
-        else:
-            raise RuntimeError('No sex specified for subject.')
 
         if 'skeletonPreset' in subjectJson:
             self.skeletonPreset = subjectJson['skeletonPreset']
