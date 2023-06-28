@@ -166,9 +166,9 @@ class DataHarvester:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Run a data harvesting daemon.')
-    parser.add_argument('target_folder', type=str, default='rajagopal_with_arms',
+    parser.add_argument('target_folder', type=str,
                         help='The folder where the converted data will be stored')
-    parser.add_argument('target_skeleton', type=str, default='data/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
+    parser.add_argument('target_skeleton', type=str,
                         help='The OSIM skeleton to convert all the data to')
     parser.add_argument('--bucket', type=str, default="biomechanics-uploads161949-dev",
                         help='The S3 bucket to access user data in')
