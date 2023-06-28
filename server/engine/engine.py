@@ -1522,9 +1522,14 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 print(f'WARNING: Trial {self.trialNames[itrial]} is too long for Moco! Limiting the time range to '
                       f'[{initial_time}, {final_time}].')
 
-            # 10.4. Fill the template MocoInverse problem for this trial.
+            # 10.4. Fill the template MocoInverse problems for this trial.
             moco_template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py')
             moco_inverse_fpath = self.path + f'results/Moco/{self.trialNames[itrial]}_moco.py'
+            fill_moco_template(moco_template_fpath, moco_inverse_fpath, self.trialNames[itrial],
+                               initial_time, final_time)
+
+            moco_template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.m')
+            moco_inverse_fpath = self.path + f'results/Moco/{self.trialNames[itrial]}_moco.m'
             fill_moco_template(moco_template_fpath, moco_inverse_fpath, self.trialNames[itrial],
                                initial_time, final_time)
 
