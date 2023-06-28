@@ -12,11 +12,13 @@ class FileMetadata:
     key: str
     lastModified: int
     size: int
+    eTag: str
 
-    def __init__(self, key: str, lastModified: int, size: int) -> None:
+    def __init__(self, key: str, lastModified: int, size: int, eTag: str) -> None:
         self.key = key
         self.lastModified = lastModified
         self.size = size
+        self.eTag = eTag
 
     def __str__(self) -> str:
         return "<"+self.key+", "+str(self.size)+">"
@@ -26,6 +28,7 @@ class FileMetadata:
 
 
 class ReactiveS3Index:
+    disable_pubsub: bool
     pubSub: PubSub
     files: Dict[str, FileMetadata]
     children: Dict[str, List[str]]
@@ -34,14 +37,16 @@ class ReactiveS3Index:
     deployment: str
     lock: threading.Lock
 
-    def __init__(self, bucket: str, deployment: str) -> None:
+    def __init__(self, bucket: str, deployment: str, disable_pubsub = False) -> None:
         self.s3_low_level = boto3.client('s3', region_name='us-west-2')
         self.s3 = boto3.resource('s3', region_name='us-west-2')
         self.lock = threading.Lock()
         self.bucketName = bucket
         self.deployment = deployment
         self.bucket = self.s3.Bucket(self.bucketName)
-        self.pubSub = PubSub(deployment)
+        self.disable_pubsub = disable_pubsub
+        if not disable_pubsub:
+            self.pubSub = PubSub(deployment)
         self.files = {}
         self.children = {}
         self.changeListeners = []
@@ -50,6 +55,8 @@ class ReactiveS3Index:
         """
         This registers a PubSub listener
         """
+        if self.disable_pubsub:
+            return
         self.pubSub.subscribe("/UPDATE/#", self._onUpdate)
         self.pubSub.subscribe("/DELETE/#", self._onDelete)
 
@@ -70,8 +77,9 @@ class ReactiveS3Index:
         for object in self.bucket.objects.all():
             key: str = object.key
             lastModified: int = object.last_modified.timestamp() * 1000
+            eTag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
             size: int = object.size
-            file = FileMetadata(key, lastModified, size)
+            file = FileMetadata(key, lastModified, size, eTag)
             self.updateChildrenOnAddFile(key)
             self.files[key] = file
         print('Full index refresh finished!')
@@ -230,16 +238,18 @@ class ReactiveS3Index:
         print('uploading file '+localPath+' to '+bucketPath)
         self.s3.Object(self.bucketName, bucketPath).put(
             Body=open(localPath, 'rb'))
-        self.pubSub.sendMessage(
-            self.makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': os.path.getsize(localPath)})
+        if 'pubSub' in self.__dict__ and self.pubSub is not None:
+            self.pubSub.sendMessage(
+                self.makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': os.path.getsize(localPath)})
 
     def uploadText(self, bucketPath: str, text: str):
         """
         This uploads text to the file at this path
         """
         self.s3.Object(self.bucketName, bucketPath).put(Body=text)
-        self.pubSub.sendMessage(
-            self.makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': len(text.encode('utf-8'))})
+        if 'pubSub' in self.__dict__ and self.pubSub is not None:
+            self.pubSub.sendMessage(
+                self.makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': len(text.encode('utf-8'))})
 
     def uploadJSON(self, bucketPath: str, contents: Dict[str, Any]):
         """
@@ -255,8 +265,9 @@ class ReactiveS3Index:
         if not self.exists(bucketPath):
             return bytearray()
         self.s3.Object(self.bucketName, bucketPath).delete()
-        self.pubSub.sendMessage(
-            self.makeTopicPubSubSafe("/DELETE/"+bucketPath), {'key': bucketPath})
+        if 'pubSub' in self.__dict__ and self.pubSub is not None:
+            self.pubSub.sendMessage(
+                self.makeTopicPubSubSafe("/DELETE/"+bucketPath), {'key': bucketPath})
 
     def download(self, bucketPath: str, localPath: str) -> None:
         print('downloading file '+bucketPath+' into '+localPath)
@@ -285,7 +296,14 @@ class ReactiveS3Index:
                 bucketPath += '/'
             # Actually download the files
             for k in children:
-                self.bucket.download_file(bucketPath + k, path + k)
+                if k.endswith('.osim') or k.endswith('.mot') or k.endswith('.trc') or k.endswith('.c3d') or k.endswith('_subject.json'):
+                    print('Downloading '+bucketPath+k+' to '+path+k)
+                    try:
+                        folder_path = os.path.dirname(path + k)
+                        os.makedirs(folder_path, exist_ok=True)
+                        self.bucket.download_file(bucketPath + k, path + k)
+                    except Exception as e:
+                        print(e)
             return path
 
     def getText(self, bucketPath: str) -> bytes:
