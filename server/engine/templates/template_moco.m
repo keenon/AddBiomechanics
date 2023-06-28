@@ -57,12 +57,10 @@ table = TimeSeriesTable('../IK/@TRIAL@_ik.mot');
 labels = table.getColumnLabels();
 for i = 0:labels.size()-1
     if strcmp(char(labels.get(i)), 'knee_angle_r')
-        table.appendColumn('knee_angle_r_beta', ...
-            table.getDependentColumn('knee_angle_r'));
+        table.appendColumn('knee_angle_r_beta', table.getDependentColumn('knee_angle_r'));
     end
     if strcmp(char(labels.get(i)), 'knee_angle_l')
-        table.appendColumn('knee_angle_l_beta', ...
-            table.getDependentColumn('knee_angle_l'));
+        table.appendColumn('knee_angle_l_beta', table.getDependentColumn('knee_angle_l'));
     end
 end
 
