@@ -572,8 +572,10 @@ class MocapServer:
                     print('- should process: '+str(subject.subjectPath))
                     shouldProcessSubjects.append(subject)
 
-        # 2. Sort Trials oldest to newest, sort by default sorts in ascending order
-        shouldProcessSubjects.sort(key=lambda x: x.latestInputTimestamp())
+        # 2. Sort Trials. First we prioritize subjects that are not just copies in the "standardized" bucket, then
+        # we sort oldest to newest. The sort method gets passed a Tuple, which goes left to right, True before False,
+        # and low to high.
+        shouldProcessSubjects.sort(key=lambda x: (not x.subjectPath.startswith("standardized"), x.latestInputTimestamp()))
 
         # 3. Update the queue. There's another thread that busy-waits on the queue changing, that can then grab a queue entry and continue
         self.queue = shouldProcessSubjects
