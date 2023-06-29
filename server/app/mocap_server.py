@@ -150,6 +150,7 @@ class SubjectToProcess:
 
         # Trial files
         self.readyFlagFile = self.subjectPath + 'READY_TO_PROCESS'
+        self.dynamicsFlagFile = self.subjectPath + 'DYNAMICS'
         self.queuedOnSlurmFlagFile = self.subjectPath + 'SLURM'
         self.processingFlagFile = self.subjectPath + 'PROCESSING'
         self.errorFlagFile = self.subjectPath + 'ERROR'
@@ -366,6 +367,13 @@ class SubjectToProcess:
                 if os.path.exists(path + '_results.json'):
                     self.index.uploadFile(
                         self.resultsFile, path + '_results.json')
+                    # Load the results file, and look for the 'linearResidual' field to indicate that there was dynamics
+                    # in the model. If there was, then we need to upload a DYNAMICS flag to the frontend to make it
+                    # easier to sort datasets by whether they have dynamics or not.
+                    with open(path + '_results.json') as results:
+                        resultsJson = json.loads(results.read())
+                        if 'linearResidual' in resultsJson:
+                            self.index.uploadText(self.dynamicsFlagFile, '')
                 else:
                     print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                           path + '_results.json', flush=True)
@@ -564,8 +572,10 @@ class MocapServer:
                     print('- should process: '+str(subject.subjectPath))
                     shouldProcessSubjects.append(subject)
 
-        # 2. Sort Trials oldest to newest, sort by default sorts in ascending order
-        shouldProcessSubjects.sort(key=lambda x: x.latestInputTimestamp())
+        # 2. Sort Trials. First we prioritize subjects that are not just copies in the "standardized" bucket, then
+        # we sort oldest to newest. The sort method gets passed a Tuple, which goes left to right, True before False,
+        # and low to high.
+        shouldProcessSubjects.sort(key=lambda x: (not x.subjectPath.startswith("standardized"), x.latestInputTimestamp()))
 
         # 3. Update the queue. There's another thread that busy-waits on the queue changing, that can then grab a queue entry and continue
         self.queue = shouldProcessSubjects
