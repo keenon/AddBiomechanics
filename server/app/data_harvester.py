@@ -72,12 +72,36 @@ class SubjectSnapshot:
         return dataset.s3_root_path + '/' + self.path + self.get_unique_hash()
 
     def has_snapshots_to_copy(self, datasets: List[StandardizedDataset]) -> List[StandardizedDataset]:
-        return [dataset for dataset in datasets if not self.index.exists(self.get_target_path(dataset))]
+        return [dataset for dataset in datasets if not self.dataset_up_to_date(dataset)]
+
+    def dataset_up_to_date(self, dataset: StandardizedDataset) -> bool:
+        """
+        This function checks if the dataset contains the current snapshot, in full.
+
+        This is more complex than simply checking if the folder exists, because we want to make sure that the folder
+        contents are complete. Because this process can be killed at any time, there may be a partial upload that was
+        cancelled when still incomplete, and if that happens we need to re-translate the data.
+        """
+        # Check if the root folder exists
+        if not self.index.exists(self.get_target_path(dataset)):
+            return False
+        # Check if all the files exist
+        for child in self.index.getChildren(self.path):
+            if not self.index.exists(self.get_target_path(dataset) + child):
+                return False
+        return True
 
     def copy_snapshots(self, datasets: List[StandardizedDataset]):
         """
         This function downloads the subject data, translates it to the standard skeleton, and re-uploads it to S3
         """
+
+        # First filter the datasets to just the ones we want to copy
+        datasets = self.has_snapshots_to_copy(datasets)
+        if len(datasets) == 0:
+            return
+
+        # Download the dataset locally
         tmpFolder: str = self.index.downloadToTmp(self.path)
         shutil.move(tmpFolder + 'unscaled_generic.osim', tmpFolder + 'original_model.osim')
         # Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer.
