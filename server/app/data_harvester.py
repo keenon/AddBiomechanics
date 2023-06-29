@@ -82,13 +82,22 @@ class SubjectSnapshot:
         contents are complete. Because this process can be killed at any time, there may be a partial upload that was
         cancelled when still incomplete, and if that happens we need to re-translate the data.
         """
-        # Check if the root folder exists
+        # # Check if the root folder exists
         if not self.index.exists(self.get_target_path(dataset)):
             return False
         # Check if all the files exist
         for child in self.index.getChildren(self.path):
-            if not self.index.exists(self.get_target_path(dataset) + child):
-                return False
+            if not self.index.exists(self.get_target_path(dataset) + '/' + child):
+                if child == 'READY_TO_PROCESS' or \
+                    child.endswith('.osim') or \
+                        child.endswith('.mot') or \
+                        child.endswith('.trc') or \
+                        child.endswith('.c3d') or \
+                        child.endswith('_subject.json'):
+                    print('Detected that dataset '+dataset.s3_root_path+' was incompletely uploaded! Missing file ' +
+                          self.get_target_path(dataset) + '/' + child)
+                    return False
+        # If we make it through all these checks
         return True
 
     def copy_snapshots(self, datasets: List[StandardizedDataset]):
