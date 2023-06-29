@@ -167,10 +167,10 @@ class TestRajagopal2015(unittest.TestCase):
             engine.load_model_files()
             engine.configure_marker_fitter()
             engine.preprocess_trials()
-            # engine.run_marker_fitting()
-            # if engine.fitDynamics:
-            #     engine.run_dynamics_fitting()
-            # engine.write_result_files()
+            engine.run_marker_fitting()
+            if engine.fitDynamics:
+                engine.run_dynamics_fitting()
+            engine.write_result_files()
             if engine.exportMoco:
                 engine.run_moco()
             engine.generate_readme()
