@@ -150,6 +150,7 @@ class SubjectToProcess:
 
         # Trial files
         self.readyFlagFile = self.subjectPath + 'READY_TO_PROCESS'
+        self.dynamicsFlagFile = self.subjectPath + 'DYNAMICS'
         self.queuedOnSlurmFlagFile = self.subjectPath + 'SLURM'
         self.processingFlagFile = self.subjectPath + 'PROCESSING'
         self.errorFlagFile = self.subjectPath + 'ERROR'
@@ -366,6 +367,13 @@ class SubjectToProcess:
                 if os.path.exists(path + '_results.json'):
                     self.index.uploadFile(
                         self.resultsFile, path + '_results.json')
+                    # Load the results file, and look for the 'linearResidual' field to indicate that there was dynamics
+                    # in the model. If there was, then we need to upload a DYNAMICS flag to the frontend to make it
+                    # easier to sort datasets by whether they have dynamics or not.
+                    with open(path + '_results.json') as results:
+                        resultsJson = json.loads(results.read())
+                        if 'linearResidual' in resultsJson:
+                            self.index.uploadText(self.dynamicsFlagFile, '')
                 else:
                     print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                           path + '_results.json', flush=True)

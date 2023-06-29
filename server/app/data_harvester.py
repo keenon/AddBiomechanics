@@ -8,9 +8,23 @@ import nimblephysics as nimble
 from nimblephysics import absPath
 import json
 import shutil
+import hashlib
 
 GEOMETRY_FOLDER_PATH = absPath('../engine/Geometry')
 DATA_FOLDER_PATH = absPath('../data')
+
+class StandardizedDataset:
+    """
+    This class represents a dataset that has been standardized to a common skeleton, and exists on S3.
+
+    Our goal is to keep this dataset complete and up-to-date with existing uploads.
+    """
+    s3_root_path: str
+    osim_model_path: str
+
+    def __init__(self, s3_root_path: str, osim_model_path: str) -> None:
+        self.s3_root_path = s3_root_path
+        self.osim_model_path = osim_model_path
 
 class SubjectSnapshot:
     """
@@ -18,14 +32,10 @@ class SubjectSnapshot:
     """
     index: ReactiveS3Index
     path: str
-    target_folder: str
-    target_skeleton: str
 
-    def __init__(self, index: ReactiveS3Index, path: str, target_folder: str, target_skeleton: str) -> None:
+    def __init__(self, index: ReactiveS3Index, path: str) -> None:
         self.index = index
         self.path = path
-        self.target_folder = target_folder
-        self.target_skeleton = target_skeleton
 
     def get_unique_hash(self) -> str:
         """
@@ -43,61 +53,82 @@ class SubjectSnapshot:
                     or key.endswith("_subject.json"):
                 hashes.append(children[key].eTag)
         hashes.sort()
-        return str(hash(tuple(hashes)))
 
-    def get_target_path(self) -> str:
+        # Create a hash object using SHA-256 algorithm
+        hash_object = hashlib.sha256()
+
+        # Update the hash with the encoded representation of the frozenset
+        hash_object.update(str(hashes).encode())
+
+        # Get the hexadecimal representation of the hash
+        hash_hex = hash_object.hexdigest()
+
+        return hash_hex
+
+    def get_target_path(self, dataset: StandardizedDataset) -> str:
         """
         This returns the path on S3 where we're going to copy this subject to
         """
-        return self.target_folder + '/' + self.path + '/' + self.get_unique_hash()
+        return dataset.s3_root_path + '/' + self.path + self.get_unique_hash()
 
-    def ready_to_snapshot(self):
-        return not self.index.exists(self.get_target_path())
+    def has_snapshots_to_copy(self, datasets: List[StandardizedDataset]) -> List[StandardizedDataset]:
+        return [dataset for dataset in datasets if not self.index.exists(self.get_target_path(dataset))]
 
-    def copy_snapshot(self):
+    def copy_snapshots(self, datasets: List[StandardizedDataset]):
         """
         This function downloads the subject data, translates it to the standard skeleton, and re-uploads it to S3
         """
         tmpFolder: str = self.index.downloadToTmp(self.path)
-        print('Downloaded to ' + tmpFolder)
-        print('Translating markers to ' + self.target_skeleton)
-        shutil.copyfile(self.target_skeleton, tmpFolder + 'target_skeleton.osim')
         shutil.move(tmpFolder + 'unscaled_generic.osim', tmpFolder + 'original_model.osim')
-        # 1.2. Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer.
+        # Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer.
         if not os.path.exists(tmpFolder + 'Geometry'):
             os.symlink(GEOMETRY_FOLDER_PATH, tmpFolder + 'Geometry')
-        markersGuessed, markersMissing = nimble.biomechanics.OpenSimParser.translateOsimMarkers(
-            tmpFolder + 'original_model.osim',
-            tmpFolder + 'target_skeleton.osim',
-            tmpFolder + 'unscaled_generic.osim',
-            verbose=True)
-        print('Markers guessed: ' + str(markersGuessed))
-        print('Markers missing: ' + str(markersMissing))
-        target_path = self.get_target_path()
-        print('Re-uploading to ' + target_path)
 
-        # Write the data about how the translation was done to the new folder
-        translationData = {'markersGuessed': markersGuessed,
-                           'markersMissing': markersMissing,
-                           'targetSkeleton': self.target_skeleton,
-                           'originalFolder': self.path,
-                           'snapshotDate': time.strftime("%Y-%m-%d %H:%M:%S",
-                                                         time.gmtime())}
-        self.index.uploadText(target_path + '/_translation.json', json.dumps(translationData))
+        print('Downloaded to ' + tmpFolder)
 
-        # Upload every file in the tmpFolder
-        for root, dirs, files in os.walk(tmpFolder):
-            for file in files:
-                if file.endswith('.osim') or file.endswith('.trc') or file.endswith('.mot') or file.endswith(
-                        '.c3d') or file.endswith('_subject.json'):
-                    print('Uploading ' + file)
-                    self.index.uploadFile(target_path + '/' + file, os.path.join(root, file))
+        for dataset in datasets:
+            print('Copying to Dataset: ' + dataset.s3_root_path)
+
+            # 1. Translate the skeleton
+            # 1.1. Download the skeleton
+            if os.path.exists(tmpFolder + 'target_skeleton.osim'):
+                os.remove(tmpFolder + 'target_skeleton.osim')
+            self.index.download(dataset.osim_model_path, tmpFolder + 'target_skeleton.osim')
+
+            # 1.2. Translate the skeleton
+            print('Translating markers to target skeleton at ' + dataset.osim_model_path)
+            markersGuessed, markersMissing = nimble.biomechanics.OpenSimParser.translateOsimMarkers(
+                tmpFolder + 'original_model.osim',
+                tmpFolder + 'target_skeleton.osim',
+                tmpFolder + 'unscaled_generic.osim',
+                verbose=True)
+            print('Markers guessed: ' + str(markersGuessed))
+            print('Markers missing: ' + str(markersMissing))
+            target_path = self.get_target_path(dataset)
+            print('Re-uploading to ' + target_path)
+
+            # Write the data about how the translation was done to the new folder
+            translationData = {'markersGuessed': markersGuessed,
+                               'markersMissing': markersMissing,
+                               'targetSkeleton': dataset.osim_model_path,
+                               'originalFolder': self.path,
+                               'snapshotDate': time.strftime("%Y-%m-%d %H:%M:%S",
+                                                             time.gmtime())}
+            self.index.uploadText(target_path + '/_translation.json', json.dumps(translationData))
+
+            # Upload every file in the tmpFolder
+            for root, dirs, files in os.walk(tmpFolder):
+                for file in files:
+                    if file.endswith('.osim') or file.endswith('.trc') or file.endswith('.mot') or file.endswith(
+                            '.c3d') or file.endswith('_subject.json'):
+                        print('Uploading ' + file)
+                        self.index.uploadFile(target_path + '/' + file, os.path.join(root, file))
+
+            # Mark the subject as ready to process
+            self.index.uploadText(target_path + '/READY_TO_PROCESS', '')
 
         # Delete the tmp folder
         os.system('rm -rf ' + tmpFolder)
-
-        # Mark the subject as ready to process
-        self.index.uploadText(target_path + '/READY_TO_PROCESS', '')
 
 
 class DataHarvester:
@@ -112,17 +143,15 @@ class DataHarvester:
     """
     bucket: str
     deployment: str
-    target_folder: str
-    target_skeleton: str
     index: ReactiveS3Index
     queue: List[SubjectSnapshot]
+    datasets: List[StandardizedDataset]
 
-    def __init__(self, bucket: str, deployment: str, target_folder: str, target_skeleton: str, disable_pubsub: bool) -> None:
+    def __init__(self, bucket: str, deployment: str, disable_pubsub: bool) -> None:
         self.bucket = bucket
         self.deployment = deployment
-        self.target_folder = target_folder
-        self.target_skeleton = target_skeleton
         self.queue = []
+        self.datasets = []
         self.index = ReactiveS3Index(bucket, deployment, disable_pubsub)
         self.index.addChangeListener(self.onChange)
         self.index.refreshIndex()
@@ -134,15 +163,31 @@ class DataHarvester:
 
         # 1. Collect all Trials
         new_queue: List[SubjectSnapshot] = []
+        new_datasets: List[StandardizedDataset] = []
         for folder in self.index.listAllFolders():
-            if self.index.hasChildren(folder, ['trials/', '_subject.json']):
-                if not folder.endswith('/'):
-                    folder += '/'
-                subject = SubjectSnapshot(self.index, folder, self.target_folder, self.target_skeleton)
-                if subject.ready_to_snapshot():
-                    print('Ready to snapshot: ' + str(subject.path))
+            # We want to collect all the dataset targets that we're supposed to be copying data to, in case those have been updated
+            if folder.startswith('standardized'):
+                if folder.endswith('/'):
+                    folder = folder[:-1]
+                parts = folder.split('/')
+                if len(parts) == 2:
+                    children = self.index.getImmediateChildren(folder+'/')
+                    osim_files = [x for x in children if x.endswith('.osim')]
+                    if len(osim_files) == 1:
+                        new_datasets.append(StandardizedDataset(folder+'/data', folder + '/' + osim_files[0]))
+                    else:
+                        print('Found a dataset target with ' + str(len(osim_files)) + ' osim files, expected 1. Ignoring it as a target for copying data.')
+            # We want to collect all the subjects with data people have uploaded
+            else:
+                if self.index.hasChildren(folder, ['trials/', '_subject.json']):
+                    if not folder.endswith('/'):
+                        folder += '/'
+                    subject = SubjectSnapshot(self.index, folder)
                     new_queue.append(subject)
 
+        print('Updating datasets to have ' + str(len(new_datasets)) + ' items')
+        self.datasets = new_datasets
+        new_queue = [entry for entry in new_queue if len(entry.has_snapshots_to_copy(self.datasets)) > 0]
         print('Updating queue to have ' + str(len(new_queue)) + ' items')
         self.queue = new_queue
 
@@ -156,7 +201,7 @@ class DataHarvester:
             try:
                 if len(self.queue) > 0:
                     print('Processing queue: ' + str(len(self.queue)) + ' items remaining')
-                    self.queue[0].copy_snapshot()
+                    self.queue[0].copy_snapshots(self.datasets)
                     self.queue.pop(0)
             except Exception as e:
                 print(e)
@@ -166,10 +211,6 @@ class DataHarvester:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Run a data harvesting daemon.')
-    parser.add_argument('target_folder', type=str,
-                        help='The folder where the converted data will be stored')
-    parser.add_argument('target_skeleton', type=str,
-                        help='The OSIM skeleton to convert all the data to')
     parser.add_argument('--bucket', type=str, default="biomechanics-uploads161949-dev",
                         help='The S3 bucket to access user data in')
     parser.add_argument('--deployment', type=str,
@@ -181,7 +222,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 1. Launch a harvesting server
-    server = DataHarvester(args.bucket, args.deployment, args.target_folder, args.target_skeleton, args.disable_pubsub)
+    server = DataHarvester(args.bucket, args.deployment, args.disable_pubsub)
 
     # 2. Run forever
     server.processQueueForever()

@@ -188,7 +188,7 @@ class ReactiveS3Index:
                         allChildren[key].lastModified, immediateChildren[folderName].lastModified)
                 else:
                     immediateChildren[folderName] = FileMetadata(
-                        key=folderName, lastModified=allChildren[key].lastModified, size=allChildren[key].size)
+                        key=folderName, lastModified=allChildren[key].lastModified, size=allChildren[key].size, eTag=allChildren[key].eTag)
         return immediateChildren
 
     def hasChildren(self, folder: str, subPaths: List[str]) -> bool:
