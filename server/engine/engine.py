@@ -1466,13 +1466,20 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
     def run_moco(self):
 
+        print('DEBUG')
+        import pdb
+        pdb.set_trace()
         # 10. Run a MocoProblem for each trial.
         # -------------------------------------
         import opensim as osim
 
+        print('DEBUG')
+
         # 10.1. Create the Moco results directory.
         if not os.path.exists(self.path + 'results/Moco'):
             os.mkdir(self.path + 'results/Moco')
+
+        print('DEBUG')
 
         # 10.2. Check the model to see if it is appropriate for MocoInverse.
         model_fpath = self.path + f'results/Models/final.osim'
@@ -1492,6 +1499,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
             elif force.getConcreteClassName().endswith('ElasticFoundationForce'):
                 numContacts += 1
 
+        print('DEBUG')
+
         if numMuscles == 0:
             self.runMoco = False
             print(f'WARNING: The model has no muscles! Skipping MocoInverse...')
@@ -1503,6 +1512,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
             self.skippedMocoReason = 'The model contains contact force models, which typically do not work well with ' \
                                      'MocoInverse. Try removing the contact force models and re-running the problem ' \
                                      f'using the script(s) located in the directory results/Moco.'
+
+        print('DEBUG')
 
         for itrial in range(len(self.trialNames)):
             # 10.3. Get the initial and final times for this trial.
@@ -1533,6 +1544,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
             fill_moco_template(moco_template_fpath, moco_inverse_fpath, self.trialNames[itrial],
                                initial_time, final_time)
 
+            print('DEBUG')
+
             # 10.5. Run the MocoInverse problem for this trial.
             if self.runMoco:
                 print(f'Running MocoInverse for trial {self.trialNames[itrial]}')
@@ -1543,12 +1556,31 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 mocoResults = run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, initial_time, final_time,
                                                solution_fpath, report_fpath)
 
+                print('DEBUG')
+
                 # 10.5. Store the MocoInverse results.
                 if not os.path.exists(solution_fpath):
                     self.trialProcessingResults[itrial]['mocoSuccess'] = False
                 else:
                     for k, v in mocoResults.items():
                         self.trialProcessingResults[itrial][k] = v
+
+                trialPath = self.path + 'trials/' + self.trialNames[itrial] + '/'
+                plotCSVFile = trialPath + 'plot.csv'
+
+                # Copy the plotCSVFile to a new temp file
+                tempPlotCSVFile = trialPath + 'tempPlot.csv'
+                shutil.copyfile(plotCSVFile, tempPlotCSVFile)
+
+                # Remove the original plotCSVFile
+                os.remove(plotCSVFile)
+
+                mocoTrajectory: nimble.biomechanics.OpenSimMocoTrajectory = \
+                    nimble.biomechanics.OpenSimParser.loadMocoTrajectory(solution_fpath)
+
+                nimble.biomechanics.OpenSimParser.appendMocoTrajectoryAndSaveCSV(
+                    tempPlotCSVFile, mocoTrajectory, plotCSVFile)
+
 
     def generate_readme(self):
 
