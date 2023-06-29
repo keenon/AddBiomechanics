@@ -1556,8 +1556,6 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 # Copy 'plot.csv' to a temporary file, so we don't overwrite it while modifying it.
                 tempPlotCSVFile = trialPath + 'temp_plot.csv'
                 shutil.copyfile(plotCSVFile, tempPlotCSVFile)
-                # Remove the original 'plot.csv' file.
-                os.remove(plotCSVFile)
                 # Load the MocoInverse results.
                 mocoTrajectory: nimble.biomechanics.OpenSimMocoTrajectory = \
                     nimble.biomechanics.OpenSimParser.loadMocoTrajectory(solution_fpath)
