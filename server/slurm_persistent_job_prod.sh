@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#SBATCH --job-name=addbiomechanics_mocapserver_prod
+#SBATCH --job-name=prod_addb_mocapserver
 #SBATCH --dependency=singleton
 #SBATCH --time=00:60:00
 #SBATCH --signal=B:SIGUSR1@90
