@@ -529,6 +529,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                        f'trial.')
 
                 # Trim the force data.
+                print(f'Trimming trial {trialName} to [{trialStart}, {trialEnd}] s...')
                 for forcePlate in self.trialForcePlates[itrial]:
                     forcePlate.trim(trialStart, trialEnd)
 

@@ -8,13 +8,16 @@
   "email": "nbianco@stanford.edu",
   "skeletonPreset": "custom",
   "disableDynamics": false,
-  "segmentTrials": false,
+  "segmentTrials": true,
   "footBodyNames": [
     "calcn_r",
     "calcn_l"
   ],
   "shiftGRF": false,
   "maxTrialsToSolveMassOver": 4,
-  "exportMoco": false,
-  "runMoco": false
+  "exportMoco": true,
+  "runMoco": true,
+  "trialRanges": {
+    "walk": [0.45, 2.0]
+  }
 }

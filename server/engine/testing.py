@@ -14,6 +14,7 @@ from nimblephysics.loader import absPath
 from engine import Engine
 import shutil
 import json
+import opensim as osim
 from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, \
                     reconcile_markered_and_nonzero_force_segments
 from exceptions import Error, TrialPreprocessingError
@@ -197,6 +198,12 @@ class TestRajagopal2015(unittest.TestCase):
         self.assertAlmostEqual(results['linearResidual'], 8.0, delta=5)
         self.assertAlmostEqual(results['angularResidual'], 10.5, delta=5)
 
+        # Load the Moco results.
+        moco_results_fpath = os.path.join(processed_fpath, 'osim_results', 'Moco', 'walk_moco.sto')
+        moco_results = osim.TimeSeriesTable(moco_results_fpath)
+        time = moco_results.getIndependentColumn()
+        self.assertEqual(time[0], 0.45)
+        self.assertEqual(time[-1], 2.0)
 
 class TestErrorReporting(unittest.TestCase):
     def test_ErrorReportingBasics(self):
