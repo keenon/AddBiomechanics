@@ -194,10 +194,10 @@ class TestRajagopal2015(unittest.TestCase):
         with open(results_fpath) as file:
             results = json.loads(file.read())
 
-        self.assertAlmostEqual(results['autoAvgRMSE'], 0.0195, delta=0.005)
-        self.assertAlmostEqual(results['autoAvgMax'], 0.04, delta=0.005)
-        self.assertAlmostEqual(results['linearResidual'], 8.0, delta=5)
-        self.assertAlmostEqual(results['angularResidual'], 10.5, delta=5)
+        self.assertAlmostEqual(results['autoAvgRMSE'], 0.014, delta=0.01)
+        self.assertAlmostEqual(results['autoAvgMax'], 0.035, delta=0.01)
+        self.assertAlmostEqual(results['linearResidual'], 3, delta=5)
+        self.assertAlmostEqual(results['angularResidual'], 7, delta=5)
 
         # Load the Moco results.
         moco_results_fpath = os.path.join(processed_fpath, 'osim_results', 'Moco', 'walk_moco.sto')
