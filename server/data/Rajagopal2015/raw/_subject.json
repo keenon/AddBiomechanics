@@ -8,13 +8,13 @@
   "email": "nbianco@stanford.edu",
   "skeletonPreset": "custom",
   "disableDynamics": false,
-  "segmentTrials": true,
+  "segmentTrials": false,
   "footBodyNames": [
     "calcn_r",
     "calcn_l"
   ],
   "shiftGRF": false,
   "maxTrialsToSolveMassOver": 4,
-  "exportMoco": true,
-  "runMoco": true
+  "exportMoco": false,
+  "runMoco": false
 }
