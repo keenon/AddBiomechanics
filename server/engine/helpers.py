@@ -265,6 +265,7 @@ def run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, initial_time
     # Solve the problem and write the solution to a Storage file.
     solution = inverse.solve()
     mocoSolution = solution.getMocoSolution()
+    mocoSolution.unseal()
     mocoSolution.write(solution_fpath)
 
     # Generate a PDF with plots for the solution trajectory.

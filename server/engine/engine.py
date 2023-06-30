@@ -1550,6 +1550,21 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     for k, v in mocoResults.items():
                         self.trialProcessingResults[itrial][k] = v
 
+                # 10.6. Update the plot.csv file with the MocoInverse results.
+                trialPath = self.path + 'trials/' + self.trialNames[itrial] + '/'
+                plotCSVFile = trialPath + 'plot.csv'
+                # Copy 'plot.csv' to a temporary file, so we don't overwrite it while modifying it.
+                tempPlotCSVFile = trialPath + 'temp_plot.csv'
+                shutil.copyfile(plotCSVFile, tempPlotCSVFile)
+                # Load the MocoInverse results.
+                mocoTrajectory: nimble.biomechanics.OpenSimMocoTrajectory = \
+                    nimble.biomechanics.OpenSimParser.loadMocoTrajectory(solution_fpath)
+                # Load the temporary file, append the MocoInverse results, and save the new 'plot.csv' file.
+                nimble.biomechanics.OpenSimParser.appendMocoTrajectoryAndSaveCSV(
+                    tempPlotCSVFile, mocoTrajectory, plotCSVFile)
+                # Remove the temporary file.
+                os.remove(tempPlotCSVFile)
+
     def generate_readme(self):
 
         # 11. Generate the README file.

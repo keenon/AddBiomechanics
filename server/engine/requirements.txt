@@ -1,2 +1,2 @@
-nimblephysics == 0.9.16
+nimblephysics == 0.9.17
 pandas
