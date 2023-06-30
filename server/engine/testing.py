@@ -124,8 +124,9 @@ class TestRajagopal2015(unittest.TestCase):
         # ----------------------------------
         data_fpath = '../data/Rajagopal2015'
         processed_fpath = os.path.join(data_fpath, 'processed')
-        if not os.path.isdir(processed_fpath):
-            os.mkdir(processed_fpath)
+        if os.path.isdir(processed_fpath):
+            shutil.rmtree(processed_fpath)
+        os.mkdir(processed_fpath)
         model_src = os.path.join(data_fpath, 'raw', 'Rajagopal2015_CustomMarkerSet.osim')
         model_dst = os.path.join(data_fpath, 'processed', 'unscaled_generic.osim')
         shutil.copyfile(model_src, model_dst)
