@@ -16,5 +16,8 @@
   "shiftGRF": false,
   "maxTrialsToSolveMassOver": 4,
   "exportMoco": true,
-  "runMoco": true
+  "runMoco": true,
+  "trialRanges": {
+    "walk": [0.45, 2.0]
+  }
 }
