@@ -119,7 +119,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.dynamicsRegularizePoses = 0.01
         self.ignoreFootNotOverForcePlate = False
         self.disableDynamics = False
-        self.segmentTrials = True
+        self.segmentTrials = False
+        self.trialRanges = dict()
         self.minSegmentDuration = 0.05
         self.mergeZeroForceSegmentsThreshold = 1.0
         self.footBodyNames = ['calcn_l', 'calcn_r']
@@ -128,7 +129,6 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.skippedDynamicsReason = None
         self.runMoco = False
         self.skippedMocoReason = None
-        self.trialRanges = dict()
 
         # 0.3. Shared data structures.
         self.skeleton = None
