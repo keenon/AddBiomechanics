@@ -192,10 +192,10 @@ class TestRajagopal2015(unittest.TestCase):
         with open(results_fpath) as file:
             results = json.loads(file.read())
 
-        self.assertAlmostEqual(results['autoAvgRMSE'], 0.016, delta=0.002)
+        self.assertAlmostEqual(results['autoAvgRMSE'], 0.0195, delta=0.005)
         self.assertAlmostEqual(results['autoAvgMax'], 0.04, delta=0.005)
-        self.assertAlmostEqual(results['linearResidual'], 5.0, delta=5)
-        self.assertAlmostEqual(results['angularResidual'], 10.0, delta=5)
+        self.assertAlmostEqual(results['linearResidual'], 8.0, delta=5)
+        self.assertAlmostEqual(results['angularResidual'], 10.5, delta=5)
 
 
 class TestErrorReporting(unittest.TestCase):

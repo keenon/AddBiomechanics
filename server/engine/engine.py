@@ -545,7 +545,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
             # 6.2.4. Split the trial into individual segments where there is marker data and, if applicable, non-zero
             # forces.
-            if self.segmentTrials and not trialAlreadyTrimmed:
+            if not trialAlreadyTrimmed:
                 print(f'Checking trial "{trialName}" for non-zero segments...')
 
                 # Find the markered segments.
