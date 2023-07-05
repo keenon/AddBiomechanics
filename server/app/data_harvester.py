@@ -87,6 +87,9 @@ class SubjectSnapshot:
         # # Check if the root folder exists
         if not self.index.exists(self.get_target_path(dataset)):
             return False
+        # If we've already tried to copy this dataset, but there's some reason we can't, then report that here
+        if self.index.hasChildren(self.get_target_path(dataset), ['INCOMPATIBLE']):
+            return False
         # Check if all the files exist
         for child in self.index.getChildren(self.path):
             if not self.index.exists(self.get_target_path(dataset) + '/' + child):
@@ -131,6 +134,17 @@ class SubjectSnapshot:
                 os.remove(tmpFolder + 'target_skeleton.osim')
             self.index.download(dataset.osim_model_path,
                                 tmpFolder + 'target_skeleton.osim')
+
+            # Check if the original model is compatible with the target model
+            targetModel = nimble.biomechanics.OpenSimParser.parseOsim(
+                tmpFolder + 'target_skeleton.osim')
+            if nimble.biomechanics.OpenSimParser.hasArms(targetModel.skeleton):
+                sourceModel = nimble.biomechanics.OpenSimParser.parseOsim(
+                    tmpFolder + 'original_model.osim')
+                if not nimble.biomechanics.OpenSimParser.hasArms(sourceModel.skeleton):
+                    print('Detected that the target skeleton has arms, but the original skeleton does not. This is not supported, because we will not have any marker data to move the arms during simulation.')
+                    self.index.uploadText(self.get_target_path(dataset) + '/INCOMPATIBLE', '')
+                    continue
 
             # 1.2. Translate the skeleton
             print('Translating markers to target skeleton at ' +
