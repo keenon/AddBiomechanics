@@ -195,13 +195,9 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
         if 'massKg' in subjectJson:
             self.massKg = float(subjectJson['massKg'])
-        else:
-            raise RuntimeError('No mass specified for subject.')
 
         if 'heightM' in subjectJson:
             self.heightM = float(subjectJson['heightM'])
-        else:
-            raise RuntimeError('No height specified for subject.')
 
         if 'ageYears' in subjectJson:
             self.ageYears = float(subjectJson['ageYears'])
@@ -214,8 +210,6 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
         if 'skeletonPreset' in subjectJson:
             self.skeletonPreset = subjectJson['skeletonPreset']
-        else:
-            raise RuntimeError('No skeletonPreset specified for subject.')
 
         if 'exportSDF' in subjectJson:
             self.exportSDF = subjectJson['exportSDF']
