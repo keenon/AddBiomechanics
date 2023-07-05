@@ -101,7 +101,7 @@ class PubSub:
         """
         Disconnect the PubSub pipe
         """
-        disconnect_future = self.mqtt_connection.disconnect()
+        disconnect_future = self.mqttConnection.disconnect()
         # Wait for the async op to complete
         disconnect_future.result()
         self.lock.release()
@@ -123,7 +123,7 @@ class PubSub:
         print("Connection resumed at {}. connection: {} return_code: {} session_present: {}".format(datetime.datetime.now().strftime("%H:%M:%S"),
                                                                                                     connection, returnCode, sessionPresent))
 
-        self.mqtt_connection = connection
+        self.mqttConnection = connection
 
         if returnCode == mqtt.ConnectReturnCode.ACCEPTED and not sessionPresent:
             print("Session did not persist. Resubscribing to existing topics...")
