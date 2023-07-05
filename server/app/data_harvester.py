@@ -85,7 +85,7 @@ class SubjectSnapshot:
         cancelled when still incomplete, and if that happens we need to re-translate the data.
         """
         # # Check if the root folder exists
-        if not self.index.exists(self.get_target_path(dataset)):
+        if not (self.index.exists(self.get_target_path(dataset)) or len(self.index.getChildren(self.get_target_path(dataset)+'/')) > 0):
             return False
         # If we've already tried to copy this dataset, but there's some reason we can't, then report that here
         if self.index.hasChildren(self.get_target_path(dataset), ['INCOMPATIBLE']):
@@ -169,7 +169,8 @@ class SubjectSnapshot:
                     tmpFolder + 'original_model.osim')
                 if not nimble.biomechanics.OpenSimParser.hasArms(sourceModel.skeleton):
                     print('Detected that the target skeleton has arms, but the original skeleton does not. This is not supported, because we will not have any marker data to move the arms during simulation.')
-                    self.index.uploadText(self.get_target_path(dataset) + '/INCOMPATIBLE', '')
+                    self.index.uploadText(self.get_target_path(
+                        dataset) + '/INCOMPATIBLE', '')
                     continue
 
             # 1.2. Translate the skeleton
@@ -202,16 +203,20 @@ class SubjectSnapshot:
                         if file.endswith('.osim') or file.endswith('.trc') or file.endswith('.mot') or file.endswith(
                                 '.c3d') or file.endswith('_subject.json'):
                             relative_path = os.path.relpath(root, tmpFolder)
-                            full_path = file if relative_path == '.' else os.path.join(relative_path, file)
+                            full_path = file if relative_path == '.' else os.path.join(
+                                relative_path, file)
                             print('Uploading ' + full_path)
-                            self.index.uploadFile(target_path +'/'+full_path, os.path.join(root, file))
+                            self.index.uploadFile(
+                                target_path + '/'+full_path, os.path.join(root, file))
 
                 # Mark the subject as ready to process
                 self.index.uploadText(target_path + '/READY_TO_PROCESS', '')
             except Exception as e:
-                print('Got an exception when trying to process dataset ' + dataset.s3_root_path)
+                print('Got an exception when trying to process dataset ' +
+                      dataset.s3_root_path)
                 print(e)
-                self.index.uploadText(self.get_target_path(dataset) + '/INCOMPATIBLE', '')
+                self.index.uploadText(self.get_target_path(
+                    dataset) + '/INCOMPATIBLE', '')
 
         # Delete the tmp folder
         os.system('rm -rf ' + tmpFolder)
