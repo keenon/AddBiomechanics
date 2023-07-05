@@ -117,6 +117,32 @@ class SubjectSnapshot:
 
         # Download the dataset locally
         tmpFolder: str = self.index.downloadToTmp(self.path)
+
+        # Deal with the original skeleton model
+        skeletonPreset = 'vicon'
+        if os.path.exists(tmpFolder + '_subject.json'):
+            subjectJson = json.load(open(tmpFolder + '_subject.json'))
+            if 'skeletonPreset' in subjectJson:
+                skeletonPreset = subjectJson['skeletonPreset']
+
+        if skeletonPreset == 'vicon':
+            shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_ViconPlugInGait.osim',
+                        tmpFolder + 'unscaled_generic.osim')
+        elif skeletonPreset == 'cmu':
+            shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
+                        tmpFolder + 'unscaled_generic.osim')
+        elif skeletonPreset == 'complete':
+            shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/CompleteHumanModel.osim',
+                        tmpFolder + 'unscaled_generic.osim')
+        else:
+            if skeletonPreset != 'custom':
+                print('Unrecognized skeleton preset "' + str(skeletonPreset) +
+                      '"! Behaving as though this is "custom"')
+            if not os.path.exists(tmpFolder + 'unscaled_generic.osim'):
+                raise FileNotFoundError('We are using a custom OpenSim skeleton, but there is no unscaled_generic.osim '
+                                        'file present.')
+
+        # Now move the "unscaled_generic.osim" to get ready to translate its markerset to the target model
         shutil.move(tmpFolder + 'unscaled_generic.osim',
                     tmpFolder + 'original_model.osim')
         # Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer.
@@ -149,37 +175,43 @@ class SubjectSnapshot:
             # 1.2. Translate the skeleton
             print('Translating markers to target skeleton at ' +
                   dataset.osim_model_path)
-            markersGuessed, markersMissing = nimble.biomechanics.OpenSimParser.translateOsimMarkers(
-                tmpFolder + 'original_model.osim',
-                tmpFolder + 'target_skeleton.osim',
-                tmpFolder + 'unscaled_generic.osim',
-                verbose=True)
-            print('Markers guessed: ' + str(markersGuessed))
-            print('Markers missing: ' + str(markersMissing))
-            target_path = self.get_target_path(dataset)
-            print('Re-uploading to ' + target_path)
+            try:
+                markersGuessed, markersMissing = nimble.biomechanics.OpenSimParser.translateOsimMarkers(
+                    tmpFolder + 'original_model.osim',
+                    tmpFolder + 'target_skeleton.osim',
+                    tmpFolder + 'unscaled_generic.osim',
+                    verbose=True)
+                print('Markers guessed: ' + str(markersGuessed))
+                print('Markers missing: ' + str(markersMissing))
+                target_path = self.get_target_path(dataset)
+                print('Re-uploading to ' + target_path)
 
-            # Write the data about how the translation was done to the new folder
-            translationData = {'markersGuessed': markersGuessed,
-                               'markersMissing': markersMissing,
-                               'targetSkeleton': dataset.osim_model_path,
-                               'originalFolder': self.path,
-                               'snapshotDate': time.strftime("%Y-%m-%d %H:%M:%S",
-                                                             time.gmtime())}
-            self.index.uploadText(
-                target_path + '/_translation.json', json.dumps(translationData))
+                # Write the data about how the translation was done to the new folder
+                translationData = {'markersGuessed': markersGuessed,
+                                   'markersMissing': markersMissing,
+                                   'targetSkeleton': dataset.osim_model_path,
+                                   'originalFolder': self.path,
+                                   'snapshotDate': time.strftime("%Y-%m-%d %H:%M:%S",
+                                                                 time.gmtime())}
+                self.index.uploadText(
+                    target_path + '/_translation.json', json.dumps(translationData))
 
-            # Upload every file in the tmpFolder
-            for root, dirs, files in os.walk(tmpFolder):
-                for file in files:
-                    if file.endswith('.osim') or file.endswith('.trc') or file.endswith('.mot') or file.endswith(
-                            '.c3d') or file.endswith('_subject.json'):
-                        print('Uploading ' + file)
-                        self.index.uploadFile(
-                            target_path + '/' + file, os.path.join(root, file))
+                # Upload every file in the tmpFolder
+                for root, dirs, files in os.walk(tmpFolder):
+                    for file in files:
+                        if file.endswith('.osim') or file.endswith('.trc') or file.endswith('.mot') or file.endswith(
+                                '.c3d') or file.endswith('_subject.json'):
+                            relative_path = os.path.relpath(root, tmpFolder)
+                            full_path = file if relative_path == '.' else os.path.join(relative_path, file)
+                            print('Uploading ' + full_path)
+                            self.index.uploadFile(target_path +'/'+full_path, os.path.join(root, file))
 
-            # Mark the subject as ready to process
-            self.index.uploadText(target_path + '/READY_TO_PROCESS', '')
+                # Mark the subject as ready to process
+                self.index.uploadText(target_path + '/READY_TO_PROCESS', '')
+            except Exception as e:
+                print('Got an exception when trying to process dataset ' + dataset.s3_root_path)
+                print(e)
+                self.index.uploadText(self.get_target_path(dataset) + '/INCOMPATIBLE', '')
 
         # Delete the tmp folder
         os.system('rm -rf ' + tmpFolder)
@@ -260,7 +292,12 @@ class DataHarvester:
                 if len(self.queue) > 0:
                     print('Processing queue: ' +
                           str(len(self.queue)) + ' items remaining')
-                    self.queue[0].copy_snapshots(self.datasets)
+                    try:
+                        self.queue[0].copy_snapshots(self.datasets)
+                    except Exception as e:
+                        print('Got an exception when trying to process dataset ' +
+                              self.queue[0].s3_root_path)
+                        print(e)
                     self.queue.pop(0)
             except Exception as e:
                 print(e)
