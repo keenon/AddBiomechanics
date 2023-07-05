@@ -698,7 +698,9 @@ class MocapServer:
         try:
             cmd_all_jobs = f"squeue -u $USER"
             all_jobs_output = subprocess.check_output(cmd_all_jobs, shell=True)
-            all_lines = all_jobs_output.strip().splitlines()
+            all_jobs_output_str = all_jobs_output.decode(
+                'utf-8')  # decode bytes to string
+            all_lines = all_jobs_output_str.strip().splitlines()
             lines_filtered = [
                 line for line in all_lines if self.deployment in line]
             all_jobs_count = len(lines_filtered)
@@ -727,7 +729,10 @@ class MocapServer:
                         # SLURM has resource limits, and will fail to queue our job with sbatch if we're too greedy. So we need to check
                         # the queue length before we queue up a new job, and not queue up more than 15 jobs at a time (though the precise limit
                         # isn't documented anywhere, I figure 15 concurrent jobs per deployment (so 30 total between dev and prod) is probably a reasonable limit).
-                        if self.getSlurmJobQueueLen() < 15:
+                        slurm_queue_len = self.getSlurmJobQueueLen()
+                        print('Queueing subject for processing on SLURM: ' +
+                              self.currentlyProcessing.subjectPath)
+                        if slurm_queue_len < 15:
                             # Mark the subject as having been queued in SLURM, so that we don't try to process it again
                             self.currentlyProcessing.markAsQueuedOnSlurm()
                             print('Queueing subject for processing on SLURM: ' +
