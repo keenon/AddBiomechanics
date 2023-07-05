@@ -14,6 +14,7 @@ from nimblephysics.loader import absPath
 from engine import Engine
 import shutil
 import json
+import opensim as osim
 from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, \
                     reconcile_markered_and_nonzero_force_segments
 from exceptions import Error, TrialPreprocessingError
@@ -123,8 +124,9 @@ class TestRajagopal2015(unittest.TestCase):
         # ----------------------------------
         data_fpath = '../data/Rajagopal2015'
         processed_fpath = os.path.join(data_fpath, 'processed')
-        if not os.path.isdir(processed_fpath):
-            os.mkdir(processed_fpath)
+        if os.path.isdir(processed_fpath):
+            shutil.rmtree(processed_fpath)
+        os.mkdir(processed_fpath)
         model_src = os.path.join(data_fpath, 'raw', 'Rajagopal2015_CustomMarkerSet.osim')
         model_dst = os.path.join(data_fpath, 'processed', 'unscaled_generic.osim')
         shutil.copyfile(model_src, model_dst)
@@ -192,11 +194,17 @@ class TestRajagopal2015(unittest.TestCase):
         with open(results_fpath) as file:
             results = json.loads(file.read())
 
-        self.assertAlmostEqual(results['autoAvgRMSE'], 0.016, delta=0.002)
-        self.assertAlmostEqual(results['autoAvgMax'], 0.04, delta=0.005)
-        self.assertAlmostEqual(results['linearResidual'], 5.0, delta=5)
-        self.assertAlmostEqual(results['angularResidual'], 10.0, delta=5)
+        self.assertAlmostEqual(results['autoAvgRMSE'], 0.014, delta=0.01)
+        self.assertAlmostEqual(results['autoAvgMax'], 0.035, delta=0.01)
+        self.assertAlmostEqual(results['linearResidual'], 3, delta=5)
+        self.assertAlmostEqual(results['angularResidual'], 7, delta=5)
 
+        # Load the Moco results.
+        moco_results_fpath = os.path.join(processed_fpath, 'osim_results', 'Moco', 'walk_moco.sto')
+        moco_results = osim.TimeSeriesTable(moco_results_fpath)
+        time = moco_results.getIndependentColumn()
+        self.assertEqual(time[0], 0.45)
+        self.assertEqual(time[-1], 2.0)
 
 class TestErrorReporting(unittest.TestCase):
     def test_ErrorReportingBasics(self):
