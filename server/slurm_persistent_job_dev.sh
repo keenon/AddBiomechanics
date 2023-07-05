@@ -18,6 +18,7 @@ trap _resubmit SIGUSR1
 
 ml python/3.9.0
 ## Run the mocap server, in SLURM mode, in the background so that we don't lose the trap signal
+export PYTHONUNBUFFERED=1
 CERT_HOME="/home/users/keenon/certs" python3 ~/AddBiomechanics/server/app/mocap_server.py --bucket biomechanics-uploads161949-dev --deployment DEV --singularity_image_path $GROUP_HOME/keenon/simg/biomechnet_dev_latest.sif &
 # Don't exit while the server is running
 wait
