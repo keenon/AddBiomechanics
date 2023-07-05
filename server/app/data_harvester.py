@@ -13,6 +13,7 @@ import hashlib
 GEOMETRY_FOLDER_PATH = absPath('../engine/Geometry')
 DATA_FOLDER_PATH = absPath('../data')
 
+
 class StandardizedDataset:
     """
     This class represents a dataset that has been standardized to a common skeleton, and exists on S3.
@@ -25,6 +26,7 @@ class StandardizedDataset:
     def __init__(self, s3_root_path: str, osim_model_path: str) -> None:
         self.s3_root_path = s3_root_path
         self.osim_model_path = osim_model_path
+
 
 class SubjectSnapshot:
     """
@@ -112,7 +114,8 @@ class SubjectSnapshot:
 
         # Download the dataset locally
         tmpFolder: str = self.index.downloadToTmp(self.path)
-        shutil.move(tmpFolder + 'unscaled_generic.osim', tmpFolder + 'original_model.osim')
+        shutil.move(tmpFolder + 'unscaled_generic.osim',
+                    tmpFolder + 'original_model.osim')
         # Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer.
         if not os.path.exists(tmpFolder + 'Geometry'):
             os.symlink(GEOMETRY_FOLDER_PATH, tmpFolder + 'Geometry')
@@ -126,10 +129,12 @@ class SubjectSnapshot:
             # 1.1. Download the skeleton
             if os.path.exists(tmpFolder + 'target_skeleton.osim'):
                 os.remove(tmpFolder + 'target_skeleton.osim')
-            self.index.download(dataset.osim_model_path, tmpFolder + 'target_skeleton.osim')
+            self.index.download(dataset.osim_model_path,
+                                tmpFolder + 'target_skeleton.osim')
 
             # 1.2. Translate the skeleton
-            print('Translating markers to target skeleton at ' + dataset.osim_model_path)
+            print('Translating markers to target skeleton at ' +
+                  dataset.osim_model_path)
             markersGuessed, markersMissing = nimble.biomechanics.OpenSimParser.translateOsimMarkers(
                 tmpFolder + 'original_model.osim',
                 tmpFolder + 'target_skeleton.osim',
@@ -147,7 +152,8 @@ class SubjectSnapshot:
                                'originalFolder': self.path,
                                'snapshotDate': time.strftime("%Y-%m-%d %H:%M:%S",
                                                              time.gmtime())}
-            self.index.uploadText(target_path + '/_translation.json', json.dumps(translationData))
+            self.index.uploadText(
+                target_path + '/_translation.json', json.dumps(translationData))
 
             # Upload every file in the tmpFolder
             for root, dirs, files in os.walk(tmpFolder):
@@ -155,7 +161,8 @@ class SubjectSnapshot:
                     if file.endswith('.osim') or file.endswith('.trc') or file.endswith('.mot') or file.endswith(
                             '.c3d') or file.endswith('_subject.json'):
                         print('Uploading ' + file)
-                        self.index.uploadFile(target_path + '/' + file, os.path.join(root, file))
+                        self.index.uploadFile(
+                            target_path + '/' + file, os.path.join(root, file))
 
             # Mark the subject as ready to process
             self.index.uploadText(target_path + '/READY_TO_PROCESS', '')
@@ -207,11 +214,14 @@ class DataHarvester:
                     children = self.index.getImmediateChildren(folder+'/')
                     osim_files = [x for x in children if x.endswith('.osim')]
                     if len(osim_files) == 1:
-                        new_datasets.append(StandardizedDataset(folder+'/data', folder + '/' + osim_files[0]))
+                        new_datasets.append(StandardizedDataset(
+                            folder+'/data', folder + '/' + osim_files[0]))
                     else:
-                        print('Found a dataset target with ' + str(len(osim_files)) + ' osim files, expected 1. Ignoring it as a target for copying data.')
-            # We want to collect all the subjects with data people have uploaded
-            else:
+                        print('Found a dataset target with ' + str(len(osim_files)) +
+                              ' osim files, expected 1. Ignoring it as a target for copying data.')
+            # We want to collect all the subjects with data people have uploaded, except for data
+            # in people's private folders.
+            elif not folder.startswith('private'):
                 if self.index.hasChildren(folder, ['trials/', '_subject.json']):
                     if not folder.endswith('/'):
                         folder += '/'
@@ -220,7 +230,8 @@ class DataHarvester:
 
         print('Updating datasets to have ' + str(len(new_datasets)) + ' items')
         self.datasets = new_datasets
-        new_queue = [entry for entry in new_queue if len(entry.has_snapshots_to_copy(self.datasets)) > 0]
+        new_queue = [entry for entry in new_queue if len(
+            entry.has_snapshots_to_copy(self.datasets)) > 0]
         print('Updating queue to have ' + str(len(new_queue)) + ' items')
         self.queue = new_queue
 
@@ -233,7 +244,8 @@ class DataHarvester:
         while True:
             try:
                 if len(self.queue) > 0:
-                    print('Processing queue: ' + str(len(self.queue)) + ' items remaining')
+                    print('Processing queue: ' +
+                          str(len(self.queue)) + ' items remaining')
                     self.queue[0].copy_snapshots(self.datasets)
                     self.queue.pop(0)
             except Exception as e:
