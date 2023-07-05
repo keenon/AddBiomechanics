@@ -72,39 +72,45 @@ class PubSub:
         Subscribe to a topic
         """
         self.lock.acquire()
-        subscribeFuture, packetId = self.mqttConnection.subscribe(
-            topic=('/' + self.deployment + topic),
-            qos=mqtt.QoS.AT_MOST_ONCE,  # AT_LEAST_ONCE
-            callback=callback)
-        # Future.result() waits until a result is available
-        subscribeFuture.result()
-        self.lock.release()
+        try:
+            subscribeFuture, packetId = self.mqttConnection.subscribe(
+                topic=('/' + self.deployment + topic),
+                qos=mqtt.QoS.AT_MOST_ONCE,  # AT_LEAST_ONCE
+                callback=callback)
+            # Future.result() waits until a result is available
+            subscribeFuture.result()
+        finally:
+            self.lock.release()
 
     def sendMessage(self, topic: str, payload: Dict[str, Any] = {}):
         """
         Sends a message to PubSub
         """
         self.lock.acquire()
-        payloadWithTopic = payload.copy()
-        payloadWithTopic['topic'] = topic
-        payload_json = json.dumps(payloadWithTopic)
-        sendFuture, packetId = self.mqttConnection.publish(
-            topic=('/' + self.deployment + topic),
-            payload=payload_json,
-            qos=mqtt.QoS.AT_MOST_ONCE)  # AT_LEAST_ONCE
-        # Future.result() waits until a result is available
-        sendFuture.result()
-        self.lock.release()
+        try:
+            payloadWithTopic = payload.copy()
+            payloadWithTopic['topic'] = topic
+            payload_json = json.dumps(payloadWithTopic)
+            sendFuture, packetId = self.mqttConnection.publish(
+                topic=('/' + self.deployment + topic),
+                payload=payload_json,
+                qos=mqtt.QoS.AT_MOST_ONCE)  # AT_LEAST_ONCE
+            # Future.result() waits until a result is available
+            sendFuture.result()
+        finally:
+            self.lock.release()
 
     def disconnect(self):
         self.lock.acquire()
-        """
-        Disconnect the PubSub pipe
-        """
-        disconnect_future = self.mqttConnection.disconnect()
-        # Wait for the async op to complete
-        disconnect_future.result()
-        self.lock.release()
+        try:
+            """
+            Disconnect the PubSub pipe
+            """
+            disconnect_future = self.mqttConnection.disconnect()
+            # Wait for the async op to complete
+            disconnect_future.result()
+        finally:
+            self.lock.release()
 
     def addResumeListener(self, listener):
         self.resumeListeners.append(listener)
