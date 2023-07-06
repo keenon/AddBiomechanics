@@ -3,7 +3,6 @@ import os
 from reactive_s3 import ReactiveS3Index, FileMetadata
 from typing import Dict, List
 import time
-import threading
 import nimblephysics as nimble
 from nimblephysics import absPath
 import json
@@ -85,7 +84,8 @@ class SubjectSnapshot:
         cancelled when still incomplete, and if that happens we need to re-translate the data.
         """
         # # Check if the root folder exists
-        if not (self.index.exists(self.get_target_path(dataset)) or len(self.index.getChildren(self.get_target_path(dataset)+'/')) > 0):
+        if not (self.index.exists(self.get_target_path(dataset)) or
+                len(self.index.getChildren(self.get_target_path(dataset)+'/')) > 0):
             return False
         # If we've already tried to copy this dataset, but there's some reason we can't, then report that here
         if self.index.hasChildren(self.get_target_path(dataset), ['INCOMPATIBLE']):
@@ -116,59 +116,60 @@ class SubjectSnapshot:
             return
 
         # Download the dataset locally
-        tmpFolder: str = self.index.downloadToTmp(self.path)
+        tmp_folder: str = self.index.downloadToTmp(self.path)
 
         # Deal with the original skeleton model
-        skeletonPreset = 'vicon'
-        if os.path.exists(tmpFolder + '_subject.json'):
-            subjectJson = json.load(open(tmpFolder + '_subject.json'))
-            if 'skeletonPreset' in subjectJson:
-                skeletonPreset = subjectJson['skeletonPreset']
+        skeleton_preset = 'vicon'
+        if os.path.exists(tmp_folder + '_subject.json'):
+            subject_json = json.load(open(tmp_folder + '_subject.json'))
+            if 'skeletonPreset' in subject_json:
+                skeleton_preset = subject_json['skeletonPreset']
 
-        if skeletonPreset == 'vicon':
+        if skeleton_preset == 'vicon':
             shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_ViconPlugInGait.osim',
-                        tmpFolder + 'unscaled_generic.osim')
-        elif skeletonPreset == 'cmu':
+                        tmp_folder + 'unscaled_generic.osim')
+        elif skeleton_preset == 'cmu':
             shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
-                        tmpFolder + 'unscaled_generic.osim')
-        elif skeletonPreset == 'complete':
+                        tmp_folder + 'unscaled_generic.osim')
+        elif skeleton_preset == 'complete':
             shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/CompleteHumanModel.osim',
-                        tmpFolder + 'unscaled_generic.osim')
+                        tmp_folder + 'unscaled_generic.osim')
         else:
-            if skeletonPreset != 'custom':
-                print('Unrecognized skeleton preset "' + str(skeletonPreset) +
+            if skeleton_preset != 'custom':
+                print('Unrecognized skeleton preset "' + str(skeleton_preset) +
                       '"! Behaving as though this is "custom"')
-            if not os.path.exists(tmpFolder + 'unscaled_generic.osim'):
+            if not os.path.exists(tmp_folder + 'unscaled_generic.osim'):
                 raise FileNotFoundError('We are using a custom OpenSim skeleton, but there is no unscaled_generic.osim '
                                         'file present.')
 
         # Now move the "unscaled_generic.osim" to get ready to translate its markerset to the target model
-        shutil.move(tmpFolder + 'unscaled_generic.osim',
-                    tmpFolder + 'original_model.osim')
+        shutil.move(tmp_folder + 'unscaled_generic.osim',
+                    tmp_folder + 'original_model.osim')
         # Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer.
-        if not os.path.exists(tmpFolder + 'Geometry'):
-            os.symlink(GEOMETRY_FOLDER_PATH, tmpFolder + 'Geometry')
+        if not os.path.exists(tmp_folder + 'Geometry'):
+            os.symlink(GEOMETRY_FOLDER_PATH, tmp_folder + 'Geometry')
 
-        print('Downloaded to ' + tmpFolder)
+        print('Downloaded to ' + tmp_folder)
 
         for dataset in datasets:
             print('Copying to Dataset: ' + dataset.s3_root_path)
 
             # 1. Translate the skeleton
             # 1.1. Download the skeleton
-            if os.path.exists(tmpFolder + 'target_skeleton.osim'):
-                os.remove(tmpFolder + 'target_skeleton.osim')
+            if os.path.exists(tmp_folder + 'target_skeleton.osim'):
+                os.remove(tmp_folder + 'target_skeleton.osim')
             self.index.download(dataset.osim_model_path,
-                                tmpFolder + 'target_skeleton.osim')
+                                tmp_folder + 'target_skeleton.osim')
 
             # Check if the original model is compatible with the target model
-            targetModel = nimble.biomechanics.OpenSimParser.parseOsim(
-                tmpFolder + 'target_skeleton.osim')
-            if nimble.biomechanics.OpenSimParser.hasArms(targetModel.skeleton):
-                sourceModel = nimble.biomechanics.OpenSimParser.parseOsim(
-                    tmpFolder + 'original_model.osim')
-                if not nimble.biomechanics.OpenSimParser.hasArms(sourceModel.skeleton):
-                    print('Detected that the target skeleton has arms, but the original skeleton does not. This is not supported, because we will not have any marker data to move the arms during simulation.')
+            target_model = nimble.biomechanics.OpenSimParser.parseOsim(
+                tmp_folder + 'target_skeleton.osim')
+            if nimble.biomechanics.OpenSimParser.hasArms(target_model.skeleton):
+                source_model = nimble.biomechanics.OpenSimParser.parseOsim(
+                    tmp_folder + 'original_model.osim')
+                if not nimble.biomechanics.OpenSimParser.hasArms(source_model.skeleton):
+                    print('Detected that the target skeleton has arms, but the original skeleton does not. This is not'
+                          ' supported, because we will not have any marker data to move the arms during simulation.')
                     self.index.uploadText(self.get_target_path(
                         dataset) + '/INCOMPATIBLE', '')
                     continue
@@ -177,32 +178,32 @@ class SubjectSnapshot:
             print('Translating markers to target skeleton at ' +
                   dataset.osim_model_path)
             try:
-                markersGuessed, markersMissing = nimble.biomechanics.OpenSimParser.translateOsimMarkers(
-                    tmpFolder + 'original_model.osim',
-                    tmpFolder + 'target_skeleton.osim',
-                    tmpFolder + 'unscaled_generic.osim',
+                markers_guessed, markers_missing = nimble.biomechanics.OpenSimParser.translateOsimMarkers(
+                    tmp_folder + 'original_model.osim',
+                    tmp_folder + 'target_skeleton.osim',
+                    tmp_folder + 'unscaled_generic.osim',
                     verbose=True)
-                print('Markers guessed: ' + str(markersGuessed))
-                print('Markers missing: ' + str(markersMissing))
+                print('Markers guessed: ' + str(markers_guessed))
+                print('Markers missing: ' + str(markers_missing))
                 target_path = self.get_target_path(dataset)
                 print('Re-uploading to ' + target_path)
 
                 # Write the data about how the translation was done to the new folder
-                translationData = {'markersGuessed': markersGuessed,
-                                   'markersMissing': markersMissing,
-                                   'targetSkeleton': dataset.osim_model_path,
-                                   'originalFolder': self.path,
-                                   'snapshotDate': time.strftime("%Y-%m-%d %H:%M:%S",
-                                                                 time.gmtime())}
+                translation_data = {'markersGuessed': markers_guessed,
+                                    'markersMissing': markers_missing,
+                                    'targetSkeleton': dataset.osim_model_path,
+                                    'originalFolder': self.path,
+                                    'snapshotDate': time.strftime("%Y-%m-%d %H:%M:%S",
+                                                                  time.gmtime())}
                 self.index.uploadText(
-                    target_path + '/_translation.json', json.dumps(translationData))
+                    target_path + '/_translation.json', json.dumps(translation_data))
 
                 # Upload every file in the tmpFolder
-                for root, dirs, files in os.walk(tmpFolder):
+                for root, dirs, files in os.walk(tmp_folder):
                     for file in files:
                         if file.endswith('.osim') or file.endswith('.trc') or file.endswith('.mot') or file.endswith(
                                 '.c3d') or file.endswith('_subject.json'):
-                            relative_path = os.path.relpath(root, tmpFolder)
+                            relative_path = os.path.relpath(root, tmp_folder)
                             full_path = file if relative_path == '.' else os.path.join(
                                 relative_path, file)
                             print('Uploading ' + full_path)
@@ -219,7 +220,7 @@ class SubjectSnapshot:
                     dataset) + '/INCOMPATIBLE', '')
 
         # Delete the tmp folder
-        os.system('rm -rf ' + tmpFolder)
+        os.system('rm -rf ' + tmp_folder)
 
 
 class DataHarvester:
@@ -230,7 +231,8 @@ class DataHarvester:
 
     To resolve these issues, this class will:
     (1) Scan for new data uploaded to S3
-    (2) Download the data, translate the skeleton to the standard skeleton, and re-upload it to S3 under a protected partition
+    (2) Download the data, translate the skeleton to the standard skeleton, and re-upload it to S3 under a protected
+    partition
     """
     bucket: str
     deployment: str
@@ -244,19 +246,20 @@ class DataHarvester:
         self.queue = []
         self.datasets = []
         self.index = ReactiveS3Index(bucket, deployment, disable_pubsub)
-        self.index.addChangeListener(self.onChange)
+        self.index.addChangeListener(self.on_change)
         self.index.refreshIndex()
         if not disable_pubsub:
             self.index.registerPubSub()
 
-    def onChange(self):
+    def on_change(self):
         print('S3 CHANGED!')
 
         # 1. Collect all Trials
         new_queue: List[SubjectSnapshot] = []
         new_datasets: List[StandardizedDataset] = []
         for folder in self.index.listAllFolders():
-            # We want to collect all the dataset targets that we're supposed to be copying data to, in case those have been updated
+            # We want to collect all the dataset targets that we're supposed to be copying data to, in case
+            # those have been updated
             if folder.startswith('standardized'):
                 if folder.endswith('/'):
                     folder = folder[:-1]
@@ -286,11 +289,13 @@ class DataHarvester:
         print('Updating queue to have ' + str(len(new_queue)) + ' items')
         self.queue = new_queue
 
-    def processQueueForever(self):
+    def process_queue_forever(self):
         """
-        This busy-waits on the queue updating, and will process the head of the queue one at a time when it becomes available.
+        This busy-waits on the queue updating, and will process the head of the queue one at a time when it
+        becomes available.
 
-        While processing, this blocks, so even though the queue is updating in the background, that shouldn't change the outcome of this process.
+        While processing, this blocks, so even though the queue is updating in the background, that shouldn't change
+        the outcome of this process.
         """
         while True:
             try:
@@ -301,7 +306,7 @@ class DataHarvester:
                         self.queue[0].copy_snapshots(self.datasets)
                     except Exception as e:
                         print('Got an exception when trying to process dataset ' +
-                              self.queue[0].s3_root_path)
+                              self.queue[0].path)
                         print(e)
                     self.queue.pop(0)
             except Exception as e:
@@ -326,4 +331,4 @@ if __name__ == "__main__":
     server = DataHarvester(args.bucket, args.deployment, args.disable_pubsub)
 
     # 2. Run forever
-    server.processQueueForever()
+    server.process_queue_forever()
