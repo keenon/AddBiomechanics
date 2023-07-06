@@ -694,7 +694,7 @@ class MocapServer:
         This uses the `squeue` command to check how many jobs we currently have pending in the queue, if we're on the SLURM cluster.
         """
         if len(self.singularity_image_path) == 0:
-            return 0
+            return 0, 0
         # Fetch all jobs for the user
         try:
             cmd_all_jobs = f"squeue -u $USER"
@@ -709,7 +709,7 @@ class MocapServer:
             return new_jobs, reprocessing_jobs
         except Exception as e:
             print('Failed to get SLURM job queue length: '+str(e))
-            return 0
+            return 0, 0
 
     def processQueueForever(self):
         """
