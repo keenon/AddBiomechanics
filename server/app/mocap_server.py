@@ -11,6 +11,7 @@ import shutil
 import boto3
 import threading
 import argparse
+from typing import Tuple
 
 
 def absPath(path: str):
@@ -688,7 +689,7 @@ class MocapServer:
             print('Cueing an every ten minutes refresh', flush=True)
             self.index.refreshIndex()
 
-    def getSlurmJobQueueLen(self) -> int:
+    def getSlurmJobQueueLen(self) -> Tuple[int, int]:
         """
         This uses the `squeue` command to check how many jobs we currently have pending in the queue, if we're on the SLURM cluster.
         """
@@ -701,10 +702,11 @@ class MocapServer:
             all_jobs_output_str = all_jobs_output.decode(
                 'utf-8')  # decode bytes to string
             all_lines = all_jobs_output_str.strip().splitlines()
-            lines_filtered = [
-                line for line in all_lines if self.deployment in line]
-            all_jobs_count = len(lines_filtered)
-            return all_jobs_count
+            new_jobs = len([
+                line for line in all_lines if self.deployment+'_new' in line])
+            reprocessing_jobs = len([
+                line for line in all_lines if self.deployment+'_re' in line])
+            return new_jobs, reprocessing_jobs
         except Exception as e:
             print('Failed to get SLURM job queue length: '+str(e))
             return 0
@@ -726,13 +728,18 @@ class MocapServer:
                     # MANUALLY MANAGE THE WORK QUEUE! That happens in self.onChange()
 
                     if len(self.singularity_image_path) > 0:
+                        reprocessing_job: bool = self.currentlyProcessing.subjectPath.startswith('standardized')
+
                         # SLURM has resource limits, and will fail to queue our job with sbatch if we're too greedy. So we need to check
                         # the queue length before we queue up a new job, and not queue up more than 15 jobs at a time (though the precise limit
                         # isn't documented anywhere, I figure 15 concurrent jobs per deployment (so 30 total between dev and prod) is probably a reasonable limit).
-                        slurm_queue_len = self.getSlurmJobQueueLen()
+                        slurm_new_jobs, slurm_reprocessing_jobs = self.getSlurmJobQueueLen()
+                        slurm_total_jobs = slurm_new_jobs + slurm_reprocessing_jobs
                         print('Queueing subject for processing on SLURM: ' +
                               self.currentlyProcessing.subjectPath)
-                        if slurm_queue_len < 15:
+                        # We always leave a few slots open for new jobs, since they're more important than reprocessing
+                        if (reprocessing_job and slurm_reprocessing_jobs < 10) or \
+                                (not reprocessing_job and slurm_total_jobs < 15):
                             # Mark the subject as having been queued in SLURM, so that we don't try to process it again
                             self.currentlyProcessing.markAsQueuedOnSlurm()
                             print('Queueing subject for processing on SLURM: ' +
@@ -740,7 +747,14 @@ class MocapServer:
                             # Now launch a SLURM job to process this subject
                             raw_command = 'singularity run --env PROCESS_SUBJECT_S3_PATH="' + \
                                 self.currentlyProcessing.subjectPath+'" '+self.singularity_image_path
-                            sbatch_command = 'sbatch -p owners --job-name ' + self.deployment + '_new_addb --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
+
+                            job_name: str = self.deployment
+                            if reprocessing_job:
+                                job_name += '_re'
+                            else:
+                                job_name += '_new'
+
+                            sbatch_command = 'sbatch -p owners --job-name ' + job_name + ' --cpus-per-task=8 --mem=8000M --time=4:00:00 --wrap="' + \
                                 raw_command.replace('"', '\\"')+'"'
                             print('Running command: '+sbatch_command)
                             try:
