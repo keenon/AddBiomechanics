@@ -7,6 +7,7 @@ import os
 import stat
 import shutil
 import json
+from .reactive_s3_index import makeTopicPubSubSafe
 
 BUCKET_NAME = 'biomechanics-uploads161949-dev'
 
@@ -163,7 +164,7 @@ class LiveS3File:
         self.root.s3.Object(BUCKET_NAME, self.path).put(
             Body=open(filePath, 'rb'))
         self.root.pubSub.sendMessage(
-            "/UPDATE/"+self.parentPath, {'path': self.path})
+            makeTopicPubSubSafe("/UPDATE/"+self.parentPath), {'path': self.path})
         self.root.rootFolder.ensureChild(filePath.split('/'))
 
     def uploadText(self, text: str):
@@ -172,8 +173,7 @@ class LiveS3File:
         """
         self.root.s3.Object(BUCKET_NAME, self.path).put(Body=text)
         self.root.pubSub.sendMessage(
-            "/UPDATE/"+self.parentPath, {'path': self.path})
-        self.root.rootFolder.ensureChild(filePath.split('/'))
+            makeTopicPubSubSafe("/UPDATE/"+self.parentPath), {'path': self.path})
 
     def uploadJSON(self, contents: Dict[str, Any]):
         """

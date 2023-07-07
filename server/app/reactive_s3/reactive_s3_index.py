@@ -27,6 +27,29 @@ class FileMetadata:
         return "<"+self.key+", "+str(self.size)+"b, "+str(self.lastModified)+"ms>"
 
 
+def makeTopicPubSubSafe(path: str) -> str:
+    MAX_TOPIC_LEN = 80
+    if (len(path) > MAX_TOPIC_LEN):
+        segments = path.split("/")
+        if (len(segments[0]) > MAX_TOPIC_LEN):
+            return segments[0][0:MAX_TOPIC_LEN]
+        reconstructed = ''
+        segmentCursor = 0
+        while segmentCursor < len(segments):
+            proposedNext = reconstructed
+            if segmentCursor > 0:
+                proposedNext += '/'
+            proposedNext += segments[segmentCursor]
+            segmentCursor += 1
+
+            if len(proposedNext) < MAX_TOPIC_LEN:
+                reconstructed = proposedNext
+            else:
+                break
+        return reconstructed
+    return path
+
+
 class ReactiveS3Index:
     disable_pubsub: bool
     pubSub: PubSub
@@ -209,28 +232,6 @@ class ReactiveS3Index:
     def addChangeListener(self, listener: Callable) -> None:
         self.changeListeners.append(listener)
 
-    def makeTopicPubSubSafe(self, path: str) -> str:
-        MAX_TOPIC_LEN = 80
-        if (len(path) > MAX_TOPIC_LEN):
-            segments = path.split("/")
-            if (len(segments[0]) > MAX_TOPIC_LEN):
-                return segments[0][0:MAX_TOPIC_LEN]
-            reconstructed = ''
-            segmentCursor = 0
-            while segmentCursor < len(segments):
-                proposedNext = reconstructed
-                if segmentCursor > 0:
-                    proposedNext += '/'
-                proposedNext += segments[segmentCursor]
-                segmentCursor += 1
-
-                if len(proposedNext) < MAX_TOPIC_LEN:
-                    reconstructed = proposedNext
-                else:
-                    break
-            return reconstructed
-        return path
-
     def uploadFile(self, bucketPath: str, localPath: str):
         """
         This uploads a local file to a given spot in the bucket
@@ -240,7 +241,7 @@ class ReactiveS3Index:
             Body=open(localPath, 'rb'))
         if 'pubSub' in self.__dict__ and self.pubSub is not None:
             self.pubSub.sendMessage(
-                self.makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': os.path.getsize(localPath)})
+                makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': os.path.getsize(localPath)})
 
     def uploadText(self, bucketPath: str, text: str):
         """
@@ -249,7 +250,7 @@ class ReactiveS3Index:
         self.s3.Object(self.bucketName, bucketPath).put(Body=text)
         if 'pubSub' in self.__dict__ and self.pubSub is not None:
             self.pubSub.sendMessage(
-                self.makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': len(text.encode('utf-8'))})
+                makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': len(text.encode('utf-8'))})
 
     def uploadJSON(self, bucketPath: str, contents: Dict[str, Any]):
         """
@@ -267,7 +268,7 @@ class ReactiveS3Index:
         self.s3.Object(self.bucketName, bucketPath).delete()
         if 'pubSub' in self.__dict__ and self.pubSub is not None:
             self.pubSub.sendMessage(
-                self.makeTopicPubSubSafe("/DELETE/"+bucketPath), {'key': bucketPath})
+                makeTopicPubSubSafe("/DELETE/"+bucketPath), {'key': bucketPath})
 
     def download(self, bucketPath: str, localPath: str) -> None:
         print('downloading file '+bucketPath+' into '+localPath)

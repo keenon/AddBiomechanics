@@ -84,6 +84,11 @@ class PubSub:
                     payloadWithTopic = payload.copy()
                     payloadWithTopic['topic'] = topic
                     payload_json = json.dumps(payloadWithTopic)
+                    full_topic = '/' + self.deployment + topic
+                    if len(full_topic) > 100:
+                        print('Topic too long, not sending: ' + full_topic)
+                        self.message_queue.task_done()
+                        continue
                     sendFuture, packetId = self.mqttConnection.publish(
                         topic=('/' + self.deployment + topic),
                         payload=payload_json,
@@ -92,6 +97,8 @@ class PubSub:
                     sendFuture.result(timeout=5.0)
                     # Mark the task as done in the queue
                     self.message_queue.task_done()
+                    # Rate limit the sending of messages on the PubSub queue to 20 per second
+                    time.sleep(0.05)
                 except Exception as e:
                     print('PubSub got an error sending message to topic: ' + topic)
                     print(e)
@@ -99,6 +106,11 @@ class PubSub:
                     time.sleep(5)
                 finally:
                     self.lock.release()
+            else:
+                print('PubSub is not connected, cannot send message to topic: ' + topic+', with queue len: ' +
+                      str(self.message_queue.qsize()))
+                print('Will try again in 5 seconds...')
+                time.sleep(5)
 
     def subscribe(self, topic: str, callback: Callable[[str, Any], None]):
         """
@@ -122,6 +134,7 @@ class PubSub:
         self.message_queue.put((topic, payload))
 
     def disconnect(self):
+        print('Disconnecting PubSub...')
         self.lock.acquire()
         try:
             """
@@ -142,6 +155,7 @@ class PubSub:
         """
         print("Connection interrupted at {}. error: {}".format(
             datetime.datetime.now().strftime("%H:%M:%S"), error))
+        self.mqttConnection = None
 
     def _onConnectionResumed(self, connection, returnCode=None, sessionPresent=None, **kwargs):
         """
