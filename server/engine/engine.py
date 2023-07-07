@@ -1090,10 +1090,6 @@ class Engine(metaclass=ExceptionHandlingMeta):
             for line in iter(p.stdout.readline, b''):
                 print(line.decode(), end='')
             p.wait()
-            if p.returncode != 0:
-                print(f"The opensim-cmd command failed with exit code {p.returncode}. This means the rest of our "
-                      f"pipeline will fail, so we have to exit now.")
-                exit(p.returncode)
 
         # Delete the OpenSim log from running the scale tool
         if os.path.exists(self.path + 'results/opensim.log'):
