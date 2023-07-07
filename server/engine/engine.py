@@ -435,6 +435,16 @@ class Engine(metaclass=ExceptionHandlingMeta):
             if os.path.exists(c3dFilePath):
                 c3dFile: nimble.biomechanics.C3D = nimble.biomechanics.C3DLoader.loadC3D(
                     c3dFilePath)
+
+                any_have_markers = False
+                for markerTimestep in c3dFile.markerTimesteps:
+                    if len(markerTimestep.keys()) > 0:
+                        any_have_markers = True
+                        break
+                if not any_have_markers:
+                    raise RuntimeError(f'Trial {trialName} has no markers on any timestep. Check that the C3D file is '
+                                       f'not corrupted.')
+
                 nimble.biomechanics.C3DLoader.fixupMarkerFlips(c3dFile)
                 self.markerFitter.autorotateC3D(c3dFile)
                 self.c3dFiles[trialName] = c3dFile
@@ -443,9 +453,20 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 self.trialFramesPerSecond.append(c3dFile.framesPerSecond)
                 self.trialMarkerSet[trialName] = c3dFile.markers
                 self.markerTrials.append(c3dFile.markerTimesteps)
+
             elif os.path.exists(trcFilePath):
                 trcFile: nimble.biomechanics.OpenSimTRC = nimble.biomechanics.OpenSimParser.loadTRC(
                     trcFilePath)
+
+                any_have_markers = False
+                for markerTimestep in trcFile.markerTimesteps:
+                    if len(markerTimestep.keys()) > 0:
+                        any_have_markers = True
+                        break
+                if not any_have_markers:
+                    raise RuntimeError(f'Trial {trialName} has no markers on any timestep. Check that the TRC file is '
+                                       f'not corrupted.')
+
                 self.markerTrials.append(trcFile.markerTimesteps)
                 self.trialTimestamps.append(trcFile.timestamps)
                 self.trialFramesPerSecond.append(trcFile.framesPerSecond)
