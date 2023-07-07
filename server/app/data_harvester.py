@@ -219,7 +219,7 @@ class SubjectSnapshot:
                 self.index.uploadText(self.get_target_path(
                     dataset) + '/INCOMPATIBLE', '')
 
-        print('Finished uploading datasets as incompatible')
+        print('Finished uploading processed datasets')
         # Delete the tmp folder
         os.system('rm -rf ' + tmp_folder)
 
