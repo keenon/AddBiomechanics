@@ -383,19 +383,23 @@ class SubjectToProcess:
                     subjectJson = json.loads(subj.read())
                     if 'email' in subjectJson:
                         email = subjectJson['email']
-                        print('sending notification email to '+str(email))
-                        print('subject path: '+str(self.subjectPath))
-                        parts = self.subjectPath.split('/')
-                        print('path parts: '+str(parts))
-                        name = parts[-1]
-                        if parts[-1] == '':
-                            name = parts[-2]
-                        print('name: '+str(name))
-                        emailPath = '/'.join(parts[3:-1]
-                                             if parts[-1] == '' else parts[3:])
-                        print('email path: '+str(emailPath))
-                        emailPath = emailPath.replace(' ', '%20')
-                        self.sendNotificationEmail(email, name, emailPath)
+                        if self.subjectPath.startswith('protected/') or self.subjectPath.startswith('private/'):
+                            print('sending notification email to '+str(email))
+                            print('subject path: '+str(self.subjectPath))
+                            parts = self.subjectPath.split('/')
+                            print('path parts: '+str(parts))
+                            name = parts[-1]
+                            if parts[-1] == '':
+                                name = parts[-2]
+                            print('name: '+str(name))
+                            emailPath = '/'.join(parts[3:-1]
+                                                 if parts[-1] == '' else parts[3:])
+                            print('email path: '+str(emailPath))
+                            emailPath = emailPath.replace(' ', '%20')
+                            self.sendNotificationEmail(email, name, emailPath)
+                        else:
+                            print('Not sending notification email because subject path does not start with "protected/"'
+                                  ' or "private/"')
 
                 # 6. Clean up after ourselves
                 shutil.rmtree(path, ignore_errors=True)
