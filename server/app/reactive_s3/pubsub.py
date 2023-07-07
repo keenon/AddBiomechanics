@@ -8,6 +8,7 @@ import json
 from typing import Callable, Any, Dict
 import datetime
 import os
+import queue
 
 received_count = 0
 
@@ -67,6 +68,38 @@ class PubSub:
         # Future.result() waits until a result is available
         connectFuture.result()
 
+        # Create a queue for messages
+        self.message_queue = queue.Queue()
+
+        # Create a worker thread for sending messages
+        self.worker_thread = threading.Thread(target=self._message_sender, daemon=True)
+        self.worker_thread.start()
+
+    def _message_sender(self):
+        while True:
+            topic, payload = self.message_queue.get()
+            if self.mqttConnection:
+                self.lock.acquire()
+                try:
+                    payloadWithTopic = payload.copy()
+                    payloadWithTopic['topic'] = topic
+                    payload_json = json.dumps(payloadWithTopic)
+                    sendFuture, packetId = self.mqttConnection.publish(
+                        topic=('/' + self.deployment + topic),
+                        payload=payload_json,
+                        qos=mqtt.QoS.AT_MOST_ONCE)  # AT_LEAST_ONCE
+                    # Future.result() waits until a result is available
+                    sendFuture.result(timeout=5.0)
+                    # Mark the task as done in the queue
+                    self.message_queue.task_done()
+                except Exception as e:
+                    print('PubSub got an error sending message to topic: ' + topic)
+                    print(e)
+                    print('Will try again in 5 seconds...')
+                    time.sleep(5)
+                finally:
+                    self.lock.release()
+
     def subscribe(self, topic: str, callback: Callable[[str, Any], None]):
         """
         Subscribe to a topic
@@ -84,21 +117,9 @@ class PubSub:
 
     def sendMessage(self, topic: str, payload: Dict[str, Any] = {}):
         """
-        Sends a message to PubSub
+        Adds a message to the queue to be sent
         """
-        self.lock.acquire()
-        try:
-            payloadWithTopic = payload.copy()
-            payloadWithTopic['topic'] = topic
-            payload_json = json.dumps(payloadWithTopic)
-            sendFuture, packetId = self.mqttConnection.publish(
-                topic=('/' + self.deployment + topic),
-                payload=payload_json,
-                qos=mqtt.QoS.AT_MOST_ONCE)  # AT_LEAST_ONCE
-            # Future.result() waits until a result is available
-            sendFuture.result()
-        finally:
-            self.lock.release()
+        self.message_queue.put((topic, payload))
 
     def disconnect(self):
         self.lock.acquire()
