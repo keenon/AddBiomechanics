@@ -43,6 +43,17 @@ class PubSub:
         print('creating PubSub object')
         self.deployment = deployment
         self.lock = threading.Lock()
+
+        self.connect_mqtt()
+
+        # Create a queue for messages
+        self.message_queue = queue.Queue()
+
+        # Create a worker thread for sending messages
+        self.worker_thread = threading.Thread(target=self._message_sender, daemon=True)
+        self.worker_thread.start()
+
+    def connect_mqtt(self):
         # Spin up resources
         eventLoopGroup = io.EventLoopGroup(1)
         hostResolver = io.DefaultHostResolver(eventLoopGroup)
@@ -63,17 +74,11 @@ class PubSub:
             http_proxy_options=None)
 
         print("Connecting to {} with client ID '{}'...".format(ENDPOINT, CLIENT_ID))
-
         connectFuture = self.mqttConnection.connect()
+        print('Waiting for connection...')
         # Future.result() waits until a result is available
         connectFuture.result()
-
-        # Create a queue for messages
-        self.message_queue = queue.Queue()
-
-        # Create a worker thread for sending messages
-        self.worker_thread = threading.Thread(target=self._message_sender, daemon=True)
-        self.worker_thread.start()
+        print('Connected to PubSub')
 
     def _message_sender(self):
         while True:
@@ -156,6 +161,9 @@ class PubSub:
         print("Connection interrupted at {}. error: {}".format(
             datetime.datetime.now().strftime("%H:%M:%S"), error))
         self.mqttConnection = None
+        print('Sleeping for 5 seconds, then attempting to recreate the connection')
+        time.sleep(5)
+        self.connect_mqtt()
 
     def _onConnectionResumed(self, connection, returnCode=None, sessionPresent=None, **kwargs):
         """
