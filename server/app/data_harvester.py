@@ -214,13 +214,26 @@ class SubjectSnapshot:
                 self.index.uploadText(target_path + '/READY_TO_PROCESS', '')
             except Exception as e:
                 print('Got an exception when trying to process dataset ' +
-                      dataset.s3_root_path)
+                      self.path+' to '+dataset.s3_root_path)
                 print(e)
                 self.index.uploadText(self.get_target_path(
                     dataset) + '/INCOMPATIBLE', '')
 
+        print('Finished uploading datasets as incompatible')
         # Delete the tmp folder
         os.system('rm -rf ' + tmp_folder)
+
+    def mark_incompatible(self, datasets: List[StandardizedDataset]):
+        # First filter the datasets to just the ones we want to copy
+        datasets = self.has_snapshots_to_copy(datasets)
+        if len(datasets) == 0:
+            return
+
+        for dataset in datasets:
+            print('Marking dataset as incompatible: ' + dataset.s3_root_path)
+            self.index.uploadText(self.get_target_path(
+                dataset) + '/INCOMPATIBLE', '')
+        print('Finished marking datasets as incompatible')
 
 
 class DataHarvester:
@@ -308,6 +321,15 @@ class DataHarvester:
                         print('Got an exception when trying to process dataset ' +
                               self.queue[0].path)
                         print(e)
+                        try:
+                            self.queue[0].mark_incompatible(self.datasets)
+                        except Exception as e2:
+                            print('Got an exception when trying to mark dataset as incompatible ' +
+                                  self.queue[0].path)
+                            print(e2)
+                            print('We will now quit, because it is pointless to keep looping on this dataset')
+                            break
+
                     self.queue.pop(0)
             except Exception as e:
                 print(e)
