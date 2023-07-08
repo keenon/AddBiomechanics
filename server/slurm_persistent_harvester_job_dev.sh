@@ -19,6 +19,6 @@ trap _resubmit SIGUSR1
 ml python/3.9.0
 ## Run the data harvester, in the background so that we don't lose the trap signal
 export PYTHONUNBUFFERED=1
-CERT_HOME="/home/users/keenon/certs" python3 ~/AddBiomechanics/server/app/data_harvester.py --bucket biomechanics-uploads161949-dev --deployment DEV &
+CERT_HOME="/home/users/keenon/certs" python3 ~/AddBiomechanics/server/app/data_harvester.py --bucket biomechanics-uploads161949-dev --deployment DEV || true &
 # Don't exit while the harvester is running
 wait
