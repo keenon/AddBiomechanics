@@ -124,6 +124,9 @@ class SubjectSnapshot:
             subject_json = json.load(open(tmp_folder + '_subject.json'))
             if 'skeletonPreset' in subject_json:
                 skeleton_preset = subject_json['skeletonPreset']
+                # Ensure that the _subject.json file is set to custom for the upload in the standardized folder
+                subject_json['skeletonPreset'] = 'custom'
+                json.dump(subject_json, open(tmp_folder + '_subject.json', 'w'))
 
         if skeleton_preset == 'vicon':
             shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_ViconPlugInGait.osim',
