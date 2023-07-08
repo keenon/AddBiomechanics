@@ -749,7 +749,7 @@ class MocapServer:
                             print('Queueing subject for processing on SLURM: ' +
                                   self.currentlyProcessing.subjectPath)
                             # Now launch a SLURM job to process this subject
-                            raw_command = 'singularity run --env PROCESS_SUBJECT_S3_PATH="' + \
+                            raw_command = 'singularity run --cpus 8 --env PROCESS_SUBJECT_S3_PATH="' + \
                                 self.currentlyProcessing.subjectPath+'" '+self.singularity_image_path
 
                             job_name: str = self.deployment
