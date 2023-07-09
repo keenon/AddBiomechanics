@@ -574,7 +574,6 @@ class MocapServer:
                     folder += '/'
                 subject = SubjectToProcess(self.index, folder)
                 if subject.shouldProcess():
-                    print('- should process: '+str(subject.subjectPath))
                     shouldProcessSubjects.append(subject)
 
         # 2. Sort Trials. First we prioritize subjects that are not just copies in the "standardized" bucket, then
@@ -585,6 +584,9 @@ class MocapServer:
 
         # 3. Update the queue. There's another thread that busy-waits on the queue changing, that can then grab a queue entry and continue
         self.queue = shouldProcessSubjects
+
+        for subject in self.queue:
+            print('- should process: ' + str(subject.subjectPath))
 
         # 4. Update status file. Do this on another thread, to avoid deadlocking with the pubsub service when this is being called
         # inside a callback from a message, and then wants to send its own message out about updating the status file.
