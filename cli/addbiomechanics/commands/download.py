@@ -30,6 +30,8 @@ class DownloadCommand(AbstractCommand):
         to_download: List[str] = []
         to_download_e_tags: List[str] = []
         to_download_size: int = 0
+        already_downloaded: List[str] = []
+        already_downloaded_size: int = 0
 
         while True:
             if 'Contents' in response:
@@ -40,9 +42,13 @@ class DownloadCommand(AbstractCommand):
                     if regex.match(key):
                         if e_tag in to_download_e_tags:
                             continue
-                        to_download.append(key)
-                        to_download_e_tags.append(e_tag)
-                        to_download_size += size
+                        if os.path.exists(key):
+                            already_downloaded.append(key)
+                            already_downloaded_size += size
+                        else:
+                            to_download.append(key)
+                            to_download_e_tags.append(e_tag)
+                            to_download_size += size
 
             # Check if there are more objects to retrieve
             if response['IsTruncated']:
@@ -52,8 +58,11 @@ class DownloadCommand(AbstractCommand):
             else:
                 break
 
-        print('Found '+str(len(to_download))+' files to download.')
-        print('Total size is '+sizeof_fmt(to_download_size))
+        if len(already_downloaded) > 0:
+            print('Found '+str(len(already_downloaded))+' files already downloaded.')
+            print('Total size already downloaded is '+sizeof_fmt(already_downloaded_size))
+        print('Found '+str(len(to_download))+' new files to download.')
+        print('Total size to download is '+sizeof_fmt(to_download_size))
         if len(to_download) > 5:
             print('Here are the first 5:')
             for i in range(5):
