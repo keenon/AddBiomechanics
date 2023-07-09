@@ -6,10 +6,39 @@ To install, just run (from the root of this repository):
 
 `pip3 install ./cli`
 
+## Bulk Uploading
+
 Then you can use the new `addb` tool on the command line, like so:
 
 `addb upload <path_to_your_folder>`
 
-For more info and other commands:
+## Creating Datasets
+
+You can bulk download processed datasets from AddBiomechanics using the `download` command:
+
+`addb download <regex_to_match>`
+
+AddBiomechanics maintains a list of standard models, and will reprocess all data into the standard models automatically.
+To download all the binary data from the `rajagopal_no_arms` standard model, you can run:
+
+`addb -d dev download "standardized/rajagopal_no_arms/.*\.bin$"`
+
+to get the data off the DEV servers, and
+
+`addb -d prod download "standardized/rajagopal_no_arms/.*\.bin$"`
+
+to get the data off the PROD servers.
+
+Then, you'll likely want to downsample and/or lowpass filter the newly downloaded data (AddBiomechanics doesn't do any 
+filtering on the server side, so we don't accidentally destroy useful high-frequency content).
+
+To resample a downloaded folder at 50Hz sample rate, with a 20Hz lowpass filter, run:
+
+`addb post-process <source_data_folder> <destination_data_folder> --sample-rate 50 --lowpass-hz 20`
+
+## Misc Utilities
+
+There are built in commands to translate markersets between OpenSim models, run analytics on AddBiomechanics uploads, 
+list files, etc. For more info and other commands:
 
 `addb --help`

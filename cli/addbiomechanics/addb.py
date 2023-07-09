@@ -6,6 +6,7 @@ from addbiomechanics.commands.upload import UploadCommand
 from addbiomechanics.commands.analytics import AnalyticsCommand
 from addbiomechanics.commands.transfer_markerset import TransferMarkersetCommand
 from addbiomechanics.commands.view import ViewCommand
+from addbiomechanics.commands.post_process import PostProcessCommand
 
 
 PROD_DEPLOYMENT = {
@@ -34,7 +35,7 @@ DEV_DEPLOYMENT = {
 
 
 def main():
-    local_commands = [ViewCommand(), TransferMarkersetCommand()]
+    local_commands = [ViewCommand(), TransferMarkersetCommand(), PostProcessCommand()]
 
     commands = [LsCommand(), DownloadCommand(),
                 UploadCommand(), AnalyticsCommand()]

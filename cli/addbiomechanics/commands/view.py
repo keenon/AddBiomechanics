@@ -5,10 +5,6 @@ import os
 from datetime import datetime
 from addbiomechanics.s3_structure import S3Node, retrieve_s3_structure, sizeof_fmt
 from typing import List, Dict
-import nimblephysics as nimble
-from nimblephysics import NimbleGUI
-import numpy as np
-from scipy.signal import butter, filtfilt
 
 class ViewCommand(AbstractCommand):
     def register_subcommand(self, subparsers: argparse._SubParsersAction):
@@ -33,7 +29,7 @@ class ViewCommand(AbstractCommand):
             '--graph-lowpass-hz',
             help='The frequency to lowpass filter the DOF values being plotted',
             type=int,
-            default=20)
+            default=None)
 
     def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'view':
@@ -42,6 +38,23 @@ class ViewCommand(AbstractCommand):
         trial: int = args.trial
         graph_dof: str = args.graph_dof
         graph_lowpass_hz: int = args.graph_lowpass_hz
+
+        try:
+            import nimblephysics as nimble
+            from nimblephysics import NimbleGUI
+        except ImportError:
+            print("The required library 'nimblephysics' is not installed. Please install it and try this command again.")
+            return True
+        try:
+            import numpy as np
+        except ImportError:
+            print("The required library 'numpy' is not installed. Please install it and try this command again.")
+            return True
+        try:
+            from scipy.signal import butter, filtfilt
+        except ImportError:
+            print("The required library 'scipy' is not installed. Please install it and try this command again.")
+            return True
 
         geometry: str = args.geometry
 
@@ -110,11 +123,19 @@ class ViewCommand(AbstractCommand):
                 dof_taus[frame] = t
 
             # Filter down to "--graph-lowpass-hz" Hz
-            b, a = butter(2, graph_lowpass_hz, 'low', fs=1/subject.getTrialTimestep(trial))
-            dof_poses = filtfilt(b, a, dof_poses)
-            dof_vels = filtfilt(b, a, dof_vels)
-            dof_accs = filtfilt(b, a, dof_accs)
-            dof_taus = filtfilt(b, a, dof_taus)
+            if graph_lowpass_hz is not None:
+                fs = 1/subject.getTrialTimestep(trial)
+                nyquist = fs / 2
+                if graph_lowpass_hz < nyquist:
+                    print('Filtering to '+str(graph_lowpass_hz)+' Hz...')
+                    b, a = butter(2, graph_lowpass_hz, 'low', fs=fs)
+                    dof_poses = filtfilt(b, a, dof_poses)
+                    dof_vels = filtfilt(b, a, dof_vels)
+                    dof_accs = filtfilt(b, a, dof_accs)
+                    dof_taus = filtfilt(b, a, dof_taus)
+                else:
+                    print('WARNING: Cannot filter to '+str(graph_lowpass_hz)+' Hz because it is greater than the '+
+                          'Nyquist frequency of '+str(nyquist)+' Hz. Not filtering.')
             dof_power = dof_vels * dof_taus
             dof_work = np.cumsum(dof_power) * subject.getTrialTimestep(trial)
 
