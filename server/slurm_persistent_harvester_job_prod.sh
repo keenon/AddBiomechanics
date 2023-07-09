@@ -20,5 +20,14 @@ ml python/3.9.0
 ## Run the data harvester, in the background so that we don't lose the trap signal
 export PYTHONUNBUFFERED=1
 CERT_HOME="/home/users/keenon/certs" python3 ~/AddBiomechanics/server/app/data_harvester.py --bucket biomechanics-uploads83039-prod --deployment PROD || true &
-# Don't exit while the harvester is running
-wait
+
+# Loop forever, printing the time
+# This has the advantage that even if the Python script crashes, the job will continue to run, and eventually be
+# resubmitted and restarted.
+while true; do
+    echo "$(date): normal execution"
+    sleep 60
+done
+
+## Don't exit while the harvester is running
+#wait
