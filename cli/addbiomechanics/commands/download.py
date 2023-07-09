@@ -75,18 +75,21 @@ class DownloadCommand(AbstractCommand):
         confired: bool = False
         if resp == 'y':
             confired = True
-        # Check if the user entered an integer
-        try:
-            confired = True
-            num: int = int(resp)
-            if num > len(to_download):
-                print('Invalid number')
-                return
-            else:
-                print('Downloading only the first '+str(num)+' results')
-            to_download = to_download[:num]
-        except ValueError:
-            pass
+        elif resp == 'n':
+            confired = False
+        else:
+            # Check if the user entered an integer
+            try:
+                confired = True
+                num: int = int(resp)
+                if num > len(to_download):
+                    print('Invalid number')
+                    return
+                else:
+                    print('Downloading only the first '+str(num)+' results')
+                to_download = to_download[:num]
+            except ValueError:
+                pass
 
         if not confired:
             print('Aborting')
