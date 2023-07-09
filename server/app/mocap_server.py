@@ -580,7 +580,7 @@ class MocapServer:
         # we sort oldest to newest. The sort method gets passed a Tuple, which goes left to right, True before False,
         # and low to high.
         shouldProcessSubjects.sort(key=lambda x: (
-            not x.subjectPath.startswith("standardized"), x.latestInputTimestamp()))
+            x.subjectPath.startswith("standardized"), x.latestInputTimestamp()))
 
         # 3. Update the queue. There's another thread that busy-waits on the queue changing, that can then grab a queue entry and continue
         self.queue = shouldProcessSubjects
