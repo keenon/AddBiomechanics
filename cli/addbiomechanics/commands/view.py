@@ -130,6 +130,8 @@ class ViewCommand(AbstractCommand):
             gui.nativeAPI().setRichPlotData('dof_plot', 'Net Work', 'purple', 'line', timesteps, dof_work)
 
             gui.nativeAPI().createText('dof_plot_text', 'DOF '+graph_dof+' values', [50, 350], [400, 50])
+        else:
+            dof = None
 
         # Animate the knees back and forth
         ticker: nimble.realtime.Ticker = nimble.realtime.Ticker(
@@ -141,6 +143,7 @@ class ViewCommand(AbstractCommand):
             nonlocal frame
             nonlocal skel
             nonlocal subject
+            nonlocal dof
             nonlocal dof_poses
             nonlocal dof_vels
             nonlocal dof_accs
