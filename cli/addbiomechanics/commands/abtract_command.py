@@ -8,3 +8,6 @@ class AbstractCommand:
 
     def run(self, ctx: AuthContext, args: argparse.Namespace):
         pass
+
+    def run_local(self, args: argparse.Namespace) -> bool:
+        return False

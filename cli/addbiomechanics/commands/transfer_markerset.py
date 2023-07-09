@@ -37,20 +37,20 @@ class TransferMarkersetCommand(AbstractCommand):
         parser.add_argument('target_osim', type=str)
         parser.add_argument('output_path', type=str)
 
-    def run(self, ctx: AuthContext, args: argparse.Namespace):
+    def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'transfer_markerset':
-            return
+            return False
 
         try:
             import nimblephysics as nimble
         except ImportError:
             print("The required library 'nimblephysics' is not installed. Please install it and try this command again.")
-            return
+            return True
         try:
             import numpy as np
         except ImportError:
             print("The required library 'numpy' is not installed. Please install it and try this command again.")
-            return
+            return True
 
         source_osim_with_markerset: str = get_absolute_path(args.source_osim_with_markerset)
         target_osim: str = get_absolute_path(args.target_osim)
@@ -74,3 +74,4 @@ class TransferMarkersetCommand(AbstractCommand):
                   'model?):')
             for marker in missing:
                 print(f' > {marker}')
+        return True

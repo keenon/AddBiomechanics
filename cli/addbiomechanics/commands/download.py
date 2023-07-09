@@ -4,65 +4,93 @@ from addbiomechanics.auth import AuthContext
 import os
 from datetime import datetime
 from addbiomechanics.s3_structure import S3Node, retrieve_s3_structure, sizeof_fmt
-from typing import List
+from typing import List, Dict
+import re
 
 
 class DownloadCommand(AbstractCommand):
     def register_subcommand(self, subparsers: argparse._SubParsersAction):
         download_parser = subparsers.add_parser(
             'download', help='Download a dataset from AddBiomechanics')
-        download_parser.add_argument(
-            'output_path', type=str, help='The folder to download to')
-        download_parser.add_argument(
-            '--path-substring', type=str, help='A substring of the path of the files you want. This could be as simple as a subject name')
-        download_parser.add_argument('--grf-only', type=bool, default=False, help="Only list datasets that include GRF data")
-        download_parser.add_argument('--filter-age', type=lambda d: datetime.strptime(d, '%Y-%m-%d'),
-                            help='Only get data created after this date. The date in the format YYYY-MM-DD', default=None)
+        download_parser.add_argument('pattern', type=str,
+                                     help='The regex to match files to be downloaded.')
 
     def run(self, ctx: AuthContext, args: argparse.Namespace):
         if args.command != 'download':
             return
+        pattern: str = args.pattern
+        # Compile the pattern as a regex
+        regex = re.compile(pattern)
 
-        output_path: str = args.output_path
-        path_substring: str = args.path_substring
-        grf_only: bool = args.grf_only
-        filter_age: datetime = args.filter_age
+        s3 = ctx.aws_session.client('s3')
 
-        root: S3Node = retrieve_s3_structure(ctx)
+        response = s3.list_objects_v2(
+            Bucket=ctx.deployment['BUCKET'], Prefix='standardized/')
 
-        binaryFiles: List[S3Node] = root.get_download_list(path_substring, grf_only=grf_only)
-        prefix = os.path.commonpath([node.get_path() for node in binaryFiles])
-        if not prefix.endswith('/') and len(prefix) > 0:
-            prefix += '/'
-        totalSize = 0
+        to_download: List[str] = []
+        to_download_e_tags: List[str] = []
+        to_download_size: int = 0
 
-        print('We are about to download the following files:')
-        print('Prefix is '+prefix)
-        for node in binaryFiles:
-            path = node.get_path()
-            if prefix != path:
-                path = path[len(prefix):]
-            print(f' > [{prefix}] {path} ({sizeof_fmt(node.size)})')
-            totalSize += node.size
-        print('Total size is {}'.format(sizeof_fmt(totalSize)))
+        while True:
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    key: str = obj['Key']
+                    size: int = obj['Size']
+                    e_tag: str = obj['ETag']
+                    if regex.match(key):
+                        if e_tag in to_download_e_tags:
+                            continue
+                        to_download.append(key)
+                        to_download_e_tags.append(e_tag)
+                        to_download_size += size
+
+            # Check if there are more objects to retrieve
+            if response['IsTruncated']:
+                continuation_token = response['NextContinuationToken']
+                response = s3.list_objects_v2(
+                    Bucket=ctx.deployment['BUCKET'], Prefix='standardized/', ContinuationToken=continuation_token)
+            else:
+                break
+
+        print('Found '+str(len(to_download))+' files to download.')
+        print('Total size is '+sizeof_fmt(to_download_size))
+        if len(to_download) > 5:
+            print('Here are the first 5:')
+            for i in range(5):
+                print("  - "+to_download[i])
+        else:
+            for td in to_download:
+                print("  - " + td)
         print('Is that ok?')
-        confired = input('y/n: ') == 'y'
+        resp: str = input('y/n or an integer number to download: ')
+        confired: bool = False
+        if resp == 'y':
+            confired = True
+        # Check if the user entered an integer
+        try:
+            confired = True
+            num: int = int(resp)
+            if num > len(to_download):
+                print('Invalid number')
+                return
+            else:
+                print('Downloading only the first '+str(num)+' results')
+            to_download = to_download[:num]
+        except ValueError:
+            pass
+
         if not confired:
             print('Aborting')
             return
 
-        s3 = ctx.aws_session.client('s3')
-
-        if not output_path.endswith('/'):
-            output_path += '/'
-        for i, node in enumerate(binaryFiles):
-            full_path: str = node.get_path()
-            file: str = full_path[len(prefix):]
-            size: int = node.size
-            dest_path = output_path+file
-            print('Downloading '+str(i+1)+'/'+str(len(binaryFiles)) +
-                  ' '+file+' ('+sizeof_fmt(size)+')')
-            directory = os.path.dirname(dest_path)
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-            s3.download_file(ctx.deployment['BUCKET'], full_path, dest_path)
+        for key in to_download:
+            print('Downloading '+key)
+            if os.path.exists(key):
+                print('File already exists, skipping')
+                continue
+            # os.path.dirname gets the directory portion from the full path
+            directory = os.path.dirname(key)
+            # Create the directory structure, if it doesn't exist already
+            os.makedirs(directory, exist_ok=True)
+            # Download the file
+            s3.download_file(ctx.deployment['BUCKET'], key, key)

@@ -5,6 +5,7 @@ from addbiomechanics.commands.ls import LsCommand
 from addbiomechanics.commands.upload import UploadCommand
 from addbiomechanics.commands.analytics import AnalyticsCommand
 from addbiomechanics.commands.transfer_markerset import TransferMarkersetCommand
+from addbiomechanics.commands.view import ViewCommand
 
 
 PROD_DEPLOYMENT = {
@@ -33,8 +34,10 @@ DEV_DEPLOYMENT = {
 
 
 def main():
+    local_commands = [ViewCommand(), TransferMarkersetCommand()]
+
     commands = [LsCommand(), DownloadCommand(),
-                UploadCommand(), AnalyticsCommand(), TransferMarkersetCommand()]
+                UploadCommand(), AnalyticsCommand()]
 
     # Create an ArgumentParser object
     parser = argparse.ArgumentParser(
@@ -52,9 +55,15 @@ def main():
     # Add a parser for each command
     for command in commands:
         command.register_subcommand(subparsers)
+    for command in local_commands:
+        command.register_subcommand(subparsers)
 
     # Parse the arguments
     args = parser.parse_args()
+
+    for command in local_commands:
+        if command.run_local(args):
+            return
 
     # Get deployment info
     deployment = DEV_DEPLOYMENT if args.deployment == 'dev' else PROD_DEPLOYMENT
