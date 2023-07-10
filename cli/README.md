@@ -36,6 +36,22 @@ To resample a downloaded folder at 50Hz sample rate, with a 20Hz lowpass filter,
 
 `addb post-process <source_data_folder> <destination_data_folder> --sample-rate 50 --lowpass-hz 20`
 
+## Exporting Data to CSV
+
+To export a subject to a CSV, run:
+
+`addb export-csv <source_bin_file> <destination_csv_file> --column pos_<dof> vel_<dof> wrk_<dof>`
+
+You can specify as many columns as you like, and the CSV will be created with the specified columns. The naming 
+convention for the columns is they are the prefix, followed by an underscore, followed by the degree of freedom. The 
+currently available prefixes are:
+- `pos`: position
+- `vel`: velocity
+- `acc`: acceleration
+- `tau`: torque
+- `pwr`: power = torque * velocity
+- `wrk`: work = time integral of `pwr`
+
 ## Misc Utilities
 
 There are built in commands to translate markersets between OpenSim models, run analytics on AddBiomechanics uploads, 
