@@ -19,7 +19,8 @@ PROD_DEPLOYMENT = {
     'BUCKET': "biomechanics-uploads83039-prod",
     'REGION': "us-west-2",
     'ROLE_ARN': "arn:aws:iam::756193201945:role/amplify-biomechanicsfrontend-prod-83039-authRole",
-    'MQTT_PREFIX': "PROD"
+    'MQTT_PREFIX': "PROD",
+    'NAME': 'PROD'
 }
 
 DEV_DEPLOYMENT = {
@@ -31,7 +32,8 @@ DEV_DEPLOYMENT = {
     'BUCKET': "biomechanics-uploads161949-dev",
     'REGION': "us-west-2",
     'ROLE_ARN': "arn:aws:iam::756193201945:role/amplify-biomechanicsfrontend-dev-161949-authRole",
-    'MQTT_PREFIX': "DEV"
+    'MQTT_PREFIX': "DEV",
+    'NAME': 'DEV'
 }
 
 
