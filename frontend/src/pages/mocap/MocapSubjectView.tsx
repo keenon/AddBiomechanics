@@ -522,10 +522,13 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             <Form.Check.Input
               type="checkbox"
               checked={dismissed_warning.includes(itemId)}
+              disabled={props.cursor.dataIsReadonly()}
               onChange={handleCheckboxChange(itemId)}
             />
           </OverlayTrigger>
-          <Form.Check.Label>
+          <Form.Check.Label
+            style={{ opacity: 1 }}
+            >
             <div>
               <span>{label}</span>
             </div>
