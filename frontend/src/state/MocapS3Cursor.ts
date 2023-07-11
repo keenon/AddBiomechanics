@@ -1032,7 +1032,7 @@ class MocapS3Cursor {
     };
 
     /**
-     * Gets the contents of the _errors.json for this subject, as a promise
+     * Gets the contents of the _warning_preferences for this subject, as a promise
      */
     getWarningsPreferenceFile = () => {
         if (this.cachedWarningsPreferenceFile == null) {

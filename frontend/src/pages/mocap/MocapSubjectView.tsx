@@ -468,7 +468,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
 
   // Handle checkbox change for dismissing warnings.
-  const handleCheckboxChange = (itemId:string) => (event:any) => {
+  const handleCheckboxChange = (itemId: string) => (event: any) => {
     const liElement = document.getElementById(itemId);
     const isChecked = event.target.checked;
 
@@ -483,7 +483,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       props.cursor.warningPreferencesJson.setAttribute(itemId, isChecked)
     }
     // If unchecked, show.
-    else if(!isChecked) {
+    else if (!isChecked) {
       if (liElement) {
         dismissed_warning.splice(dismissed_warning.indexOf(itemId), 1);
         setDismissedWarning((dismissed_warning) =>
@@ -508,7 +508,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   }
 
   // Reusable checkbox component to dismiss warnings.
-  const CheckBoxWarningDismiss = ({itemId, label}: CheckBoxWarningDismissProps) => (
+  const CheckBoxWarningDismiss = ({ itemId, label }: CheckBoxWarningDismissProps) => (
     <Form.Group>
       <Form.Check>
         <OverlayTrigger
@@ -519,21 +519,21 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               You can click this checkbox to dismiss this warning. To show all of the warnings, go to the bottom of the warning section and click on "Show all warnings".
             </Tooltip>
           )}>
-            <Form.Check.Input
-              type="checkbox"
-              checked={dismissed_warning.includes(itemId)}
-              disabled={props.cursor.dataIsReadonly()}
-              onChange={handleCheckboxChange(itemId)}
-            />
-          </OverlayTrigger>
-          <Form.Check.Label
-            style={{ opacity: 1 }}
-            >
-            <div>
-              <span>{label}</span>
-            </div>
-          </Form.Check.Label>
-        </Form.Check>
+          <Form.Check.Input
+            type="checkbox"
+            checked={dismissed_warning.includes(itemId)}
+            disabled={props.cursor.dataIsReadonly()}
+            onChange={handleCheckboxChange(itemId)}
+          />
+        </OverlayTrigger>
+        <Form.Check.Label
+          style={{ opacity: 1 }}
+        >
+          <div>
+            <span>{label}</span>
+          </div>
+        </Form.Check.Label>
+      </Form.Check>
     </Form.Group>
   );
 
@@ -542,25 +542,25 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       props.cursor.getErrorsFileText().then((text: string) => {
         var jsonError = JSON.parse(text);
         setError(<li>
-                  <p>
-                    <strong>{jsonError.type} - </strong>
-                    {parseLinks(jsonError.message)}
-                  </p>
-                  <p>
-                    {parseLinks(jsonError.original_message)}
-                  </p>
-                </li>);
+          <p>
+            <strong>{jsonError.type} - </strong>
+            {parseLinks(jsonError.message)}
+          </p>
+          <p>
+            {parseLinks(jsonError.original_message)}
+          </p>
+        </li>);
       });
     }
     if (props.cursor.hasWarningsPreferenceFile()) {
       props.cursor.getWarningsPreferenceFile().then((text: string) => {
         var jsonWarningPreferences = JSON.parse(text);
         // Iterate over keys to set default values.
-        Object.keys(jsonWarningPreferences).forEach(function(key) {
+        Object.keys(jsonWarningPreferences).forEach(function (key) {
           //if(key === "showAllWarnings")
           //  setShowAllWarnings(jsonWarningPreferences[key])
           //else
-          if(jsonWarningPreferences[key])
+          if (jsonWarningPreferences[key])
             setDismissedWarning((dismissed_warning) => [
               ...dismissed_warning,
               key,
@@ -735,6 +735,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     }
 
     let warningList = [];
+    let numHiddenWarnings = 0;
 
     if (guessedTrackingMarkers == true) {
       let markerText = '<Marker name="RSH">';
@@ -743,35 +744,39 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       let markerText2 = '  <fixed>true</fixed>';
       let markerText3 = '</Marker>';
 
-      warningList.push(<li key='guessed_tracking' id={'guessed_tracking'} hidden={isHiddenCheckboxWarning('guessed_tracking')}>
-
-        <CheckBoxWarningDismiss
-          itemId="guessed_tracking"
-          label={
-            <>
-              <p>
-                The optimizer had to guess which of your markers were placed on bony landmarks, and which were not. This is probably because in the unscaled OpenSim model you uploaded, all or most of your markers were listed as <code>&lt;fixed&gt;<b>false</b>&lt;/fixed&gt;</code>, or they were all <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>.
-                You may achieve higher quality results if you specify all the markers placed on <b><i>bony landmarks (i.e. "anatomical markers")</i></b> as <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>, and all the markers placed on <b><i>soft tissue (i.e. "tracking markers")</i></b> as <code>&lt;fixed&gt;<b>false</b>&lt;/fixed&gt;</code>.
-              </p>
-              <p>Here's an example marker that's been correctly specified as <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>:
-              </p>
-              <p>
-                <code>
-                  <pre style={{ marginBottom: 0 }}>
-                    {markerText}
-                  </pre>
-                  <b><pre style={{ marginBottom: 0 }}>
-                    {markerText2}
-                  </pre></b>
-                  <pre>
-                    {markerText3}
-                  </pre>
-                </code>
-              </p>
-            </>
-          }
-        />
-      </li>);
+      if (!isHiddenCheckboxWarning('guessed_tracking')) {
+        warningList.push(<li key='guessed_tracking' id={'guessed_tracking'}>
+          <CheckBoxWarningDismiss
+            itemId="guessed_tracking"
+            label={
+              <>
+                <p>
+                  The optimizer had to guess which of your markers were placed on bony landmarks, and which were not. This is probably because in the unscaled OpenSim model you uploaded, all or most of your markers were listed as <code>&lt;fixed&gt;<b>false</b>&lt;/fixed&gt;</code>, or they were all <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>.
+                  You may achieve higher quality results if you specify all the markers placed on <b><i>bony landmarks (i.e. "anatomical markers")</i></b> as <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>, and all the markers placed on <b><i>soft tissue (i.e. "tracking markers")</i></b> as <code>&lt;fixed&gt;<b>false</b>&lt;/fixed&gt;</code>.
+                </p>
+                <p>Here's an example marker that's been correctly specified as <code>&lt;fixed&gt;<b>true</b>&lt;/fixed&gt;</code>:
+                </p>
+                <p>
+                  <code>
+                    <pre style={{ marginBottom: 0 }}>
+                      {markerText}
+                    </pre>
+                    <b><pre style={{ marginBottom: 0 }}>
+                      {markerText2}
+                    </pre></b>
+                    <pre>
+                      {markerText3}
+                    </pre>
+                  </code>
+                </p>
+              </>
+            }
+          />
+        </li>);
+      }
+      else {
+        numHiddenWarnings++;
+      }
     }
 
     if (trialMarkerSets != null) {
@@ -797,13 +802,17 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         }
       }
       if (trialOnly.length > 0) {
-        warningList.push(<li key={'unused-markers'} id={'unused-markers'} hidden={isHiddenCheckboxWarning('unused-markers')}>
-
-          <CheckBoxWarningDismiss
-            itemId="unused-markers"
-            label={<p>There were <b><i>{trialOnly.length} markers</i></b> in the mocap file(s) that were ignored by the optimizer, because they weren't in the unscaled OpenSim model you uploaded: <b><i>{trialOnly.join(', ')}</i></b>. These appear as "Unused Markers" in the visualizer - you can mouse over them to see which one is which.</p>}
-          />
-        </li>);
+        if (!isHiddenCheckboxWarning('unused-markers')) {
+          warningList.push(<li key={'unused-markers'} id={'unused-markers'}>
+            <CheckBoxWarningDismiss
+              itemId="unused-markers"
+              label={<p>There were <b><i>{trialOnly.length} markers</i></b> in the mocap file(s) that were ignored by the optimizer, because they weren't in the unscaled OpenSim model you uploaded: <b><i>{trialOnly.join(', ')}</i></b>. These appear as "Unused Markers" in the visualizer - you can mouse over them to see which one is which.</p>}
+            />
+          </li>);
+        }
+        else {
+          numHiddenWarnings++;
+        }
       }
     }
     if (Object.keys(trialWarnings).length > 0) {
@@ -820,21 +829,30 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         </p>)
       }
       */
-      warningList.push(<li key={"markerCleanupWarnings"} id={"markerCleanupWarnings"} hidden={isHiddenCheckboxWarning('markerCleanupWarnings')}>
+      if (!isHiddenCheckboxWarning('markerCleanupWarnings')) {
+        warningList.push(<li key={"markerCleanupWarnings"} id={"markerCleanupWarnings"}>
           <CheckBoxWarningDismiss
             itemId="markerCleanupWarnings"
-            label={ <p>There were some glitches / mislabelings detected in the uploaded marker data. We've attempted to patch it with heuristics, but you may want to review by hand. See the README in the downloaded results folder for details.</p>}
+            label={<p>There were some glitches / mislabelings detected in the uploaded marker data. We've attempted to patch it with heuristics, but you may want to review by hand. See the README in the downloaded results folder for details.</p>}
           />
-      </li>);
+        </li>);
+      }
+      else {
+        numHiddenWarnings++;
+      }
     }
     if (fewFramesWarning) {
-      warningList.push(<li key={"fewFrames"} id={"fewFrames"} hidden={isHiddenCheckboxWarning('fewFrames')}>
-
-        <CheckBoxWarningDismiss
-          itemId="fewFrames"
-          label={<p>The trials you uploaded didn't include very many frames! The optimizer relies on motion of the body to find optimal scalings, so you will get better results with more data from this subject.</p>}
+      if (!isHiddenCheckboxWarning('fewFrames')) {
+        warningList.push(<li key={"fewFrames"} id={"fewFrames"}>
+          <CheckBoxWarningDismiss
+            itemId="fewFrames"
+            label={<p>The trials you uploaded didn't include very many frames! The optimizer relies on motion of the body to find optimal scalings, so you will get better results with more data from this subject.</p>}
           />
-      </li>);
+        </li>);
+      }
+      else {
+        numHiddenWarnings++;
+      }
     }
     if (Object.keys(jointLimitsHits).length > 0) {
       let warningsBlocks = [];
@@ -857,22 +875,60 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           </li>);
         }
       }
-      warningList.push(<li key={"jointLimits"}  id={"jointLimits"} hidden={isHiddenCheckboxWarning('jointLimits')} style={{verticalAlign: "text-top"}}>
-
+      if (!isHiddenCheckboxWarning('jointLimits')) {
+        warningList.push(<li key={"jointLimits"} id={"jointLimits"} style={{ verticalAlign: "text-top" }}>
           <CheckBoxWarningDismiss
             itemId="jointLimits"
             label={<>
-                    <p>The OpenSim skeleton hit its joint limits during the trial. This may lead to poor/jittery IK results. Here are joints to investigate:</p>
-                      <ul>
-                        {warningsBlocks}
-                      </ul>
-                   </>
-                  }
+              <p>The OpenSim skeleton hit its joint limits during the trial. This may lead to poor/jittery IK results. Here are joints to investigate:</p>
+              <ul>
+                {warningsBlocks}
+              </ul>
+            </>
+            }
           />
-
-      </li>);
+        </li>);
+      }
+      else {
+        numHiddenWarnings++;
+      }
     }
 
+    let showAllWarningsDiv = null;
+    if (numHiddenWarnings > 0 || showAllWarnings) {
+      showAllWarningsDiv = (
+        <OverlayTrigger
+          placement="right"
+          delay={{ show: 50, hide: 400 }}
+          overlay={(props) => (
+            <Tooltip id="button-tooltip" {...props}>
+              Click this checkbox to show/hide dismissed warnings.
+            </Tooltip>
+          )}>
+          <Form.Check
+            type="checkbox"
+            label="This subject has warnings that were dismissed. Check to show/hide them."
+            checked={showAllWarnings}
+            onChange={(event) => {
+              setShowAllWarnings(!showAllWarnings)
+              // If checked, show dismissed warning..
+              if (event.target.checked) {
+                dismissed_warning.forEach((dismissed_warning_id) => {
+                  const liElement = document.getElementById(dismissed_warning_id);
+                })
+                // If unchecked, hide dismissed warning.
+              } else {
+                dismissed_warning.forEach((dismissed_warning_id) => {
+                  const liElement = document.getElementById(dismissed_warning_id);
+                })
+              }
+              // Save preferences in json file.
+              props.cursor.warningPreferencesJson.setAttribute("showAllWarnings", event.target.checked)
+            }}
+          />
+        </OverlayTrigger>
+      )
+    }
     let guessedMarkersWarning = null;
     if (warningList.length > 0) {
       guessedMarkersWarning = <div className="alert alert-warning">
@@ -881,44 +937,19 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           The optimizer detected some issues in the uploaded files. We can't detect everything automatically, so see our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
         </p>
         <hr />
-        <ul style={{ listStyleType: 'none', paddingLeft: '1.5em'}}>
+        <ul style={{ listStyleType: 'none', paddingLeft: '1.5em' }}>
           {warningList}
         </ul>
         <hr />
         <p>
           You can ignore these warnings if you are happy with your results, or you update your data and/or your OpenSim Model and Markerset and then hit "Reprocess" (below in yellow) to fix the problem.
         </p>
-          <OverlayTrigger
-            placement="right"
-            delay={{ show: 50, hide: 400 }}
-            overlay={(props) => (
-              <Tooltip id="button-tooltip" {...props}>
-                Click this checkbox to show/hide dismissed warnings.
-              </Tooltip>
-            )}>
-            <Form.Check
-              type="checkbox"
-              label="Show all warnings"
-              checked={showAllWarnings}
-              disabled={dismissed_warning.length == 0}
-              onChange={(event) => {
-                setShowAllWarnings(!showAllWarnings)
-                // If checked, show dismissed warning..
-                if (event.target.checked) {
-                  dismissed_warning.forEach((dismissed_warning_id) => {
-                    const liElement = document.getElementById(dismissed_warning_id);
-                  })
-                // If unchecked, hide dismissed warning.
-                } else {
-                  dismissed_warning.forEach((dismissed_warning_id) => {
-                    const liElement = document.getElementById(dismissed_warning_id);
-                  })
-                }
-                // Save preferences in json file.
-                props.cursor.warningPreferencesJson.setAttribute("showAllWarnings", event.target.checked)
-              }}
-            />
-          </OverlayTrigger>
+        {showAllWarningsDiv}
+      </div>;
+    }
+    else {
+      guessedMarkersWarning = <div className="alert alert-warning">
+        {showAllWarningsDiv}
       </div>;
     }
 
