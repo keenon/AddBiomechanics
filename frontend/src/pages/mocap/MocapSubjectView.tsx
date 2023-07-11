@@ -554,9 +554,10 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
         var jsonWarningPreferences = JSON.parse(text);
         // Iterate over keys to set default values.
         Object.keys(jsonWarningPreferences).forEach(function(key) {
-          if(key === "showAllWarnings")
-            setShowAllWarnings(jsonWarningPreferences[key])
-          else if(jsonWarningPreferences[key])
+          //if(key === "showAllWarnings")
+          //  setShowAllWarnings(jsonWarningPreferences[key])
+          //else
+          if(jsonWarningPreferences[key])
             setDismissedWarning((dismissed_warning) => [
               ...dismissed_warning,
               key,
