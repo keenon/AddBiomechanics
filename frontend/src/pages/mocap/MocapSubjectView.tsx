@@ -22,6 +22,7 @@ import TagEditor from '../../components/TagEditor';
 import { attachEventProps } from "@aws-amplify/ui-react/lib-esm/react-component-lib/utils";
 import { AnyMessageParams } from "yup/lib/types";
 import { parseLinks } from "../../utils"
+import Select, { SingleValue } from 'react-select';
 
 type ProcessingResultsJSON = {
   autoAvgMax: number;
@@ -42,6 +43,7 @@ type MocapTrialRowViewProps = {
   uploadIK: File | undefined;
   onMultipleManualIK: (files: File[]) => void;
   onMultipleGRF: (files: File[]) => void;
+  trimmingMethods: string;
 };
 
 
@@ -127,8 +129,10 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   const tagList = tagsFile.getAttribute("tags", [] as string[]);
   const tagValues = tagsFile.getAttribute("tagValues", {} as { [key: string]: number });
 
+  const [trimming, setTrimming] = useState<SingleValue<{ value: string, label: string }>>({ value: 'Automatic', label: 'Automatic' })
+
   return (
-    <tr>
+    <tr style={{verticalAlign: "middle"}}>
       <td>
         {nameLink}
       </td>
@@ -154,9 +158,48 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
           }}
         />
       </td>
+      <td>
+        <div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{ width: '150px', marginInline: '10px' }}>
+                <Select
+                  placeholder="Trimming"
+                  options={[
+                    { value: 'Automatic', label: 'Automatic' },
+                    { value: 'Manual', label: 'Manual' },
+                    { value: 'None', label: 'None' }
+                  ]}
+                  value = {trimming}
+                  onChange={(selectedOption) => {
+                    if(selectedOption)
+                    setTrimming(selectedOption); // Set props.trimmingMethods to the selected value
+                  }}
+                />
+              </div>
+
+              <label> Start: </label>
+              <input
+                type="number"
+                disabled={props.cursor.dataIsReadonly() || trimming?.value !== "Manual"}
+                className={"form-control"}
+                style={{ width: "20%", marginInline: '10px'}}
+                onChange={(e) => {}}
+              />
+
+              <label> End: </label>
+              <input
+                type="number"
+                disabled={props.cursor.dataIsReadonly() || trimming?.value !== "Manual"}
+                className={"form-control"}
+                style={{ width: "20%", marginInline: '10px'}}
+                onChange={(e) => {}}
+              />
+            </div>
+        </div>
+      </td>
       {!props.cursor.canEdit() ? null : (
         <td>
-          <ButtonGroup className="d-block mb-2">
+          <ButtonGroup className="d-block">
             <Dropdown>
               <Dropdown.Toggle className="table-action-btn dropdown-toggle arrow-none btn btn-light btn-xs">
                 <i className="mdi mdi-dots-horizontal"></i>
@@ -602,6 +645,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           }
           setUploadFiles(updatedUploadFiles);
         }}
+        trimmingMethods={""}
       />
     );
   }
@@ -1566,6 +1610,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const nameWidth = 120;
   const fileWidthPart1 = 100;
   const fileWidthPart2 = 100;
+  const dataTrimmingWidth = 450;
   const actionWidth = props.cursor.canEdit() ? 100 : 0;
 
   const remainingWidth = '100%'; // 'calc(100% - ' + (nameWidth + fileWidthPart1 + fileWidthPart2 + actionWidth) + 'px)';
@@ -1597,6 +1642,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             <col width={fileWidthPart2 + 'px'} />
             {showValidationControls ? <col width={((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / 4) + "%"} /> : null}
             <col width={remainingWidth} />
+            <col width={dataTrimmingWidth + 'px'} />
             {props.cursor.canEdit() ? (
               <col width={actionWidth} />
             ) : null}
@@ -1647,6 +1693,25 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                   <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
                 </OverlayTrigger>
               </th>
+
+              <th className="border-0">
+                Data Trimming
+                <OverlayTrigger
+                  placement="right"
+                  delay={{ show: 50, hide: 400 }}
+                  overlay={(props) => (
+                    <Tooltip id="button-tooltip" {...props}>
+                      There are three methods for data trimming: <br></br>
+                       - <b>Automatic:</b> We use internal heuristics to infer data trimming points. <br></br>
+                       - <b>Manual:</b> You can manually set data trimming points. <br></br>
+                       - <b>None:</b> No trimming. <br></br>
+                      You can select data trimming method in the actions menu at right.
+                    </Tooltip>
+                  )}
+                >
+                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                </OverlayTrigger>
+                </th>
               {props.cursor.canEdit() ? (
                 <th className="border-0">
                   Action
