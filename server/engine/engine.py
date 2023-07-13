@@ -614,6 +614,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     baseFramesPerSecond = self.trialFramesPerSecond.pop(itrial)
                     baseMarkerSet = self.trialMarkerSet.pop(trialName)
                     baseMarkerTrial = self.markerTrials.pop(itrial)
+                    baseTrialProcessingResults = self.trialProcessingResults.pop(itrial)
                     segmentTrialNames = []
                     segmentForcePlates = []
                     segmentTimestamps = []
@@ -659,6 +660,9 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                 markerTrial.append(baseMarkerTrial[itime])
                         segmentMarkerTrials.append(markerTrial)
 
+                        # Append the trial processing results for this segment.
+                        self.trialProcessingResults.append(baseTrialProcessingResults)
+
                     # Insert the new segments into the list of trials.
                     self.trialNames[itrial:itrial] = segmentTrialNames
                     self.trialForcePlates[itrial:itrial] = segmentForcePlates
@@ -695,7 +699,15 @@ class Engine(metaclass=ExceptionHandlingMeta):
             # that are actually just segments of the current trial.
             itrial += numSegments
 
-        # 6.3. Check to see if any ground reaction forces are present in the loaded data. If so, we will attempt to
+        # 6.3. Save the time ranges for each trial.
+        timeRanges = dict()
+        for itrial, trialName in enumerate(self.trialNames):
+            timestamps = self.trialTimestamps[itrial]
+            self.trialProcessingResults[itrial]['timeRange'] = [timestamps[0], timestamps[-1]]
+            timeRanges[trialName] = [timestamps[0], timestamps[-1]]
+        self.processingResult['timeRanges'] = timeRanges
+
+        # 6.4. Check to see if any ground reaction forces are present in the loaded data. If so, we will attempt to
         # fit dynamics later on in the pipeline. If not, we will skip dynamics fitting.
         if not self.disableDynamics:
             if len(self.trialForcePlates) == 0:
