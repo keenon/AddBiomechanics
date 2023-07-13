@@ -119,7 +119,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.dynamicsRegularizePoses = 0.01
         self.ignoreFootNotOverForcePlate = False
         self.disableDynamics = False
-        self.segmentTrials = False
+        self.segmentedTrials = []
         self.trialRanges = dict()
         self.minSegmentDuration = 0.05
         self.mergeZeroForceSegmentsThreshold = 1.0
@@ -272,8 +272,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
         if 'disableDynamics' in subjectJson:
             self.disableDynamics = subjectJson['disableDynamics']
 
-        if 'segmentTrials' in subjectJson:
-            self.segmentTrials = subjectJson['segmentTrials']
+        if 'segmentedTrials' in subjectJson:
+            self.segmentedTrials = subjectJson['segmentedTrials']
 
         if 'minSegmentDuration' in subjectJson:
             self.minSegmentDuration = subjectJson['minSegmentDuration']
@@ -570,7 +570,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                                                          totalLoad)
                     if len(nonzeroForceSegments) == 0:
                         nonzeroForceSegments = [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]
-                        if self.segmentTrials:
+                        if trialName in self.segmentedTrials:
                             print(f'WARNING: No non-zero force segments detected for trial '
                                   f'"{self.trialNames[itrial]}". We must now skip dynamics fitting for all trials...')
                             self.disableDynamics = True
@@ -584,7 +584,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                                                          self.mergeZeroForceSegmentsThreshold)
                     if len(nonzeroForceSegments) == 0:
                         nonzeroForceSegments = [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]
-                        if self.segmentTrials:
+                        if trialName in self.segmentedTrials:
                             print(f'WARNING: No non-zero force segments left in trial "{self.trialNames[itrial]}" ' 
                                   f'after filtering out segments shorter than {self.minSegmentDuration} seconds. '
                                   f'We must now skip dynamics fitting for all trials...')
@@ -601,7 +601,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 numSegments = len(segments)
 
                 # Segment the trial.
-                if self.segmentTrials:
+                if trialName in self.segmentedTrials:
                     print(f' --> {len(segments)} markered and non-zero force segment(s) found!')
                     if len(segments) > 1:
                         print(f' --> Splitting trial "{trialName}" into {len(segments)} separate trials.')

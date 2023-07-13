@@ -8,7 +8,6 @@
   "email": "nbianco@stanford.edu",
   "skeletonPreset": "custom",
   "disableDynamics": false,
-  "segmentTrials": true,
   "footBodyNames": [
     "calcn_r",
     "calcn_l"
