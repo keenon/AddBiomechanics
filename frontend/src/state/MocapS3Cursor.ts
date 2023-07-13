@@ -288,6 +288,7 @@ class MocapS3Cursor {
     cachedTrialPlotCSV: Map<string, Promise<string>>;
     cachedVisulizationFiles: Map<string, LargeZipBinaryObject>;
     cachedTrialTags: Map<string, ReactiveJsonFile>;
+    cachedWarningsPreferenceFile: Promise<string> | null;
 
     subjectJson: ReactiveJsonFile;
     resultsJson: ReactiveJsonFile;
@@ -295,6 +296,7 @@ class MocapS3Cursor {
     searchJson: ReactiveJsonFile;
     myProfileJson: ReactiveJsonFile;
     customModelFile: ReactiveTextFile;
+    warningPreferencesJson: ReactiveJsonFile;
 
     socket: RobustMqtt;
 
@@ -320,6 +322,7 @@ class MocapS3Cursor {
         this.cachedVisulizationFiles = new Map();
         this.cachedTrialTags = new Map();
         this.showValidationControls = false;
+        this.cachedWarningsPreferenceFile = null;
 
         this.subjectJson = this.rawCursor.getJsonFile("_subject.json");
         this.resultsJson = this.rawCursor.getJsonFile("_results.json");
@@ -327,6 +330,7 @@ class MocapS3Cursor {
         this.searchJson = this.rawCursor.getJsonFile("_search.json");
         this.myProfileJson = this.rawCursor.getJsonFile('protected/'+this.region+":"+s3Index.myIdentityId+"/profile.json", true);
         this.customModelFile = this.rawCursor.getTextFile("unscaled_generic.osim");
+        this.warningPreferencesJson = this.rawCursor.getJsonFile("_warning_preferences.json");
 
         this.socket = socket;
 
@@ -1026,6 +1030,21 @@ class MocapS3Cursor {
         }
         return this.cachedErrorsFile;
     };
+
+    /**
+     * Gets the contents of the _warning_preferences for this subject, as a promise
+     */
+    getWarningsPreferenceFile = () => {
+        if (this.cachedWarningsPreferenceFile == null) {
+            console.log("Getting warnings preference file");
+            this.cachedWarningsPreferenceFile = this.rawCursor.downloadText("_warning_preferences.json");
+        }
+        return this.cachedWarningsPreferenceFile;
+    };
+
+    hasWarningsPreferenceFile = () => {
+        return this.rawCursor.hasChildren(["_warning_preferences.json"]);
+    }
 
     /**
      * Gets the contents of the _results.json for this trial, as a promise
