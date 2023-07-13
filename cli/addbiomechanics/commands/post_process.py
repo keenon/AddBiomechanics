@@ -127,7 +127,7 @@ class PostProcessCommand(AbstractCommand):
             acc_observations: List[List[Dict[str, np.ndarray]]] = [[{} for _ in range(trial_lengths[trial])] for trial in range(subject.getNumTrials())]
             gyro_observations: List[List[Dict[str, np.ndarray]]] = [[{} for _ in range(trial_lengths[trial])] for trial in range(subject.getNumTrials())]
             emg_observations: List[List[Dict[str, np.ndarray]]] = [[{} for _ in range(trial_lengths[trial])] for trial in range(subject.getNumTrials())]
-            force_plates: List[List[nimble.biomechanics.ForcePlate]] = [[nimble.biomechanics.ForcePlate() for i in range(subject.getNumForcePlates(trial))] for trial in range(subject.getNumTrials())]
+            force_plates: List[List[nimble.biomechanics.ForcePlate]] = [[nimble.biomechanics.ForcePlate() for _ in range(subject.getNumForcePlates(trial))] for trial in range(subject.getNumTrials())]
             biological_sex: str = subject.getBiologicalSex()
             height_m: float = subject.getHeightM()
             mass_kg: float = subject.getMassKg()
@@ -137,6 +137,10 @@ class PostProcessCommand(AbstractCommand):
             trial_tags: List[List[str]] = [subject.getTrialTags(trial) for trial in range(subject.getNumTrials())]
             source_href: str = subject.getHref()
             notes: str = subject.getNotes()
+
+            force_plate_forces: List[List[List[np.ndarray]]] = [[[] for _ in range(subject.getNumForcePlates(trial))] for trial in range(subject.getNumTrials())]
+            force_plate_cops: List[List[List[np.ndarray]]] = [[[] for _ in range(subject.getNumForcePlates(trial))] for trial in range(subject.getNumTrials())]
+            force_plate_moments: List[List[List[np.ndarray]]] = [[[] for _ in range(subject.getNumForcePlates(trial))] for trial in range(subject.getNumTrials())]
 
             for trial in range(len(trial_lengths)):
                 for t in range(trial_lengths[trial]):
@@ -161,10 +165,20 @@ class PostProcessCommand(AbstractCommand):
                     for i in range(len(custom_value_names)):
                         custom_values[trial][t][i] = frame.customValues[i]
 
+                    for i in range(len(force_plates[trial])):
+                        force_plate_forces[trial][i].append(frame.rawForcePlateForces[i])
+                        force_plate_cops[trial][i].append(frame.rawForcePlateCenterOfPressures[i])
+                        force_plate_moments[trial][i].append(frame.rawForcePlateTorques[i])
+
                     marker_observations[trial][t] = dict(frame.markerObservations)
                     acc_observations[trial][t] = dict(frame.accObservations)
                     gyro_observations[trial][t] = dict(frame.gyroObservations)
                     emg_observations[trial][t] = dict(frame.emgSignals)
+
+                for i in range(len(force_plates[trial])):
+                    force_plates[trial][i].forces = force_plate_forces[trial][i]
+                    force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
+                    force_plates[trial][i].moments = force_plate_moments[trial][i]
 
             print('Done reading SubjectOnDisk.')
 
@@ -172,7 +186,10 @@ class PostProcessCommand(AbstractCommand):
 
             if lowpass_hz is not None:
                 print('Low-pass filtering kinematics + kinetics data at {} Hz...'.format(lowpass_hz))
-                for trial in range(len(trial_lengths)):
+
+                skel = subject.readSkel(geometryFolder='No_Geometry')
+
+                for trial in range(subject.getNumTrials()):
                     nyquist = 0.5 / subject.getTrialTimestep(trial)
                     if lowpass_hz > nyquist:
                         print('Sample rate on trial '+str(trial)+' of '+str(nyquist * 2)+' is too low to filter at '
@@ -188,12 +205,145 @@ class PostProcessCommand(AbstractCommand):
                         trial_com_vels[trial] = filtfilt(b, a, trial_com_vels[trial], axis=1)
                         trial_com_accs[trial] = filtfilt(b, a, trial_com_accs[trial], axis=1)
 
-                        # Don't filter the GRF data, at least not right now
+                        contact_body_world_positions = [np.zeros((3, trial_lengths[trial])) for _ in range(len(ground_force_bodies))]
+                        for t in range(trial_lengths[trial]):
+                            skel.setPositions(trial_poses[trial][:, t])
+                            for i in range(len(ground_force_bodies)):
+                                contact_body_world_positions[i][:, t] = skel.getBodyNode(ground_force_bodies[i]).getWorldTransform().translation()
 
-                        # trial_ground_body_wrenches[trial] = filtfilt(b, a, trial_ground_body_wrenches[trial], axis=1)
-                        # for i in range(len(ground_force_bodies)):
-                        #     # Don't filter the center-of-pressure data, because that'll tend to send contact points back to 0 at heelstrike and toe off
-                        #     trial_ground_body_cop_torque_force[trial][i*9+3:i*9+9] = filtfilt(b, a, trial_ground_body_cop_torque_force[trial][i*9+3:i*9+9], axis=1)
+                        # First, ensure that the GRF data has proper zeros
+                        force_plate_norms: List[np.ndarray] = [np.zeros(trial_lengths[trial]) for _ in range(len(force_plates[trial]))]
+                        for i in range(len(force_plates[trial])):
+                            force_norms = force_plate_norms[i]
+                            for t in range(trial_lengths[trial]):
+                                force_norms[t] = np.linalg.norm(force_plate_forces[trial][i][t])
+
+                            num_bins = 200
+                            hist, bin_edges = np.histogram(force_norms, bins=num_bins)
+                            avg_bin_value = trial_lengths[trial] / num_bins
+                            hist_max_index = np.argmax(hist)
+                            # If the largest bin is in the bottom 25% of the distribution
+                            if hist_max_index < num_bins / 4:
+                                # Expand out from that bin in both directions until we find a bin that is below the
+                                # average bin value.
+                                right_bound = hist_max_index
+                                for j in range(hist_max_index, num_bins):
+                                    if hist[j] < avg_bin_value:
+                                        right_bound = j
+                                        break
+                                # Now we have the boundary of the "big thumb" region. This generally corresponds to the
+                                # zero point of the treadmill. If it is exactly at zero, then all is well. But if it is
+                                # not, then we've found a cutoff threshold which we should use to zero the GRF data.
+                                if right_bound > num_bins / 2:
+                                    # We found a right bound, but it's suspiciously far up the distribution. Let's
+                                    # ignore this zero.
+                                    pass
+                                else:
+                                    # We found a right bound that is in the bottom half of the distribution. Let's
+                                    # use it to zero the GRF data.
+                                    zero_threshold = bin_edges[right_bound]
+                                    for t in range(trial_lengths[trial]):
+                                        if force_norms[t] < zero_threshold:
+                                            force_plate_forces[trial][i][t] = np.zeros(3)
+                                            force_plate_cops[trial][i][t] = np.zeros(3)
+                                            force_plate_moments[trial][i][t] = np.zeros(3)
+                                            force_norms[t] = 0.0
+
+                        trial_ground_body_cop_torque_force[trial] = np.zeros_like(trial_ground_body_cop_torque_force[trial])
+                        # Next, low-pass filter the GRF data for each non-zero section
+                        for i in range(len(force_plates[trial])):
+                            force_matrix = np.zeros((3, trial_lengths[trial]))
+                            cop_matrix = np.zeros((3, trial_lengths[trial]))
+                            moment_matrix = np.zeros((3, trial_lengths[trial]))
+                            force_norms = force_plate_norms[i]
+                            non_zero_segments: List[Tuple[int,int]] = []
+                            last_nonzero = -1
+                            for t in range(trial_lengths[trial]):
+                                if force_norms[t] > 0.0:
+                                    if last_nonzero < 0:
+                                        last_nonzero = t
+                                else:
+                                    if last_nonzero >= 0:
+                                        non_zero_segments.append((last_nonzero, t-1))
+                                        last_nonzero = -1
+                                force_matrix[:, t] = force_plate_forces[trial][i][t]
+                                cop_matrix[:, t] = force_plate_cops[trial][i][t]
+                                moment_matrix[:, t] = force_plate_moments[trial][i][t]
+                            if last_nonzero >= 0:
+                                non_zero_segments.append((last_nonzero, trial_lengths[trial]-1))
+
+                            # print start and end indices of non-zero sequences
+                            for start, end in non_zero_segments:
+                                # print(f"Filtering force plate {i} on non-zero range [{start}, {end}]")
+                                if end - start < 10:
+                                    # print(" - Skipping non-zero segment because it's too short. Zeroing instead")
+                                    for t in range(start, end):
+                                        force_plate_forces[trial][i][t] = np.zeros(3)
+                                        force_plate_cops[trial][i][t] = np.zeros(3)
+                                        force_plate_moments[trial][i][t] = np.zeros(3)
+                                        force_norms[t] = 0.0
+                                else:
+                                    force_matrix[:, start:end] = filtfilt(b, a, force_matrix[:, start:end], padtype='constant')
+                                    cop_matrix[:, start:end] = filtfilt(b, a, cop_matrix[:, start:end], padtype='constant')
+                                    moment_matrix[:, start:end] = filtfilt(b, a, moment_matrix[:, start:end], padtype='constant')
+
+                                    dist_to_contact_bodies = np.zeros(len(ground_force_bodies))
+
+                                    for t in range(start, end):
+                                        force_plate_forces[trial][i][t] = force_matrix[:, t]
+                                        force_plate_cops[trial][i][t] = cop_matrix[:, t]
+                                        force_plate_moments[trial][i][t] = moment_matrix[:, t]
+                                        for j in range(len(ground_force_bodies)):
+                                            dist_to_contact_bodies[j] += np.linalg.norm(cop_matrix[:, t] - contact_body_world_positions[j][:, t])
+
+                                    closest_body_index = np.argmin(dist_to_contact_bodies)
+                                    # print('Closest body: ', ground_force_bodies[closest_body_index])
+
+                                    for t in range(start, end):
+                                        # TODO: it's technically possible for one foot to be split over two force plates
+                                        # so really, we should be summing the results from each force plate that assigns
+                                        # to a given foot, but that's such a huge PITA that I'm just going to ignore it
+                                        # for now
+                                        trial_ground_body_cop_torque_force[trial][closest_body_index*9:closest_body_index*9+9, t] = np.hstack((cop_matrix[:, t], moment_matrix[:, t], force_matrix[:, t]))
+
+                    # Update the force plates
+                    for i in range(len(force_plates[trial])):
+                        force_plates[trial][i].forces = force_plate_forces[trial][i]
+                        force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
+                        force_plates[trial][i].moments = force_plate_moments[trial][i]
+
+                    # Recompute inverse dynamics
+                    for t in range(trial_lengths[trial]):
+                        skel.setPositions(trial_poses[trial][:, t])
+                        skel.setVelocities(trial_vels[trial][:, t])
+                        skel.setAccelerations(trial_accs[trial][:, t])
+
+                        for i in range(len(ground_force_bodies)):
+                            cop = trial_ground_body_cop_torque_force[trial][i*9:i*9+3, t]
+                            moment = trial_ground_body_cop_torque_force[trial][i*9+3:i*9+6, t]
+                            force = trial_ground_body_cop_torque_force[trial][i*9+6:i*9+9, t]
+
+                            body = skel.getBodyNode(ground_force_bodies[i])
+                            T = body.getWorldTransform()
+
+                            # Translation from the CoP frame to the body frame
+                            p_wb = np.copy(T.translation()) - cop
+                            # Rotation from the CoP frame (= world frame) to the body frame
+                            R_wb = np.copy(T.rotation())
+                            # Rotation from the body frame to the CoP frame
+                            R_bw = R_wb.T
+                            # Translation from the body frame to the CoP frame
+                            p_bw = -R_bw @ p_wb
+
+                            # Transform the wrench into the body frame
+                            moment_b = R_bw @ moment - np.cross(p_bw, R_bw @ force)
+                            force_b = R_bw @ force
+                            wrench_b = np.hstack((moment_b, force_b))
+                            body.setExtWrench(wrench_b)
+
+                        skel.computeInverseDynamics()
+                        tau = skel.getControlForces()
+                        trial_taus[trial][:, t] = tau
             if sample_rate is not None:
                 print('Re-sampling kinematics + kinetics data at {} Hz...'.format(sample_rate))
                 print('Warning! Re-sampling input source data (markers, IMU, EMG) is not yet supported, so those will '
@@ -264,6 +414,24 @@ class PostProcessCommand(AbstractCommand):
                                                           original_sample_rate,
                                                           axis=1,
                                                           padtype='line')
+                    # Update the force plates
+                    for i in range(len(force_plates[trial])):
+                        force_plate_forces[trial][i] = resample_poly(force_plate_forces[trial][i],
+                                                                     sample_rate,
+                                                                     original_sample_rate,
+                                                                     padtype='line')
+                        force_plates[trial][i].forces = force_plate_forces[trial][i]
+                        force_plate_cops[trial][i] = resample_poly(force_plate_cops[trial][i],
+                                                                     sample_rate,
+                                                                     original_sample_rate,
+                                                                     padtype='line')
+                        force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
+                        force_plate_moments[trial][i] = resample_poly(force_plate_moments[trial][i],
+                                                                        sample_rate,
+                                                                        original_sample_rate,
+                                                                        padtype='line')
+                        force_plates[trial][i].moments = force_plate_moments[trial][i]
+
                     # Re-sample the GRF data linearly
                     new_trial_ground_body_wrenches = np.zeros((trial_ground_body_wrenches[trial].shape[0], len(new_times)))
                     for row in range(trial_ground_body_wrenches[trial].shape[0]):

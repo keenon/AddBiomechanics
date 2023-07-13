@@ -8,6 +8,7 @@ from addbiomechanics.commands.transfer_markerset import TransferMarkersetCommand
 from addbiomechanics.commands.view import ViewCommand
 from addbiomechanics.commands.post_process import PostProcessCommand
 from addbiomechanics.commands.export_csv import ExportCSVCommand
+from addbiomechanics.commands.describe_dataset import DescribeDatasetCommand
 
 
 PROD_DEPLOYMENT = {
@@ -38,10 +39,16 @@ DEV_DEPLOYMENT = {
 
 
 def main():
-    local_commands = [ViewCommand(), TransferMarkersetCommand(), PostProcessCommand(), ExportCSVCommand()]
+    local_commands = [ViewCommand(),
+                      TransferMarkersetCommand(),
+                      PostProcessCommand(),
+                      ExportCSVCommand(),
+                      DescribeDatasetCommand()]
 
-    commands = [LsCommand(), DownloadCommand(),
-                UploadCommand(), AnalyticsCommand()]
+    commands = [LsCommand(),
+                DownloadCommand(),
+                UploadCommand(),
+                AnalyticsCommand()]
 
     # Create an ArgumentParser object
     parser = argparse.ArgumentParser(

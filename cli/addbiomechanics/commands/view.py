@@ -30,6 +30,12 @@ class ViewCommand(AbstractCommand):
             help='The frequency to lowpass filter the DOF values being plotted',
             type=int,
             default=None)
+        view_parser.add_argument(
+            '--playback-speed',
+            help='A number representing the fraction of realtime to play back the data at. Default is 1.0, for '
+                 'realtime playback.',
+            type=float,
+            default=1.0)
 
     def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'view':
@@ -38,6 +44,7 @@ class ViewCommand(AbstractCommand):
         trial: int = args.trial
         graph_dof: str = args.graph_dof
         graph_lowpass_hz: int = args.graph_lowpass_hz
+        playback_speed: float = args.playback_speed
 
         try:
             import nimblephysics as nimble
@@ -156,7 +163,7 @@ class ViewCommand(AbstractCommand):
 
         # Animate the knees back and forth
         ticker: nimble.realtime.Ticker = nimble.realtime.Ticker(
-            subject.getTrialTimestep(trial))
+            subject.getTrialTimestep(trial) / playback_speed)
 
         frame: int = 0
 
@@ -171,13 +178,33 @@ class ViewCommand(AbstractCommand):
             nonlocal dof_taus
             nonlocal timesteps
 
-            loaded: List[nimble.biomechanics.Frame] = subject.readFrames(trial, frame, 1)
+            loaded: List[nimble.biomechanics.Frame] = subject.readFrames(trial, frame, 1, contactThreshold=20)
             skel.setPositions(loaded[0].pos)
+            gui.nativeAPI().renderSkeleton(skel)
+
+            # Render assigned force plates
             for i in range(0, len(contact_bodies)):
                 cop = loaded[0].groundContactCenterOfPressure[i*3:(i+1)*3]
                 f = loaded[0].groundContactForce[i*3:(i+1)*3] * 0.001
-                gui.nativeAPI().createLine('grf'+str(i), [cop, cop+f], [1, 0, 0, 1])
-            gui.nativeAPI().renderSkeleton(skel)
+                color: np.ndarray = np.array([0, 0, 0, 1])
+                color[i] = 1.0
+                gui.nativeAPI().createLine('grf'+str(i), [cop, cop+f], color)
+                if loaded[0].contact[i]:
+                    for k in range(skel.getBodyNode(contact_bodies[i]).getNumShapeNodes()):
+                        gui.nativeAPI().setObjectColor('world_'+skel.getName()+"_"+contact_bodies[i]+"_"+str(k), color)
+
+            # Render raw force plates
+            # for i in range(0, subject.getNumForcePlates(trial)):
+            #     cop = loaded[0].rawForcePlateCenterOfPressures[i]
+            #     f = loaded[0].rawForcePlateForces[i] * 0.001
+            #     color: np.ndarray = np.array([0, 0, 0, 1])
+            #     color[i] = 1.0
+            #     gui.nativeAPI().createLine('grf'+str(i), [cop, cop+f], color)
+            #     if loaded[0].contact[i]:
+            #         gui.nativeAPI().createSphere('grf_cop' + str(i), np.array([0.5, 0.5, 0.5]) * np.linalg.norm(f), cop, color)
+            #     else:
+            #         gui.nativeAPI().deleteObject('grf_cop' + str(i))
+
             if dof is not None:
                 joint_pos = skel.getJointWorldPositions([graph_joint])
                 gui.nativeAPI().setObjectPosition('active_joint', joint_pos)
@@ -210,6 +237,9 @@ class ViewCommand(AbstractCommand):
 
         ticker.registerTickListener(onTick)
         ticker.start()
+
+        print(subject.getHref())
+        print(subject.getTrialName(trial))
 
         # Don't immediately exit while we're serving
         gui.blockWhileServing()
