@@ -119,7 +119,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.dynamicsRegularizePoses = 0.01
         self.ignoreFootNotOverForcePlate = False
         self.disableDynamics = False
-        self.segmentTrials = False
+        self.segmentedTrials = []
         self.trialRanges = dict()
         self.minSegmentDuration = 0.05
         self.mergeZeroForceSegmentsThreshold = 1.0
@@ -266,8 +266,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
         if 'disableDynamics' in subjectJson:
             self.disableDynamics = subjectJson['disableDynamics']
 
-        if 'segmentTrials' in subjectJson:
-            self.segmentTrials = subjectJson['segmentTrials']
+        if 'segmentedTrials' in subjectJson:
+            self.segmentedTrials = subjectJson['segmentedTrials']
 
         if 'minSegmentDuration' in subjectJson:
             self.minSegmentDuration = subjectJson['minSegmentDuration']
@@ -585,7 +585,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                                                          totalLoad)
                     if len(nonzeroForceSegments) == 0:
                         nonzeroForceSegments = [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]
-                        if self.segmentTrials:
+                        if trialName in self.segmentedTrials:
                             print(f'WARNING: No non-zero force segments detected for trial '
                                   f'"{self.trialNames[itrial]}". We must now skip dynamics fitting for all trials...')
                             self.disableDynamics = True
@@ -599,7 +599,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                                                          self.mergeZeroForceSegmentsThreshold)
                     if len(nonzeroForceSegments) == 0:
                         nonzeroForceSegments = [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]
-                        if self.segmentTrials:
+                        if trialName in self.segmentedTrials:
                             print(f'WARNING: No non-zero force segments left in trial "{self.trialNames[itrial]}" ' 
                                   f'after filtering out segments shorter than {self.minSegmentDuration} seconds. '
                                   f'We must now skip dynamics fitting for all trials...')
@@ -616,7 +616,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 numSegments = len(segments)
 
                 # Segment the trial.
-                if self.segmentTrials:
+                if trialName in self.segmentedTrials:
                     print(f' --> {len(segments)} markered and non-zero force segment(s) found!')
                     if len(segments) > 1:
                         print(f' --> Splitting trial "{trialName}" into {len(segments)} separate trials.')
@@ -629,6 +629,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     baseFramesPerSecond = self.trialFramesPerSecond.pop(itrial)
                     baseMarkerSet = self.trialMarkerSet.pop(trialName)
                     baseMarkerTrial = self.markerTrials.pop(itrial)
+                    baseTrialProcessingResults = self.trialProcessingResults.pop(itrial)
                     segmentTrialNames = []
                     segmentForcePlates = []
                     segmentTimestamps = []
@@ -674,6 +675,9 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                 markerTrial.append(baseMarkerTrial[itime])
                         segmentMarkerTrials.append(markerTrial)
 
+                        # Append the trial processing results for this segment.
+                        self.trialProcessingResults.append(baseTrialProcessingResults)
+
                     # Insert the new segments into the list of trials.
                     self.trialNames[itrial:itrial] = segmentTrialNames
                     self.trialForcePlates[itrial:itrial] = segmentForcePlates
@@ -710,7 +714,15 @@ class Engine(metaclass=ExceptionHandlingMeta):
             # that are actually just segments of the current trial.
             itrial += numSegments
 
-        # 6.3. Check to see if any ground reaction forces are present in the loaded data. If so, we will attempt to
+        # 6.3. Save the time ranges for each trial.
+        timeRanges = dict()
+        for itrial, trialName in enumerate(self.trialNames):
+            timestamps = self.trialTimestamps[itrial]
+            self.trialProcessingResults[itrial]['timeRange'] = [timestamps[0], timestamps[-1]]
+            timeRanges[trialName] = [timestamps[0], timestamps[-1]]
+        self.processingResult['timeRanges'] = timeRanges
+
+        # 6.4. Check to see if any ground reaction forces are present in the loaded data. If so, we will attempt to
         # fit dynamics later on in the pipeline. If not, we will skip dynamics fitting.
         if not self.disableDynamics:
             if len(self.trialForcePlates) == 0:
