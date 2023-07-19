@@ -22,6 +22,7 @@ import TagEditor from '../../components/TagEditor';
 import { attachEventProps } from "@aws-amplify/ui-react/lib-esm/react-component-lib/utils";
 import { AnyMessageParams } from "yup/lib/types";
 import { parseLinks } from "../../utils"
+import Select, { SingleValue } from 'react-select';
 
 type ProcessingResultsJSON = {
   autoAvgMax: number;
@@ -42,6 +43,10 @@ type MocapTrialRowViewProps = {
   uploadIK: File | undefined;
   onMultipleManualIK: (files: File[]) => void;
   onMultipleGRF: (files: File[]) => void;
+  segmentedTrial: boolean;
+  onChangeSegmentedTrial: (name:string, type:string) => void;
+  trialRange: number[];
+  onChangeTrialRange: (trialName:string, value:number, pos:number) => void;
 };
 
 
@@ -128,7 +133,7 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   const tagValues = tagsFile.getAttribute("tagValues", {} as { [key: string]: number });
 
   return (
-    <tr>
+    <tr style={{verticalAlign: "middle"}}>
       <td>
         {nameLink}
       </td>
@@ -154,9 +159,74 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
           }}
         />
       </td>
+      <td>
+        <div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{ width: '150px', marginInline: '10px' }}>
+                <Select
+                  placeholder="Trimming"
+                  options={[
+                    { value: 'Automatic', label: 'Automatic' },
+                    { value: 'Manual', label: 'Manual' },
+                    { value: 'None', label: 'None' }
+                  ]}
+                  value={
+                    props.segmentedTrial && props.trialRange.length > 0
+                    ? { value: 'Manual', label: 'Manual' }
+                    : !props.segmentedTrial && props.trialRange.length > 0
+                    ? { value: 'Automatic', label: 'Automatic' }
+                    : { value: 'None', label: 'None' }
+                  }
+                  onChange={(selectedOption) => {
+                    if(selectedOption) {
+                      if (selectedOption.value === 'Automatic')
+                        props.onChangeSegmentedTrial(props.name, 'Automatic')
+                      else if (selectedOption.value === 'Manual')
+                        props.onChangeSegmentedTrial(props.name, 'Manual')
+                      else if (selectedOption.value === 'None')
+                        props.onChangeSegmentedTrial(props.name, 'None')
+                    }
+                  }}
+                />
+              </div>
+
+              <label> Start: </label>
+              <input
+                type="number"
+                id={"startTrialTrimInput" + props.index}
+                disabled={props.cursor.dataIsReadonly() || props.segmentedTrial == false}
+                className={"form-control"}
+                style={{ width: "20%", marginInline: '10px'}}
+                onChange={(e:any) => {
+                  const inputValue = parseFloat(e.target.value);
+                  if (!isNaN(inputValue)) {
+                    props.onChangeTrialRange(props.name, inputValue, 0);
+                  }
+                }}
+                value={props.trialRange.length > 0 ? props.trialRange[0] : ""}
+              />
+
+              <label> End: </label>
+              <input
+                type="number"
+                id={"endtTrialTrimInput" + props.index}
+                disabled={props.cursor.dataIsReadonly() || props.segmentedTrial == false}
+                className={"form-control"}
+                style={{ width: "20%", marginInline: '10px'}}
+                onChange={(e:any) => {
+                  const inputValue = parseFloat(e.target.value);
+                  if (!isNaN(inputValue)) {
+                    props.onChangeTrialRange(props.name, inputValue, 1);
+                  }
+                }}
+                value={props.trialRange.length > 0 ? props.trialRange[1] : ""}
+              />
+            </div>
+        </div>
+      </td>
       {!props.cursor.canEdit() ? null : (
         <td>
-          <ButtonGroup className="d-block mb-2">
+          <ButtonGroup className="d-block">
             <Dropdown>
               <Dropdown.Toggle className="table-action-btn dropdown-toggle arrow-none btn btn-light btn-xs">
                 <i className="mdi mdi-dots-horizontal"></i>
@@ -466,7 +536,6 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   const navigate = useNavigate();
 
-
   // Handle checkbox change for dismissing warnings.
   const handleCheckboxChange = (itemId: string) => (event: any) => {
     const liElement = document.getElementById(itemId);
@@ -572,7 +641,17 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
 
   let trialViews: any[] = [];
 
+  // Get trials.
   let trials = props.cursor.getTrials();
+
+  // Read segmentedTrials and trialRanges here, so we only read it once.
+  let segmentedTrials = props.cursor.subjectJson.getAttribute("segmentedTrials", [] as boolean[])
+  let trialRanges = props.cursor.subjectJson.getAttribute("trialRanges", {} as { [key: string]: number[] })
+
+  // If segmentedTrials and trialRanges are empty, initialize to default values.
+  if (segmentedTrials.length == 0)
+    segmentedTrials = Array.from({ length: trials.length }, () => false)
+
   for (let i = 0; i < trials.length; i++) {
     trialViews.push(
       <MocapTrialRowView
@@ -602,6 +681,44 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           }
           setUploadFiles(updatedUploadFiles);
         }}
+        segmentedTrial={segmentedTrials.includes(trials[i].key)}
+        onChangeSegmentedTrial={(name:string, type:string) => {
+          if (type == 'Manual') {
+            if (!segmentedTrials.includes(name)) {
+              segmentedTrials.push(name)
+            }
+            trialRanges[name] = [0, 0]
+          }else if (type == 'Automatic') {
+            if(segmentedTrials.includes(name)) {
+              const index = segmentedTrials.indexOf(name);
+              segmentedTrials.splice(index, 1);
+            }
+            trialRanges[name] = [0, 0]
+          } else if (type == 'None') {
+            if(segmentedTrials.includes(name)) {
+              const index = segmentedTrials.indexOf(name);
+              segmentedTrials.splice(index, 1);
+            }
+            trialRanges[name] = []
+          }
+          props.cursor.subjectJson.setAttribute("segmentedTrials", segmentedTrials)
+        }}
+        trialRange= {trials[i].key in trialRanges ? trialRanges[trials[i].key] : []}
+        onChangeTrialRange = {(trialName:string, value:number, pos:number) => {
+          if (trialName in trialRanges)
+            trialRanges[trialName][pos] = value
+          else {
+            let arr = []
+            if (pos === 0)
+              arr = [value, value]
+            else
+              arr = [0, value]
+            trialRanges[trialName] = arr
+          }
+
+          props.cursor.subjectJson.setAttribute("trialRanges", trialRanges)
+        }}
+
       />
     );
   }
@@ -1566,6 +1683,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   const nameWidth = 120;
   const fileWidthPart1 = 100;
   const fileWidthPart2 = 100;
+  const dataTrimmingWidth = 450;
   const actionWidth = props.cursor.canEdit() ? 100 : 0;
 
   const remainingWidth = '100%'; // 'calc(100% - ' + (nameWidth + fileWidthPart1 + fileWidthPart2 + actionWidth) + 'px)';
@@ -1597,6 +1715,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             <col width={fileWidthPart2 + 'px'} />
             {showValidationControls ? <col width={((100 - 20 - (props.cursor.canEdit() ? 15 : 0)) / 4) + "%"} /> : null}
             <col width={remainingWidth} />
+            <col width={dataTrimmingWidth + 'px'} />
             {props.cursor.canEdit() ? (
               <col width={actionWidth} />
             ) : null}
@@ -1647,6 +1766,25 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
                   <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
                 </OverlayTrigger>
               </th>
+
+              <th className="border-0">
+                Data Trimming
+                <OverlayTrigger
+                  placement="right"
+                  delay={{ show: 50, hide: 400 }}
+                  overlay={(props) => (
+                    <Tooltip id="button-tooltip" {...props}>
+                      There are three methods for data trimming: <br></br>
+                       - <b>Automatic:</b> We use internal heuristics to infer data trimming points. When the processing is finished, the inferred trimming values will be shown.<br></br>
+                       - <b>Manual:</b> You can manually set data trimming points. <br></br>
+                       - <b>None:</b> No trimming. <br></br>
+                      You can select data trimming method in the actions menu at right.
+                    </Tooltip>
+                  )}
+                >
+                  <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+                </OverlayTrigger>
+                </th>
               {props.cursor.canEdit() ? (
                 <th className="border-0">
                   Action
