@@ -5,6 +5,7 @@ from addbiomechanics.auth import AuthContext
 import os
 import tempfile
 from typing import List, Dict, Tuple
+import itertools
 
 class PostProcessCommand(AbstractCommand):
     def register_subcommand(self, subparsers: argparse._SubParsersAction):
@@ -25,6 +26,11 @@ class PostProcessCommand(AbstractCommand):
             help='The new sample rate to enforce on all the data, if specified, either by up-sampling or down-sampling',
             type=int,
             default=None)
+        parser.add_argument(
+            '--trim-to-grf',
+            help='Trim each trial to the longest section that has non-zero GRF and .',
+            type=bool,
+            default=False)
 
     def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'post-process':
@@ -53,6 +59,7 @@ class PostProcessCommand(AbstractCommand):
         output_path_raw: str = os.path.abspath(args.output_path)
         lowpass_hz: int = args.lowpass_hz
         sample_rate: int = args.sample_rate
+        trim_to_grf: bool = args.trim_to_grf
 
         input_output_pairs: List[Tuple[str, str]] = []
 
@@ -69,11 +76,13 @@ class PostProcessCommand(AbstractCommand):
                         # Create the output_path preserving the relative path
                         relative_path = os.path.relpath(input_path, input_path_raw)
                         output_path = os.path.join(output_path_raw, relative_path)
+                        if os.path.exists(output_path):
+                            print('Skipping ' + input_path + ' because the output file already exists at ' + output_path)
+                        else:
+                            # Ensure the directory structure for the output path exists
+                            os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-                        # Ensure the directory structure for the output path exists
-                        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-                        input_output_pairs.append((input_path, output_path))
+                            input_output_pairs.append((input_path, output_path))
 
         print('Will post-process '+str(len(input_output_pairs))+' file' + ("s" if len(input_output_pairs) > 1 else ""))
         for file_index, (input_path, output_path) in enumerate(input_output_pairs):
@@ -198,6 +207,11 @@ class PostProcessCommand(AbstractCommand):
                     else:
                         b, a = butter(2, lowpass_hz, 'low', fs=1 / subject.getTrialTimestep(trial))
                         trial_poses[trial] = filtfilt(b, a, trial_poses[trial], axis=1)
+                        for t in range(trial_lengths[trial]):
+                            if t > 0:
+                                trial_vels[trial][:, t] = skel.getPositionDifferences(trial_poses[trial][:, t], trial_poses[trial][:, t-1]) / subject.getTrialTimestep(trial)
+                            if t > 0 and t < trial_lengths[trial] - 1:
+                                trial_accs[trial][:, t] = (skel.getPositionDifferences(trial_poses[trial][:, t+1], trial_poses[trial][:, t]) - skel.getPositionDifferences(trial_poses[trial][:, t], trial_poses[trial][:, t-1])) / (subject.getTrialTimestep(trial) * subject.getTrialTimestep(trial))
                         trial_vels[trial] = filtfilt(b, a, trial_vels[trial], axis=1)
                         trial_accs[trial] = filtfilt(b, a, trial_accs[trial], axis=1)
                         trial_taus[trial] = filtfilt(b, a, trial_taus[trial], axis=1)
@@ -318,32 +332,124 @@ class PostProcessCommand(AbstractCommand):
                         skel.setVelocities(trial_vels[trial][:, t])
                         skel.setAccelerations(trial_accs[trial][:, t])
 
+                        skel.clearExternalForces()
+
                         for i in range(len(ground_force_bodies)):
                             cop = trial_ground_body_cop_torque_force[trial][i*9:i*9+3, t]
                             moment = trial_ground_body_cop_torque_force[trial][i*9+3:i*9+6, t]
                             force = trial_ground_body_cop_torque_force[trial][i*9+6:i*9+9, t]
 
+                            local_wrench = np.zeros(6)
+                            local_wrench[0:3] = moment
+                            local_wrench[3:6] = force
+                            global_wrench = nimble.math.dAdInvT(np.eye(3), cop, local_wrench)
                             body = skel.getBodyNode(ground_force_bodies[i])
-                            T = body.getWorldTransform()
+                            wrench_local = nimble.math.dAdT(body.getWorldTransform().rotation(),
+                                                            body.getWorldTransform().translation(), global_wrench)
+                            body.setExtWrench(wrench_local)
 
-                            # Translation from the CoP frame to the body frame
-                            p_wb = np.copy(T.translation()) - cop
-                            # Rotation from the CoP frame (= world frame) to the body frame
-                            R_wb = np.copy(T.rotation())
-                            # Rotation from the body frame to the CoP frame
-                            R_bw = R_wb.T
-                            # Translation from the body frame to the CoP frame
-                            p_bw = -R_bw @ p_wb
-
-                            # Transform the wrench into the body frame
-                            moment_b = R_bw @ moment - np.cross(p_bw, R_bw @ force)
-                            force_b = R_bw @ force
-                            wrench_b = np.hstack((moment_b, force_b))
-                            body.setExtWrench(wrench_b)
-
-                        skel.computeInverseDynamics()
+                        skel.computeInverseDynamics(withExternalForces=True)
                         tau = skel.getControlForces()
                         trial_taus[trial][:, t] = tau
+            if trim_to_grf:
+                for trial in range(subject.getNumTrials()):
+                    legal: np.ndarray = np.zeros(trial_lengths[trial])
+                    force: np.ndarray = np.zeros(trial_lengths[trial])
+                    for t in range(trial_lengths[trial]):
+                        if probably_missing_grf[trial][t]:
+                            continue
+                        legal[t] = 1
+                        for i in range(len(ground_force_bodies)):
+                            force[t] += np.linalg.norm(trial_ground_body_cop_torque_force[trial][i*9+6:i*9+9, t])
+
+                    # By ChatGPT:
+                    def non_zero_sections(arr):
+                        # Create a boolean mask where True corresponds to non-zero elements
+                        mask = arr != 0
+
+                        # Use itertools.groupby to group contiguous True values
+                        non_zero_sections = [list(group) for key, group in itertools.groupby(mask) if key]
+
+                        # Find starting and ending indices of each non-zero section in the original array
+                        indices = []
+                        start_idx = 0
+                        for g in non_zero_sections:
+                            if len(g) > 0:
+                                end_idx = start_idx + len(g) - 1
+                                indices.append((start_idx, end_idx))
+                                start_idx = end_idx + 1
+
+                        # Return all non-zero sections
+                        return indices
+
+                    # def longest_non_zero(arr):
+                    #     # Create a boolean mask where True corresponds to non-zero elements
+                    #     mask = arr != 0
+                    #
+                    #     # Use itertools.groupby to group contiguous True values
+                    #     non_zero_sections = [list(group) for key, group in itertools.groupby(mask) if key]
+                    #
+                    #     if len(non_zero_sections) == 0:
+                    #         return 0, len(arr)-1
+                    #
+                    #     # Compute lengths of non-zero sections
+                    #     lengths = [len(g) for g in non_zero_sections]
+                    #
+                    #     # Get index of the longest section
+                    #     longest_section_idx = np.argmax(lengths)
+                    #
+                    #     # Get the longest section
+                    #     longest_section = non_zero_sections[longest_section_idx]
+                    #
+                    #     # Find starting index of the longest section in the original array
+                    #     start_idx = sum(len(g) for g in non_zero_sections[:longest_section_idx])
+                    #
+                    #     # Find end index
+                    #     end_idx = start_idx + len(longest_section)
+                    #     return start_idx, end_idx
+
+                    sections = non_zero_sections(legal)
+                    sections = [section for section in sections if sum(force[section[0]:section[1]+1]) > 0]
+                    if len(sections) == 0:
+                        continue
+                    longest_section_idx = np.argmax([end_idx - start_idx for start_idx, end_idx in sections])
+
+                    start_idx, end_idx = sections[longest_section_idx]
+                    if start_idx == 0 and end_idx == trial_lengths[trial] - 1:
+                        continue
+                    if start_idx == end_idx:
+                        continue
+                    print('Trimming trial {} to indices {}-{}'.format(trial, start_idx, end_idx))
+
+                    trial_poses[trial] = trial_poses[trial][:, start_idx:end_idx]
+                    trial_vels[trial] = trial_vels[trial][:, start_idx:end_idx]
+                    trial_accs[trial] = trial_accs[trial][:, start_idx:end_idx]
+                    trial_taus[trial] = trial_taus[trial][:, start_idx:end_idx]
+                    trial_com_poses[trial] = trial_com_poses[trial][:, start_idx:end_idx]
+                    trial_com_vels[trial] = trial_com_vels[trial][:, start_idx:end_idx]
+                    trial_com_accs[trial] = trial_com_accs[trial][:, start_idx:end_idx]
+                    trial_ground_body_wrenches[trial] = trial_ground_body_wrenches[trial][:, start_idx:end_idx]
+                    trial_ground_body_cop_torque_force[trial] = trial_ground_body_cop_torque_force[trial][:, start_idx:end_idx]
+                    custom_values[trial] = custom_values[trial][start_idx:end_idx]
+
+                    probably_missing_grf[trial] = probably_missing_grf[trial][start_idx:end_idx]
+                    missing_grf_reason[trial] = missing_grf_reason[trial][start_idx:end_idx]
+
+                    for i in range(len(force_plates[trial])):
+                        force_plate_forces[trial][i] = force_plate_forces[trial][i][start_idx:end_idx]
+                        force_plate_cops[trial][i] = force_plate_cops[trial][i][start_idx:end_idx]
+                        force_plate_moments[trial][i] = force_plate_moments[trial][i][start_idx:end_idx]
+                        force_plates[trial][i].forces = force_plate_forces[trial][i]
+                        force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
+                        force_plates[trial][i].moments = force_plate_moments[trial][i]
+
+                    marker_observations[trial] = marker_observations[trial][start_idx:end_idx]
+                    acc_observations[trial] = acc_observations[trial][start_idx:end_idx]
+                    gyro_observations[trial] = gyro_observations[trial][start_idx:end_idx]
+                    emg_observations[trial] = emg_observations[trial][start_idx:end_idx]
+
+                    trial_lengths[trial] = end_idx - start_idx
+
             if sample_rate is not None:
                 print('Re-sampling kinematics + kinetics data at {} Hz...'.format(sample_rate))
                 print('Warning! Re-sampling input source data (markers, IMU, EMG) is not yet supported, so those will '

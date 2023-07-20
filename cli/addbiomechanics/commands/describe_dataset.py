@@ -53,6 +53,18 @@ class DescribeDatasetCommand(AbstractCommand):
             'D': 0.0, # double support
         }
 
+        phase_regexes: Dict[str, str] = {
+            'walking_left_stance': r'(D|^)(LD)(R|$)',
+            'walking_right_stance': r'(D|^)(RD)(L|$)',
+            'isolated_left_stance': r'(^)(L)($)',
+            'isolated_right_stance': r'(^)(R)($)',
+            'isolated_double_support': r'(^)(D)($)',
+            'isolated_flight': r'(^)(F)($)',
+            'running_left_stance': r'(F|^)(LF)(R|$)',
+            'running_right_stance': r'(F|^)(RF)(L|$)'
+        }
+        phase_durations: Dict[str, List[float]] = { key: [] for key in phase_regexes.keys() }
+
         for file_index, input_path in enumerate(subject_paths):
             print('Reading SubjectOnDisk '+str(file_index+1)+'/'+str(len(subject_paths))+' at ' + input_path + '...')
 
@@ -183,8 +195,6 @@ class DescribeDatasetCommand(AbstractCommand):
                     else:
                         cursor += 1
 
-                print(''.join(contact_phases))
-
                 for t in range(len(contact_phases)):
                     contact_phase_total_duration[contact_phases[t]] += contact_durations[t]
 
@@ -195,7 +205,38 @@ class DescribeDatasetCommand(AbstractCommand):
                     # Running if middle is F
                     # Walking if middle is D
 
-                running_regex = re.compile(r'(L+F+)\1*')
+                phase_instances: Dict[str, List[Tuple[int, int]]] = {key: [] for key in phase_regexes.keys()}
+
+                phase_string = ''.join(contact_phases)
+                segment_match_counts = [0 for _ in range(len(phase_string))]
+                for phase_name in phase_regexes.keys():
+                    matches = re.finditer(phase_regexes[phase_name], phase_string)
+                    match_count = 0
+                    for match in matches:
+                        match_count += 1
+                        phase_instances[phase_name].append((match.start(2), match.end(2)))
+                        for i in range(match.start(2), match.end(2)):
+                            segment_match_counts[i] += 1
+
+                for phase_name in phase_instances.keys():
+                    for instance in phase_instances[phase_name]:
+                        phase_start = instance[0]
+                        phase_end = instance[1]
+                        phase_duration = 0
+                        for t in range(phase_start, phase_end):
+                            phase_duration += contact_durations[t]
+                        phase_durations[phase_name].append(phase_duration)
+
+                no_match_string = ''.join([str(n) for n in segment_match_counts])
+                no_match_matches = re.finditer(r'0+', no_match_string)
+                num_no_matches = 0
+                for no_match in no_match_matches:
+                    print('Trial '+str(trial)+' no match: ('+str(no_match.start())+'-'+str(no_match.end())+')/'+str(len(phase_string))+' = ')
+                    print(phase_string[:no_match.start()]+' [[[ '+phase_string[no_match.start():no_match.end()]+' ]]] '+phase_string[no_match.end():])
+                    num_no_matches += 1
+
+                if re.match(r'(^)(D)($)', phase_string):
+                    print('Input path '+input_path+' '+str(trial)+' ALL DOUBLE SUPPORT')
 
             trial_durations = [trial_lengths[trial] * trial_timesteps[trial] for trial in range(subject.getNumTrials())]
             all_trial_durations.extend(trial_durations)
@@ -211,5 +252,8 @@ class DescribeDatasetCommand(AbstractCommand):
         print('Contact phases:')
         for key in contact_phase_total_duration.keys():
             print('  '+key+': '+str(timedelta(seconds=int(contact_phase_total_duration[key])))+' ('+str(round(contact_phase_total_duration[key]/sum(all_trial_durations)*100, 1))+'%)')
+        print('Phase durations:')
+        for key in phase_durations.keys():
+            print('  '+key+': '+str(len(phase_durations[key]))+' instances, avg '+ str(timedelta(seconds=sum(phase_durations[key])/max(len(phase_durations[key]), 1)))+', total '+str(timedelta(seconds=int(sum(phase_durations[key]))))+' ('+str(round(sum(phase_durations[key])/sum(all_trial_durations)*100, 1))+'%)')
 
         return True
