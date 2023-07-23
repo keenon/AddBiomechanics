@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 from addbiomechanics.s3_structure import S3Node, retrieve_s3_structure, sizeof_fmt
 from typing import List, Dict, Tuple
+import math
 
 class ViewCommand(AbstractCommand):
     def register_subcommand(self, subparsers: argparse._SubParsersAction):
@@ -210,20 +211,20 @@ class ViewCommand(AbstractCommand):
                 moments = []
                 skel.clearExternalForces()
                 for i in range(0, len(contact_bodies)):
-                    cop = loaded[0].groundContactCenterOfPressure[i*3:(i+1)*3]
+                    start_cop = loaded[0].groundContactCenterOfPressure[i*3:(i+1)*3]
                     f = loaded[0].groundContactForce[i*3:(i+1)*3]
                     tau = loaded[0].groundContactTorque[i*3:(i+1)*3]
 
                     local_wrench = np.zeros(6)
                     local_wrench[0:3] = tau
                     local_wrench[3:6] = f
-                    global_wrench = nimble.math.dAdInvT(np.eye(3), cop, local_wrench)
+                    global_wrench = nimble.math.dAdInvT(np.eye(3), start_cop, local_wrench)
                     body = skel.getBodyNode(contact_bodies[i])
                     wrench_local = nimble.math.dAdT(body.getWorldTransform().rotation(), body.getWorldTransform().translation(), global_wrench)
                     body.setExtWrench(wrench_local)
 
                     contact_body_pointers.append(body)
-                    cops.append(cop)
+                    cops.append(start_cop)
                     forces.append(f)
                     moments.append(tau)
                 energy = skel.getEnergyAccounting(0.0, contact_body_pointers, cops, forces, moments)
@@ -328,7 +329,7 @@ class ViewCommand(AbstractCommand):
 
             print('Quantizing energy in '+str(num_frames)+' frames...')
 
-            NUM_PACKETS = 500
+            NUM_PACKETS = 250
             # We want to scale the energy so that the total sum is always equal to NUM_PACKETS
             energy_scale = NUM_PACKETS / peak_body_energy
             quantized_body_energies: List[np.ndarray] = []
@@ -496,128 +497,211 @@ class ViewCommand(AbstractCommand):
                     print('  Expected ' + str(next_energy))
                 assert(np.all(energy == next_energy))
 
-            # ####################################
-            # # Old version: map particles to flows through the graph
-            # ####################################
+            # Map particles to flows through the graph
 
-            # particle_bodies = []
-            # particle_source_joints = []
-            # body_particle_stacks = [[] for _ in range(skel.getNumBodyNodes() + 1)]
-            # # Initialize the traces by setting up particles on the first frame of the motion
-            # # These are the particles in the "conservation sink"
-            # for _ in range(quantized_body_energies[0][0]):
-            #     body_particle_stacks[0].append(len(particle_bodies))
-            #     particle_bodies.append([0])
-            #     particle_source_joints.append([-1])
-            # # These are the particles in the bodies
-            # for i in range(skel.getNumBodyNodes()):
-            #     for _ in range(quantized_body_energies[0][i+1]):
-            #         body_particle_stacks[i+1].append(len(particle_bodies))
-            #         particle_bodies.append([i+1])
-            #         particle_source_joints.append([-1])
-            #
-            # # Now we want to go through and assign particles to the flows
-            # for frame in range(num_frames - 1):
-            #     # Verify that the stack sizes reflect the energy we expect
-            #     for i in range(len(quantized_body_energies[0])):
-            #         assert (len(body_particle_stacks[i]) == quantized_body_energies[frame][i])
-            #
-            #     remaining_transfers = particle_transfers[frame]
-            #
-            #     while len(remaining_transfers) > 0:
-            #         found_transfer = False
-            #         for source, dest, joint in remaining_transfers:
-            #             if len(body_particle_stacks[source]) > 0:
-            #                 particle_index = body_particle_stacks[source].pop()
-            #                 body_particle_stacks[dest].append(particle_index)
-            #                 particle_bodies[particle_index].append(dest)
-            #                 particle_source_joints[particle_index].append(joint)
-            #                 remaining_transfers.remove((source, dest, joint))
-            #                 found_transfer = True
-            #                 break
-            #
-            #         if not found_transfer:
-            #             print('We failed to find a valid transfer on frame '+str(frame)+'!')
-            #             print(remaining_transfers)
-            #             print(quantized_body_energies[frame])
-            #             print([len(x) for x in body_particle_stacks])
-            #             print(quantized_body_energies[frame+1])
-            #             assert(False)
-            #
-            #     # Fill in any particle traces that didn't move
-            #     for i in range(len(particle_bodies)):
-            #         if len(particle_bodies[i]) < frame + 1:
-            #             particle_bodies[i].append(particle_bodies[i][-1])
-            #             particle_source_joints[i].append(particle_source_joints[i][-1])
-            #
-            # # Create the actual particles in the GUI
-            # particle_positions = np.zeros((len(particle_bodies), 3))
-            # particle_velocities = np.zeros((len(particle_bodies), 3))
-            # RESERVE_POSITION = np.array([0, 0, 0])
-            # PARTICLE_COLOR = [0.1, 0.1, 0.7, 0.5]
-            # for i in range(len(particle_bodies)):
-            #     if particle_bodies[i][0] == 0:
-            #         particle_positions[i, :] = RESERVE_POSITION
-            #     else:
-            #         particle_positions[i, :] = skel.getBodyNode(particle_bodies[i][0] - 1).getCOM()
-            #     gui.nativeAPI().createBox('particle'+str(i), [0.01, 0.01, 0.01], particle_positions[i, :], np.zeros(3), PARTICLE_COLOR)
+            particle_bodies = []
+            particle_source_joints = []
+            body_particle_stacks = [[] for _ in range(skel.getNumBodyNodes() + 1)]
+            # Initialize the traces by setting up particles on the first frame of the motion
+            # These are the particles in the "conservation sink"
+            for _ in range(quantized_body_energies[0][0]):
+                body_particle_stacks[0].append(len(particle_bodies))
+                particle_bodies.append([0])
+                particle_source_joints.append([-1])
+            # These are the particles in the bodies
+            for i in range(skel.getNumBodyNodes()):
+                for _ in range(quantized_body_energies[0][i+1]):
+                    body_particle_stacks[i+1].append(len(particle_bodies))
+                    particle_bodies.append([i+1])
+                    particle_source_joints.append([-1])
 
-            # New version: Compute particle effect emissions / absorbtions
-
-            PARTICLE_LIFESPAN = 15
-
-            # Each of these particles are [percent of life, emission location], and you can have a list of particles
-            # per frame.
-            positive_work_particles: List[List[Tuple[float, np.ndarray]]] = []
-            negative_work_particles: List[List[Tuple[float, np.ndarray]]] = []
-
-            # These particles are [age, emission location]
-            live_positive_particles: List[Tuple[int, np.ndarray]] = []
-            live_negative_particles: List[Tuple[int, np.ndarray]] = []
-
-            max_positive_particles_alive = 0
-            max_negative_particles_alive = 0
+            # Now we want to go through and assign particles to the flows
             for frame in range(num_frames - 1):
-                loaded: List[nimble.biomechanics.Frame] = subject.readFrames(trial, frame, 1)
+                # Verify that the stack sizes reflect the energy we expect
+                for i in range(len(quantized_body_energies[frame])):
+                    assert (len(body_particle_stacks[i]) == quantized_body_energies[frame][i])
+                    # On frame 0, we expect to be initialized with our starting configuration
+                    assert (len(particle_bodies[i]) == frame + 1)
+
+                remaining_transfers = particle_transfers[frame]
+
+                next_frame_body_particle_stacks = [[] for _ in range(skel.getNumBodyNodes() + 1)]
+
+                while len(remaining_transfers) > 0:
+                    found_transfer = False
+                    for i, (source, dest, joint) in enumerate(remaining_transfers):
+                        if len(body_particle_stacks[source]) > 0:
+                            particle_index = body_particle_stacks[source].pop(0)
+                            next_frame_body_particle_stacks[dest].append(particle_index)
+                            particle_bodies[particle_index].append(dest)
+                            particle_source_joints[particle_index].append(joint)
+                            del remaining_transfers[i]
+                            found_transfer = True
+                            break
+
+                    if not found_transfer:
+                        for i, (source, dest, joint) in enumerate(remaining_transfers):
+                            if len(next_frame_body_particle_stacks[source]) > 0:
+                                particle_index = next_frame_body_particle_stacks[source].pop(0)
+                                next_frame_body_particle_stacks[dest].append(particle_index)
+                                particle_bodies[particle_index][-1] = dest
+                                # We don't actually want to overwrite the joint, since this energy is coming from the
+                                # first joint, and has jumped multiple locked joints in a single timestep
+                                # particle_source_joints[particle_index][-1] = joint
+                                del remaining_transfers[i]
+                                found_transfer = True
+                                break
+
+                    if not found_transfer:
+                        print('We failed to find a valid transfer on frame '+str(frame)+'!')
+                        print(remaining_transfers)
+                        print(quantized_body_energies[frame])
+                        print([len(x) for x in body_particle_stacks])
+                        print([len(x) for x in next_frame_body_particle_stacks])
+                        print(quantized_body_energies[frame+1])
+                        assert(False)
+
+                # Fill in any particle traces that didn't move
+                for i in range(len(particle_bodies)):
+                    if len(particle_bodies[i]) < frame + 2:
+                        next_frame_body_particle_stacks[particle_bodies[i][-1]].append(i)
+                        particle_bodies[i].append(particle_bodies[i][-1])
+                        particle_source_joints[i].append(particle_source_joints[i][-1])
+
+                body_particle_stacks = next_frame_body_particle_stacks
+
+            # Now that particles are assigned to bodies and joints over time, it's time to render that as a trajectory
+            # First collect all the body and joint positions
+            body_com_positions = np.zeros((skel.getNumBodyNodes() * 3, num_frames))
+            joint_positions = np.zeros((skel.getNumJoints() * 3, num_frames))
+            for frame in range(num_frames):
+                loaded = subject.readFrames(trial, frame, 1)
                 skel.setPositions(loaded[0].pos)
-                joint_world_pos = skel.getJointWorldPositions([skel.getJoint(j) for j in range(skel.getNumJoints())])
+                for b in range(skel.getNumBodyNodes()):
+                    body_com_positions[b*3:b*3+3, frame] = skel.getBodyNode(b).getCOM()
+                joint_positions[:, frame] = skel.getJointWorldPositions([skel.getJoint(j) for j in range(skel.getNumJoints())])
 
-                # Spawn new particles
-                for source, dest, joint in particle_transfers[frame]:
-                    if source == 0:
-                        assert(dest != 0)
-                        if joint >= 0:
-                            live_positive_particles.append((0, joint_world_pos[joint*3:joint*3+3]))
-                        # TODO: handle contact COP
-                    if dest == 0:
-                        assert(source != 0)
-                        if joint >= 0:
-                            live_negative_particles.append((0, joint_world_pos[joint*3:joint*3+3]))
-                        # TODO: handle contact COP
+            particle_trajectories = np.zeros((len(particle_bodies) * 3, num_frames))
+            particle_age = np.zeros((len(particle_bodies), num_frames))
+            particle_live = np.zeros((len(particle_bodies), num_frames), dtype=np.int64)
 
-                # Evolve all particles
-                live_positive_particles = [(age + 1, center) for age, center in live_positive_particles if age + 1 < PARTICLE_LIFESPAN]
-                live_negative_particles = [(age + 1, center) for age, center in live_negative_particles if age + 1 < PARTICLE_LIFESPAN]
+            lowpass_particles_hz = 30
+            particle_noise = 0.005
+            b, a = butter(2, lowpass_particles_hz, 'low', fs=1 / subject.getTrialTimestep(trial))
 
-                if len(live_positive_particles) > max_positive_particles_alive:
-                    max_positive_particles_alive = len(live_positive_particles)
-                if len(live_negative_particles) > max_negative_particles_alive:
-                    max_negative_particles_alive = len(live_negative_particles)
+            for p in range(len(particle_bodies)):
+                start_joint = -1
+                start_time = 0
+                current_body: int = particle_bodies[p][0]
+                # List of (start_joint, start_time, body, end_joint, end_time)
+                sections: List[Tuple[int, int, int, int, int]] = []
 
-                # Record all particles
-                positive_work_particles_frame: List[Tuple[float, np.ndarray]] = []
-                for i, (particle_age, center) in enumerate(live_positive_particles):
-                    percent_life = float(particle_age) / PARTICLE_LIFESPAN
-                    if percent_life <= 1.0:
-                        positive_work_particles_frame.append((percent_life, center))
-                positive_work_particles.append(positive_work_particles_frame)
+                for frame in range(1, num_frames):
+                    body: int = particle_bodies[p][frame]
+                    # This is the end/beginning of a section
+                    if body != current_body:
+                        duration = frame - start_time
+                        if current_body != 0 and body != 0 and duration < 5:
+                            # If it's a short hop, then we want to actually merge with the previous section, keeping
+                            # the same source joint and start time, and jumping directly to this body
+                            current_body = body
+                        else:
+                            current_joint = particle_source_joints[p][frame]
+                            sections.append((start_joint, start_time, current_body, current_joint, frame))
+                            start_joint = current_joint
+                            current_body = body
+                            start_time = frame
+                # Add the last section
+                sections.append((start_joint, start_time, current_body, -1, num_frames))
 
-                negative_work_particles_frame: List[Tuple[float, np.ndarray]] = []
-                for i, (particle_age, center) in enumerate(live_negative_particles):
-                    percent_life = float(particle_age) / PARTICLE_LIFESPAN
-                    if percent_life <= 1.0:
-                        negative_work_particles_frame.append((percent_life, center))
-                negative_work_particles.append(negative_work_particles_frame)
+                # List of (start_time, end_time) for liveness
+                live_ranges: List[Tuple[int, int]] = []
+                start_live = -1
+                end_live = -1
+                last_live = False
+
+                # Now run through the sections and compute the trajectory
+                for start_joint, start_time, body_index, end_joint, end_time in sections:
+                    duration = end_time - start_time
+                    live = duration > 3 and body_index != 0
+                    if live != last_live:
+                        if live:
+                            start_live = start_time
+                            end_live = end_time
+                        else:
+                            live_ranges.append((start_live, end_live))
+                    last_live = live
+
+                    if not live:
+                        continue
+                    if live:
+                        end_live = end_time
+
+                    ramp_duration = int(math.floor(duration * 0.5))
+                    if ramp_duration > 15:
+                        ramp_duration = 15
+                    weights = np.zeros((3, duration))
+                    for i in range(duration):
+                        if i < ramp_duration and start_joint != -1:
+                            weights[0, i] = (ramp_duration - i) / ramp_duration
+                        if i >= duration - ramp_duration and end_joint != -1:
+                            weights[2, i] = (i - (duration - ramp_duration)) / ramp_duration
+                        weights[1, i] = 1.0 - weights[0, i] - weights[2, i]
+
+                    start_cop = np.zeros(3)
+                    if start_joint == -1 and start_time > 0:
+                        loaded: List[nimble.biomechanics.Frame] = subject.readFrames(trial, start_time, 1)
+                        best_force_mag = 0.0
+                        for i in range(0, len(contact_bodies)):
+                            force_mag = np.linalg.norm(loaded[0].groundContactForce[i*3:(i+1)*3])
+                            if force_mag > best_force_mag:
+                                start_cop = loaded[0].groundContactCenterOfPressure[i * 3:(i + 1) * 3]
+                                best_force_mag = force_mag
+
+                    end_cop = np.zeros(3)
+                    if end_joint == -1 and end_time < num_frames:
+                        loaded: List[nimble.biomechanics.Frame] = subject.readFrames(trial, end_time, 1)
+                        best_force_mag = 0.0
+                        for i in range(0, len(contact_bodies)):
+                            force_mag = np.linalg.norm(loaded[0].groundContactForce[i*3:(i+1)*3])
+                            if force_mag > best_force_mag:
+                                end_cop = loaded[0].groundContactCenterOfPressure[i * 3:(i + 1) * 3]
+                                best_force_mag = force_mag
+
+                    # Now we want to compute the trajectory of the particle
+                    for i in range(duration):
+                        if start_joint != -1:
+                            particle_trajectories[p*3:p*3+3, start_time + i] += weights[0, i] * joint_positions[start_joint*3:start_joint*3+3, start_time + i]
+                        elif start_time > 0:
+                            particle_trajectories[p * 3:p * 3 + 3, start_time + i] += weights[0, i] * start_cop
+
+                        if body_index != 0:
+                            particle_trajectories[p * 3:p * 3 + 3, start_time + i] += weights[1, i] * body_com_positions[
+                                ((body_index - 1) * 3):(body_index * 3), start_time + i] + np.random.randn(3) * particle_noise
+
+                        if end_joint != -1:
+                            particle_trajectories[p * 3:p * 3 + 3, start_time + i] += weights[2, i] * joint_positions[
+                                                                                                      end_joint * 3:end_joint * 3 + 3,
+                                                                                                      start_time + i]
+                        elif end_time < num_frames:
+                            particle_trajectories[p * 3:p * 3 + 3, start_time + i] += weights[2, i] * end_cop
+
+                # Add the last section
+                if last_live:
+                    live_ranges.append((start_live, num_frames))
+
+                # Now we want to filter the live sections
+                for start_time, end_time in live_ranges:
+                    duration = end_time - start_time
+                    if duration == 1:
+                        particle_age[p, start_time] = 0.5
+                    elif duration > 1:
+                        for t in range(duration):
+                            particle_age[p, start_time + t] = float(t) / float(duration-1)
+                    # Now we want to low-pass filter the active section of the trajectory
+                    if duration > 9:
+                        particle_trajectories[p*3:p*3+3, start_time:end_time] = filtfilt(b, a, particle_trajectories[p*3:p*3+3, start_time:end_time], axis=1)
+                        particle_live[p, start_time:end_time] = 1
 
         # Animate the knees back and forth
         ticker: nimble.realtime.Ticker = nimble.realtime.Ticker(
@@ -641,7 +725,10 @@ class ViewCommand(AbstractCommand):
 
             loaded: List[nimble.biomechanics.Frame] = subject.readFrames(trial, frame, 1, contactThreshold=20)
             skel.setPositions(loaded[0].pos)
-            gui.nativeAPI().renderSkeleton(skel)
+            color = [-1, -1, -1, -1]
+            # if show_energy:
+            #     color = [0.5, 0.5, 0.5, 0.25]
+            gui.nativeAPI().renderSkeleton(skel, overrideColor=color)
 
             if dof is not None:
                 joint_pos = skel.getJointWorldPositions([graph_joint])
@@ -677,7 +764,8 @@ class ViewCommand(AbstractCommand):
                     heat = max(0, min(heat, 1))
 
                     # get the RGB value from the 'magma' colormap
-                    rgb = plt.get_cmap('magma')(heat)[0:3]
+                    # rgb = plt.get_cmap('plasma')(heat)[0:3]
+                    rgb = plt.get_cmap('coolwarm')(heat)[0:3]
 
                     # scale the RGB value to between 0 and 255
                     return rgb
@@ -685,7 +773,7 @@ class ViewCommand(AbstractCommand):
                 power_arrow_scale_factor = 2e-4
                 energy_sphere_scale_factor = 5e-3
                 # power_sphere_scale_factor = 1e-4
-                power_sphere_scale_factor = 3e-4
+                power_sphere_scale_factor = 8e-3
 
                 # gui.nativeAPI().createSphere('recycled_power', np.ones(3) * energy_sphere_scale_factor * conserved_energy[frame], [1, 0, 0], [0, 0, 1, 1])
 
@@ -708,23 +796,17 @@ class ViewCommand(AbstractCommand):
                 #     gui.nativeAPI().createSphere(body.getName()+"_energy_discrete", radius * np.ones(3), energy.bodyCenters[i], [0, 0, 1, 0.5])
                 #     body_radii[i] = radius
 
-                for i in range(max_positive_particles_alive):
-                    if i < len(positive_work_particles[frame]):
-                        percent_life, center = positive_work_particles[frame][i]
-                        size = np.array([0.05, 0.05, 0.05]) * percent_life
-                        color = [0, 1, 0, 0.3 * (1.0 - percent_life)]
-                        gui.nativeAPI().createBox('positive_particle_'+str(i), size, center, [0, 0, 0], color)
-                    else:
-                        gui.nativeAPI().deleteObject('positive_particle_'+str(i))
+                for i in range(NUM_PACKETS):
 
-                for i in range(max_negative_particles_alive):
-                    if i < len(negative_work_particles[frame]):
-                        percent_life, center = negative_work_particles[frame][i]
-                        size = np.array([0.05, 0.05, 0.05]) * percent_life
-                        color = [1, 0, 0, 0.3 * (1.0 - percent_life)]
-                        gui.nativeAPI().createBox('negative_particle_'+str(i), size, center, [0, 0, 0], color)
+                    if particle_live[i, frame] == 0:
+                        gui.nativeAPI().deleteObject('particle'+str(i))
                     else:
-                        gui.nativeAPI().deleteObject('negative_particle_'+str(i))
+                        age: float = particle_age[i, frame]
+                        rgb = heat_to_rgb(1.0 - age)
+                        importance = (max(age, 1.0 - age))
+                        color = [rgb[0], rgb[1], rgb[2], importance]
+                        gui.nativeAPI().createBox('particle' + str(i), np.ones(3) * 0.02, particle_trajectories[i*3:i*3+3, frame],
+                                                  np.zeros(3), color)
 
                 for i in range(0, skel.getNumBodyNodes()):
                     body = skel.getBodyNode(i)
@@ -732,54 +814,64 @@ class ViewCommand(AbstractCommand):
                     raw_percentage = energy_density / peak_energy_density
                     scaled_percentage = np.cbrt(raw_percentage)
                     rgb = heat_to_rgb(scaled_percentage)
-                    color: np.ndarray = np.array([rgb[0], rgb[1], rgb[2], 1])
+                    color: np.ndarray = np.array([rgb[0], rgb[1], rgb[2], 1.0])
                     for k in range(body.getNumShapeNodes()):
                         gui.nativeAPI().setObjectColor(
                             'world_' + skel.getName() + "_" + body.getName() + "_" + str(k), color)
 
                 running_energy_deriv += np.sum(energy.bodyKineticEnergyDeriv + energy.bodyPotentialEnergyDeriv) * subject.getTrialTimestep(trial)
 
-                for joint in energy.joints:
-                    net_power = joint.powerToChild + joint.powerToParent
-                    joint_radius = abs(net_power) * power_sphere_scale_factor
+                positive_power_rgb = heat_to_rgb(1.0)
+                positive_power_color = [positive_power_rgb[0], positive_power_rgb[1], positive_power_rgb[2], 0.5]
+                negative_power_rgb = heat_to_rgb(0.0)
+                negative_power_color = [negative_power_rgb[0], negative_power_rgb[1], negative_power_rgb[2], 0.5]
 
-                    child_to_joint_dir = (joint.worldCenter - joint.childCenter) / max(np.linalg.norm(joint.worldCenter - joint.childCenter), 1.0e-7)
-                    adjusted_child_center = joint.childCenter + child_to_joint_dir * body_radii[skel.getBodyNode(joint.childBody).getIndexInSkeleton()]
-                    adjusted_child_joint_center = joint.worldCenter - child_to_joint_dir * joint_radius
-
-                    parent_to_joint_dir = (joint.worldCenter - joint.parentCenter) / max(np.linalg.norm(joint.worldCenter - joint.parentCenter), 1.0e-7)
-                    adjusted_parent_center = np.copy(joint.parentCenter)
-                    if skel.getBodyNode(joint.parentBody) is not None:
-                         adjusted_parent_center += parent_to_joint_dir * body_radii[skel.getBodyNode(joint.parentBody).getIndexInSkeleton()]
-                    adjusted_parent_joint_center = joint.worldCenter - parent_to_joint_dir * joint_radius
-
-                    # if joint.powerToChild > 0:
-                    #     gui.nativeAPI().renderArrow(adjusted_child_joint_center, adjusted_child_center, joint.powerToChild * power_arrow_scale_factor * 0.5, joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child')
-                    # else:
-                    #     gui.nativeAPI().renderArrow(adjusted_child_center, adjusted_child_joint_center, -joint.powerToChild * power_arrow_scale_factor * 0.5, -joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child')
-                    # if joint.powerToParent > 0:
-                    #     gui.nativeAPI().renderArrow(adjusted_parent_joint_center, adjusted_parent_center, joint.powerToParent * power_arrow_scale_factor * 0.5, joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent')
-                    # else:
-                    #     gui.nativeAPI().renderArrow(adjusted_parent_center, adjusted_parent_joint_center, -joint.powerToParent * power_arrow_scale_factor * 0.5, -joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent')
-
-                    if net_power < 0:
-                        gui.nativeAPI().createSphere('energy_'+joint.name, np.ones(3) * -net_power * power_sphere_scale_factor, joint.worldCenter, [1, 0, 0, 0.2])
-                    else:
-                        gui.nativeAPI().createSphere('energy_'+joint.name, np.ones(3) * net_power * power_sphere_scale_factor, joint.worldCenter, [0, 1, 0, 0.2])
-
-                for contact in energy.contacts:
-                    if contact.powerToBody > 0:
-                        gui.nativeAPI().renderArrow(contact.worldCenter - np.array([0, 0.2, 0]), contact.worldCenter, contact.powerToBody * power_arrow_scale_factor * 0.5, contact.powerToBody * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=contact.contactBody+'_contact')
-                    else:
-                        gui.nativeAPI().renderArrow(contact.worldCenter, contact.worldCenter - np.array([0, 0.2, 0]), -contact.powerToBody * power_arrow_scale_factor * 0.5, -contact.powerToBody * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=contact.contactBody+'_contact')
-                    if contact.powerToBody < 0:
-                        gui.nativeAPI().createSphere('energy_'+contact.contactBody, np.ones(3) * -contact.powerToBody * power_sphere_scale_factor, contact.worldCenter, [1, 0, 0, 0.2])
-                    else:
-                        gui.nativeAPI().createSphere('energy_'+contact.contactBody, np.ones(3) * contact.powerToBody * power_sphere_scale_factor, contact.worldCenter, [0, 1, 0, 0.2])
+                # for joint in energy.joints:
+                #     net_power = joint.powerToChild + joint.powerToParent
+                #     joint_radius = abs(net_power) * power_sphere_scale_factor
+                #
+                #     child_to_joint_dir = (joint.worldCenter - joint.childCenter) / max(np.linalg.norm(joint.worldCenter - joint.childCenter), 1.0e-7)
+                #     adjusted_child_center = joint.childCenter + child_to_joint_dir * body_radii[skel.getBodyNode(joint.childBody).getIndexInSkeleton()]
+                #     adjusted_child_joint_center = joint.worldCenter - child_to_joint_dir * joint_radius
+                #
+                #     parent_to_joint_dir = (joint.worldCenter - joint.parentCenter) / max(np.linalg.norm(joint.worldCenter - joint.parentCenter), 1.0e-7)
+                #     adjusted_parent_center = np.copy(joint.parentCenter)
+                #     if skel.getBodyNode(joint.parentBody) is not None:
+                #          adjusted_parent_center += parent_to_joint_dir * body_radii[skel.getBodyNode(joint.parentBody).getIndexInSkeleton()]
+                #     adjusted_parent_joint_center = joint.worldCenter - parent_to_joint_dir * joint_radius
+                #
+                #     # if joint.powerToChild > 0:
+                #     #     gui.nativeAPI().renderArrow(adjusted_child_joint_center, adjusted_child_center, joint.powerToChild * power_arrow_scale_factor * 0.5, joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child')
+                #     # else:
+                #     #     gui.nativeAPI().renderArrow(adjusted_child_center, adjusted_child_joint_center, -joint.powerToChild * power_arrow_scale_factor * 0.5, -joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child')
+                #     # if joint.powerToParent > 0:
+                #     #     gui.nativeAPI().renderArrow(adjusted_parent_joint_center, adjusted_parent_center, joint.powerToParent * power_arrow_scale_factor * 0.5, joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent')
+                #     # else:
+                #     #     gui.nativeAPI().renderArrow(adjusted_parent_center, adjusted_parent_joint_center, -joint.powerToParent * power_arrow_scale_factor * 0.5, -joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent')
+                #
+                #     if net_power < 0:
+                #         gui.nativeAPI().createSphere('energy_'+joint.name, np.ones(3) * -np.cbrt(net_power) * power_sphere_scale_factor, joint.worldCenter, negative_power_color)
+                #     else:
+                #         gui.nativeAPI().createSphere('energy_'+joint.name, np.ones(3) * np.cbrt(net_power) * power_sphere_scale_factor, joint.worldCenter, positive_power_color)
+                #
+                # for contact in energy.contacts:
+                #     # if contact.powerToBody > 0:
+                #     #     gui.nativeAPI().renderArrow(contact.worldCenter - np.array([0, 0.2, 0]), contact.worldCenter, contact.powerToBody * power_arrow_scale_factor * 0.5, contact.powerToBody * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=contact.contactBody+'_contact')
+                #     # else:
+                #     #     gui.nativeAPI().renderArrow(contact.worldCenter, contact.worldCenter - np.array([0, 0.2, 0]), -contact.powerToBody * power_arrow_scale_factor * 0.5, -contact.powerToBody * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=contact.contactBody+'_contact')
+                #     if contact.powerToBody < 0:
+                #         gui.nativeAPI().createSphere('energy_'+contact.contactBody, np.ones(3) * -np.cbrt(contact.powerToBody) * power_sphere_scale_factor, contact.worldCenter, negative_power_color)
+                #     else:
+                #         gui.nativeAPI().createSphere('energy_'+contact.contactBody, np.ones(3) * np.cbrt(contact.powerToBody) * power_sphere_scale_factor, contact.worldCenter, positive_power_color)
 
             frame += 1
-            if frame >= num_frames:
-                frame = 0
+            # Loop before the last frame, if we're showing energy
+            if show_energy:
+                if frame >= num_frames - 1:
+                    frame = 0
+            else:
+                if frame >= num_frames:
+                    frame = 0
 
         ticker.registerTickListener(onTick)
         ticker.start()
