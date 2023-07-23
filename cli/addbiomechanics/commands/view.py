@@ -42,6 +42,11 @@ class ViewCommand(AbstractCommand):
                  'realtime playback.',
             type=float,
             default=1.0)
+        view_parser.add_argument(
+            '--save-to-file',
+            help='Save the visualization to a file, which can be embedded in a website for use with the Nimble Physics Viewer',
+            type=str,
+            default=None)
 
     def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'view':
@@ -52,6 +57,7 @@ class ViewCommand(AbstractCommand):
         graph_lowpass_hz: int = args.graph_lowpass_hz
         playback_speed: float = args.playback_speed
         show_energy: bool = args.show_energy
+        save_to_file: str = args.save_to_file
 
         try:
             import nimblephysics as nimble
@@ -122,8 +128,12 @@ class ViewCommand(AbstractCommand):
         world.setGravity([0, -9.81, 0])
         skel.setGravity([0, -9.81, 0])
 
-        gui = NimbleGUI(world)
-        gui.serve(8080)
+        if save_to_file is not None:
+            gui = nimble.server.GUIRecording()
+        else:
+            nimble_gui = NimbleGUI(world)
+            nimble_gui.serve(8080)
+            gui = nimble_gui
 
         if graph_dof is not None:
             dof = skel.getDof(graph_dof)
@@ -132,7 +142,7 @@ class ViewCommand(AbstractCommand):
                 return False
             graph_joint = skel.getJoint(dof.getJointName())
             joint_pos = skel.getJointWorldPositions([graph_joint])
-            gui.nativeAPI().createSphere('active_joint', [0.05, 0.05, 0.05], joint_pos, [1,0,0,1])
+            gui.createSphere('active_joint', [0.05, 0.05, 0.05], joint_pos, [1,0,0,1])
             dof_index = dof.getIndexInSkeleton()
 
             timesteps = np.zeros(num_frames)
@@ -174,15 +184,15 @@ class ViewCommand(AbstractCommand):
             max_over_all = np.percentile(np.concatenate((dof_poses, dof_vels, dof_accs, dof_taus, dof_power)), 95)
             min_over_all = np.percentile(np.concatenate((dof_poses, dof_vels, dof_accs, dof_taus, dof_power)), 5)
 
-            gui.nativeAPI().createRichPlot('dof_plot', [50, 100], [400, 200], 0, subject.getTrialLength(trial) * subject.getTrialTimestep(trial), min_over_all, max_over_all, 'DOF '+graph_dof, 'Time (s)', 'Values')
+            gui.createRichPlot('dof_plot', [50, 100], [400, 200], 0, subject.getTrialLength(trial) * subject.getTrialTimestep(trial), min_over_all, max_over_all, 'DOF '+graph_dof, 'Time (s)', 'Values')
 
-            gui.nativeAPI().setRichPlotData('dof_plot', 'Pose', 'blue', 'line', timesteps, dof_poses)
-            gui.nativeAPI().setRichPlotData('dof_plot', 'Vel', 'green', 'line', timesteps, dof_vels)
-            gui.nativeAPI().setRichPlotData('dof_plot', 'Tau', 'red', 'line', timesteps, dof_taus)
-            # gui.nativeAPI().setRichPlotData('dof_plot', 'Power', 'purple', 'line', timesteps, dof_power)
-            gui.nativeAPI().setRichPlotData('dof_plot', 'Net Work', 'purple', 'line', timesteps, dof_work)
+            gui.setRichPlotData('dof_plot', 'Pose', 'blue', 'line', timesteps, dof_poses)
+            gui.setRichPlotData('dof_plot', 'Vel', 'green', 'line', timesteps, dof_vels)
+            gui.setRichPlotData('dof_plot', 'Tau', 'red', 'line', timesteps, dof_taus)
+            # gui.setRichPlotData('dof_plot', 'Power', 'purple', 'line', timesteps, dof_power)
+            gui.setRichPlotData('dof_plot', 'Net Work', 'purple', 'line', timesteps, dof_work)
 
-            gui.nativeAPI().createText('dof_plot_text', 'DOF '+graph_dof+' values', [50, 350], [400, 50])
+            gui.createText('dof_plot_text', 'DOF '+graph_dof+' values', [50, 350], [400, 50])
         else:
             dof = None
 
@@ -325,11 +335,12 @@ class ViewCommand(AbstractCommand):
                 actual_kinetic_energy_change = next_energy.bodyKineticEnergy - this_energy.bodyKineticEnergy
                 assert(np.linalg.norm(expected_kinetic_energy_change - actual_kinetic_energy_change) < 1.0e-6)
 
-            # gui.nativeAPI().createSphere('recycled_power', [0.05, 0.05, 0.05], [1, 0, 0], [0,0,1,1])
-
             print('Quantizing energy in '+str(num_frames)+' frames...')
 
             NUM_PACKETS = 250
+            particle_ramp_duration = 25
+            negative_work_particle_lifetime = 12
+
             # We want to scale the energy so that the total sum is always equal to NUM_PACKETS
             energy_scale = NUM_PACKETS / peak_body_energy
             quantized_body_energies: List[np.ndarray] = []
@@ -588,12 +599,6 @@ class ViewCommand(AbstractCommand):
 
             negative_work_particle_emissions: List[Tuple[int, np.ndarray]] = []
 
-            particle_ramp_duration = 15
-
-            lowpass_particles_hz = 30
-            particle_noise = 0.005
-            b, a = butter(2, lowpass_particles_hz, 'low', fs=1 / subject.getTrialTimestep(trial))
-
             for p in range(len(particle_bodies)):
                 start_joint = -1
                 start_time = 0
@@ -710,16 +715,15 @@ class ViewCommand(AbstractCommand):
                         for t in range(duration):
                             particle_age[p, start_time + t] = float(t) / float(duration-1)
                             if t < ramp_duration:
-                                particle_importance[p, start_time + t] = float(t) / float(ramp_duration)
+                                particle_importance[p, start_time + t] = 1.0 - (float(t) / float(ramp_duration))
                             if duration - t < ramp_duration:
-                                particle_importance[p, start_time + t] = float(duration - t) / float(ramp_duration)
+                                particle_importance[p, start_time + t] = 1.0 - (float(duration - t) / float(ramp_duration))
                     negative_work_particle_emissions.append((end_time - 1, particle_trajectories[p*3:p*3+3, end_time - 1]))
                     # Now we want to low-pass filter the active section of the trajectory
                     if duration > 9:
                         # particle_trajectories[p*3:p*3+3, start_time:end_time] = filtfilt(b, a, particle_trajectories[p*3:p*3+3, start_time:end_time], axis=1)
                         particle_live[p, start_time:end_time] = 1
 
-            negative_work_particle_lifetime = 10
             num_negative_work_particles_alive = [len([start_time for start_time, _ in negative_work_particle_emissions if (start_time <= t and start_time + negative_work_particle_lifetime > t)]) for t in range(num_frames)]
             num_negative_work_particles = max(num_negative_work_particles_alive)
 
@@ -728,7 +732,13 @@ class ViewCommand(AbstractCommand):
             negative_work_particle_live = np.zeros((num_negative_work_particles, num_frames), dtype=np.int64)
 
             for start_time, start_pos in negative_work_particle_emissions:
-                drift_dir = [-1, 1, -1]
+                avg_com_pos = np.zeros(3)
+                for b in range(skel.getNumBodyNodes()):
+                    avg_com_pos += body_com_positions[b*3:b*3+3, start_time] * skel.getBodyNode(b).getMass()
+                avg_com_pos /= skel.getMass()
+
+                drift_dir = start_pos - avg_com_pos
+                drift_dir[1] = 0
                 # drift_dir = np.random.randn(3)
                 drift_dir /= np.linalg.norm(drift_dir)
 
@@ -739,13 +749,14 @@ class ViewCommand(AbstractCommand):
                 for t in range(negative_work_particle_lifetime):
                     if start_time + t >= num_frames:
                         break
-                    negative_work_particle_trajectories[p*3:p*3+3, start_time + t] = start_pos + drift_dir * 0.04 * t
+                    negative_work_particle_trajectories[p*3:p*3+3, start_time + t] = start_pos + drift_dir * 0.02 * t
                     negative_work_particle_age[p, start_time + t] = float(t) / float(negative_work_particle_lifetime-1)
                     negative_work_particle_live[p, start_time + t] = 1
 
         # Animate the knees back and forth
-        ticker: nimble.realtime.Ticker = nimble.realtime.Ticker(
-            subject.getTrialTimestep(trial) / playback_speed)
+        if save_to_file is not None:
+            ticker: nimble.realtime.Ticker = nimble.realtime.Ticker(
+                subject.getTrialTimestep(trial) / playback_speed)
 
         frame: int = 0
 
@@ -768,11 +779,11 @@ class ViewCommand(AbstractCommand):
             color = [-1, -1, -1, -1]
             # if show_energy:
             #     color = [0.5, 0.5, 0.5, 0.25]
-            gui.nativeAPI().renderSkeleton(skel, overrideColor=color)
+            gui.renderSkeleton(skel, overrideColor=color)
 
             if dof is not None:
                 joint_pos = skel.getJointWorldPositions([graph_joint])
-                gui.nativeAPI().setObjectPosition('active_joint', joint_pos)
+                gui.setObjectPosition('active_joint', joint_pos)
                 p = dof_poses[frame]
                 v = dof_vels[frame]
                 a = dof_accs[frame]
@@ -780,21 +791,21 @@ class ViewCommand(AbstractCommand):
 
                 # dof_poses_with_zeros = np.zeros(num_frames)
                 # dof_poses_with_zeros[0:frame] = dof_poses[0:frame]
-                # gui.nativeAPI().setRichPlotData('dof_plot', 'Pose', 'blue', 'line', timesteps, dof_poses_with_zeros)
+                # gui.setRichPlotData('dof_plot', 'Pose', 'blue', 'line', timesteps, dof_poses_with_zeros)
                 # dof_vels_with_zeros = np.zeros(num_frames)
                 # dof_vels_with_zeros[0:frame] = dof_vels[0:frame]
-                # gui.nativeAPI().setRichPlotData('dof_plot', 'Vel', 'green', 'line', timesteps, dof_vels_with_zeros)
+                # gui.setRichPlotData('dof_plot', 'Vel', 'green', 'line', timesteps, dof_vels_with_zeros)
                 # dof_taus_with_zeros = np.zeros(num_frames)
                 # dof_taus_with_zeros[0:frame] = dof_taus[0:frame]
-                # gui.nativeAPI().setRichPlotData('dof_plot', 'Tau', 'red', 'line', timesteps, dof_taus_with_zeros)
+                # gui.setRichPlotData('dof_plot', 'Tau', 'red', 'line', timesteps, dof_taus_with_zeros)
                 # # dof_power_with_zeros = np.zeros(num_frames)
                 # # dof_power_with_zeros[0:frame] = dof_power[0:frame]
-                # # gui.nativeAPI().setRichPlotData('dof_plot', 'Power', 'purple', 'line', timesteps, dof_power_with_zeros)
+                # # gui.setRichPlotData('dof_plot', 'Power', 'purple', 'line', timesteps, dof_power_with_zeros)
                 # dof_work_with_zeros = np.zeros(num_frames)
                 # dof_work_with_zeros[0:frame] = dof_work[0:frame]
-                # gui.nativeAPI().setRichPlotData('dof_plot', 'Net Work', 'purple', 'line', timesteps, dof_work_with_zeros)
+                # gui.setRichPlotData('dof_plot', 'Net Work', 'purple', 'line', timesteps, dof_work_with_zeros)
 
-                gui.nativeAPI().setTextContents('dof_plot_text', 'DOF '+graph_dof+' values<br>Pos: '+str(p)+'<br>Vel: '+str(v)+'<br>Acc: '+str(a)+'<br>Tau: '+str(t)+'<br>Power:'+str(dof_power[frame])+'<br>Work: '+str(dof_work[frame]))
+                gui.setTextContents('dof_plot_text', 'DOF '+graph_dof+' values<br>Pos: '+str(p)+'<br>Vel: '+str(v)+'<br>Acc: '+str(a)+'<br>Tau: '+str(t)+'<br>Power:'+str(dof_power[frame])+'<br>Work: '+str(dof_work[frame]))
 
             if show_energy:
                 energy = energy_frames[frame]
@@ -815,7 +826,7 @@ class ViewCommand(AbstractCommand):
                 # power_sphere_scale_factor = 1e-4
                 power_sphere_scale_factor = 8e-3
 
-                # gui.nativeAPI().createSphere('recycled_power', np.ones(3) * energy_sphere_scale_factor * conserved_energy[frame], [1, 0, 0], [0, 0, 1, 1])
+                # gui.createSphere('recycled_power', np.ones(3) * energy_sphere_scale_factor * conserved_energy[frame], [1, 0, 0], [0, 0, 1, 1])
 
                 overall_scale = 1.5
                 power_arrow_scale_factor *= overall_scale
@@ -827,37 +838,37 @@ class ViewCommand(AbstractCommand):
                 #     body = skel.getBodyNode(i)
                 #     total_energy = energy.bodyKineticEnergy[i] + energy.bodyPotentialEnergy[i]
                 #     radius = energy_sphere_scale_factor * total_energy
-                #     gui.nativeAPI().createSphere(body.getName()+"_energy", radius * np.ones(3), energy.bodyCenters[i], [0, 0, 1, 0.5])
+                #     gui.createSphere(body.getName()+"_energy", radius * np.ones(3), energy.bodyCenters[i], [0, 0, 1, 0.5])
                 #     body_radii[i] = radius
 
                 # for i in range(0, skel.getNumBodyNodes()):
                 #     body = skel.getBodyNode(i)
                 #     radius = (float(quantized_body_energies[frame][i+1]) * 0.3 / NUM_PACKETS)
-                #     gui.nativeAPI().createSphere(body.getName()+"_energy_discrete", radius * np.ones(3), energy.bodyCenters[i], [0, 0, 1, 0.5])
+                #     gui.createSphere(body.getName()+"_energy_discrete", radius * np.ones(3), energy.bodyCenters[i], [0, 0, 1, 0.5])
                 #     body_radii[i] = radius
 
                 for i in range(NUM_PACKETS):
                     if particle_live[i, frame] == 0:
-                        gui.nativeAPI().deleteObject('particle'+str(i))
+                        gui.deleteObject('particle'+str(i))
                     else:
                         age: float = particle_age[i, frame]
                         rgb = heat_to_rgb(1.0 - age)
                         # age_fraction = particle_ramp_duration
-                        importance = (max(age, 1.0 - age))
-                        # importance = particle_importance[i, frame]
-                        color = [rgb[0], rgb[1], rgb[2], importance * 0.5]
-                        gui.nativeAPI().createBox('particle' + str(i), np.ones(3) * 0.02, particle_trajectories[i*3:i*3+3, frame],
+                        # importance = (max(age, 1.0 - age))
+                        importance = particle_importance[i, frame]
+                        color = [rgb[0], rgb[1], rgb[2], importance * 0.75]
+                        gui.createBox('particle' + str(i), np.ones(3) * 0.02, particle_trajectories[i*3:i*3+3, frame],
                                                   np.zeros(3), color)
 
                 cold_rgb = heat_to_rgb(0.0)
                 for i in range(num_negative_work_particles):
                     if negative_work_particle_live[i, frame] == 0:
-                        gui.nativeAPI().deleteObject('negative_work_particle'+str(i))
+                        gui.deleteObject('negative_work_particle'+str(i))
                     else:
                         age: float = negative_work_particle_age[i, frame]
                         size: float = age * age * age
                         color = [cold_rgb[0], cold_rgb[1], cold_rgb[2], 0.2 * (1.0 - age) + 0.025]
-                        gui.nativeAPI().createBox('negative_work_particle' + str(i), np.ones(3) * 0.02 * (1.0 + 4.0 * size), negative_work_particle_trajectories[i*3:i*3+3, frame],
+                        gui.createBox('negative_work_particle' + str(i), np.ones(3) * 0.02 * (1.0 + 4.0 * size), negative_work_particle_trajectories[i*3:i*3+3, frame],
                                                   np.zeros(3), color)
 
                 for i in range(0, skel.getNumBodyNodes()):
@@ -868,7 +879,7 @@ class ViewCommand(AbstractCommand):
                     rgb = heat_to_rgb(scaled_percentage)
                     color: np.ndarray = np.array([rgb[0], rgb[1], rgb[2], 1.0])
                     for k in range(body.getNumShapeNodes()):
-                        gui.nativeAPI().setObjectColor(
+                        gui.setObjectColor(
                             'world_' + skel.getName() + "_" + body.getName() + "_" + str(k), color)
 
                 running_energy_deriv += np.sum(energy.bodyKineticEnergyDeriv + energy.bodyPotentialEnergyDeriv) * subject.getTrialTimestep(trial)
@@ -893,28 +904,28 @@ class ViewCommand(AbstractCommand):
                 #     adjusted_parent_joint_center = joint.worldCenter - parent_to_joint_dir * joint_radius
                 #
                 #     # if joint.powerToChild > 0:
-                #     #     gui.nativeAPI().renderArrow(adjusted_child_joint_center, adjusted_child_center, joint.powerToChild * power_arrow_scale_factor * 0.5, joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child')
+                #     #     gui.renderArrow(adjusted_child_joint_center, adjusted_child_center, joint.powerToChild * power_arrow_scale_factor * 0.5, joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child')
                 #     # else:
-                #     #     gui.nativeAPI().renderArrow(adjusted_child_center, adjusted_child_joint_center, -joint.powerToChild * power_arrow_scale_factor * 0.5, -joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child')
+                #     #     gui.renderArrow(adjusted_child_center, adjusted_child_joint_center, -joint.powerToChild * power_arrow_scale_factor * 0.5, -joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child')
                 #     # if joint.powerToParent > 0:
-                #     #     gui.nativeAPI().renderArrow(adjusted_parent_joint_center, adjusted_parent_center, joint.powerToParent * power_arrow_scale_factor * 0.5, joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent')
+                #     #     gui.renderArrow(adjusted_parent_joint_center, adjusted_parent_center, joint.powerToParent * power_arrow_scale_factor * 0.5, joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent')
                 #     # else:
-                #     #     gui.nativeAPI().renderArrow(adjusted_parent_center, adjusted_parent_joint_center, -joint.powerToParent * power_arrow_scale_factor * 0.5, -joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent')
+                #     #     gui.renderArrow(adjusted_parent_center, adjusted_parent_joint_center, -joint.powerToParent * power_arrow_scale_factor * 0.5, -joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent')
                 #
                 #     if net_power < 0:
-                #         gui.nativeAPI().createSphere('energy_'+joint.name, np.ones(3) * -np.cbrt(net_power) * power_sphere_scale_factor, joint.worldCenter, negative_power_color)
+                #         gui.createSphere('energy_'+joint.name, np.ones(3) * -np.cbrt(net_power) * power_sphere_scale_factor, joint.worldCenter, negative_power_color)
                 #     else:
-                #         gui.nativeAPI().createSphere('energy_'+joint.name, np.ones(3) * np.cbrt(net_power) * power_sphere_scale_factor, joint.worldCenter, positive_power_color)
+                #         gui.createSphere('energy_'+joint.name, np.ones(3) * np.cbrt(net_power) * power_sphere_scale_factor, joint.worldCenter, positive_power_color)
                 #
                 # for contact in energy.contacts:
                 #     # if contact.powerToBody > 0:
-                #     #     gui.nativeAPI().renderArrow(contact.worldCenter - np.array([0, 0.2, 0]), contact.worldCenter, contact.powerToBody * power_arrow_scale_factor * 0.5, contact.powerToBody * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=contact.contactBody+'_contact')
+                #     #     gui.renderArrow(contact.worldCenter - np.array([0, 0.2, 0]), contact.worldCenter, contact.powerToBody * power_arrow_scale_factor * 0.5, contact.powerToBody * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=contact.contactBody+'_contact')
                 #     # else:
-                #     #     gui.nativeAPI().renderArrow(contact.worldCenter, contact.worldCenter - np.array([0, 0.2, 0]), -contact.powerToBody * power_arrow_scale_factor * 0.5, -contact.powerToBody * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=contact.contactBody+'_contact')
+                #     #     gui.renderArrow(contact.worldCenter, contact.worldCenter - np.array([0, 0.2, 0]), -contact.powerToBody * power_arrow_scale_factor * 0.5, -contact.powerToBody * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=contact.contactBody+'_contact')
                 #     if contact.powerToBody < 0:
-                #         gui.nativeAPI().createSphere('energy_'+contact.contactBody, np.ones(3) * -np.cbrt(contact.powerToBody) * power_sphere_scale_factor, contact.worldCenter, negative_power_color)
+                #         gui.createSphere('energy_'+contact.contactBody, np.ones(3) * -np.cbrt(contact.powerToBody) * power_sphere_scale_factor, contact.worldCenter, negative_power_color)
                 #     else:
-                #         gui.nativeAPI().createSphere('energy_'+contact.contactBody, np.ones(3) * np.cbrt(contact.powerToBody) * power_sphere_scale_factor, contact.worldCenter, positive_power_color)
+                #         gui.createSphere('energy_'+contact.contactBody, np.ones(3) * np.cbrt(contact.powerToBody) * power_sphere_scale_factor, contact.worldCenter, positive_power_color)
 
             frame += 1
             # Loop before the last frame, if we're showing energy
@@ -925,12 +936,23 @@ class ViewCommand(AbstractCommand):
                 if frame >= num_frames:
                     frame = 0
 
-        ticker.registerTickListener(onTick)
-        ticker.start()
+        if save_to_file is None:
+            ticker.registerTickListener(onTick)
+            ticker.start()
 
-        print(subject.getHref())
-        print(subject.getTrialName(trial))
+            print(subject.getHref())
+            print(subject.getTrialName(trial))
 
-        # Don't immediately exit while we're serving
-        gui.blockWhileServing()
+            # Don't immediately exit while we're serving
+            gui.blockWhileServing()
+        else:
+            gui.setFramesPerSecond(int(1.0/ subject.getTrialTimestep(trial)))
+            print('Constructing frames:')
+            for t in range(num_frames):
+                if t % 25 == 0:
+                    print(str(t)+'/'+str(num_frames))
+                onTick(t)
+                gui.saveFrame()
+            gui.writeFramesJson(save_to_file)
+
         return True
