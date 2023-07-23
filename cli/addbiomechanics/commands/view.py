@@ -583,7 +583,12 @@ class ViewCommand(AbstractCommand):
 
             particle_trajectories = np.zeros((len(particle_bodies) * 3, num_frames))
             particle_age = np.zeros((len(particle_bodies), num_frames))
+            particle_importance = np.zeros((len(particle_bodies), num_frames))
             particle_live = np.zeros((len(particle_bodies), num_frames), dtype=np.int64)
+
+            negative_work_particle_emissions: List[Tuple[int, np.ndarray]] = []
+
+            particle_ramp_duration = 15
 
             lowpass_particles_hz = 30
             particle_noise = 0.005
@@ -638,8 +643,8 @@ class ViewCommand(AbstractCommand):
                         end_live = end_time
 
                     ramp_duration = int(math.floor(duration * 0.5))
-                    if ramp_duration > 15:
-                        ramp_duration = 15
+                    if ramp_duration > particle_ramp_duration:
+                        ramp_duration = particle_ramp_duration
                     weights = np.zeros((3, duration))
                     for i in range(duration):
                         if i < ramp_duration and start_joint != -1:
@@ -669,6 +674,8 @@ class ViewCommand(AbstractCommand):
                                 best_force_mag = force_mag
 
                     # Now we want to compute the trajectory of the particle
+                    random_body_offset = np.random.randn(3) * 0.015
+
                     for i in range(duration):
                         if start_joint != -1:
                             particle_trajectories[p*3:p*3+3, start_time + i] += weights[0, i] * joint_positions[start_joint*3:start_joint*3+3, start_time + i]
@@ -677,7 +684,7 @@ class ViewCommand(AbstractCommand):
 
                         if body_index != 0:
                             particle_trajectories[p * 3:p * 3 + 3, start_time + i] += weights[1, i] * body_com_positions[
-                                ((body_index - 1) * 3):(body_index * 3), start_time + i] + np.random.randn(3) * particle_noise
+                                ((body_index - 1) * 3):(body_index * 3), start_time + i] + random_body_offset + (np.random.randn(3) * 0.003)
 
                         if end_joint != -1:
                             particle_trajectories[p * 3:p * 3 + 3, start_time + i] += weights[2, i] * joint_positions[
@@ -696,12 +703,45 @@ class ViewCommand(AbstractCommand):
                     if duration == 1:
                         particle_age[p, start_time] = 0.5
                     elif duration > 1:
+                        ramp_duration = int(math.floor(duration * 0.5))
+                        if ramp_duration > particle_ramp_duration:
+                            ramp_duration = particle_ramp_duration
+
                         for t in range(duration):
                             particle_age[p, start_time + t] = float(t) / float(duration-1)
+                            if t < ramp_duration:
+                                particle_importance[p, start_time + t] = float(t) / float(ramp_duration)
+                            if duration - t < ramp_duration:
+                                particle_importance[p, start_time + t] = float(duration - t) / float(ramp_duration)
+                    negative_work_particle_emissions.append((end_time - 1, particle_trajectories[p*3:p*3+3, end_time - 1]))
                     # Now we want to low-pass filter the active section of the trajectory
                     if duration > 9:
-                        particle_trajectories[p*3:p*3+3, start_time:end_time] = filtfilt(b, a, particle_trajectories[p*3:p*3+3, start_time:end_time], axis=1)
+                        # particle_trajectories[p*3:p*3+3, start_time:end_time] = filtfilt(b, a, particle_trajectories[p*3:p*3+3, start_time:end_time], axis=1)
                         particle_live[p, start_time:end_time] = 1
+
+            negative_work_particle_lifetime = 10
+            num_negative_work_particles_alive = [len([start_time for start_time, _ in negative_work_particle_emissions if (start_time <= t and start_time + negative_work_particle_lifetime > t)]) for t in range(num_frames)]
+            num_negative_work_particles = max(num_negative_work_particles_alive)
+
+            negative_work_particle_trajectories = np.zeros((num_negative_work_particles * 3, num_frames))
+            negative_work_particle_age = np.zeros((num_negative_work_particles, num_frames))
+            negative_work_particle_live = np.zeros((num_negative_work_particles, num_frames), dtype=np.int64)
+
+            for start_time, start_pos in negative_work_particle_emissions:
+                drift_dir = [-1, 1, -1]
+                # drift_dir = np.random.randn(3)
+                drift_dir /= np.linalg.norm(drift_dir)
+
+                for p in range(num_negative_work_particles):
+                    if negative_work_particle_live[p, start_time:start_time+negative_work_particle_lifetime].sum() == 0:
+                        break
+
+                for t in range(negative_work_particle_lifetime):
+                    if start_time + t >= num_frames:
+                        break
+                    negative_work_particle_trajectories[p*3:p*3+3, start_time + t] = start_pos + drift_dir * 0.04 * t
+                    negative_work_particle_age[p, start_time + t] = float(t) / float(negative_work_particle_lifetime-1)
+                    negative_work_particle_live[p, start_time + t] = 1
 
         # Animate the knees back and forth
         ticker: nimble.realtime.Ticker = nimble.realtime.Ticker(
@@ -797,15 +837,27 @@ class ViewCommand(AbstractCommand):
                 #     body_radii[i] = radius
 
                 for i in range(NUM_PACKETS):
-
                     if particle_live[i, frame] == 0:
                         gui.nativeAPI().deleteObject('particle'+str(i))
                     else:
                         age: float = particle_age[i, frame]
                         rgb = heat_to_rgb(1.0 - age)
+                        # age_fraction = particle_ramp_duration
                         importance = (max(age, 1.0 - age))
-                        color = [rgb[0], rgb[1], rgb[2], importance]
+                        # importance = particle_importance[i, frame]
+                        color = [rgb[0], rgb[1], rgb[2], importance * 0.5]
                         gui.nativeAPI().createBox('particle' + str(i), np.ones(3) * 0.02, particle_trajectories[i*3:i*3+3, frame],
+                                                  np.zeros(3), color)
+
+                cold_rgb = heat_to_rgb(0.0)
+                for i in range(num_negative_work_particles):
+                    if negative_work_particle_live[i, frame] == 0:
+                        gui.nativeAPI().deleteObject('negative_work_particle'+str(i))
+                    else:
+                        age: float = negative_work_particle_age[i, frame]
+                        size: float = age * age * age
+                        color = [cold_rgb[0], cold_rgb[1], cold_rgb[2], 0.2 * (1.0 - age) + 0.025]
+                        gui.nativeAPI().createBox('negative_work_particle' + str(i), np.ones(3) * 0.02 * (1.0 + 4.0 * size), negative_work_particle_trajectories[i*3:i*3+3, frame],
                                                   np.zeros(3), color)
 
                 for i in range(0, skel.getNumBodyNodes()):
