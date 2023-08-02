@@ -47,6 +47,16 @@ class ViewCommand(AbstractCommand):
             help='Save the visualization to a file, which can be embedded in a website for use with the Nimble Physics Viewer',
             type=str,
             default=None)
+        view_parser.add_argument(
+            '--limit-frames',
+            help='Only visualize the first N frames of the data, useful for very long trials',
+            type=int,
+            default=-1)
+        view_parser.add_argument(
+            '--num-energy-packets',
+            help='The number of packets to use when computing energy. Default is 250, which is a good balance between performance and resolution when walking',
+            type=int,
+            default=250)
 
     def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'view':
@@ -58,6 +68,8 @@ class ViewCommand(AbstractCommand):
         playback_speed: float = args.playback_speed
         show_energy: bool = args.show_energy
         save_to_file: str = args.save_to_file
+        limit_frames: int = args.limit_frames
+        num_packets: int = args.num_energy_packets
 
         try:
             import nimblephysics as nimble
@@ -117,6 +129,8 @@ class ViewCommand(AbstractCommand):
         print('Contact bodies: '+str(contact_bodies))
 
         num_frames = subject.getTrialLength(trial)
+        if limit_frames > -1 and limit_frames < num_frames:
+            num_frames = limit_frames
         skel = subject.readSkel(geometry)
 
         print('DOFs:')
@@ -133,7 +147,7 @@ class ViewCommand(AbstractCommand):
         else:
             nimble_gui = NimbleGUI(world)
             nimble_gui.serve(8080)
-            gui = nimble_gui
+            gui = nimble_gui.nativeAPI()
 
         if graph_dof is not None:
             dof = skel.getDof(graph_dof)
@@ -325,6 +339,7 @@ class ViewCommand(AbstractCommand):
 
                 remaining_error = body_kinetic_power_without_gravity - (new_body_external_force_power + new_body_child_joint_power_sum + new_body_parent_joint_power)
                 assert(np.linalg.norm(remaining_error) < 1.0e-6)
+
                 this_energy.bodyExternalForcePower = new_body_external_force_power
                 this_energy.bodyParentJointPower = new_body_parent_joint_power
                 this_energy.bodyChildJointPowerSum = new_body_child_joint_power_sum
@@ -335,14 +350,21 @@ class ViewCommand(AbstractCommand):
                 actual_kinetic_energy_change = next_energy.bodyKineticEnergy - this_energy.bodyKineticEnergy
                 assert(np.linalg.norm(expected_kinetic_energy_change - actual_kinetic_energy_change) < 1.0e-6)
 
+            peak_joint_to_body_power = 0.0
+            peak_joint_net_power = 0.0
+            for frame in range(num_frames):
+                for joint in energy_frames[frame].joints:
+                    peak_joint_to_body_power = max(peak_joint_to_body_power, abs(joint.powerToParent), abs(joint.powerToChild))
+                    peak_joint_net_power = max(peak_joint_net_power, abs(joint.powerToParent - joint.powerToChild))
+
             print('Quantizing energy in '+str(num_frames)+' frames...')
 
-            NUM_PACKETS = 250
-            particle_ramp_duration = 25
-            negative_work_particle_lifetime = 12
+            particle_ramp_duration = 1000 # Effectively, just don't wait in the bodies ever, just go slowly from body to body
+            negative_work_particle_lifetime = int(0.1 / subject.getTrialTimestep(trial))
+            negative_work_particle_dist_traveled = (0.1 / negative_work_particle_lifetime)
 
-            # We want to scale the energy so that the total sum is always equal to NUM_PACKETS
-            energy_scale = NUM_PACKETS / peak_body_energy
+            # We want to scale the energy so that the total sum is always equal to num_packets
+            energy_scale = num_packets / peak_body_energy
             quantized_body_energies: List[np.ndarray] = []
             for frame in range(num_frames):
                 this_energy = energy_frames[frame]
@@ -351,7 +373,7 @@ class ViewCommand(AbstractCommand):
                 continuous_body_energy[0] = conserved_energy[frame]
                 continuous_body_energy[1:] += this_energy.bodyKineticEnergy + this_energy.bodyPotentialEnergy
 
-                quantized_body_energy = quantize_vector_fixed_sum(continuous_body_energy * energy_scale, NUM_PACKETS)
+                quantized_body_energy = quantize_vector_fixed_sum(continuous_body_energy * energy_scale, num_packets)
                 quantized_body_energies.append(quantized_body_energy)
 
             # Store the quantized power flows
@@ -441,10 +463,56 @@ class ViewCommand(AbstractCommand):
                     expected_energy_diff[0] -= expected_energy_diff[i + 1]
                 assert(np.all(expected_energy_diff == energy_diff))
 
-            # Now we want to map to particle motions in a (from, to, through_joint) format
-            particle_transfers: List[List[Tuple[int, int, int]]] = []
+            # Now we want to work out the energy storage in tendons at each joint
+            best_case_tendon_capacity = np.zeros(skel.getNumJoints())
+            for joint in range(skel.getNumJoints()):
+                stored_energy = np.zeros(num_frames)
+                for frame in range(num_frames - 1):
+                    this_energy = energy_frames[frame]
+                    stored_energy[frame + 1] = stored_energy[frame] + (this_energy.joints[joint].powerToParent + this_energy.joints[joint].powerToChild) * subject.getTrialTimestep(trial)
+
+                # Now we look for the largest amount of positive work done by the joint over any time period, and cap
+                # the tendons at that amount of storage. For joints that do positive work, it'll mean the tendons are
+                # effectively uncapped, and for joints that do negative work it'll be a cap to ensure some energy is
+                # still vented.
+                best = 0
+                for start_frame in range(num_frames - 1):
+                    for end_frame in range(start_frame + 1, num_frames):
+                        if stored_energy[end_frame] - stored_energy[start_frame] > best:
+                            best = stored_energy[end_frame] - stored_energy[start_frame]
+                best_case_tendon_capacity[joint] = best
+
+            energy_stored_in_tendons = np.zeros((skel.getNumJoints(), num_frames))
+            power_not_retrieved_from_tendons = np.zeros((skel.getNumJoints(), num_frames))
             for frame in range(num_frames - 1):
-                frame_transfers: List[Tuple[int, int, int]] = []
+                this_energy = energy_frames[frame]
+                for joint in range(skel.getNumJoints()):
+                    power = this_energy.joints[joint].powerToParent + this_energy.joints[joint].powerToChild
+                    delta_energy = power * subject.getTrialTimestep(trial)
+
+                    if delta_energy < 0:
+                        energy_to_tendon = -delta_energy
+                        if energy_to_tendon > best_case_tendon_capacity[joint] - energy_stored_in_tendons[joint, frame]:
+                            energy_to_tendon = best_case_tendon_capacity[joint] - energy_stored_in_tendons[joint, frame]
+                        energy_stored_in_tendons[joint, frame + 1] = energy_stored_in_tendons[joint, frame] + energy_to_tendon
+                    if delta_energy > 0:
+                        energy_from_tendon = delta_energy
+                        if energy_from_tendon > energy_stored_in_tendons[joint, frame]:
+                            energy_from_tendon = energy_stored_in_tendons[joint, frame]
+                        energy_stored_in_tendons[joint, frame + 1] = energy_stored_in_tendons[joint, frame] - energy_from_tendon
+                        if energy_from_tendon == 0:
+                            power_not_retrieved_from_tendons[joint, frame] = power
+                        else:
+                            power_from_tendon = energy_from_tendon / subject.getTrialTimestep(trial)
+                            power_not_retrieved_from_tendons[joint, frame] = power - power_from_tendon
+                    assert(energy_stored_in_tendons[joint, frame + 1] <= best_case_tendon_capacity[joint])
+                    assert(energy_stored_in_tendons[joint, frame + 1] >= 0)
+
+            # Now we want to map to particle motions in a (from, to, through_joint) format
+            joint_quantized_stored_energy = np.zeros((num_frames, skel.getNumJoints()), dtype=np.int64)
+            particle_transfers: List[List[Tuple[int, int, int, bool]]] = []
+            for frame in range(num_frames - 1):
+                frame_transfers: List[Tuple[int, int, int, bool]] = []
                 this_energy = quantized_body_energies[frame]
                 next_energy = quantized_body_energies[frame + 1]
                 energy_diff = next_energy - this_energy
@@ -454,11 +522,11 @@ class ViewCommand(AbstractCommand):
                     if quantized_external_power[i, frame] < 0:
                         # External power always transfers to the reserve, and not through a joint
                         for _ in range(abs(quantized_external_power[i, frame])):
-                            frame_transfers.append((i + 1, 0, -1))
+                            frame_transfers.append((i + 1, 0, -1, False))
                     elif quantized_external_power[i, frame] > 0:
                         # External power always transfers from the reserve, and not through a joint
                         for _ in range(abs(quantized_external_power[i, frame])):
-                            frame_transfers.append((0, i + 1, -1))
+                            frame_transfers.append((0, i + 1, -1, False))
                 for j in range(skel.getNumJoints()):
                     from_reserve_to_parent = quantized_joint_parent_power[j, frame]
                     from_reserve_to_child = quantized_joint_child_power[j, frame]
@@ -471,33 +539,50 @@ class ViewCommand(AbstractCommand):
                         from_reserve_to_parent += from_parent_to_child
                         from_reserve_to_child -= from_parent_to_child
                         for _ in range(from_parent_to_child):
-                            frame_transfers.append((parent + 1, child + 1, j))
+                            frame_transfers.append((parent + 1, child + 1, j, False))
                     elif from_reserve_to_parent > 0 and from_reserve_to_child < 0:
                         from_child_to_parent = min(abs(from_reserve_to_child), from_reserve_to_parent)
                         from_reserve_to_parent -= from_child_to_parent
                         from_reserve_to_child += from_child_to_parent
                         for _ in range(from_child_to_parent):
-                            frame_transfers.append((child + 1, parent + 1, j))
+                            frame_transfers.append((child + 1, parent + 1, j, False))
 
                     # All remaining transfers are from the power reserve
                     if from_reserve_to_parent < 0:
                         for _ in range(abs(from_reserve_to_parent)):
-                            frame_transfers.append((parent + 1, 0, j))
+                            through_tendon = False
+                            if joint_quantized_stored_energy[frame, j] > 0:
+                                joint_quantized_stored_energy[frame, j] -= 1
+                                through_tendon = True
+                            frame_transfers.append((parent + 1, 0, j, through_tendon))
                     elif from_reserve_to_parent > 0:
                         for _ in range(abs(from_reserve_to_parent)):
-                            frame_transfers.append((0, parent + 1, j))
+                            through_tendon = False
+                            if joint_quantized_stored_energy[frame, j] < best_case_tendon_capacity[j] * energy_scale:
+                                joint_quantized_stored_energy[frame, j] += 1
+                                through_tendon = True
+                            frame_transfers.append((0, parent + 1, j, through_tendon))
                     if from_reserve_to_child < 0:
                         for _ in range(abs(from_reserve_to_child)):
-                            frame_transfers.append((child + 1, 0, j))
+                            through_tendon = False
+                            if joint_quantized_stored_energy[frame, j] > 0:
+                                joint_quantized_stored_energy[frame, j] -= 1
+                                through_tendon = True
+                            frame_transfers.append((child + 1, 0, j, through_tendon))
                     elif from_reserve_to_child > 0:
                         for _ in range(abs(from_reserve_to_child)):
-                            frame_transfers.append((0, child + 1, j))
+                            through_tendon = False
+                            if joint_quantized_stored_energy[frame, j] < best_case_tendon_capacity[j] * energy_scale:
+                                joint_quantized_stored_energy[frame, j] += 1
+                                through_tendon = True
+                            frame_transfers.append((0, child + 1, j, through_tendon))
+                joint_quantized_stored_energy[frame + 1, :] = joint_quantized_stored_energy[frame, :]
 
                 particle_transfers.append(frame_transfers)
 
                 # Sanity check the particle transfers
                 energy = np.copy(this_energy)
-                for source, dest, joint in frame_transfers:
+                for source, dest, joint, through_tendon in frame_transfers:
                     energy[source] -= 1
                     energy[dest] += 1
                 if not np.all(energy == next_energy):
@@ -512,6 +597,8 @@ class ViewCommand(AbstractCommand):
 
             particle_bodies = []
             particle_source_joints = []
+            particle_transfer_time = []
+            particle_through_tendon = []
             body_particle_stacks = [[] for _ in range(skel.getNumBodyNodes() + 1)]
             # Initialize the traces by setting up particles on the first frame of the motion
             # These are the particles in the "conservation sink"
@@ -519,12 +606,54 @@ class ViewCommand(AbstractCommand):
                 body_particle_stacks[0].append(len(particle_bodies))
                 particle_bodies.append([0])
                 particle_source_joints.append([-1])
+                particle_transfer_time.append([0])
+                particle_through_tendon.append([False])
             # These are the particles in the bodies
             for i in range(skel.getNumBodyNodes()):
                 for _ in range(quantized_body_energies[0][i+1]):
                     body_particle_stacks[i+1].append(len(particle_bodies))
                     particle_bodies.append([i+1])
                     particle_source_joints.append([-1])
+                    particle_transfer_time.append([0])
+                    particle_through_tendon.append([False])
+
+            def graph_search_joint(j: int, already_visited_bodies: List[int]) -> List[int]:
+                joints: List[int] = [j]
+                joint = skel.getJoint(j)
+
+                visit_bodies: List[int] = []
+                if joint.getParentBodyNode() is not None and joint.getParentBodyNode().getIndexInSkeleton() not in already_visited_bodies:
+                    visit_bodies.append(joint.getParentBodyNode().getIndexInSkeleton())
+                if joint.getChildBodyNode().getIndexInSkeleton() not in already_visited_bodies:
+                    visit_bodies.append(joint.getChildBodyNode().getIndexInSkeleton())
+
+                for body_index in visit_bodies:
+                    body = skel.getBodyNode(body_index)
+                    if body.getParentJoint() is not None:
+                        joints += graph_search_joint(body.getParentJoint().getJointIndexInSkeleton(), already_visited_bodies + [body_index])
+                    for c in range(body.getNumChildJoints()):
+                        child_joint = body.getChildJoint(c)
+                        if child_joint != joint:
+                            joints += graph_search_joint(child_joint.getJointIndexInSkeleton(), already_visited_bodies + [body_index])
+
+                return joints
+
+            body_joint_families = [[0 for j in range(skel.getNumJoints() + 1)] for i in range(skel.getNumBodyNodes()+1)]
+            for i in range(skel.getNumBodyNodes()):
+                body: nimble.dynamics.BodyNode = skel.getBodyNode(i)
+                parent_joint = body.getParentJoint()
+
+                body_joint_families[i+1][0] = 0
+
+                parent_joint_group = graph_search_joint(parent_joint.getJointIndexInSkeleton(), [i])
+                for j in parent_joint_group:
+                    body_joint_families[i+1][j+1] = 1
+
+                for c in range(body.getNumChildJoints()):
+                    child_joint = body.getChildJoint(c)
+                    joints = graph_search_joint(child_joint.getJointIndexInSkeleton(), [i])
+                    for j in joints:
+                        body_joint_families[i+1][j+1] = c + 2
 
             # Now we want to go through and assign particles to the flows
             for frame in range(num_frames - 1):
@@ -539,19 +668,47 @@ class ViewCommand(AbstractCommand):
                 next_frame_body_particle_stacks = [[] for _ in range(skel.getNumBodyNodes() + 1)]
 
                 while len(remaining_transfers) > 0:
-                    found_transfer = False
-                    for i, (source, dest, joint) in enumerate(remaining_transfers):
-                        if len(body_particle_stacks[source]) > 0:
-                            particle_index = body_particle_stacks[source].pop(0)
-                            next_frame_body_particle_stacks[dest].append(particle_index)
-                            particle_bodies[particle_index].append(dest)
-                            particle_source_joints[particle_index].append(joint)
-                            del remaining_transfers[i]
-                            found_transfer = True
-                            break
+                    transfer_options = []
+                    for i, (source, dest, joint, through_tendon) in enumerate(remaining_transfers):
+                        for j in range(len(body_particle_stacks[source])):
+                            transfer_options.append({
+                                'source': source,
+                                'dest': dest,
+                                'joint': joint,
+                                'transfer_index': i,
+                                'stack_index': j,
+                                'through_tendon': through_tendon,
+                                'particle_index': body_particle_stacks[source][j],
+                                'particle_age': frame - particle_transfer_time[body_particle_stacks[source][j]][-1],
+                                'particle_source_joint': particle_source_joints[body_particle_stacks[source][j]][-1]
+                            })
 
-                    if not found_transfer:
-                        for i, (source, dest, joint) in enumerate(remaining_transfers):
+                    if len(transfer_options) > 0:
+                        # We'd like to send the spatially closest particle to the new body. That means, if you came in
+                        # through this joint recently, we'd like to transfer you out through this joint
+                        same_joint_transfer_options = [x for x in transfer_options if body_joint_families[x['source']][x['particle_source_joint']+1] == body_joint_families[x['source']][x['joint']+1]]
+                        if len(same_joint_transfer_options) > 0:
+                            same_joint_transfer_options.sort(key=lambda x: x['particle_age'])
+                            transfer = same_joint_transfer_options[0]
+                        else:
+                            # Otherwise, we'd like to take the oldest particle on this body from another joint
+                            transfer_options.sort(key=lambda x: x['particle_age'], reverse=True)
+                            transfer = transfer_options[0]
+
+                        particle_index = body_particle_stacks[transfer['source']].pop(transfer['stack_index'])
+                        assert(particle_index == transfer['particle_index'])
+                        next_frame_body_particle_stacks[transfer['dest']].append(particle_index)
+                        particle_bodies[particle_index].append(transfer['dest'])
+                        particle_source_joints[particle_index].append(transfer['joint'])
+                        particle_transfer_time[particle_index].append(frame)
+                        particle_through_tendon[particle_index].append(transfer['through_tendon'])
+                        del remaining_transfers[transfer['transfer_index']]
+                    else:
+                        # If we make it here, it's because we had no good transfer options based on the previous frame,
+                        # so we need to transfer particles that we already transferred on this frame (a "double hop")
+                        assert(len(transfer_options) == 0)
+                        found_transfer = False
+                        for i, (source, dest, joint, through_tendon) in enumerate(remaining_transfers):
                             if len(next_frame_body_particle_stacks[source]) > 0:
                                 particle_index = next_frame_body_particle_stacks[source].pop(0)
                                 next_frame_body_particle_stacks[dest].append(particle_index)
@@ -563,21 +720,23 @@ class ViewCommand(AbstractCommand):
                                 found_transfer = True
                                 break
 
-                    if not found_transfer:
-                        print('We failed to find a valid transfer on frame '+str(frame)+'!')
-                        print(remaining_transfers)
-                        print(quantized_body_energies[frame])
-                        print([len(x) for x in body_particle_stacks])
-                        print([len(x) for x in next_frame_body_particle_stacks])
-                        print(quantized_body_energies[frame+1])
-                        assert(False)
+                        if not found_transfer:
+                            print('We failed to find a valid transfer on frame '+str(frame)+'!')
+                            print(remaining_transfers)
+                            print(quantized_body_energies[frame])
+                            print([len(x) for x in body_particle_stacks])
+                            print([len(x) for x in next_frame_body_particle_stacks])
+                            print(quantized_body_energies[frame+1])
+                            assert(False)
 
                 # Fill in any particle traces that didn't move
                 for i in range(len(particle_bodies)):
                     if len(particle_bodies[i]) < frame + 2:
                         next_frame_body_particle_stacks[particle_bodies[i][-1]].append(i)
                         particle_bodies[i].append(particle_bodies[i][-1])
+                        particle_transfer_time[i].append(particle_transfer_time[i][-1])
                         particle_source_joints[i].append(particle_source_joints[i][-1])
+                        particle_through_tendon[i].append(particle_through_tendon[i][-1])
 
                 body_particle_stacks = next_frame_body_particle_stacks
 
@@ -626,6 +785,8 @@ class ViewCommand(AbstractCommand):
 
                 # List of (start_time, end_time) for liveness
                 live_ranges: List[Tuple[int, int]] = []
+                from_tendons: List[bool] = []
+                to_tendons: List[bool] = []
                 start_live = -1
                 end_live = -1
                 last_live = False
@@ -640,6 +801,8 @@ class ViewCommand(AbstractCommand):
                             end_live = end_time
                         else:
                             live_ranges.append((start_live, end_live))
+                            from_tendons.append(particle_through_tendon[p][start_time])
+                            to_tendons.append(particle_through_tendon[p][end_time - 1])
                     last_live = live
 
                     if not live:
@@ -701,9 +864,11 @@ class ViewCommand(AbstractCommand):
                 # Add the last section
                 if last_live:
                     live_ranges.append((start_live, num_frames))
+                    from_tendons.append(particle_through_tendon[p][start_time])
+                    to_tendons.append(particle_through_tendon[p][num_frames-1])
 
                 # Now we want to filter the live sections
-                for start_time, end_time in live_ranges:
+                for i, (start_time, end_time) in enumerate(live_ranges):
                     duration = end_time - start_time
                     if duration == 1:
                         particle_age[p, start_time] = 0.5
@@ -718,11 +883,13 @@ class ViewCommand(AbstractCommand):
                                 particle_importance[p, start_time + t] = 1.0 - (float(t) / float(ramp_duration))
                             if duration - t < ramp_duration:
                                 particle_importance[p, start_time + t] = 1.0 - (float(duration - t) / float(ramp_duration))
-                    negative_work_particle_emissions.append((end_time - 1, particle_trajectories[p*3:p*3+3, end_time - 1]))
                     # Now we want to low-pass filter the active section of the trajectory
                     if duration > 9:
                         # particle_trajectories[p*3:p*3+3, start_time:end_time] = filtfilt(b, a, particle_trajectories[p*3:p*3+3, start_time:end_time], axis=1)
                         particle_live[p, start_time:end_time] = 1
+                    if to_tendons[i]:
+                        continue
+                    negative_work_particle_emissions.append((end_time - 1, particle_trajectories[p*3:p*3+3, end_time - 1]))
 
             num_negative_work_particles_alive = [len([start_time for start_time, _ in negative_work_particle_emissions if (start_time <= t and start_time + negative_work_particle_lifetime > t)]) for t in range(num_frames)]
             num_negative_work_particles = max(num_negative_work_particles_alive)
@@ -749,18 +916,31 @@ class ViewCommand(AbstractCommand):
                 for t in range(negative_work_particle_lifetime):
                     if start_time + t >= num_frames:
                         break
-                    negative_work_particle_trajectories[p*3:p*3+3, start_time + t] = start_pos + drift_dir * 0.02 * t
+                    negative_work_particle_trajectories[p*3:p*3+3, start_time + t] = start_pos + drift_dir * negative_work_particle_dist_traveled * t
                     negative_work_particle_age[p, start_time + t] = float(t) / float(negative_work_particle_lifetime-1)
                     negative_work_particle_live[p, start_time + t] = 1
 
         # Animate the knees back and forth
-        if save_to_file is not None:
+        if save_to_file is None:
             ticker: nimble.realtime.Ticker = nimble.realtime.Ticker(
                 subject.getTrialTimestep(trial) / playback_speed)
+        else:
+            ticker: nimble.realtime.Ticker = None
 
         frame: int = 0
 
         running_energy_deriv: float = 0.0
+        stored_energy = np.zeros(skel.getNumJoints())
+
+        SKELETON_LAYER_NAME = 'Skeleton'
+        ENERGY_LAYER_NAME = 'Energy Flow'
+        ENERGY_ARROWS_LAYER_NAME = 'Energy Arrows'
+        TENDON_LAYER_NAME = 'Tendons'
+        if show_energy:
+            gui.createLayer(SKELETON_LAYER_NAME)
+            gui.createLayer(ENERGY_LAYER_NAME)
+            gui.createLayer(TENDON_LAYER_NAME)
+            gui.createLayer(ENERGY_ARROWS_LAYER_NAME)
 
         def onTick(now):
             nonlocal frame
@@ -779,7 +959,10 @@ class ViewCommand(AbstractCommand):
             color = [-1, -1, -1, -1]
             # if show_energy:
             #     color = [0.5, 0.5, 0.5, 0.25]
-            gui.renderSkeleton(skel, overrideColor=color)
+            layer = ''
+            if show_energy:
+                layer = SKELETON_LAYER_NAME
+            gui.renderSkeleton(skel, overrideColor=color, layer=layer)
 
             if dof is not None:
                 joint_pos = skel.getJointWorldPositions([graph_joint])
@@ -815,23 +998,18 @@ class ViewCommand(AbstractCommand):
                     heat = max(0, min(heat, 1))
 
                     # get the RGB value from the 'magma' colormap
-                    # rgb = plt.get_cmap('plasma')(heat)[0:3]
                     rgb = plt.get_cmap('coolwarm')(heat)[0:3]
+                    # rgb = plt.get_cmap('plasma')(1.0 - heat)[0:3]
 
                     # scale the RGB value to between 0 and 255
                     return rgb
 
-                power_arrow_scale_factor = 2e-4
+                power_arrow_scale_factor = 0.25 / peak_joint_to_body_power
                 energy_sphere_scale_factor = 5e-3
                 # power_sphere_scale_factor = 1e-4
-                power_sphere_scale_factor = 8e-3
+                power_sphere_scale_factor = 0.08 / peak_joint_net_power
 
                 # gui.createSphere('recycled_power', np.ones(3) * energy_sphere_scale_factor * conserved_energy[frame], [1, 0, 0], [0, 0, 1, 1])
-
-                overall_scale = 1.5
-                power_arrow_scale_factor *= overall_scale
-                energy_sphere_scale_factor *= overall_scale
-                power_sphere_scale_factor *= overall_scale
 
                 body_radii = np.zeros(skel.getNumBodyNodes())
                 # for i in range(0, skel.getNumBodyNodes()):
@@ -843,22 +1021,22 @@ class ViewCommand(AbstractCommand):
 
                 # for i in range(0, skel.getNumBodyNodes()):
                 #     body = skel.getBodyNode(i)
-                #     radius = (float(quantized_body_energies[frame][i+1]) * 0.3 / NUM_PACKETS)
+                #     radius = (float(quantized_body_energies[frame][i+1]) * 0.3 / num_packets)
                 #     gui.createSphere(body.getName()+"_energy_discrete", radius * np.ones(3), energy.bodyCenters[i], [0, 0, 1, 0.5])
                 #     body_radii[i] = radius
 
-                for i in range(NUM_PACKETS):
+                for i in range(num_packets):
                     if particle_live[i, frame] == 0:
                         gui.deleteObject('particle'+str(i))
                     else:
                         age: float = particle_age[i, frame]
                         rgb = heat_to_rgb(1.0 - age)
                         # age_fraction = particle_ramp_duration
-                        # importance = (max(age, 1.0 - age))
-                        importance = particle_importance[i, frame]
+                        importance = (max(age, 1.0 - age))
+                        # importance = particle_importance[i, frame]
                         color = [rgb[0], rgb[1], rgb[2], importance * 0.75]
                         gui.createBox('particle' + str(i), np.ones(3) * 0.02, particle_trajectories[i*3:i*3+3, frame],
-                                                  np.zeros(3), color)
+                                                  np.zeros(3), color, layer=ENERGY_LAYER_NAME)
 
                 cold_rgb = heat_to_rgb(0.0)
                 for i in range(num_negative_work_particles):
@@ -869,7 +1047,7 @@ class ViewCommand(AbstractCommand):
                         size: float = age * age * age
                         color = [cold_rgb[0], cold_rgb[1], cold_rgb[2], 0.2 * (1.0 - age) + 0.025]
                         gui.createBox('negative_work_particle' + str(i), np.ones(3) * 0.02 * (1.0 + 4.0 * size), negative_work_particle_trajectories[i*3:i*3+3, frame],
-                                                  np.zeros(3), color)
+                                                  np.zeros(3), color, layer=ENERGY_LAYER_NAME)
 
                 for i in range(0, skel.getNumBodyNodes()):
                     body = skel.getBodyNode(i)
@@ -885,47 +1063,49 @@ class ViewCommand(AbstractCommand):
                 running_energy_deriv += np.sum(energy.bodyKineticEnergyDeriv + energy.bodyPotentialEnergyDeriv) * subject.getTrialTimestep(trial)
 
                 positive_power_rgb = heat_to_rgb(1.0)
-                positive_power_color = [positive_power_rgb[0], positive_power_rgb[1], positive_power_rgb[2], 0.5]
+                positive_power_color = [positive_power_rgb[0], positive_power_rgb[1], positive_power_rgb[2], 0.15]
+                stored_power_rgb = heat_to_rgb(0.5)
+                stored_power_color = [179.0 / 255, 123.0 / 255, 201.0 / 255, 0.8]
                 negative_power_rgb = heat_to_rgb(0.0)
-                negative_power_color = [negative_power_rgb[0], negative_power_rgb[1], negative_power_rgb[2], 0.5]
+                negative_power_color = [negative_power_rgb[0], negative_power_rgb[1], negative_power_rgb[2], 0.15]
 
-                # for joint in energy.joints:
-                #     net_power = joint.powerToChild + joint.powerToParent
-                #     joint_radius = abs(net_power) * power_sphere_scale_factor
-                #
-                #     child_to_joint_dir = (joint.worldCenter - joint.childCenter) / max(np.linalg.norm(joint.worldCenter - joint.childCenter), 1.0e-7)
-                #     adjusted_child_center = joint.childCenter + child_to_joint_dir * body_radii[skel.getBodyNode(joint.childBody).getIndexInSkeleton()]
-                #     adjusted_child_joint_center = joint.worldCenter - child_to_joint_dir * joint_radius
-                #
-                #     parent_to_joint_dir = (joint.worldCenter - joint.parentCenter) / max(np.linalg.norm(joint.worldCenter - joint.parentCenter), 1.0e-7)
-                #     adjusted_parent_center = np.copy(joint.parentCenter)
-                #     if skel.getBodyNode(joint.parentBody) is not None:
-                #          adjusted_parent_center += parent_to_joint_dir * body_radii[skel.getBodyNode(joint.parentBody).getIndexInSkeleton()]
-                #     adjusted_parent_joint_center = joint.worldCenter - parent_to_joint_dir * joint_radius
-                #
-                #     # if joint.powerToChild > 0:
-                #     #     gui.renderArrow(adjusted_child_joint_center, adjusted_child_center, joint.powerToChild * power_arrow_scale_factor * 0.5, joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child')
-                #     # else:
-                #     #     gui.renderArrow(adjusted_child_center, adjusted_child_joint_center, -joint.powerToChild * power_arrow_scale_factor * 0.5, -joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child')
-                #     # if joint.powerToParent > 0:
-                #     #     gui.renderArrow(adjusted_parent_joint_center, adjusted_parent_center, joint.powerToParent * power_arrow_scale_factor * 0.5, joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent')
-                #     # else:
-                #     #     gui.renderArrow(adjusted_parent_center, adjusted_parent_joint_center, -joint.powerToParent * power_arrow_scale_factor * 0.5, -joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent')
-                #
-                #     if net_power < 0:
-                #         gui.createSphere('energy_'+joint.name, np.ones(3) * -np.cbrt(net_power) * power_sphere_scale_factor, joint.worldCenter, negative_power_color)
-                #     else:
-                #         gui.createSphere('energy_'+joint.name, np.ones(3) * np.cbrt(net_power) * power_sphere_scale_factor, joint.worldCenter, positive_power_color)
-                #
+                for j, joint in enumerate(energy.joints):
+                    net_power = power_not_retrieved_from_tendons[j, frame] # joint.powerToChild + joint.powerToParent
+                    # net_power = joint.powerToChild + joint.powerToParent
+                    joint_radius = abs(net_power) * power_sphere_scale_factor
+
+                    child_to_joint_dir = (joint.worldCenter - joint.childCenter) / max(np.linalg.norm(joint.worldCenter - joint.childCenter), 1.0e-7)
+                    adjusted_child_center = joint.childCenter + child_to_joint_dir * body_radii[skel.getBodyNode(joint.childBody).getIndexInSkeleton()]
+                    adjusted_child_joint_center = joint.worldCenter - child_to_joint_dir * joint_radius
+
+                    parent_to_joint_dir = (joint.worldCenter - joint.parentCenter) / max(np.linalg.norm(joint.worldCenter - joint.parentCenter), 1.0e-7)
+                    adjusted_parent_center = np.copy(joint.parentCenter)
+                    if skel.getBodyNode(joint.parentBody) is not None:
+                         adjusted_parent_center += parent_to_joint_dir * body_radii[skel.getBodyNode(joint.parentBody).getIndexInSkeleton()]
+                    adjusted_parent_joint_center = joint.worldCenter - parent_to_joint_dir * joint_radius
+
+                    if joint.powerToChild > 0:
+                        gui.renderArrow(adjusted_child_joint_center, adjusted_child_center, joint.powerToChild * power_arrow_scale_factor * 0.5, joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child', layer=ENERGY_ARROWS_LAYER_NAME)
+                    else:
+                        gui.renderArrow(adjusted_child_center, adjusted_child_joint_center, -joint.powerToChild * power_arrow_scale_factor * 0.5, -joint.powerToChild * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_child', layer=ENERGY_ARROWS_LAYER_NAME)
+                    if joint.powerToParent > 0:
+                        gui.renderArrow(adjusted_parent_joint_center, adjusted_parent_center, joint.powerToParent * power_arrow_scale_factor * 0.5, joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent', layer=ENERGY_ARROWS_LAYER_NAME)
+                    else:
+                        gui.renderArrow(adjusted_parent_center, adjusted_parent_joint_center, -joint.powerToParent * power_arrow_scale_factor * 0.5, -joint.powerToParent * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=joint.name+'_parent', layer=ENERGY_ARROWS_LAYER_NAME)
+
+                    if net_power < 0:
+                        # gui.createSphere('energy_'+joint.name, np.ones(3) * -np.cbrt(net_power) * power_sphere_scale_factor, joint.worldCenter, negative_power_color)
+                        gui.deleteObject('energy_' + joint.name)
+                    else:
+                        gui.createSphere('energy_'+joint.name, np.ones(3) * np.cbrt(net_power) * power_sphere_scale_factor, joint.worldCenter, positive_power_color, layer=ENERGY_LAYER_NAME)
+
+                    gui.createSphere('tendon_'+joint.name, np.ones(3) * np.cbrt(energy_stored_in_tendons[j, frame]) * power_sphere_scale_factor * 1.5, joint.worldCenter, stored_power_color, layer=TENDON_LAYER_NAME)
+
                 # for contact in energy.contacts:
-                #     # if contact.powerToBody > 0:
-                #     #     gui.renderArrow(contact.worldCenter - np.array([0, 0.2, 0]), contact.worldCenter, contact.powerToBody * power_arrow_scale_factor * 0.5, contact.powerToBody * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=contact.contactBody+'_contact')
-                #     # else:
-                #     #     gui.renderArrow(contact.worldCenter, contact.worldCenter - np.array([0, 0.2, 0]), -contact.powerToBody * power_arrow_scale_factor * 0.5, -contact.powerToBody * power_arrow_scale_factor, color=[0,0,1,0.5], prefix=contact.contactBody+'_contact')
                 #     if contact.powerToBody < 0:
-                #         gui.createSphere('energy_'+contact.contactBody, np.ones(3) * -np.cbrt(contact.powerToBody) * power_sphere_scale_factor, contact.worldCenter, negative_power_color)
+                #         gui.deleteObject('energy_' + contact.contactBody)
                 #     else:
-                #         gui.createSphere('energy_'+contact.contactBody, np.ones(3) * np.cbrt(contact.powerToBody) * power_sphere_scale_factor, contact.worldCenter, positive_power_color)
+                #         gui.createSphere('energy_'+contact.contactBody, np.ones(3) * np.cbrt(contact.powerToBody) * power_sphere_scale_factor, contact.worldCenter, positive_power_color, layer=ENERGY_LAYER_NAME)
 
             frame += 1
             # Loop before the last frame, if we're showing energy
@@ -944,7 +1124,7 @@ class ViewCommand(AbstractCommand):
             print(subject.getTrialName(trial))
 
             # Don't immediately exit while we're serving
-            gui.blockWhileServing()
+            nimble_gui.blockWhileServing()
         else:
             gui.setFramesPerSecond(int(1.0/ subject.getTrialTimestep(trial)))
             print('Constructing frames:')
