@@ -17,6 +17,13 @@ class PostProcessCommand(AbstractCommand):
         parser.add_argument('input_path', type=str)
         parser.add_argument('output_path', type=str)
         parser.add_argument(
+            '--freeze-joints',
+            help='A string to specify which joints to freeze. Any joints with this as a substring will be set to their '
+                 'default angles. For example, passing "subtalar" will set both subtalar joints to their default '
+                 'angles.',
+            type=str,
+            default=None)
+        parser.add_argument(
             '--lowpass-hz',
             help='The frequency to lowpass filter all the position, velocity, acceleration, and torque values',
             type=int,
@@ -60,6 +67,7 @@ class PostProcessCommand(AbstractCommand):
         lowpass_hz: int = args.lowpass_hz
         sample_rate: int = args.sample_rate
         trim_to_grf: bool = args.trim_to_grf
+        freeze_joints: str = args.freeze_joints
 
         input_output_pairs: List[Tuple[str, str]] = []
 
@@ -193,25 +201,162 @@ class PostProcessCommand(AbstractCommand):
 
             # Do any post-processing of the data we just read
 
+            if freeze_joints is not None or lowpass_hz is not None:
+                skel = subject.readSkel(geometryFolder='No_Geometry')
+
+            if freeze_joints is not None:
+                for d in range(skel.getNumDofs()):
+                    dof = skel.getDofByIndex(d)
+                    if freeze_joints in dof.getName():
+                        default_pose = 0.0
+                        index = dof.getIndexInSkeleton()
+                        for trial in range(len(trial_lengths)):
+                            for t in range(trial_lengths[trial]):
+                                trial_poses[trial][index, t] = default_pose
+                                trial_vels[trial][index, t] = 0.0
+                                trial_accs[trial][index, t] = 0.0
+
+            if sample_rate is not None:
+                print('Re-sampling kinematics + kinetics data at {} Hz...'.format(sample_rate))
+                print('Warning! Re-sampling input source data (markers, IMU, EMG) is not yet supported, so those will '
+                      'be zeroed out')
+
+                # Handy little utility for resampling a discrete signal
+                def resample_discrete(signal, old_rate, new_rate):
+                    # Compute the ratio of the old and new rates
+                    ratio = old_rate / new_rate
+
+                    # Use numpy's round and int functions to get the indices of the nearest values
+                    indices = (np.round(np.arange(0, len(signal), ratio))).astype(int)
+
+                    # Limit indices to the valid range
+                    indices = np.clip(indices, 0, len(signal) - 1)
+
+                    # Use advanced indexing to get the corresponding values
+                    resampled_signal = np.array(signal)[indices]
+
+                    return resampled_signal.tolist()
+
+
+                for trial in range(len(trial_lengths)):
+                    original_sample_rate = 1.0 / subject.getTrialTimestep(trial)
+                    # Create an array representing the time for the original signal
+                    trial_duration = trial_lengths[trial] * trial_timesteps[trial]
+                    old_times = np.linspace(0, trial_duration, trial_lengths[trial])
+
+                    # Re-sample the kinematics + kinetics data
+                    trial_poses[trial] = resample_poly(trial_poses[trial],
+                                                       sample_rate,
+                                                       original_sample_rate,
+                                                       axis=1,
+                                                       padtype='line')
+
+                    trial_lengths[trial] = trial_poses[trial].shape[1]
+
+                    # Create an array representing the time for the resampled signal
+                    new_times = np.linspace(0, trial_duration, trial_lengths[trial])
+
+                    trial_vels[trial] = resample_poly(trial_vels[trial],
+                                                      sample_rate,
+                                                      original_sample_rate,
+                                                      axis=1,
+                                                      padtype='line')
+                    trial_accs[trial] = resample_poly(trial_accs[trial],
+                                                      sample_rate,
+                                                      original_sample_rate,
+                                                      axis=1,
+                                                      padtype='line')
+                    trial_taus[trial] = resample_poly(trial_taus[trial],
+                                                      sample_rate,
+                                                      original_sample_rate,
+                                                      axis=1,
+                                                      padtype='line')
+                    trial_com_poses[trial] = resample_poly(trial_com_poses[trial],
+                                                           sample_rate,
+                                                           original_sample_rate,
+                                                           axis=1,
+                                                           padtype='line')
+                    trial_com_vels[trial] = resample_poly(trial_com_vels[trial],
+                                                          sample_rate,
+                                                          original_sample_rate,
+                                                          axis=1,
+                                                          padtype='line')
+                    trial_com_accs[trial] = resample_poly(trial_com_accs[trial],
+                                                          sample_rate,
+                                                          original_sample_rate,
+                                                          axis=1,
+                                                          padtype='line')
+                    # Update the force plates
+                    for i in range(len(force_plates[trial])):
+                        force_plate_forces[trial][i] = resample_poly(force_plate_forces[trial][i],
+                                                                     sample_rate,
+                                                                     original_sample_rate,
+                                                                     padtype='line')
+                        force_plates[trial][i].forces = force_plate_forces[trial][i]
+                        force_plate_cops[trial][i] = resample_poly(force_plate_cops[trial][i],
+                                                                   sample_rate,
+                                                                   original_sample_rate,
+                                                                   padtype='line')
+                        force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
+                        force_plate_moments[trial][i] = resample_poly(force_plate_moments[trial][i],
+                                                                      sample_rate,
+                                                                      original_sample_rate,
+                                                                      padtype='line')
+                        force_plates[trial][i].moments = force_plate_moments[trial][i]
+
+                    # Re-sample the GRF data linearly
+                    new_trial_ground_body_wrenches = np.zeros((trial_ground_body_wrenches[trial].shape[0], len(new_times)))
+                    for row in range(trial_ground_body_wrenches[trial].shape[0]):
+                        # Use scipy's interp1d function to create a function that can interpolate the signal
+                        interpolator = interp1d(old_times, trial_ground_body_wrenches[trial][row, :], kind='linear')
+                        new_trial_ground_body_wrenches[row, :] = interpolator(new_times)
+                    trial_ground_body_wrenches[trial] = new_trial_ground_body_wrenches
+
+                    new_trial_ground_body_cop_torque_force = np.zeros((trial_ground_body_cop_torque_force[trial].shape[0], len(new_times)))
+                    for row in range(trial_ground_body_cop_torque_force[trial].shape[0]):
+                        interpolator = interp1d(old_times, trial_ground_body_cop_torque_force[trial][row, :], kind='linear')
+                        new_trial_ground_body_cop_torque_force[row, :] = interpolator(new_times)
+                    trial_ground_body_cop_torque_force[trial] = new_trial_ground_body_cop_torque_force
+
+                    # Re-sample the discrete values
+                    probably_missing_grf[trial] = resample_discrete(probably_missing_grf[trial],
+                                                                    original_sample_rate,
+                                                                    sample_rate)
+                    missing_grf_reason[trial] = resample_discrete(missing_grf_reason[trial],
+                                                                  original_sample_rate,
+                                                                  sample_rate)
+                    trial_residual_norms[trial] = resample_discrete(trial_residual_norms[trial],
+                                                                    original_sample_rate,
+                                                                    sample_rate)
+
+                    # Clear out unsupported values
+                    custom_value_names = subject.getCustomValues()
+                    custom_values[trial] = [np.zeros((0, trial_lengths[trial])) for _ in range(trial_lengths[trial])]
+                    marker_observations[trial] = [{} for _ in range(trial_lengths[trial])]
+                    acc_observations[trial] = [{} for _ in range(trial_lengths[trial])]
+                    gyro_observations[trial] = [{} for _ in range(trial_lengths[trial])]
+                    emg_observations[trial] = [{} for _ in range(trial_lengths[trial])]
+
+                    # Set the timestep
+                    trial_timesteps[trial] = 1.0 / sample_rate
+
             if lowpass_hz is not None:
                 print('Low-pass filtering kinematics + kinetics data at {} Hz...'.format(lowpass_hz))
 
-                skel = subject.readSkel(geometryFolder='No_Geometry')
-
                 for trial in range(subject.getNumTrials()):
-                    nyquist = 0.5 / subject.getTrialTimestep(trial)
+                    nyquist = 0.5 / trial_timesteps[trial]
                     if lowpass_hz > nyquist:
                         print('Sample rate on trial '+str(trial)+' of '+str(nyquist * 2)+' is too low to filter at '
                               +str(lowpass_hz)+'. Highest frequency allowed is '+str(nyquist)+', so we will not '
                               +'low-pass filter this example')
                     else:
-                        b, a = butter(2, lowpass_hz, 'low', fs=1 / subject.getTrialTimestep(trial))
+                        b, a = butter(2, lowpass_hz, 'low', fs=1 / trial_timesteps[trial])
                         trial_poses[trial] = filtfilt(b, a, trial_poses[trial], axis=1)
                         for t in range(trial_lengths[trial]):
                             if t > 0:
-                                trial_vels[trial][:, t] = skel.getPositionDifferences(trial_poses[trial][:, t], trial_poses[trial][:, t-1]) / subject.getTrialTimestep(trial)
+                                trial_vels[trial][:, t] = skel.getPositionDifferences(trial_poses[trial][:, t], trial_poses[trial][:, t-1]) / trial_timesteps[trial]
                             if t > 0 and t < trial_lengths[trial] - 1:
-                                trial_accs[trial][:, t] = (skel.getPositionDifferences(trial_poses[trial][:, t+1], trial_poses[trial][:, t]) - skel.getPositionDifferences(trial_poses[trial][:, t], trial_poses[trial][:, t-1])) / (subject.getTrialTimestep(trial) * subject.getTrialTimestep(trial))
+                                trial_accs[trial][:, t] = (skel.getPositionDifferences(trial_poses[trial][:, t+1], trial_poses[trial][:, t]) - skel.getPositionDifferences(trial_poses[trial][:, t], trial_poses[trial][:, t-1])) / (trial_timesteps[trial] * trial_timesteps[trial])
                         trial_vels[trial] = filtfilt(b, a, trial_vels[trial], axis=1)
                         trial_accs[trial] = filtfilt(b, a, trial_accs[trial], axis=1)
                         trial_taus[trial] = filtfilt(b, a, trial_taus[trial], axis=1)
@@ -326,7 +471,9 @@ class PostProcessCommand(AbstractCommand):
                         force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
                         force_plates[trial][i].moments = force_plate_moments[trial][i]
 
-                    # Recompute inverse dynamics
+            if freeze_joints is not None or lowpass_hz is not None:
+                # Recompute inverse dynamics
+                for trial in range(subject.getNumTrials()):
                     for t in range(trial_lengths[trial]):
                         skel.setPositions(trial_poses[trial][:, t])
                         skel.setVelocities(trial_vels[trial][:, t])
@@ -351,6 +498,7 @@ class PostProcessCommand(AbstractCommand):
                         skel.computeInverseDynamics(withExternalForces=True)
                         tau = skel.getControlForces()
                         trial_taus[trial][:, t] = tau
+
             if trim_to_grf:
                 for trial in range(subject.getNumTrials()):
                     legal: np.ndarray = np.zeros(trial_lengths[trial])
@@ -449,130 +597,6 @@ class PostProcessCommand(AbstractCommand):
                     emg_observations[trial] = emg_observations[trial][start_idx:end_idx]
 
                     trial_lengths[trial] = end_idx - start_idx
-
-            if sample_rate is not None:
-                print('Re-sampling kinematics + kinetics data at {} Hz...'.format(sample_rate))
-                print('Warning! Re-sampling input source data (markers, IMU, EMG) is not yet supported, so those will '
-                      'be zeroed out')
-
-                # Handy little utility for resampling a discrete signal
-                def resample_discrete(signal, old_rate, new_rate):
-                    # Compute the ratio of the old and new rates
-                    ratio = old_rate / new_rate
-
-                    # Use numpy's round and int functions to get the indices of the nearest values
-                    indices = (np.round(np.arange(0, len(signal), ratio))).astype(int)
-
-                    # Limit indices to the valid range
-                    indices = np.clip(indices, 0, len(signal) - 1)
-
-                    # Use advanced indexing to get the corresponding values
-                    resampled_signal = np.array(signal)[indices]
-
-                    return resampled_signal.tolist()
-
-
-                for trial in range(len(trial_lengths)):
-                    original_sample_rate = 1.0 / subject.getTrialTimestep(trial)
-                    # Create an array representing the time for the original signal
-                    trial_duration = trial_lengths[trial] * trial_timesteps[trial]
-                    old_times = np.linspace(0, trial_duration, trial_lengths[trial])
-
-                    # Re-sample the kinematics + kinetics data
-                    trial_poses[trial] = resample_poly(trial_poses[trial],
-                                                        sample_rate,
-                                                        original_sample_rate,
-                                                        axis=1,
-                                                        padtype='line')
-
-                    trial_lengths[trial] = trial_poses[trial].shape[1]
-
-                    # Create an array representing the time for the resampled signal
-                    new_times = np.linspace(0, trial_duration, trial_lengths[trial])
-
-                    trial_vels[trial] = resample_poly(trial_vels[trial],
-                                                      sample_rate,
-                                                      original_sample_rate,
-                                                       axis=1,
-                                                       padtype='line')
-                    trial_accs[trial] = resample_poly(trial_accs[trial],
-                                                      sample_rate,
-                                                      original_sample_rate,
-                                                      axis=1,
-                                                      padtype='line')
-                    trial_taus[trial] = resample_poly(trial_taus[trial],
-                                                      sample_rate,
-                                                      original_sample_rate,
-                                                      axis=1,
-                                                      padtype='line')
-                    trial_com_poses[trial] = resample_poly(trial_com_poses[trial],
-                                                           sample_rate,
-                                                           original_sample_rate,
-                                                                              axis=1,
-                                                                              padtype='line')
-                    trial_com_vels[trial] = resample_poly(trial_com_vels[trial],
-                                                          sample_rate,
-                                                          original_sample_rate,
-                                                           axis=1,
-                                                           padtype='line')
-                    trial_com_accs[trial] = resample_poly(trial_com_accs[trial],
-                                                          sample_rate,
-                                                          original_sample_rate,
-                                                          axis=1,
-                                                          padtype='line')
-                    # Update the force plates
-                    for i in range(len(force_plates[trial])):
-                        force_plate_forces[trial][i] = resample_poly(force_plate_forces[trial][i],
-                                                                     sample_rate,
-                                                                     original_sample_rate,
-                                                                     padtype='line')
-                        force_plates[trial][i].forces = force_plate_forces[trial][i]
-                        force_plate_cops[trial][i] = resample_poly(force_plate_cops[trial][i],
-                                                                     sample_rate,
-                                                                     original_sample_rate,
-                                                                     padtype='line')
-                        force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
-                        force_plate_moments[trial][i] = resample_poly(force_plate_moments[trial][i],
-                                                                        sample_rate,
-                                                                        original_sample_rate,
-                                                                        padtype='line')
-                        force_plates[trial][i].moments = force_plate_moments[trial][i]
-
-                    # Re-sample the GRF data linearly
-                    new_trial_ground_body_wrenches = np.zeros((trial_ground_body_wrenches[trial].shape[0], len(new_times)))
-                    for row in range(trial_ground_body_wrenches[trial].shape[0]):
-                        # Use scipy's interp1d function to create a function that can interpolate the signal
-                        interpolator = interp1d(old_times, trial_ground_body_wrenches[trial][row, :], kind='linear')
-                        new_trial_ground_body_wrenches[row, :] = interpolator(new_times)
-                    trial_ground_body_wrenches[trial] = new_trial_ground_body_wrenches
-
-                    new_trial_ground_body_cop_torque_force = np.zeros((trial_ground_body_cop_torque_force[trial].shape[0], len(new_times)))
-                    for row in range(trial_ground_body_cop_torque_force[trial].shape[0]):
-                        interpolator = interp1d(old_times, trial_ground_body_cop_torque_force[trial][row, :], kind='linear')
-                        new_trial_ground_body_cop_torque_force[row, :] = interpolator(new_times)
-                    trial_ground_body_cop_torque_force[trial] = new_trial_ground_body_cop_torque_force
-
-                    # Re-sample the discrete values
-                    probably_missing_grf[trial] = resample_discrete(probably_missing_grf[trial],
-                                                                    original_sample_rate,
-                                                                    sample_rate)
-                    missing_grf_reason[trial] = resample_discrete(missing_grf_reason[trial],
-                                                                    original_sample_rate,
-                                                                    sample_rate)
-                    trial_residual_norms[trial] = resample_discrete(trial_residual_norms[trial],
-                                                                      original_sample_rate,
-                                                                      sample_rate)
-
-                    # Clear out unsupported values
-                    custom_value_names = subject.getCustomValues()
-                    custom_values[trial] = [np.zeros((0, trial_lengths[trial])) for _ in range(trial_lengths[trial])]
-                    marker_observations[trial] = [{} for _ in range(trial_lengths[trial])]
-                    acc_observations[trial] = [{} for _ in range(trial_lengths[trial])]
-                    gyro_observations[trial] = [{} for _ in range(trial_lengths[trial])]
-                    emg_observations[trial] = [{} for _ in range(trial_lengths[trial])]
-
-                    # Set the timestep
-                    trial_timesteps[trial] = 1.0 / sample_rate
 
             # os.path.dirname gets the directory portion from the full path
             directory = os.path.dirname(output_path)
