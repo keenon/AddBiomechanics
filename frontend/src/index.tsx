@@ -18,6 +18,7 @@ import Welcome from "./pages/Welcome";
 import SearchView from "./pages/search/SearchView";
 import ProfileView from "./pages/profile/ProfileView";
 import ProcessingServerStatus from "./pages/processing_servers/ProcessingServerStatus";
+import DataSharingMission from "./pages/info/DataSharingMission";
 import ErrorDisplay from "./layouts/ErrorDisplay";
 import { ReactiveIndex } from "./state/ReactiveS3";
 import MocapS3Cursor from "./state/MocapS3Cursor";
@@ -147,6 +148,12 @@ ReactDOM.render(
               <ProcessingServerStatus cursor={cursor} />
             }
           ></Route>
+          <Route
+            path="/data_sharing_mission"
+            element={
+              <DataSharingMission />
+            }>
+          </Route>
           <Route path={"/data/*"}>
             <Route
               element={
@@ -178,6 +185,7 @@ ReactDOM.render(
         <Route path="/forgot-password" element={<ForgotPassword />}></Route>
         <Route path="/reset-password" element={<ResetPassword />}></Route>
         <Route path="/enter-confirmation-code" element={<ConfirmUser />}></Route>
+
       </Route>
     </Routes>
   </BrowserRouter>,
