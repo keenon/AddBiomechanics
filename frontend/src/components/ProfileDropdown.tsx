@@ -57,7 +57,7 @@ const ProfileDropdown = () => {
               <i className={`mdi mdi-forum me-1`}></i>
               <span>Forum</span>
             </Dropdown.Item>
-            <Dropdown.Item tag={Link} href="https://addbiomechanics.org/instructions.html" target="_blank">
+            <Dropdown.Item tag={Link} href="https://addbiomechanics.org/data.html" target="_blank">
               <i className={`mdi mdi-help me-1`}></i>
               <span>Help</span>
             </Dropdown.Item>
