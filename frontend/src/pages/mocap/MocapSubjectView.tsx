@@ -1051,7 +1051,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       guessedMarkersWarning = <div className="alert alert-warning">
         <h4><i className="mdi mdi-alert me-2 vertical-middle"></i> Warning: Results may be suboptimal!</h4>
         <p>
-          The optimizer detected some issues in the uploaded files. We can't detect everything automatically, so see our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
+          The optimizer detected some issues in the uploaded files. We can't detect everything automatically, so see our <a href="https://addbiomechanics.org/data.html" target="_blank">Tips and Tricks page</a> for more suggestions.
         </p>
         <hr />
         <ul style={{ listStyleType: 'none', paddingLeft: '1.5em' }}>
@@ -1134,7 +1134,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
       guessedErrors = <div className="alert alert-danger">
         <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
         <p>
-          There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
+          There were some errors while processing the data. See our <a href="https://addbiomechanics.org/data.html" target="_blank">Tips and Tricks page</a> for more suggestions.
         </p>
         <hr />
         <ul>

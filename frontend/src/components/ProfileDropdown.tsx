@@ -57,13 +57,17 @@ const ProfileDropdown = () => {
               <i className={`mdi mdi-forum me-1`}></i>
               <span>Forum</span>
             </Dropdown.Item>
-            <Dropdown.Item tag={Link} href="https://addbiomechanics.org/instructions.html" target="_blank">
+            <Dropdown.Item tag={Link} href="https://addbiomechanics.org/data.html" target="_blank">
               <i className={`mdi mdi-help me-1`}></i>
               <span>Help</span>
             </Dropdown.Item>
             <Dropdown.Item tag={Link} href="https://addbiomechanics.org/tos.html" target="_blank">
               <i className={`mdi mdi-file-document-edit me-1`}></i>
               <span>Terms of Service</span>
+            </Dropdown.Item>
+            <Dropdown.Item tag={Link} href="https://addbiomechanics.org/data_sharing_mission.html" target="_blank">
+              <i className={`mdi mdi-share-all me-1`}></i>
+              <span>Data Sharing Mission</span>
             </Dropdown.Item>
             <hr className="mt-1 mb-1"></hr>
             <Dropdown.Item as={Link} to="/logout">

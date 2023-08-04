@@ -91,7 +91,7 @@ const Navbar = (props: NavbarProps) => {
                   {/*Element shown only in small and medium devices*/}
                   <li className="nav-item d-lg-none">
                   <a
-                      href="https://addbiomechanics.org/instructions.html"
+                      href="https://addbiomechanics.org/data.html"
                       target="_blank"
                       className="nav-item nav-link"
                     >

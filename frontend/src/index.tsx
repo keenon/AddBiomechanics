@@ -178,6 +178,7 @@ ReactDOM.render(
         <Route path="/forgot-password" element={<ForgotPassword />}></Route>
         <Route path="/reset-password" element={<ResetPassword />}></Route>
         <Route path="/enter-confirmation-code" element={<ConfirmUser />}></Route>
+
       </Route>
     </Routes>
   </BrowserRouter>,
