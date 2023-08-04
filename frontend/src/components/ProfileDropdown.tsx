@@ -65,7 +65,7 @@ const ProfileDropdown = () => {
               <i className={`mdi mdi-file-document-edit me-1`}></i>
               <span>Terms of Service</span>
             </Dropdown.Item>
-            <Dropdown.Item as={Link} to="/data_sharing_mission">
+            <Dropdown.Item tag={Link} href="https://addbiomechanics.org/data_sharing_mission.html" target="_blank">
               <i className={`mdi mdi-share-all me-1`}></i>
               <span>Data Sharing Mission</span>
             </Dropdown.Item>
