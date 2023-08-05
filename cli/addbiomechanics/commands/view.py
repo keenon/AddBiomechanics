@@ -1099,6 +1099,7 @@ class ViewCommand(AbstractCommand):
                         gui.deleteObject('particle'+str(i))
                     else:
                         points = []
+                        width = []
                         hist_size = 7
                         hist_stride = 3
                         last_live_point = particle_trajectories[i*3:i*3+3, frame]
@@ -1113,8 +1114,10 @@ class ViewCommand(AbstractCommand):
                             if hist_live_continuous:
                                 last_live_point = particle_trajectories[i*3:i*3+3, hist_frame]
                             points.append(last_live_point)
+                            width.append(particle_age[i, hist_frame])
 
                         points.reverse()
+                        width.reverse()
                         # particle_velocity = 0.0
                         # if particle_live[i, frame-1] == 1:
                         #     particle_velocity = np.linalg.norm(particle_trajectories[i*3:i*3+3, frame] - particle_trajectories[i*3:i*3+3, frame - 1])
@@ -1130,7 +1133,7 @@ class ViewCommand(AbstractCommand):
                         # importance = particle_importance[i, frame]
                         color = [rgb[0], rgb[1], rgb[2], importance * 0.75]
 
-                        gui.createLine('particle'+str(i), points, color, layer=ENERGY_LAYER_NAME)
+                        gui.createLine('particle'+str(i), points, color, layer=ENERGY_LAYER_NAME, width=width)
                         # gui.createBox('particle' + str(i), np.ones(3) * 0.02, particle_trajectories[i*3:i*3+3, frame],
                         #                           np.zeros(3), color, layer=ENERGY_LAYER_NAME)
 
