@@ -189,7 +189,7 @@ class DownloadCommand(AbstractCommand):
 
             credit_list.append(credit)
 
-        data_credits = 'Data Licensed as Creative Commons v3.0 (See https://creativecommons.org/licenses/by/3.0/ for details)\nCredits:\n'
+        data_credits = 'Data Licensed as Creative Commons BY 4.0 (See https://creativecommons.org/licenses/by/4.0/ for details)\nCredits:\n'
         for credit in credit_list:
             data_credits += '  - ' + credit + '\n'
         print(data_credits)
