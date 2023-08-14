@@ -672,6 +672,18 @@ class ViewCommand(AbstractCommand):
                 layer = SKELETON_LAYER_NAME
             gui.renderSkeleton(skel, overrideColor=color, layer=layer)
 
+            for f in range(len(subject.getContactBodies())):
+                force = loaded[0].groundContactForce[f*3:f*3+3]
+                cop = loaded[0].groundContactCenterOfPressure[f*3:f*3+3]
+                if loaded[0].contact[f]:
+                # if np.linalg.norm(force) > 1:
+                    points = []
+                    points.append(cop)
+                    points.append(cop + force * 0.001)
+                    gui.createLine("grf"+str(f), points, [1, 0, 0, 1])
+                else:
+                    gui.deleteObject('grf'+str(f))
+
             if dof is not None:
                 joint_pos = skel.getJointWorldPositions([graph_joint])
                 gui.setObjectPosition('active_joint', joint_pos)

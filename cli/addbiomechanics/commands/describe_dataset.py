@@ -59,6 +59,9 @@ class DescribeDatasetCommand(AbstractCommand):
             'isolated_left_stance': r'(^)(L)($)',
             'isolated_right_stance': r'(^)(R)($)',
             'isolated_double_support': r'(^)(D)($)',
+            'double_leg_hop': r'(^D(L|R)?)(F)((L|R)?D$)',
+            'left_leg_hop': r'(^L)(F)(L$)',
+            'right_leg_hop': r'(^R)(F)(R$)',
             'isolated_flight': r'(^)(F)($)',
             'running_left_stance': r'(F|^)(LF)(R|$)',
             'running_right_stance': r'(F|^)(RF)(L|$)'
