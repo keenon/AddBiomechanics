@@ -47,6 +47,7 @@ class ExceptionHandlingMeta(type):
             try:
                 method(*args, **kwargs)
             except Exception as e:
+                traceback.print_exc()
                 msg = f"Exception caught in {method.__name__}: {e}"
                 if method.__name__ == 'validate_paths':
                     raise PathError(msg)
@@ -640,11 +641,13 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     baseFramesPerSecond = self.trialFramesPerSecond.pop(itrial)
                     baseMarkerSet = self.trialMarkerSet.pop(trialName)
                     baseMarkerTrial = self.markerTrials.pop(itrial)
+                    baseTrialResults = self.trialProcessingResults.pop(itrial)
                     segmentTrialNames = []
                     segmentForcePlates = []
                     segmentTimestamps = []
                     segmentFramesPerSecond = []
                     segmentMarkerTrials = []
+                    segmentTrialResults = []
                     for iseg, segment in enumerate(segments):
                         # Segment time range.
                         if len(segments) > 1:
@@ -685,12 +688,16 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                 markerTrial.append(baseMarkerTrial[itime])
                         segmentMarkerTrials.append(markerTrial)
 
+                        # Create new results object for this segment
+                        segmentTrialResults.append(baseTrialResults)
+
                     # Insert the new segments into the list of trials.
                     self.trialNames[itrial:itrial] = segmentTrialNames
                     self.trialForcePlates[itrial:itrial] = segmentForcePlates
                     self.trialTimestamps[itrial:itrial] = segmentTimestamps
                     self.trialFramesPerSecond[itrial:itrial] = segmentFramesPerSecond
                     self.markerTrials[itrial:itrial] = segmentMarkerTrials
+                    self.trialProcessingResults[itrial:itrial] = segmentTrialResults
 
                     # If this trial is from a c3d file, then assign the original c3d file to the segments.
                     if os.path.exists(c3dFilePath):
@@ -704,6 +711,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     # If the user did not select trial segmentation, but the segment(s) we detected are not equal to the
                     # original full time range, then issue a warning recommending that the user enable trial
                     # segmentation.
+                    print(f'Automatic trial segmentation not enabled')
                     if not segments == [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]:
                         if len(segments) > 1:
                             self.trialProcessingResults[itrial]['dataSegmentationWarning'] = \
@@ -1206,6 +1214,9 @@ class Engine(metaclass=ExceptionHandlingMeta):
             markerTimesteps = self.markerTrials[i]
             trialProcessingResult = self.trialProcessingResults[i]
             trialPath = self.path + 'trials/' + trialName + '/'
+
+            if not os.path.exists(trialPath):
+                os.mkdir(trialPath)
 
             # 9.9.2. Store the marker errors.
             resultIK: nimble.biomechanics.IKErrorReport = nimble.biomechanics.IKErrorReport(
@@ -2401,6 +2412,8 @@ def main():
         engine.create_output_folder()
 
     except Error as e:
+        print('Had an error:', flush=True)
+        print(e, flush=True)
         # If we failed, write a JSON file with the error information.
         json_data = json.dumps(e.get_error_dict(), indent=4)
         with open(engine.errors_json_path, "w") as json_file:
