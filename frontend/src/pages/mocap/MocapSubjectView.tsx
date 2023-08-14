@@ -1144,6 +1144,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let exportMJCF = props.cursor.subjectJson.getAttribute("exportMJCF", false);
   let ignoreJointLimits = props.cursor.subjectJson.getAttribute("ignoreJointLimits", false);
   let disableDynamics = props.cursor.subjectJson.getAttribute("disableDynamics", false);
+  let segmentTrials = props.cursor.subjectJson.getAttribute("segmentTrials", false);
   let residualsToZero = props.cursor.subjectJson.getAttribute("residualsToZero", false);
   let tuneResidualLoss = props.cursor.subjectJson.getAttribute("tuneResidualLoss", 1.0);
   let runMoco = props.cursor.subjectJson.getAttribute("runMoco", false);
@@ -1243,6 +1244,21 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
           <div className="mb-15">Compare optimized skeleton with hand-scaled version:{" "}<input type="checkbox" checked={showValidationControls} onChange={(e) => {
             props.cursor.setShowValidationControls(e.target.checked);
           }} />
+          </div>
+          <div className="mb-15">Automatically segment trials:{" "}<input type="checkbox" checked={segmentTrials} onChange={(e) => {
+            props.cursor.subjectJson.setAttribute("segmentTrials", e.target.checked);
+          }} />
+            <OverlayTrigger
+              placement="right"
+              delay={{ show: 50, hide: 400 }}
+              overlay={(props) => (
+                <Tooltip id="button-tooltip" {...props}>
+                  This will automatically split up trials to keep the length of each segment less than 60 seconds, and also to split up trials into only segments that have ground reaction force data.
+                </Tooltip>
+              )}
+            >
+              <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
+            </OverlayTrigger>
           </div>
           <div className="mb-15">
             <label>
