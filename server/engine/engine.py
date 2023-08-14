@@ -21,7 +21,7 @@ import traceback
 from plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
 from helpers import detect_nonzero_force_segments, filter_nonzero_force_segments, get_consecutive_values, \
                     reconcile_markered_and_nonzero_force_segments, detect_markered_segments, \
-                    fill_moco_template, run_moco_problem
+                    fill_moco_template, run_moco_problem, split_segments_to_max_len
 from exceptions import Error, PathError, SubjectConfigurationError, ModelFileError, TrialPreprocessingError, \
                        MarkerFitterError, DynamicsFitterError, MocoError, WriteError
 
@@ -340,6 +340,14 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     self.markerSet[key][0].getName()), self.markerSet[key][1])
             self.markerSet = simplifiedMarkers
 
+        # Allow pretty much unconstrained root translation
+        self.skeleton.setPositionUpperLimit(3, 1000)
+        self.skeleton.setPositionLowerLimit(3, -1000)
+        self.skeleton.setPositionUpperLimit(4, 1000)
+        self.skeleton.setPositionLowerLimit(4, -1000)
+        self.skeleton.setPositionUpperLimit(5, 1000)
+        self.skeleton.setPositionLowerLimit(5, -1000)
+
         # 3.4. Load the hand-scaled OSIM file, if it exists.
         self.goldOsim: nimble.biomechanics.OpenSimFile = None
         if os.path.exists(self.path + 'manually_scaled.osim'):
@@ -573,12 +581,14 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 nonzeroForceSegments = [[self.trialTimestamps[itrial][0], self.trialTimestamps[itrial][-1]]]
                 if len(self.trialForcePlates[itrial]) > 0 and not self.disableDynamics:
                     totalLoad = np.zeros(len(self.trialForcePlates[itrial][0].timestamps))
+                    force_plate_forces = [self.trialForcePlates[itrial][f].forces for f in range(len(self.trialForcePlates[itrial]))]
+                    force_plate_moments = [self.trialForcePlates[itrial][f].moments for f in range(len(self.trialForcePlates[itrial]))]
                     for itime in range(len(totalLoad)):
                         totalForce = 0
                         totalMoment = 0
-                        for forcePlate in self.trialForcePlates[itrial]:
-                            totalForce += np.linalg.norm(forcePlate.forces[itime])
-                            totalMoment += np.linalg.norm(forcePlate.moments[itime])
+                        for f in range(len(self.trialForcePlates[itrial])):
+                            totalForce += np.linalg.norm(force_plate_forces[f][itime])
+                            totalMoment += np.linalg.norm(force_plate_moments[f][itime])
                         totalLoad[itime] = totalForce + totalMoment
 
                     nonzeroForceSegments = detect_nonzero_force_segments(self.trialForcePlates[itrial][0].timestamps,
@@ -611,8 +621,9 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                                          f'{self.minSegmentDuration} seconds.'
 
                 # Find the intersection of the markered and non-zero force segments.
-                segments = reconcile_markered_and_nonzero_force_segments(self.trialTimestamps[itrial],
+                segments: List[Tuple[float, float]] = reconcile_markered_and_nonzero_force_segments(self.trialTimestamps[itrial],
                                                                          markeredSegments, nonzeroForceSegments)
+                segments = split_segments_to_max_len(segments, 60.0)
                 numSegments = len(segments)
 
                 # Segment the trial.
@@ -706,6 +717,11 @@ class Engine(metaclass=ExceptionHandlingMeta):
                                 f'range of the trial. We recommend enabling trial segmentation, which will trim this ' \
                                 f'trial to the time range [{segments[0][0]}, {segments[0][1]}].'
 
+                    trial_len = self.trialTimestamps[itrial][-1] - self.trialTimestamps[itrial][0]
+                    if trial_len > 60:
+                        print('Trial segmentation was not enabled, but trial ' + trialName + ' is ' + str(trial_len) + ' seconds, which is longer than the maximum segment length of 60 seconds. Please enable trial segmentation, or manually trim your motion files, and try again.', flush=True)
+                        raise RuntimeError('Trial segmentation was not enabled, but trial ' + trialName + ' is ' + str(trial_len) + ' seconds, which is longer than the maximum segment length of 60 seconds. Please enable trial segmentation, or manually trim your motion files, and try again.')
+
             # 6.2.4. If we didn't segment anything, numSegments is 1. Otherwise, we need to skip over the new "trials"
             # that are actually just segments of the current trial.
             itrial += numSegments
@@ -759,6 +775,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 msg = f'There are fewer than 8 markers that show up in the OpenSim model and in trial ' \
                       f'{self.trialNames[i]}. The markers in this trial are: ' \
                       f'{str(self.trialMarkerSet[self.trialNames[i]])}'
+                print(msg, flush=True)
                 raise RuntimeError(msg)
 
         print('All trial markers have been cleaned up!', flush=True)
@@ -1380,7 +1397,7 @@ class Engine(metaclass=ExceptionHandlingMeta):
                         min(timestamps), max(timestamps))
 
             # 9.9.8. Write out the animation preview
-            if self.fitDynamics and self.dynamicsInit is not None:
+            if self.fitDynamics and self.dynamicsInit is not None and self.dynamicsInit.includeTrialsInDynamicsFit[i]:
                 print('Saving trajectory, markers, and dynamics to a GUI log ' +
                       trialPath + 'preview.bin', flush=True)
                 print("FPS: " + str(round(1.0 / self.dynamicsInit.trialTimesteps[0])))
@@ -1440,9 +1457,9 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
             # Zip up the animation preview binary.
             print('Zipping up ' + trialPath + 'preview.bin', flush=True)
-            subprocess.run(["zip", "-r", 'preview.bin.zip',
+            subprocess.run(["gzip",
                             'preview.bin'], cwd=trialPath, capture_output=True)
-            print('Finished zipping up ' + trialPath + 'preview.bin.zip', flush=True)
+            print('Finished zipping up ' + trialPath + 'preview.bin.gz', flush=True)
 
             # 9.9.9. Count up the number of times we hit against joint limits
             trialJointLimitHits: Dict[str, int] = {}

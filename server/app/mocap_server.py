@@ -50,7 +50,7 @@ class TrialToProcess:
         self.grfFile = self.trialPath + 'grf.mot'
         self.goldIKFile = self.trialPath + 'manual_ik.mot'
         self.resultsFile = self.trialPath + '_results.json'
-        self.previewBinFile = self.trialPath + 'preview.bin.zip'
+        self.previewBinFile = self.trialPath + 'preview.bin.gz'
         self.plotCSVFile = self.trialPath + 'plot.csv'
 
     def download(self, trialsFolderPath: str):
@@ -74,12 +74,12 @@ class TrialToProcess:
         else:
             print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                   trialPath + '_results.json', flush=True)
-        if os.path.exists(trialPath + 'preview.bin.zip'):
+        if os.path.exists(trialPath + 'preview.bin.gz'):
             self.index.uploadFile(self.previewBinFile,
-                                  trialPath + 'preview.bin.zip')
+                                  trialPath + 'preview.bin.gz')
         else:
             print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
-                  trialPath + 'preview.bin.zip', flush=True)
+                  trialPath + 'preview.bin.gz', flush=True)
         if os.path.exists(trialPath + 'plot.csv'):
             self.index.uploadFile(self.plotCSVFile,
                                   trialPath + 'plot.csv')

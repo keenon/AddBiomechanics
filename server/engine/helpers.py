@@ -1,3 +1,4 @@
+from typing import List, Tuple
 """
 helpers.py
 ----------
@@ -149,6 +150,19 @@ def update_model_for_moco(model_input_fpath, model_output_fpath):
     model.initSystem()
     model.printToXML(model_output_fpath)
 
+def split_segments_to_max_len(segments: List[Tuple[float, float]], max_len: float = 60) -> List[Tuple[int, int]]:
+    split_segments: List[Tuple[float, float]] = []
+    for segment in segments:
+        segment_length = segment[1] - segment[0]
+        print('Segment length: ', segment_length)
+        if segment_length > max_len:
+            num_splits = int(segment_length / max_len)
+            split_len = segment_length / num_splits
+            for i in range(num_splits):
+                split_segments.append((segment[0] + i * split_len, segment[0] + (i + 1) * split_len))
+        else:
+            split_segments.append(segment)
+    return split_segments
 
 def update_kinematics_for_moco(ik_fpath, model_output_fpath, kinematics_fpath):
     import opensim as osim
