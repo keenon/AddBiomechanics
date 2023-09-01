@@ -1,0 +1,12 @@
+{
+  "massKg": "62.6",
+  "heightM": "1.68",
+  "sex": "unknown",
+  "skeletonPreset": "custom",
+  "email": "biomechanics.db@gmail.com",
+  "fitDynamics": true,
+  "footBodyNames": [
+    "calcn_r",
+    "calcn_l"
+  ]
+}

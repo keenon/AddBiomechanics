@@ -255,7 +255,7 @@ class SubjectToProcess:
             self.pushProcessingFlag(procLogTopic)
 
             # 4. Launch a processing process
-            enginePath = absPath('../engine/engine.py')
+            enginePath = absPath('../engine/src/engine.py')
             print('Calling Command:\n'+enginePath+' ' +
                   path+' '+self.subjectName+' '+self.getHref(), flush=True)
             with open(path + 'log.txt', 'wb+') as logFile:
