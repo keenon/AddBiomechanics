@@ -1,11 +1,12 @@
 from trial import TrialSegment, Trial, ProcessingStatus
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Tuple, Any, Optional
 import json
 import nimblephysics as nimble
 from nimblephysics import absPath
 import numpy as np
 import os
 import shutil
+import subprocess
 
 
 # Global paths to the geometry and data folders.
@@ -18,6 +19,7 @@ class Subject:
     def __init__(self):
         # 0. Initialize the engine.
         # -------------------------
+        self.subject_path = ''
         self.processingResult: Dict[str, Any] = {}
 
         # 0.2. Subject pipeline parameters.
@@ -178,6 +180,7 @@ class Subject:
     def load_model_files(self, subject_path: str, data_folder_path: str):
         if not subject_path.endswith('/'):
             subject_path += '/'
+        self.subject_path = subject_path
 
         # 3. Load the unscaled OSIM file.
         # -------------------------------
@@ -445,7 +448,6 @@ class Subject:
         if len(trial_segments) == 0:
             print('No trial segments to fit dynamics on. Skipping dynamics fitting...', flush=True)
             return
-        trial_segments = trial_segments[0:1]
 
         # 8. Run dynamics fitting.
         # ------------------------
@@ -641,8 +643,10 @@ class Subject:
         for i in range(len(trial_segments)):
             trial_segments[i].dynamics_taus = dynamics_fitter.computeInverseDynamics(dynamics_init, i)
             pair = dynamics_fitter.computeAverageTrialResidualForce(dynamics_init, i)
-            trial_segments[i].result_json['linearResidual'] = pair[0]
-            trial_segments[i].result_json['angularResidual'] = pair[1]
+            trial_segments[i].linear_residuals = pair[0]
+            trial_segments[i].angular_residuals = pair[1]
+            trial_segments[i].ground_height = dynamics_init.groundHeight[i]
+            trial_segments[i].foot_body_wrenches = dynamics_init.grfTrials[i]
 
             bad_dynamics_frames: Dict[str, List[int]] = {}
             num_bad_dynamics_frames = 0
@@ -653,7 +657,6 @@ class Subject:
                 if not reason.name == 'notMissingGRF':
                     num_bad_dynamics_frames += 1
 
-            trial_segments[i].result_json['numBadDynamicsFrames'] = num_bad_dynamics_frames
             trial_segments[i].bad_dynamics_frames = bad_dynamics_frames
             trial_segments[i].dynamics_poses = dynamics_init.poseTrials[i]
             trial_segments[i].force_plates = dynamics_init.forcePlateTrials[i]
@@ -664,3 +667,247 @@ class Subject:
     ###################################################################################################################
     # Writing out results
     ###################################################################################################################
+
+    def write_opensim_results(self, results_path: str, data_folder_path: str):
+        if not results_path.endswith('/'):
+            results_path += '/'
+        if not data_folder_path.endswith('/'):
+            data_folder_path += '/'
+
+        print('Writing the OpenSim result files...', flush=True)
+
+        # 9.1. Create result directories.
+        if not os.path.exists(results_path):
+            os.mkdir(results_path)
+        if not os.path.exists(results_path + 'IK'):
+            os.mkdir(results_path + 'IK')
+        if not os.path.exists(results_path + 'ID'):
+            os.mkdir(results_path + 'ID')
+        if not os.path.exists(results_path + 'C3D'):
+            os.mkdir(results_path + 'C3D')
+        if not os.path.exists(results_path + 'Models'):
+            os.mkdir(results_path + 'Models')
+        if self.exportMJCF and not os.path.exists(results_path + 'MuJoCo'):
+            os.mkdir(results_path + 'MuJoCo')
+        if self.exportSDF and not os.path.exists(results_path + 'SDF'):
+            os.mkdir(results_path + 'SDF')
+        if not os.path.exists(results_path + 'MarkerData'):
+            os.mkdir(results_path + 'MarkerData')
+        if os.path.exists(self.subject_path + 'unscaled_generic.osim'):
+            shutil.copyfile(self.subject_path + 'unscaled_generic.osim', results_path +
+                            'Models/unscaled_generic.osim')
+
+        # 9.2. Adjust marker locations.
+        marker_names: List[str] = []
+        if self.finalSkeleton is not None:
+            print('Adjusting marker locations on scaled OpenSim file', flush=True)
+            body_scales_map: Dict[str, np.ndarray] = {}
+            for i in range(self.finalSkeleton.getNumBodyNodes()):
+                body_node: nimble.dynamics.BodyNode = self.finalSkeleton.getBodyNode(i)
+                # Now that we adjust the markers BEFORE we rescale the body, we don't want to rescale the marker locations
+                # at all.
+                body_scales_map[body_node.getName()] = np.ones(3)
+            marker_offsets_map: Dict[str, Tuple[str, np.ndarray]] = {}
+            for k in self.finalMarkers:
+                v = self.finalMarkers[k]
+                marker_offsets_map[k] = (v[0].getName(), v[1])
+                marker_names.append(k)
+            nimble.biomechanics.OpenSimParser.moveOsimMarkers(
+                data_folder_path + 'unscaled_generic.osim',
+                body_scales_map,
+                marker_offsets_map,
+                results_path + 'Models/unscaled_but_with_optimized_markers.osim')
+
+            # 9.3. Write the XML instructions for the OpenSim scaling tool
+            nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
+                'optimized_scale_and_markers',
+                self.finalSkeleton,
+                self.massKg,
+                self.heightM,
+                'Models/unscaled_but_with_optimized_markers.osim',
+                'Unassigned',
+                'Models/optimized_scale_and_markers.osim',
+                results_path + 'Models/rescaling_setup.xml')
+
+            # 9.4. Call the OpenSim scaling tool
+            command = f'cd {results_path} && opensim-cmd run-tool {results_path}Models/rescaling_setup.xml'
+            print('Scaling OpenSim files: ' + command, flush=True)
+            with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE) as p:
+                for line in iter(p.stdout.readline, b''):
+                    print(line.decode(), end='', flush=True)
+                p.wait()
+
+            # Delete the OpenSim log from running the scale tool
+            if os.path.exists(results_path + 'opensim.log'):
+                os.remove(results_path + 'opensim.log')
+
+            # 9.5. Overwrite the inertia properties of the resulting OpenSim skeleton file
+            any_trial_has_dynamics = False
+            for trial in self.trials:
+                for segment in trial.segments:
+                    if segment.has_forces:
+                        any_trial_has_dynamics = True
+                        break
+            if any_trial_has_dynamics:
+                nimble.biomechanics.OpenSimParser.replaceOsimInertia(
+                    results_path + 'Models/optimized_scale_and_markers.osim',
+                    self.finalSkeleton,
+                    results_path + 'Models/final.osim')
+            else:
+                shutil.copyfile(results_path + 'Models/optimized_scale_and_markers.osim',
+                                results_path + 'Models/final.osim')
+
+        # Copy over the manually scaled model file, if it exists.
+        if os.path.exists(self.subject_path + 'manually_scaled.osim'):
+            shutil.copyfile(self.subject_path + 'manually_scaled.osim', results_path + 'Models/manually_scaled.osim')
+
+        # Copy over the geometry files, so the model can be loaded directly in OpenSim without chasing down
+        # Geometry files somewhere else.
+        shutil.copytree(data_folder_path + 'Geometry', results_path + 'Models/Geometry')
+
+        # 9.9. Write the results to disk.
+        for trial in self.trials:
+            print('Writing OpenSim output for trial '+trial.trial_name, flush=True)
+
+            # Write out the original C3D file, if present
+            print('Copying original C3D file for trial '+trial.trial_name+'...', flush=True)
+            c3d_fpath = f'{results_path}C3D/{trial.trial_name}.c3d'
+            if trial.c3d_file is not None:
+                shutil.copyfile(trial.trial_path + 'markers.c3d', c3d_fpath)
+            print('Copied', flush=True)
+
+            # Write out all the data from the trial segments
+            for i in range(len(trial.segments)):
+                print('Writing OpenSim output for trial ' + trial.trial_name + ' segment ' + str(i) + ' of ' + str(len(trial.segments)), flush=True)
+                segment = trial.segments[i]
+                segment_name = trial.trial_name + '_segment_' + str(i)
+                # Write out the IK for the manually scaled skeleton, if appropriate
+                if segment.manually_scaled_ik_poses is not None and self.goldOsim is not None:
+                    nimble.biomechanics.OpenSimParser.saveMot(
+                        self.goldOsim.skeleton,
+                        results_path + 'IK/' + segment_name + '_manual_ik.mot',
+                        segment.timestamps,
+                        segment.manually_scaled_ik_poses)
+                    nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
+                        trial.trial_name,
+                        marker_names,
+                        '../Models/manually_scaled.osim',
+                        f'../MarkerData/{segment_name}.trc',
+                        f'{segment_name}_ik_on_manual_scaling_by_opensim.mot',
+                        f'{results_path}IK/{segment_name}_ik_on_manually_scaled_setup.xml')
+
+                # Write out the result data files.
+                result_ik: Optional[nimble.biomechanics.IKErrorReport] = None
+                if segment.dynamics_status == ProcessingStatus.FINISHED:
+                    assert(segment.dynamics_poses is not None)
+                    assert(segment.dynamics_taus is not None)
+                    # Write out the inverse kinematics results,
+                    ik_fpath = f'{results_path}IK/{segment_name}_ik.mot'
+                    print(f'Writing OpenSim {ik_fpath} file, shape={str(segment.dynamics_poses.shape)}', flush=True)
+                    nimble.biomechanics.OpenSimParser.saveMot(self.finalSkeleton, ik_fpath, segment.timestamps, segment.dynamics_poses)
+                    # Write the inverse dynamics results.
+                    id_fpath = f'{results_path}ID/{segment_name}_id.sto'
+                    nimble.biomechanics.OpenSimParser.saveIDMot(self.finalSkeleton, id_fpath, segment.timestamps, segment.dynamics_taus)
+                    # Create the IK error report for this segment
+                    result_ik = nimble.biomechanics.IKErrorReport(
+                        self.finalSkeleton, self.fitMarkers, segment.dynamics_poses, segment.marker_observations)
+                    # Write out the OpenSim ID files:
+                    grf_fpath = f'{results_path}ID/{segment_name}_grf.mot'
+                    grf_raw_fpath = f'{results_path}ID/{segment_name}_grf_raw.mot'
+
+                    nimble.biomechanics.OpenSimParser.saveProcessedGRFMot(
+                        grf_fpath,
+                        segment.timestamps,
+                        [self.finalSkeleton.getBodyNode(name) for name in self.footBodyNames],
+                        segment.ground_height,
+                        segment.foot_body_wrenches)
+                    nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsProcessedForcesXMLFile(
+                        segment_name,
+                        [self.finalSkeleton.getBodyNode(name) for name in self.footBodyNames],
+                        segment_name + '_grf.mot',
+                        results_path + 'ID/' + segment_name + '_external_forces.xml')
+                    nimble.biomechanics.OpenSimParser.saveRawGRFMot(grf_fpath, segment.timestamps, segment.force_plates)
+                    nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
+                        segment_name,
+                        self.finalSkeleton,
+                        segment.dynamics_poses,
+                        segment.force_plates,
+                        segment_name + '_grf.mot',
+                        results_path + 'ID/' + segment_name + '_external_forces.xml')
+                    nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
+                        segment_name,
+                        '../Models/final.osim',
+                        '../IK/' + segment_name + '_ik.mot',
+                        segment_name + '_external_forces.xml',
+                        segment_name + '_id.sto',
+                        segment_name + '_id_body_forces.sto',
+                        results_path + 'ID/' + segment_name + '_id_setup.xml',
+                        min(segment.timestamps), max(segment.timestamps))
+
+                elif segment.kinematics_status == ProcessingStatus.FINISHED:
+                    assert(segment.kinematics_poses is not None)
+                    # Write out the inverse kinematics results,
+                    ik_fpath = f'{results_path}IK/{segment_name}_ik.mot'
+                    print(f'Writing OpenSim {ik_fpath} file, shape={str(segment.kinematics_poses.shape)}', flush=True)
+                    nimble.biomechanics.OpenSimParser.saveMot(self.finalSkeleton, ik_fpath, segment.timestamps, segment.kinematics_poses)
+                    # Create the IK error report for this segment
+                    result_ik = nimble.biomechanics.IKErrorReport(
+                        self.finalSkeleton, self.fitMarkers, segment.kinematics_poses, segment.marker_observations)
+
+                if result_ik is not None:
+                    # Save OpenSim setup files to make it easy to (re)run IK on the results in OpenSim
+                    nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
+                        segment_name,
+                        marker_names,
+                        '../Models/optimized_scale_and_markers.osim',
+                        f'../MarkerData/{segment_name}.trc',
+                        f'{segment_name}_ik_by_opensim.mot',
+                        f'{results_path}IK/{segment_name}_ik_setup.xml')
+
+                if segment.marker_observations is not None:
+                    # Write out the marker trajectories.
+                    markers_fpath = f'{results_path}MarkerData/{segment_name}.trc'
+                    print('Saving TRC for trial ' + trial.trial_name + ' segment ' + str(i), flush=True)
+                    print(len(segment.marker_observations))
+                    print(len(segment.timestamps))
+                    nimble.biomechanics.OpenSimParser.saveTRC(
+                        markers_fpath, segment.timestamps, segment.marker_observations)
+                    print('Saved', flush=True)
+
+                # Write out the marker errors.
+                if result_ik is not None:
+                    marker_errors_fpath = f'{results_path}IK/{segment_name}_marker_errors.csv'
+                    result_ik.saveCSVMarkerErrorReport(marker_errors_fpath)
+
+    def write_bin_file(self, file_path: str):
+        pass
+
+    def write_web_results(self, results_path: str):
+        if not results_path.endswith('/'):
+            results_path += '/'
+            if not os.path.exists(results_path):
+                os.mkdir(results_path)
+
+            trials_folder_path = results_path + 'trials/'
+            if not os.path.exists(trials_folder_path):
+                os.mkdir(trials_folder_path)
+
+            for trial in self.trials:
+                trial_path = results_path + 'trials/' + trial.trial_name + '/'
+                if not os.path.exists(trial_path):
+                    os.mkdir(trial_path)
+
+                for i in range(len(trial.segments)):
+                    segment = trial.segments[i]
+                    segment_path = trial_path + 'segment_' + str(i + 1) + '/'
+                    if not os.path.exists(segment_path):
+                        os.mkdir(segment_path)
+                    # Write out the result summary JSON
+                    print('Writing JSON result to ' + segment_path + '_results.json', flush=True)
+                    segment.save_segment_results_to_json(segment_path + '_results.json')
+                    segment.save_segment_to_gui(segment_path + 'preview.bin')
+                    segment.save_segment_csv(segment_path + 'data.csv')
+                    # Gzip up the animation preview binary.
+                    print('Gzip up ' + segment_path + 'preview.bin', flush=True)
+                    subprocess.run(["gzip", 'preview.bin'], cwd=segment_path, capture_output=True)
+                    print('Finished zipping up ' + segment_path + 'preview.bin.zip', flush=True)

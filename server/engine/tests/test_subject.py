@@ -34,7 +34,7 @@ class TestSubject(unittest.TestCase):
         subject = Subject()
         reset_test_data('opencap_test')
         subject.skeletonPreset = 'custom'
-        subject.load_model_files(os.path.abspath('../test_data/opencap_test'))
+        subject.load_model_files(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
@@ -89,6 +89,20 @@ class TestSubject(unittest.TestCase):
                     self.assertEqual(len(segment.original_marker_observations), len(force_plate.moments))
                     self.assertEqual(len(segment.original_marker_observations), len(force_plate.centersOfPressure))
 
+    def test_write_opensim_results_without_data(self):
+        subject = Subject()
+        reset_test_data('opencap_test')
+        subject.load_folder(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.segment_trials()
+        subject.write_opensim_results(os.path.abspath('../test_data/opencap_test/osim_results'), os.path.abspath('../../data'))
+
+    def test_write_web_results_without_data(self):
+        subject = Subject()
+        reset_test_data('opencap_test')
+        subject.load_folder(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.segment_trials()
+        subject.write_web_results(os.path.abspath('../test_data/opencap_test/web_results'))
+
     def test_kinematics_fit(self):
         subject = Subject()
         reset_test_data('opencap_test')
@@ -97,6 +111,7 @@ class TestSubject(unittest.TestCase):
         subject.kinematicsIterations = 20
         subject.initialIKRestarts = 3
         subject.run_kinematics_fit(os.path.abspath('../../data'))
+        subject.write_opensim_results(os.path.abspath('../test_data/opencap_test/osim_results'), os.path.abspath('../../data'))
 
     def test_dynamics_fit(self):
         subject = Subject()
@@ -107,3 +122,4 @@ class TestSubject(unittest.TestCase):
         subject.initialIKRestarts = 3
         subject.run_kinematics_fit(os.path.abspath('../../data'))
         subject.run_dynamics_fit()
+        subject.write_opensim_results(os.path.abspath('../test_data/opencap_test/osim_results'), os.path.abspath('../../data'))

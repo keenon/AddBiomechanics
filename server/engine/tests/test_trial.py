@@ -1,5 +1,6 @@
+import json
 import unittest
-from src.trial import Trial
+from src.trial import Trial, TrialSegment
 import numpy as np
 import nimblephysics as nimble
 from typing import List, Dict, Tuple
@@ -19,8 +20,11 @@ class TestTrial(unittest.TestCase):
         new_force_plate = nimble.biomechanics.ForcePlate()
         forces = [np.ones(3)]
         moments = [np.ones(3)]
+        cops = [np.ones(3)]
         new_force_plate.forces = forces
         new_force_plate.moments = moments
+        new_force_plate.centersOfPressure = cops
+        new_force_plate.timestamps = [0.0]
         trial.force_plates.append(new_force_plate)
 
         trial.split_segments()
@@ -43,11 +47,15 @@ class TestTrial(unittest.TestCase):
         new_force_plate = nimble.biomechanics.ForcePlate()
         forces = []
         moments = []
+        cops = []
         for _ in range(60):
             forces.append(np.ones(3))
             moments.append(np.ones(3))
+            cops.append(np.ones(3))
         new_force_plate.forces = forces
         new_force_plate.moments = moments
+        new_force_plate.centersOfPressure = cops
+        new_force_plate.timestamps = range(60)
         trial.force_plates.append(new_force_plate)
 
         trial.split_segments()
@@ -74,14 +82,19 @@ class TestTrial(unittest.TestCase):
         new_force_plate = nimble.biomechanics.ForcePlate()
         forces: List[np.ndarray] = []
         moments: List[np.ndarray] = []
+        cops: List[np.ndarray] = []
         for _ in range(40):
             forces.append(np.ones(3))
             moments.append(np.ones(3))
+            cops.append(np.zeros(3))
         for _ in range(20):
             forces.append(np.zeros(3))
             moments.append(np.zeros(3))
+            cops.append(np.zeros(3))
         new_force_plate.forces = forces
         new_force_plate.moments = moments
+        new_force_plate.centersOfPressure = cops
+        new_force_plate.timestamps = range(60)
         trial.force_plates.append(new_force_plate)
 
         trial.split_segments(max_grf_gap_fill_size=0.0)
@@ -108,14 +121,19 @@ class TestTrial(unittest.TestCase):
         new_force_plate = nimble.biomechanics.ForcePlate()
         forces = []
         moments = []
+        cops = []
         for _ in range(20):
             forces.append(np.zeros(3))
             moments.append(np.zeros(3))
+            cops.append(np.zeros(3))
         for _ in range(40):
             forces.append(np.ones(3))
             moments.append(np.ones(3))
+            cops.append(np.zeros(3))
         new_force_plate.forces = forces
         new_force_plate.moments = moments
+        new_force_plate.centersOfPressure = cops
+        new_force_plate.timestamps = range(60)
         trial.force_plates.append(new_force_plate)
 
         trial.split_segments(max_grf_gap_fill_size=0.0)
@@ -212,11 +230,15 @@ class TestTrial(unittest.TestCase):
         new_force_plate = nimble.biomechanics.ForcePlate()
         forces = []
         moments = []
+        cops = []
         for _ in range(60):
             forces.append(np.ones(3))
             moments.append(np.ones(3))
+            cops.append(np.ones(3))
         new_force_plate.forces = forces
         new_force_plate.moments = moments
+        new_force_plate.centersOfPressure = cops
+        new_force_plate.timestamps = range(60)
         trial.force_plates.append(new_force_plate)
 
         trial.split_segments(max_segment_frames=25)
@@ -240,3 +262,17 @@ class TestTrial(unittest.TestCase):
         self.assertEqual(False, trial.error)
         trial.split_segments()
         self.assertEqual(1, len(trial.segments))
+
+    def test_dump_trial_json(self):
+        trial = Trial()
+        segment = TrialSegment(trial, 1, 2)
+        segment.save_segment_results_to_json(os.path.abspath('../test_data/test_segment.json'))
+        self.assertTrue(os.path.exists(os.path.abspath('../test_data/test_segment.json')))
+        with open(os.path.abspath('../test_data/test_segment.json'), 'r') as f:
+            try:
+                blob = json.load(f)
+                self.assertEqual(1, blob['start'])
+                self.assertEqual(2, blob['end'])
+            except json.decoder.JSONDecodeError:
+                self.fail('JSONDecodeError')
+        os.remove(os.path.abspath('../test_data/test_segment.json'))
