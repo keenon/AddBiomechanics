@@ -235,7 +235,7 @@ const FileManager = observer((props: FileManagerProps) => {
               <button type="submit" className="btn btn-primary mt-2" onClick={() => props.cursor.markSearchable()}>
                 <i className="mdi mdi-earth-plus"></i> Mark Dataset as Finalized
               </button>
-              <p className="mt-2"><small>(You can always mark it as a drafw again later if you change your mind)</small></p>
+              <p className="mt-2"><small>(You can always mark it as a draft again later if you change your mind)</small></p>
             </div>
           </>
         );
