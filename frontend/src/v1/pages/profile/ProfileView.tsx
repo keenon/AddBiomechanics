@@ -12,11 +12,10 @@ import { observer } from "mobx-react-lite";
 import './ProfileView.scss';
 import { Auth } from "aws-amplify";
 import 'react-toastify/dist/ReactToastify.css';
-import { showToast, copyProfileUrlToClipboard, getIdFromURL } from "../../utils";
+import { showToast, copyProfileUrlToClipboard, getIdFromURL } from "../../../utils";
 import { Spinner } from "react-bootstrap";
 import { parsePath } from "../files/pathHelper";
 import { url } from "inspector";
-import SearchResult from '../search/SearchResult';
 
 type ProfileViewProps = {
   cursor: MocapS3Cursor;
@@ -110,7 +109,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
       body = <>
         {
           result.map((dataset, i) => {
-            return <SearchResult cursor={props.cursor} dataset={dataset} searchText='' index={i} fullWidth={false} />
+            return <div></div>
           })}
       </>
     }

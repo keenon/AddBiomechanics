@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ProgressBar, Button } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
-import MocapS3Cursor from '../state/MocapS3Cursor';
+import MocapS3Cursor from '../v1/state/MocapS3Cursor';
 import { humanFileSize } from '../utils';
 import Dropzone from "react-dropzone";
 import { action } from "mobx";

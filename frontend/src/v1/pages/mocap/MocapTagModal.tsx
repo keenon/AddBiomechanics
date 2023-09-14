@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Modal, Button, Spinner } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
-import TagEditor from '../../components/TagEditor';
+import TagEditor from '../../../components/TagEditor';
 
 type MocapTagModalProps = {
     cursor: MocapS3Cursor;

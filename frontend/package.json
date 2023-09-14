@@ -7,6 +7,9 @@
     "@hookform/resolvers": "^2.8.3",
     "@popperjs/core": "^2.10.2",
     "@types/chart.js": "^2.9.37",
+    "@types/react-bootstrap": "^0.32.32",
+    "@types/react-router-dom": "^5.3.3",
+    "@types/react-toastify": "^4.1.0",
     "@types/react-vis": "^1.11.11",
     "aws-amplify": "^4.3.5",
     "bootstrap": "^5.0.2",
@@ -59,6 +62,7 @@
     "start": "react-app-rewired start",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
+    "test:debug": "node --inspect-brk node_modules/react-app-rewired/bin/index.js test --runInBand --env=jsdom",
     "eject": "react-app-rewired eject"
   },
   "eslintConfig": {

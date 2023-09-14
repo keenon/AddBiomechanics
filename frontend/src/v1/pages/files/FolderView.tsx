@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Dropdown, ButtonGroup, Table, Spinner } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 import MocapS3Cursor from '../../state/MocapS3Cursor';
-import { humanFileSize } from '../../utils';
+import { humanFileSize } from '../../../utils';
 
 type FolderViewProps = {
   cursor: MocapS3Cursor;

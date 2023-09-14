@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import classNames from "classnames";
 
 // components
-import ProfileDropdown from "../components/ProfileDropdown";
+import ProfileDropdown from "../../components/ProfileDropdown";
 
 import logo from "../assets/images/logo-with-text.svg";
 import logoSmall from "../assets/images/logo-alone.svg";
@@ -73,7 +73,7 @@ const Topbar = (props: TopbarProps) => {
         </div>
 
         <div>
-            <ToastContainer />
+          <ToastContainer />
         </div>
       </div>
     </>

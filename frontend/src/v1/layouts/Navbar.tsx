@@ -79,7 +79,7 @@ const Navbar = (props: NavbarProps) => {
 
                   {/*Element shown only in small and medium devices*/}
                   <li className="nav-item d-lg-none">
-                  <a
+                    <a
                       href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402"
                       target="_blank"
                       className="nav-item nav-link"
@@ -90,7 +90,7 @@ const Navbar = (props: NavbarProps) => {
                   </li>
                   {/*Element shown only in small and medium devices*/}
                   <li className="nav-item d-lg-none">
-                  <a
+                    <a
                       href="https://addbiomechanics.org/data.html"
                       target="_blank"
                       className="nav-item nav-link"
@@ -101,7 +101,7 @@ const Navbar = (props: NavbarProps) => {
                   </li>
                   {/*Element shown only in small and medium devices*/}
                   <li className="nav-item d-lg-none">
-                  <a
+                    <a
                       href="https://addbiomechanics.org/tos.html"
                       target="_blank"
                       className="nav-item nav-link"

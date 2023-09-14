@@ -12,11 +12,11 @@ import {
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import VerticalForm from "../../components/VerticalForm";
-import FormInput from "../../components/FormInput";
+import VerticalForm from "../../../components/VerticalForm";
+import FormInput from "../../../components/FormInput";
 
 import AccountLayout from "./AccountLayout";
-import UserHomeDirectory from "../../model/UserHomeDirectory";
+import MocapS3Cursor from "../../state/MocapS3Cursor";
 
 /* bottom link of account pages */
 const BottomLink = () => {
@@ -37,8 +37,8 @@ const BottomLink = () => {
 };
 
 type LoginProps = {
-  onLogin?: (myIdentityId: string, email: string) => void;
-  home: UserHomeDirectory;
+  onLogin?: (email: string) => void;
+  cursor: MocapS3Cursor;
 };
 
 const Login = (props: LoginProps) => {
@@ -54,7 +54,7 @@ const Login = (props: LoginProps) => {
     from = '/';
   }
 
-  if (props.home.authenticated) {
+  if (props.cursor.s3Index.authenticated) {
     console.log("User is already logged in. Navigating to " + from);
     navigate(from, { replace: true });
   }
@@ -67,12 +67,12 @@ const Login = (props: LoginProps) => {
     Auth.signIn(email, password)
       .then(() => {
         return Auth.currentCredentials().then((credentials) => {
-          const authenticated = credentials.authenticated;
-          const myIdentityId = credentials.identityId.replace("us-west-2:", "");
-          console.log("Logged in successfully, got auth " + authenticated + ", identity ID " + myIdentityId);
+          props.cursor.s3Index.authenticated = credentials.authenticated;
+          props.cursor.s3Index.myIdentityId = credentials.identityId.replace("us-west-2:", "");
+          console.log("Logged in successfully, got auth " + props.cursor.s3Index.authenticated + ", identity ID " + props.cursor.s3Index.myIdentityId);
 
           if (props.onLogin) {
-            props.onLogin(myIdentityId, email);
+            props.onLogin(email);
           }
 
           // Send them back to the page they tried to visit when they were

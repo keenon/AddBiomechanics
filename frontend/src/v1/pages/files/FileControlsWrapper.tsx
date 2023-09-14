@@ -17,7 +17,7 @@ import './FileControlsWrapper.scss';
 import { useState, useEffect } from "react";
 import { observer } from "mobx-react-lite";
 import { parsePath } from './pathHelper';
-import { showToast, copyProfileUrlToClipboard, getIdFromURL } from "../../utils";
+import { showToast, copyProfileUrlToClipboard, getIdFromURL } from "../../../utils";
 
 type FileManagerProps = {
   cursor: MocapS3Cursor;
