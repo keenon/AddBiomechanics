@@ -129,9 +129,55 @@ describe("LiveDirectory", () => {
             fail("Promise returned null");
             return;
         }
-        expect(result.folders.length).toBe(0);
+        expect(result.folders.length).toBe(2);
         expect(result.files.length).toBe(9);
         expect(result.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
+    });
+
+    test("Loading the folder, then loading recursively", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/1",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials/1",
+        ]);
+
+        const path = api.getPath("ASB2023", false);
+        expect(path.loading).toBe(true);
+        expect(path.promise).toBeDefined();
+        const result: PathData | null = await path.promise;
+        if (result == null) {
+            fail("Promise returned null");
+            return;
+        }
+        expect(result.files.length).toBe(2);
+        expect(result.folders.length).toBe(2);
+
+        const path2 = api.getPath("ASB2023", true);
+        // When we return from this call, we should still not have marked loading, and also not be recursive, 
+        // but we should have a promise that is non-null. This behavior works this way because then the `loading` flag
+        // can be safely interpreted by the rendering code as meaning that the data has not arrived yet. It allows
+        // us to do a loading pattern where we rapidly load the folder, then load the contents recursively which may take
+        // some more time.
+        expect(path2.loading).toBe(false);
+        expect(path2.recursive).toBe(false);
+        expect(path2.promise).toBeDefined();
+        const result2: PathData | null = await path2.promise;
+        if (result2 == null) {
+            fail("Promise returned null");
+            return;
+        }
+        expect(result2.files.length).toBe(9);
+        expect(result2.folders.length).toBe(2);
+        expect(result2.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
     });
 
     test("Loading recursively with real paths prevents nested loads from hitting the network", async () => {
@@ -159,16 +205,17 @@ describe("LiveDirectory", () => {
             return;
         }
         expect(s3.networkCallCount).toBe(1);
-        expect(result.folders.length).toBe(0);
+        expect(result.folders.length).toBe(2);
         expect(result.files.length).toBe(9);
         expect(result.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
 
         const childPath = api.getPath("ASB2023/S01/", false);
         expect(s3.networkCallCount).toBe(1);
         expect(childPath.loading).toBe(false);
-        expect(childPath.files.length).toBe(2);
+        expect(childPath.files.length).toBe(3);
         expect(childPath.files.map(f => f.key)).toContain('ASB2023/S01/_subject.json');
         expect(childPath.files.map(f => f.key)).toContain('ASB2023/S01/trials');
+        expect(childPath.files.map(f => f.key)).toContain('ASB2023/S01/trials/1');
         expect(childPath.folders.length).toBe(1);
         expect(childPath.folders).toContain('ASB2023/S01/trials/');
     });
@@ -254,6 +301,39 @@ describe("LiveDirectory", () => {
         expect(counter.count).toBe(1);
 
         const path = api.getPath("ASB2023/", false);
+        await path.promise;
+        // We should have executed the autorun twice more, once for the initial value with loading:true, and then again for loading:false
+        expect(counter.count).toBe(3);
+
+        disposer();
+    });
+
+    test("Autorun should pick up changes to child paths if we load recursively above them", async () => {
+        const counter: {count: number} = {count: 0};
+
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/1",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials/1",
+        ]);
+
+        const disposer = autorun(() => {
+            api.getCachedPath("ASB2023/S01/trials");
+            // Count how many times this autorun has been called
+            counter.count++;
+        });
+        expect(counter.count).toBe(1);
+
+        const path = api.getPath("ASB2023/", true);
         await path.promise;
         // We should have executed the autorun twice more, once for the initial value with loading:true, and then again for loading:false
         expect(counter.count).toBe(3);
@@ -406,7 +486,7 @@ describe("LiveDirectory", () => {
             fail("Promise returned null");
             return;
         }
-        expect(result.folders.length).toBe(0);
+        expect(result.folders.length).toBe(2);
         expect(result.files.length).toBe(8);
 
         pubsub.mockReceiveMessage({

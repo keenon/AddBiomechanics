@@ -10002,10 +10002,10 @@ neo-async@^2.6.2:
   resolved "https://registry.yarnpkg.com/neo-async/-/neo-async-2.6.2.tgz#b4aafb93e3aeb2d8174ca53cf163ab7d7308305f"
   integrity sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==
 
-nimble-visualizer@0.8.15:
-  version "0.8.15"
-  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.8.15.tgz#e27019a464c1f404caee73b4515e2433fb2846d2"
-  integrity sha512-ZlEmlF76csrvt8dnCIrgj7m9NCpW7eStiKkfz0bTEKvtqDTgpSQ+TvFO2lZhiIuyRXihmNmuP6Bfcl3aw75XVA==
+nimble-visualizer@0.9.26:
+  version "0.9.26"
+  resolved "https://registry.yarnpkg.com/nimble-visualizer/-/nimble-visualizer-0.9.26.tgz#d580613b6cb4e03d97530bd87799858875e91bea"
+  integrity sha512-/29OU0snwFmInPLFlD5FVlk2Hsr/yg+TC5YCf6bHe9cfq9hqb/reh56mQqzcxxRRLOCEFrQyqvkHaigMLanGFA==
   dependencies:
     google-protobuf "^3.20.1"
     sha256-uint8array "^0.10.3"

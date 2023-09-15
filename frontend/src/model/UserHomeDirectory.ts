@@ -83,15 +83,11 @@ class UserHomeDirectory {
     }
 
     getPathType(path: string): PathType {
-        const dir = this.dir;
-        if (dir == null) {
-            return 'loading';
-        }
         if (path.startsWith('/')) {
             path = path.substring(1);
         }
 
-        const pathData: PathData | undefined = dir.getCachedPath(path);
+        const pathData: PathData | undefined = this.dir.getCachedPath(path);
         if (pathData == null || pathData.loading) {
             return 'loading';
         }
@@ -142,15 +138,7 @@ class UserHomeDirectory {
      * @param path The path to the dataset
      */
     getDatasetContents(path: string): DatasetContents {
-        const dir = this.dir;
-        if (dir == null) {
-            return {
-                loading: true,
-                contents: [],
-            };
-        }
-
-        const pathData: PathData = dir.getPath(path, false);
+        const pathData: PathData = this.dir.getPath(path, false);
         if (path.startsWith('/')) {
             path = path.substring(1);
         }

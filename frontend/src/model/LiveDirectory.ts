@@ -110,11 +110,7 @@ class LiveDirectoryImpl extends LiveDirectory {
         }
         const path = this.normalizePath(originalPath);
 
-        // Now we want to check if this path is a folder or not. If it is a folder, we always want to 
-        // append the "/" so that we load its children. If it's not a folder, then we never want to 
-        // append a "/".
-
-        const cached: PathData | undefined = this.pathCache.get(path);
+        const cached: PathData | undefined = this.getCachedPath(originalPath);
         // Check if we've already loaded this path
         if (cached != null) {
             if (recursive && !cached.recursive) {
@@ -123,60 +119,6 @@ class LiveDirectoryImpl extends LiveDirectory {
             else {
                 // This is a redundant call, we don't need to load this one
                 return cached;
-            }
-        }
-        // Check if we've loaded any parent path recursively, in which case we can infer the contents of this path
-        // without having to load it.
-        const pathParts = originalPath.split('/');
-        if (pathParts[-1] === '') {
-            pathParts.pop();
-        }
-        for (let i = pathParts.length; i >= 0; i--) {
-            for (let slash = 0; slash <= 1; slash++) {
-                const parentPath = pathParts.slice(0, i).join('/') + (slash == 0 ? '' : '/');
-                const normalizedParentPath = this.normalizePath(parentPath);
-                const cachedParentPath: PathData | undefined = this.pathCache.get(normalizedParentPath);
-                if (cachedParentPath != null && cachedParentPath.recursive) {
-                    // We've already loaded the parent path recursively, so we can infer the contents of this path
-                    // without having to load it.
-                    let allFiles = cachedParentPath.files.filter((file) => {
-                        return file.key.startsWith(originalPath);
-                    });
-                    if (recursive) {
-                        const result: PathData = {
-                            loading: false,
-                            promise: null,
-                            path,
-                            folders: [],
-                            files: allFiles,
-                            recursive: true,
-                        };
-                        this._setCachedPath(path, result);
-                        return result;
-                    }
-                    else {
-                        // We have to infer the folders from the paths in the parent files
-                        const originalPathWithSlash = originalPath + (originalPath.endsWith('/') ? '' : '/');
-                        let folders: string[] = [...new Set(allFiles.filter((file) => {
-                            return file.key.substring(originalPathWithSlash.length).includes('/');
-                        }).map((file) => {
-                            return file.key.substring(0, file.key.indexOf('/', originalPathWithSlash.length) + 1);
-                        }))];
-                        let files = allFiles.filter((file) => {
-                            return !file.key.substring(originalPathWithSlash.length).includes('/');
-                        });
-                        const result: PathData = {
-                            loading: false,
-                            promise: null,
-                            path,
-                            folders,
-                            files,
-                            recursive: false,
-                        };
-                        this._setCachedPath(path, result);
-                        return result;
-                    }
-                }
             }
         }
 
@@ -199,39 +141,60 @@ class LiveDirectoryImpl extends LiveDirectory {
                 }
             }
             else {
-                const result: PathData = {
-                    loading: false,
-                    promise: null,
-                    path,
-                    folders: folders.map((folder) => {
-                        return folder.substring(prefix.length).replace(/^\//, '');
-                    }),
-                    files: files.map((file) => {
+                files = files.map((file) => {
                         return {
                             // Trim the prefix, and leading slashes
                             key: file.key.substring(prefix.length).replace(/^\//, ''),
                             lastModified: file.lastModified,
                             size: file.size,
                         };
-                    }),
+                    });
+                if (recursive) {
+                    // If we loaded this recursively, then we need to infer the folder paths from the file paths
+                    const originalPathWithSlash = originalPath + (originalPath.endsWith('/') ? '' : '/');
+                    folders = [...new Set(files.filter((file) => {
+                        return file.key.substring(originalPathWithSlash.length).includes('/');
+                    }).map((file) => {
+                        return file.key.substring(0, file.key.indexOf('/', originalPathWithSlash.length) + 1);
+                    }))];
+                }
+                else {
+                    // Remove the prefix from the folder paths
+                    folders = folders.map((folder) => {
+                        return folder.substring(prefix.length).replace(/^\//, '');
+                    });
+                }
+                const result: PathData = {
+                    loading: false,
+                    promise: null,
+                    path,
+                    folders,
+                    files,
                     recursive: recursive,
                 };
                 this._setCachedPath(path, result);
                 return result;
             }
         }));
-        // Create a stub that is loading, and leave a non-null promise in it that will resolve when the load completes
-        const stub: PathData = {
-            loading: true,
-            promise: promise,
-            path,
-            folders: cached?.folders ?? [],
-            files: cached?.files ?? [],
-            recursive: recursive,
-        };
-        this._setCachedPath(path, stub);
-        // In the mean time, return the stub saying that we're loading the data
-        return stub;
+        if (cached == null) {
+            // Create a stub that is loading, and leave a non-null promise in it that will resolve when the load completes
+            const stub: PathData = {
+                loading: true,
+                promise: promise,
+                path,
+                folders: [],
+                files: [],
+                recursive: recursive,
+            };
+            this._setCachedPath(path, stub);
+            // In the mean time, return the stub saying that we're loading the data
+            return stub;
+        }
+        else {
+            // Update the promise, but otherwise just return the cached path
+            cached.promise = promise;
+            return cached;
+        }
     }
 
     normalizePath(path: string): string {
@@ -247,8 +210,49 @@ class LiveDirectoryImpl extends LiveDirectory {
         return prefix + path;
     }
 
-    getCachedPath(path: string): PathData | undefined {
-        return this.pathCache.get(this.normalizePath(path));
+    getCachedPath(originalPath: string): PathData | undefined {
+        const cached = this.pathCache.get(this.normalizePath(originalPath));
+        if (cached != null) return cached;
+
+        // Check if we've loaded any parent path recursively, in which case we can infer the contents of this path
+        // without having to load it.
+        const pathParts = originalPath.split('/');
+        if (pathParts[-1] === '') {
+            pathParts.pop();
+        }
+        for (let i = pathParts.length; i >= 0; i--) {
+            for (let slash = 0; slash <= 1; slash++) {
+                const parentPath = pathParts.slice(0, i).join('/') + (slash == 0 ? '' : '/');
+                const normalizedParentPath = this.normalizePath(parentPath);
+                const cachedParentPath: PathData | undefined = this.pathCache.get(normalizedParentPath);
+                if (cachedParentPath != null && cachedParentPath.recursive) {
+                    // We've already loaded the parent path recursively, so we can infer the contents of this path
+                    // without having to load it.
+                    let allFiles = cachedParentPath.files.filter((file) => {
+                        return file.key.startsWith(originalPath);
+                    });
+                    const originalPathWithSlash = originalPath + (originalPath.endsWith('/') ? '' : '/');
+                    let folders: string[] = [...new Set(allFiles.filter((file) => {
+                        return file.key.substring(originalPathWithSlash.length).includes('/');
+                    }).map((file) => {
+                        return file.key.substring(0, file.key.indexOf('/', originalPathWithSlash.length) + 1);
+                    }))];
+                    const result: PathData = {
+                        loading: false,
+                        promise: null,
+                        path: originalPath,
+                        folders: folders,
+                        files: allFiles,
+                        recursive: true,
+                    };
+                    this._setCachedPath(originalPath, result);
+                    return result;
+                }
+            }
+        }
+
+        // If we reach here, there's no parent to be found
+        return undefined;
     }
 
     addPathChangeListener(path: string, listener: (newData: PathData) => void): void
