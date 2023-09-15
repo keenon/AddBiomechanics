@@ -26,6 +26,7 @@ abstract class LiveDirectory {
         this.getJsonFile = this.getJsonFile.bind(this);
     }
 
+    abstract faultInPath(path: string): Promise<void>;
     abstract getPath(path: string, recursive: boolean): PathData;
     abstract getCachedPath(path: string): PathData | undefined;
     abstract addPathChangeListener(path: string, listener: (newData: PathData) => void): void;
@@ -60,6 +61,7 @@ class LiveDirectoryImpl extends LiveDirectory {
     pubsub: PubSubSocket;
     pathCache: Map<string, PathData>;
     pathChangeListeners: Map<string, ((newData: PathData) => void)[]>;
+    faultingIn: Map<string, Promise<void>>;
 
     constructor(prefix: string, s3: S3API, pubsub: PubSubSocket) {
         super(prefix);
@@ -67,8 +69,10 @@ class LiveDirectoryImpl extends LiveDirectory {
         this.pubsub = pubsub;
         this.pathCache = new Map<string, PathData>();
         this.pathChangeListeners = new Map<string, ((newData: PathData) => void)[]>();
+        this.faultingIn = new Map();
 
         this.getPath = this.getPath.bind(this);
+        this.faultInPath = this.faultInPath.bind(this);
         this.getCachedPath = this.getCachedPath.bind(this);
         this._setCachedPath = this._setCachedPath.bind(this);
         this._onReceivedPubSubUpdate = this._onReceivedPubSubUpdate.bind(this);
@@ -101,6 +105,51 @@ class LiveDirectoryImpl extends LiveDirectory {
             const msg: any = JSON.parse(message);
             this._onReceivedPubSubDelete(msg.key);
         });
+    }
+
+    /**
+     * This will fault in the given path, and all of its children recursively. This will attempt 
+     * to do the loading in a way that delivers rapid visual responsiveness to the user.
+     * 
+     * @param originalPath the path on this directory to load in recursively
+     * @returns 
+     */
+    faultInPath(originalPath: string): Promise<void> {
+        let promise = this.faultingIn.get(originalPath);
+        if (promise == null) {
+            promise = new Promise<void>((resolve, reject) => {
+                const pathData: PathData = this.getPath(originalPath, false);
+
+                const loadRecursive = (folderData: PathData) => {
+                    // Load each child recursively
+                    Promise.all(folderData.folders.map((folder) => {
+                        return this.getPath(folder, true).promise ?? Promise.resolve();
+                    })).then(() => {
+                        resolve();
+                    }).catch((e) => {
+                        reject(e);
+                    });
+                }
+
+                // If the path is already loaded recursively, then we're done
+                if (!pathData.loading && pathData.recursive) {
+                    resolve();
+                }
+                else if (!pathData.loading) {
+                    loadRecursive(pathData);
+                }
+                else if (pathData.promise != null) {
+                    pathData.promise.then(loadRecursive);
+                }
+                else {
+                    console.error("PathData was loading, but promise was null. This should never happen.");
+                    // load recursively anyways, to attempt to recover smoothly from the error
+                    loadRecursive(pathData);
+                }
+            });
+        }
+        this.faultingIn.set(originalPath, promise);
+        return promise;
     }
 
     getPath(originalPath: string, recursive: boolean = false): PathData {

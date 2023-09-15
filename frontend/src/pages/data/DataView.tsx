@@ -38,13 +38,8 @@ const DataView = observer((props: DataViewProps) => {
   // }
 
   // Force a load of the current location
-  const pathData: PathData = home.getPath(path, false);
-  // Recursively load the current location once we get it
-  if (pathData.promise != null) {
-    pathData.promise.then(() => {
-      home.getPath(path, true);
-    });
-  }
+  home.dir.faultInPath(path);
+
   let body = <div>Loading...</div>;
 
   const pathType = home.getPathType(path);
