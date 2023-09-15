@@ -1,6 +1,6 @@
 import { PubSubSocket } from "./PubSubSocket";
 import { FileMetadata, S3API } from "./S3API"; 
-import { makeObservable, action, observable } from 'mobx';
+import { makeObservable, action, observable, ObservableMap } from 'mobx';
 import LiveJsonFile from "./LiveJsonFile";
 import LiveFlagFile from "./LiveFlagFile";
 
@@ -59,7 +59,7 @@ abstract class LiveDirectory {
 class LiveDirectoryImpl extends LiveDirectory {
     s3: S3API;
     pubsub: PubSubSocket;
-    pathCache: Map<string, PathData>;
+    pathCache: ObservableMap<string, PathData>;
     pathChangeListeners: Map<string, ((newData: PathData) => void)[]>;
     faultingIn: Map<string, Promise<void>>;
 
@@ -67,7 +67,9 @@ class LiveDirectoryImpl extends LiveDirectory {
         super(prefix);
         this.s3 = s3;
         this.pubsub = pubsub;
-        this.pathCache = new Map<string, PathData>();
+        this.pathCache = observable.map(new Map<string, PathData>(), {
+            deep: false
+        });
         this.pathChangeListeners = new Map<string, ((newData: PathData) => void)[]>();
         this.faultingIn = new Map();
 
@@ -260,7 +262,8 @@ class LiveDirectoryImpl extends LiveDirectory {
     }
 
     getCachedPath(originalPath: string): PathData | undefined {
-        const cached = this.pathCache.get(this.normalizePath(originalPath));
+        const normalizedPath = this.normalizePath(originalPath);
+        const cached = this.pathCache.get(normalizedPath);
         if (cached != null) return cached;
 
         // Check if we've loaded any parent path recursively, in which case we can infer the contents of this path
@@ -326,9 +329,9 @@ class LiveDirectoryImpl extends LiveDirectory {
         const localPathParts: string[] = localPath.split('/');
         // For every level of hierarchy depth, we want to check if that path has already been 
         // loaded (either with a trailing slash or without) and then send appropriate updates.
-        for (let i = localPathParts.length; i > 0; i--) {
+        for (let i = localPathParts.length; i >= 0; i--) {
             let localSubPath = localPathParts.slice(0, i).join('/');
-            if (!this.prefix.endsWith('/')) {
+            if (!this.prefix.endsWith('/') && i > 0) {
                 localSubPath = '/' + localSubPath;
             }
             const fullPath = this.prefix + localSubPath;
@@ -338,22 +341,42 @@ class LiveDirectoryImpl extends LiveDirectory {
                 // 1. Check if this file has already been loaded, and if so update it
                 const cachedData: PathData | undefined = this.pathCache.get(pathToCheck);
                 if (cachedData) {
-                    if (!cachedData.loading) {
-                        if (cachedData.recursive || i >= localPathParts.length - 1) {
-                            if (!cachedData.files.map(f => f.key).includes(localPath)) {
-                                cachedData.files.push(file);
-                                this._setCachedPath(pathToCheck, cachedData);
+                    // Check if we're missing the folder for this new path, and if so create it
+                    let folders: string[] = cachedData.folders;
+                    let anyChanged: boolean = false;
+                    if (i < localPathParts.length - 1) {
+                        const folderName = localSubPath + (localSubPath.length > 0 ? '/' : '') + localPathParts[i] + '/';
+                        if (!folders.includes(folderName)) {
+                            folders.push(folderName);
+                            anyChanged = true;
+                        }
+                    }
+                    let updatedCacheData: PathData = {...cachedData, folders};
+
+                    if (!updatedCacheData.loading) {
+                        if (updatedCacheData.recursive || i >= localPathParts.length - 1) {
+                            if (!updatedCacheData.files.map(f => f.key).includes(localPath)) {
+                                updatedCacheData.files.push(file);
+                                anyChanged = true;
                             }
                             else {
                                 // If the file is already in the list, then we need to update its lastModified and size
-                                const existingFile = cachedData.files.find(f => f.key === localPath);
-                                if (existingFile) {
-                                    existingFile.lastModified = file.lastModified;
-                                    existingFile.size = file.size;
-                                    this._setCachedPath(pathToCheck, cachedData);
+                                const existingFileIndex = updatedCacheData.files.map(f => f.key).indexOf(localPath);
+                                if (existingFileIndex !== -1) {
+                                    updatedCacheData.files[existingFileIndex] = {
+                                        ...updatedCacheData.files[existingFileIndex],
+                                        lastModified: file.lastModified,
+                                        size: file.size
+                                    };
+                                    anyChanged = true;
                                 }
                             }
                         }
+                    }
+
+                    if (anyChanged) {
+                        console.log("Notifying listeners of change to path "+pathToCheck, updatedCacheData);
+                        this._setCachedPath(pathToCheck, updatedCacheData);
                     }
                 }
                 else {
@@ -395,8 +418,10 @@ class LiveDirectoryImpl extends LiveDirectory {
                 const cachedData: PathData | undefined = this.pathCache.get(pathToCheck);
                 if (cachedData) {
                     if (!cachedData.loading) {
-                        cachedData.files = cachedData.files.filter(f => f.key !== localPath);
-                        this._setCachedPath(pathToCheck, cachedData);
+                        this._setCachedPath(pathToCheck, {
+                            ...cachedData,
+                            files: cachedData.files.filter(f => f.key !== localPath)
+                        });
                     }
                 }
                 else {
@@ -437,6 +462,10 @@ class LiveDirectoryImpl extends LiveDirectory {
                 lastModified: new Date(),
                 size: text.length,
             };
+            // We're about to receive this back from PubSub, but we can synchronously update it now
+            console.log("Uploaded file "+fullPath+"! Now immediately sending ourselves a PubSub update about it.", updatedFile);
+            this._onReceivedPubSubUpdate({... updatedFile});
+            // Also send to PubSub
             this.pubsub.publish({ topic, message: JSON.stringify(updatedFile) });
         });
     }
@@ -452,6 +481,9 @@ class LiveDirectoryImpl extends LiveDirectory {
                 lastModified: new Date(),
                 size: contents.size,
             };
+            // We're about to receive this back from PubSub, but we can synchronously update it now
+            this._onReceivedPubSubUpdate(updatedFile);
+            // Also send to PubSub
             this.pubsub.publish({ topic, message: JSON.stringify(updatedFile) });
         });
     }

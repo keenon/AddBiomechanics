@@ -17,6 +17,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import UserHomeDirectory, { TrialSegmentContents } from "../../model/UserHomeDirectory";
+import Session from "../../model/Session";
 
 type ProcessingResultsJSON = {
     autoAvgMax: number;
@@ -83,12 +84,12 @@ ChartJS.register(
     chartJSPlugin
 );
 
-type TrialSegmentProps = {
-    home: UserHomeDirectory;
+type TrialSegmentViewProps = {
+    session: Session;
     path: string;
 };
 
-const TrialSegment = observer((props: TrialSegmentProps) => {
+const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
     const location = useLocation();
     const navigate = useNavigate();
     const standalone = useRef(null as null | any);
@@ -99,9 +100,12 @@ const TrialSegment = observer((props: TrialSegmentProps) => {
     const chartRef = useRef(null as any);
     const modalRef = useRef(null as any);
 
-    const segmentContents: TrialSegmentContents = props.home.getTrialSegmentContents(props.path);
+    const dataPath = props.session.parseDataURL(location.pathname);
+    const home = dataPath.homeDirectory;
+    const path = dataPath.path;
+    const segmentContents: TrialSegmentContents = home.getTrialSegmentContents(path);
+    const dir = home.dir;
 
-    const dir = props.home.dir;
     useEffect(() => {
         if (dir == null) {
             return;
@@ -556,4 +560,4 @@ const TrialSegment = observer((props: TrialSegmentProps) => {
     return body;
 });
 
-export default TrialSegment;
+export default TrialSegmentView;

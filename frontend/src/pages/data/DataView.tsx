@@ -5,7 +5,8 @@ import { observer } from "mobx-react-lite";
 import { PathData } from "../../model/LiveDirectory";
 import { Link } from "react-router-dom";
 import DropFile from "../../components/DropFile";
-import TrialSegment from "./TrialSegment";
+import TrialSegmentView from "./TrialSegment";
+import DatasetView from "./DatasetView";
 import Session from "../../model/Session";
 
 type DataViewProps = {
@@ -44,19 +45,7 @@ const DataView = observer((props: DataViewProps) => {
 
   const pathType = home.getPathType(path);
   if (pathType === 'dataset') {
-    const datasetContents = home.getDatasetContents(path);
-    if (datasetContents.loading) {
-      body = <div>Loading...</div>;
-    }
-    else {
-      body = <div>
-        <ul>
-          {datasetContents.contents.map(({ name, type, path }) => {
-            return <li key={name}>{type}: <Link to={props.session.getDataURL(dataPath, path)}>{name}</Link></li>;
-          })}
-        </ul>
-      </div>
-    }
+    body = <DatasetView session={props.session} path={path} />
   }
   else if (pathType === 'subject') {
     const subjectContents = home.getSubjectContents(path);
@@ -139,7 +128,7 @@ const DataView = observer((props: DataViewProps) => {
     </div>
   }
   else if (pathType === 'trial_segment') {
-    body = <TrialSegment home={home} path={path} />
+    body = <TrialSegmentView session={props.session} path={path} />
   }
   else {
     body = <div>Not yet implemented type: {pathType}</div>;

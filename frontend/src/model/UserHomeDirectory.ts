@@ -156,6 +156,17 @@ class UserHomeDirectory {
     }
 
     /**
+     * This call will create a stub file to hold a new folder.
+     * 
+     * @param path The path to the folder to create the new folder in
+     * @param folderName The name of the new folder
+     */
+    createFolder(path: string, folderName: string): Promise<void> {
+        const dir = this.dir;
+        return dir.uploadText(path + '/' + folderName + '/_dataset.json', '{}');
+    }
+
+    /**
      * If this is a subject, we will return the contents.
      * 
      * @param path The path to the subject

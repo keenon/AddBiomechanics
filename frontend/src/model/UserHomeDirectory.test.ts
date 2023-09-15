@@ -2,6 +2,7 @@ import UserHomeDirectory from "./UserHomeDirectory";
 import { LiveDirectoryImpl } from "./LiveDirectory";
 import { S3APIMock } from "./S3API";
 import { PubSubSocketMock } from "./PubSubSocket";
+import { autorun } from "mobx";
 
 describe("UserHomeDirectory", () => {
     const s3 = new S3APIMock();
@@ -127,5 +128,56 @@ describe("UserHomeDirectory", () => {
         await api.getPath("/ASB2023/TestProsthetic/trials/walking/segment_1", false).promise;
         expect(api.getPathType('/ASB2023/TestProsthetic/trials/walking/segment_1')).toBe('trial_segment');
         expect(api.getTrialSegmentContents('/ASB2023/TestProsthetic/trials/walking/segment_1').dataPath).toBe("/ASB2023/TestProsthetic/trials/walking/segment_1/data.csv");
+    });
+
+    test("Upload folder creates a folder", async () => {
+        // This test has side effects, so we isolate it
+        const isolated_s3 = new S3APIMock();
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
+        const api = new UserHomeDirectory(dir);
+        await api.getPath("ASB2023/", false);
+        expect(api.getPath("ASB2023/", false).folders.length).toBe(0);
+        await api.createFolder("ASB2023/", "TestFolder");
+        expect(api.getPath("ASB2023/", false).loading).toBe(false);
+        expect(api.getPath("ASB2023/", false).folders.length).toBe(1);
+        expect(api.getPath("ASB2023/", false).folders).toContain("ASB2023/TestFolder/");
+        await api.getPath("ASB2023/TestFolder/", false);
+        expect(api.getPathType('ASB2023/TestFolder/')).toBe('dataset');
+    });
+
+    test("Upload folder triggers an autorun in subfolder", async () => {
+        // This test has side effects, so we isolate it
+        const isolated_s3 = new S3APIMock();
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
+        const api = new UserHomeDirectory(dir);
+        await api.getPath("ASB2023/", false);
+
+        const counter = { count: 0 };
+        autorun(() => {
+            api.getDatasetContents('ASB2023/');
+            counter.count++;
+        });
+        expect(counter.count).toBe(1);
+
+        await api.createFolder("ASB2023/", "TestFolder");
+        expect(counter.count).toBe(2);
+    });
+
+    test("Upload folder triggers an autorun in root", async () => {
+        // This test has side effects, so we isolate it
+        const isolated_s3 = new S3APIMock();
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
+        const api = new UserHomeDirectory(dir);
+        await api.getPath("", false);
+
+        const counter = { count: 0 };
+        autorun(() => {
+            api.getDatasetContents('');
+            counter.count++;
+        });
+        expect(counter.count).toBe(1);
+
+        await api.createFolder("", "TestFolder");
+        expect(counter.count).toBe(2);
     });
 });
