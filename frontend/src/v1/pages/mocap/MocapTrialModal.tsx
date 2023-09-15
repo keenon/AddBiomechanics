@@ -569,6 +569,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
             </div>;
         }
 
+        /*
         body = (
             <div className="MocapView">
                 <NimbleStandaloneReact
@@ -625,6 +626,7 @@ const MocapTrialModal = observer((props: MocapTrialModalProps) => {
                 {plot}
             </div>
         );
+        */
     }
 
     return (

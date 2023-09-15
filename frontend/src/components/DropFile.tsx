@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from "react";
+import { PathData } from "../model/LiveDirectory";
 import { ProgressBar, Button } from "react-bootstrap";
-import { observer } from "mobx-react-lite";
-import MocapS3Cursor from '../v1/state/MocapS3Cursor';
 import { humanFileSize } from '../utils';
 import Dropzone from "react-dropzone";
 import { action } from "mobx";
+import { FileMetadata } from "../model/S3API";
 
 type DropFileProps = {
-  cursor: MocapS3Cursor;
-  path: string;
+  pathData: PathData;
+  upload: (file: File, progressCallback: (progress: number) => void) => Promise<void>;
+  download: () => void;
   accept: string;
-  keepFileExtension?: boolean;
   uploadOnMount?: File;
   validateFile?: (f: File) => Promise<string | null>;
   onMultipleFiles?: (files: File[]) => void;
@@ -19,29 +19,28 @@ type DropFileProps = {
   required?: boolean;
 };
 
-const DropFile = observer((props: DropFileProps) => {
+const DropFile = (props: DropFileProps) => {
   let [isUploading, setIsUploading] = useState(false);
   let [uploadProgress, setUploadProgress] = useState(0.0);
-  let metadata = props.cursor.rawCursor.getChildMetadata(props.path);
 
   useEffect(() => {
     if (props.uploadOnMount) {
       setUploadProgress(0.0);
       setIsUploading(true);
-      props.cursor.rawCursor.uploadChild(props.path, props.uploadOnMount, (progress) => {
+      props.upload(props.uploadOnMount, (progress) => {
         setUploadProgress(progress);
       }).then(action(() => {
         console.log("Finished upload");
         setIsUploading(false);
       }));
     }
-  }, [props.cursor.rawCursor, props.path, props.uploadOnMount]);
+  }, [props.uploadOnMount]);
 
   let body = <></>;
 
-  if (props.cursor.dataIsReadonly()) {
-    if (metadata != null) {
-      return (<Button className="btn-light" onClick={() => props.cursor.rawCursor.downloadFile(props.path)}>
+  if (props.pathData.readonly) {
+    if (props.pathData.files.length === 1) {
+      return (<Button className="btn-light" onClick={() => props.download()}>
         <i className="mdi mdi-download me-2 vertical-middle"></i>
         Download
       </Button>);
@@ -61,12 +60,13 @@ const DropFile = observer((props: DropFileProps) => {
     />;
   }
   else {
-    if (metadata != null) {
+    if (props.pathData.files.length === 1) {
+      const file: FileMetadata = props.pathData.files[0];
       if (props.hideDate) {
-        body = <>{humanFileSize(metadata.size)}</>
+        body = <>{humanFileSize(file.size)}</>
       }
       else {
-        body = <>{humanFileSize(metadata.size)} on {metadata.lastModified.toDateString()}</>
+        body = <>{humanFileSize(file.size)} on {file.lastModified.toDateString()}</>
       }
     }
     else {
@@ -93,18 +93,7 @@ const DropFile = observer((props: DropFileProps) => {
             else {
               setUploadProgress(0.0);
               setIsUploading(true);
-              let pathToUpload = props.path;
-              if (props.keepFileExtension) {
-                console.log(acceptedFiles[0].name);
-                // Default to the first accepted type
-                let extension = props.accept.split(",")[0];
-                const fileNameParts = acceptedFiles[0].name.split(".");
-                if (fileNameParts.length > 1) {
-                  extension = "." + fileNameParts[1];
-                }
-                pathToUpload = pathToUpload.split(".")[0] + extension;
-              }
-              props.cursor.rawCursor.uploadChild(pathToUpload, acceptedFiles[0], (progress) => {
+              props.upload(acceptedFiles[0], (progress) => {
                 setUploadProgress(progress);
               }).then(action(() => {
                 console.log("Finished upload");
@@ -156,7 +145,7 @@ const DropFile = observer((props: DropFileProps) => {
       {({ getRootProps, getInputProps, isDragActive }) => {
         const rootProps = getRootProps();
         const inputProps = getInputProps();
-        return <div className={"dropzone dropzone-sm" + (metadata != null ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && metadata == null && !isUploading) ? ' dropzone-error' : ''))} {...rootProps}>
+        return <div className={"dropzone dropzone-sm" + (props.pathData.files.length === 1 ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && props.pathData.files.length !== 1 && !isUploading) ? ' dropzone-error' : ''))} {...rootProps}>
           <div className="dz-message needsclick">
             <input {...inputProps} />
             {body}
@@ -165,6 +154,6 @@ const DropFile = observer((props: DropFileProps) => {
       }}
     </Dropzone >
   );
-});
+};
 
 export default DropFile;

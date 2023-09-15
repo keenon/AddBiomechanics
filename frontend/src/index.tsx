@@ -17,7 +17,9 @@ import { PubSubSocketImpl, PubSubSocket } from "./model/PubSubSocket";
 import { S3APIImpl, S3API } from "./model/S3API";
 import LiveDirectory, { LiveDirectoryImpl } from "./model/LiveDirectory";
 import UserHomeDirectory from "./model/UserHomeDirectory";
+import Session from "./model/Session";
 import { configure } from "mobx"
+import RedirectHome from "./pages/auth/RedirectHome";
 
 configure({
   enforceActions: 'always'
@@ -36,33 +38,16 @@ Amplify.configure(awsExports);
 const isProd = awsExports.aws_user_files_s3_bucket.indexOf("prod") !== -1;
 console.log("Is prod: " + isProd);
 
-const home: UserHomeDirectory = new UserHomeDirectory();
-
-function afterLogin(myIdentityId: string, email: string) {
-  console.log("Logged in as " + email);
-  home.setEmail(email);
-  console.log("Refreshing S3 data...");
-
-  const prefix = "protected/" + awsExports.aws_user_files_s3_bucket_region + ":" + myIdentityId + "/data/";
-
-  // Construct the state objects that will manage our interaction with AWS
-  const socket: PubSubSocket = new PubSubSocketImpl("us-west-2", "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt", isProd ? "PROD" : "DEV", {
-    clean: true,
-    keepalive: 10,
-    reconnectPeriod: -1,
-    resubscribe: false
-  });
-  socket.connect();
-  const s3: S3API = new S3APIImpl(awsExports.aws_user_files_s3_bucket_region, awsExports.aws_user_files_s3_bucket);
-
-  // s3.uploadText("protected/" + awsExports.aws_user_files_s3_bucket_region + ":" + myIdentityId + "/account.json", JSON.stringify({ email }));
-  // // This is just here to be convenient for a human searching through the S3 buckets manually
-  s3.uploadText("protected/" + awsExports.aws_user_files_s3_bucket_region + ":" + myIdentityId + "/" + email.replace("@", ".AT."), JSON.stringify({ email }));
-
-  const liveDirectory: LiveDirectory = new LiveDirectoryImpl(prefix, s3, socket);
-
-  home.setDirectory(liveDirectory);
-}
+// Construct the state objects that will manage our interaction with AWS
+const socket: PubSubSocket = new PubSubSocketImpl("us-west-2", "wss://adup0ijwoz88i-ats.iot.us-west-2.amazonaws.com/mqtt", isProd ? "PROD" : "DEV", {
+  clean: true,
+  keepalive: 10,
+  reconnectPeriod: -1,
+  resubscribe: false
+});
+socket.connect();
+const s3: S3API = new S3APIImpl(awsExports.aws_user_files_s3_bucket_region, awsExports.aws_user_files_s3_bucket);
+const session: Session = new Session(s3, socket, awsExports.aws_user_files_s3_bucket_region);
 
 Auth.currentAuthenticatedUser()
   .then((user: any) => {
@@ -71,31 +56,32 @@ Auth.currentAuthenticatedUser()
       const myIdentityId = credentials.identityId.replace("us-west-2:", "");
 
       if (authenticated) {
-        afterLogin(myIdentityId, user.attributes.email);
+        session.setLoggedIn(myIdentityId, user.attributes.email);
       }
       else {
-        home.setAuthFailed();
+        session.setNotLoggedIn();
       }
     });
   })
   .catch(() => {
-    home.setAuthFailed();
+    session.setNotLoggedIn();
   });
 
+// On home, we should require authentication. Once authenticated, we should redirect to the data view for the user.
+// In the data view, we should not require authentication.
 
 ReactDOM.render(
   <BrowserRouter>
     <Routes>
-      <Route path="*" element={<RequiresAuth home={home} />}>
-        <Route path="*" element={<DataView home={home} />} />
-      </Route>
+      <Route index element={<RedirectHome session={session} />}></Route>
+      <Route path="/data/*" element={<DataView session={session} />} />
       <Route
         path="/login"
         element={
           <Login
-            home={home}
+            session={session}
             onLogin={(myIdentityId: string, email: string) => {
-              afterLogin(myIdentityId, email);
+              session.setLoggedIn(myIdentityId, email);
             }}
           />
         }

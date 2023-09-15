@@ -39,6 +39,16 @@ describe("LiveJsonFile", () => {
         expect(pubsub.mockSentMessagesLog.length).toBe(1); // we should have updated PubSub with the changes
     });
 
+    test("File not found handled gracefully", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("dir/", s3, pubsub);
+
+        const file = new LiveJsonFile(api, "test.json");
+        await file.refreshFile();
+        expect(file.getAttribute("test", "")).toBe("");
+    });
+
     test("File change notification causes redownload", async () => {
         const s3 = new S3APIMock();
         const pubsub = new PubSubSocketMock("DEV");

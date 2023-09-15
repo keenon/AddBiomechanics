@@ -17,7 +17,7 @@ abstract class S3API {
 
     abstract loadPathData(path: string, recursive: boolean): Promise<{files: FileMetadata[], folders: string[]}>;
 
-    abstract getSignedURL(path: string): Promise<string>;
+    abstract getSignedURL(path: string, expiresIn: number): Promise<string>;
     abstract downloadText(path: string): Promise<string>;
     abstract uploadText(path: string, text: string): Promise<void>;
     abstract uploadFile(path: string, contents: File, progressCallback: (percentage: number) => void): Promise<void>;
@@ -110,7 +110,7 @@ class S3APIMock extends S3API {
         });
     }
 
-    getSignedURL(path: string): Promise<string> {
+    getSignedURL(path: string, expiresIn: number): Promise<string> {
         return new Promise((resolve, reject) => {
             if (this.networkOutage) {
                 reject("Network outage");
@@ -329,11 +329,16 @@ class S3APIImpl extends S3API {
      * This gets a signed URL, then fetches it.
      */
     fetchFile = (path: string, bodyType: 'blob' | 'text', progressCallback?: (progress: number) => void) => {
-        return this.getSignedURL(path).then((signedURL) => {
+        return this.getSignedURL(path, 3600).then((signedURL) => {
             return new Promise<any>((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
                 xhr.onload = () => {
-                    resolve(xhr.response);
+                    if (xhr.status === 200) {
+                        resolve(xhr.response);
+                    }
+                    else {
+                        reject("Got status "+xhr.status);
+                    }
                 };
                 xhr.onerror = () => {
                     reject();
@@ -348,7 +353,12 @@ class S3APIImpl extends S3API {
                 }
                 xhr.responseType = bodyType;
                 xhr.open('GET', signedURL);
-                xhr.send();
+                try {
+                    xhr.send();
+                }
+                catch (e) {
+                    reject();
+                }
             });
             // return fetch(signedURL, {
             //     cache: 'no-cache'
@@ -356,13 +366,13 @@ class S3APIImpl extends S3API {
         });
     };
 
-    getSignedURL(path: string): Promise<string>
+    getSignedURL(path: string, expiresIn: number): Promise<string>
     {
         const objectCommand = new GetObjectCommand({
             Bucket: this.bucketName,
             Key: path,
         });
-        return this.s3client.then(client => getSignedUrl(client, objectCommand, { expiresIn: 3600 }));
+        return this.s3client.then(client => getSignedUrl(client, objectCommand, { expiresIn }));
     };
 
     downloadText(path: string): Promise<string>
@@ -371,10 +381,17 @@ class S3APIImpl extends S3API {
             this.setNetworkErrorMessage(null);
             return result;
         }).catch(e => {
-            this.setNetworkErrorMessage("We got an error trying to download a file!");
-            console.log("DownloadText() error: " + path);
-            console.log(e);
-            throw e;
+            if (e === "Got status 404") {
+                // 404s should be treated as a file not found, and do not indicate that the network is down
+                throw e;
+            }
+            else {
+                // Other network errors should be treated as a network error
+                this.setNetworkErrorMessage("We got an error trying to download a file!");
+                console.log("DownloadText() error: " + path);
+                console.log(e);
+                throw e;
+            }
         });
     }
 

@@ -3,7 +3,7 @@ import { makeObservable, action, observable } from 'mobx';
 import LiveJsonFile from "./LiveJsonFile";
 import LiveFlagFile from "./LiveFlagFile";
 
-type PathType = 'dataset' | 'subject' | 'trial' | 'segment' | 'trials_folder' | '404' | 'loading';
+type PathType = 'dataset' | 'subject' | 'trial' | 'trial_segment' | 'trials_folder' | '404' | 'loading';
 
 type DatasetContents = {
     loading: boolean;
@@ -17,8 +17,20 @@ type SubjectContents = {
     trials: {name: string, path: string}[]
 };
 
+type TrialContents = {
+    loading: boolean;
+    trialJson: LiveJsonFile | null;
+    segments: {name: string, path: string}[];
+};
+
+type TrialSegmentContents = {
+    resultsJsonPath: string;
+    previewPath: string;
+    dataPath: string;
+};
+
 class UserHomeDirectory {
-    dir: LiveDirectory | null;
+    dir: LiveDirectory;
 
     // Login relate data
     loadingLoginState: boolean = true;
@@ -26,10 +38,9 @@ class UserHomeDirectory {
     email: string = '';
 
     // 'protected/' + s3.region + ':' + userId + '/data/'
-    constructor(dir?: LiveDirectory) {
-        this.dir = dir ?? null;
+    constructor(dir: LiveDirectory) {
+        this.dir = dir;
 
-        this.setDirectory = this.setDirectory.bind(this);
         this.setEmail = this.setEmail.bind(this);
         this.setAuthFailed = this.setAuthFailed.bind(this);
         this.getPathType = this.getPathType.bind(this);
@@ -39,15 +50,9 @@ class UserHomeDirectory {
             loadingLoginState: observable,
             authenticated: observable,
             email: observable,
-            setDirectory: action,
             setEmail: action,
             setAuthFailed: action,
         });
-    }
-
-    setDirectory(dir: LiveDirectory): void {
-        console.log("Setting home directory");
-        this.dir = dir;
     }
 
     setEmail(email: string): void {
@@ -102,11 +107,16 @@ class UserHomeDirectory {
             return '404';
         }
 
-        // The presence of marker files indicate that this is a segment
+        // The shape of the path gives away that this is a trial segment
+        if (path.match(/trials\/[^\/]+\/segment_\d+$/)) {
+            return 'trial_segment';
+        }
+        // The presence of marker files indicate that this is a trial
         if (child_files.includes('markers.c3d') || 
             child_files.includes('markers.trc') || 
-            child_files.includes('grf.mot')) {
-            return 'segment';
+            child_files.includes('grf.mot') ||
+            child_files.includes('_trial.json')) {
+            return 'trial';
         }
         // The presence of a _subject.json file indicates that this is a subject
         if (child_files.includes('_subject.json')) {
@@ -204,7 +214,51 @@ class UserHomeDirectory {
             })
         };
     }
+
+    getTrialContents(path: string): TrialContents {
+        const dir = this.dir;
+        if (dir == null) {
+            return {
+                loading: true,
+                trialJson: null,
+                segments: [],
+            };
+        }
+        if (path.endsWith('/')) {
+            path = path.substring(0, path.length-1);
+        }
+
+        const trial: PathData = dir.getPath(path + '/', false);
+        const trialJson = dir.getJsonFile(path + '/_trial.json');
+
+        return {
+            loading: trial.loading,
+            trialJson,
+            segments: trial.folders.map((folder) => {
+                return {
+                    name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
+                    path: folder,
+                };
+            })
+        };
+    }
+
+    getTrialSegmentContents(path: string): TrialSegmentContents {
+        if (path.endsWith('/')) {
+            path = path.substring(0, path.length-1);
+        }
+
+        const resultsJsonPath = path + '/_results.json';
+        const previewPath = path + '/preview.bin';
+        const dataPath = path + '/data.csv';
+
+        return {
+            resultsJsonPath,
+            previewPath,
+            dataPath,
+        };
+    }
 };
 
-export type { PathType, DatasetContents };
+export type { PathType, DatasetContents, SubjectContents, TrialContents, TrialSegmentContents };
 export default UserHomeDirectory;

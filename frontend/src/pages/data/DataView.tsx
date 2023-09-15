@@ -4,9 +4,12 @@ import UserHomeDirectory from "../../model/UserHomeDirectory";
 import { observer } from "mobx-react-lite";
 import { PathData } from "../../model/LiveDirectory";
 import { Link } from "react-router-dom";
+import DropFile from "../../components/DropFile";
+import TrialSegment from "./TrialSegment";
+import Session from "../../model/Session";
 
 type DataViewProps = {
-  home: UserHomeDirectory
+  session: Session;
 };
 
 const DataView = observer((props: DataViewProps) => {
@@ -14,11 +17,11 @@ const DataView = observer((props: DataViewProps) => {
 
   console.log("Rerendering");
 
-  const dir = props.home.dir;
-  let homeDir = <div>Loading home dir...</div>;
-  if (dir != null) {
-    homeDir = <div>Home dir loaded</div>;
-  }
+  const dataPath = props.session.parseDataURL(location.pathname);
+  const home = dataPath.homeDirectory;
+  const path = dataPath.path;
+  console.log("Home S3 prefix: " + home.dir.prefix);
+  console.log("Path: " + path);
 
   // let entries: JSX.Element[] = [];
   // const pathData: PathData = props.home.getPath(location.pathname, false);
@@ -35,12 +38,12 @@ const DataView = observer((props: DataViewProps) => {
   // }
 
   // Force a load of the current location
-  const pathData: PathData = props.home.getPath(location.pathname, false);
+  const pathData: PathData = home.getPath(path, false);
   let body = <div>Loading...</div>;
 
-  const pathType = props.home.getPathType(location.pathname);
+  const pathType = home.getPathType(path);
   if (pathType === 'dataset') {
-    const datasetContents = props.home.getDatasetContents(location.pathname);
+    const datasetContents = home.getDatasetContents(path);
     if (datasetContents.loading) {
       body = <div>Loading...</div>;
     }
@@ -48,14 +51,14 @@ const DataView = observer((props: DataViewProps) => {
       body = <div>
         <ul>
           {datasetContents.contents.map(({ name, type, path }) => {
-            return <li key={name}>{type}: <Link to={path}>{name}</Link></li>;
+            return <li key={name}>{type}: <Link to={props.session.getDataURL(dataPath, path)}>{name}</Link></li>;
           })}
         </ul>
       </div>
     }
   }
   else if (pathType === 'subject') {
-    const subjectContents = props.home.getSubjectContents(location.pathname);
+    const subjectContents = home.getSubjectContents(path);
     const subjectJson = subjectContents.subjectJson;
     const testFlag = subjectContents.testFlagFile;
     let subjectJsonContents = <div>Loading...</div>;
@@ -83,18 +86,59 @@ const DataView = observer((props: DataViewProps) => {
         testFlagContents = <div>TEST: False <button onClick={testFlag.upload}>Set True</button></div>
       }
     }
+
+    const uploadPath = path + "/test.c3d";
+    const pathData = home.getPath(uploadPath, false);
+    const uploadTest = (
+      <div>
+        <DropFile
+          pathData={pathData}
+          accept=".c3d"
+          upload={(file: File, progressCallback: (progress: number) => void) => {
+            if (home == null) {
+              throw new Error("No directory");
+            }
+            return home.dir.uploadFile(uploadPath, file, progressCallback);
+          }}
+          download={() => {
+            if (home == null) {
+              throw new Error("No directory");
+            }
+            // dir.downloadFile(uploadPath);
+            console.log("Download TODO");
+          }}
+          required={false} />
+      </div>
+    );
+
     body = <div>
       <div>
         {subjectJsonContents}
       </div>
       {testFlagContents}
+      {uploadTest}
       <h2>Trials:</h2>
       <ul>
         {subjectContents.trials.map(({ name, path }) => {
-          return <li key={name}>Trial: <Link to={path}>{name}</Link></li>;
+          return <li key={name}>Trial: <Link to={props.session.getDataURL(dataPath, path)}>{name}</Link></li>;
         })}
       </ul>
     </div>
+  }
+  else if (pathType === 'trial') {
+    const trialContents = home.getTrialContents(path);
+    body = <div>
+      This is a trial!
+      It has {trialContents.segments.length} segments.
+      <ul>
+        {trialContents.segments.map(({ name, path }) => {
+          return <li key={name}>Trial Segment: <Link to={props.session.getDataURL(dataPath, path)}>{name}</Link></li>;
+        })}
+      </ul>
+    </div>
+  }
+  else if (pathType === 'trial_segment') {
+    body = <TrialSegment home={home} path={path} />
   }
   else {
     body = <div>Not yet implemented type: {pathType}</div>;
@@ -102,8 +146,7 @@ const DataView = observer((props: DataViewProps) => {
 
   return (
     <div>
-      <h1>Hello World: {location.pathname} - {pathType}</h1>
-      {homeDir}
+      <h1>Hello World: {path} - {pathType} - {dataPath.readonly ? 'readonly' : 'readwrite'}</h1>
       {body}
     </div>
   );

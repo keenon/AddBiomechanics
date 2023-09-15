@@ -11,6 +11,7 @@ type PathData = {
     folders: string[];
     files: FileMetadata[];
     recursive: boolean;
+    readonly?: boolean;
 };
 
 abstract class LiveDirectory {
@@ -29,7 +30,7 @@ abstract class LiveDirectory {
     abstract getCachedPath(path: string): PathData | undefined;
     abstract addPathChangeListener(path: string, listener: (newData: PathData) => void): void;
 
-    abstract getSignedURL(path: string): Promise<string>;
+    abstract getSignedURL(path: string, expiresIn: number): Promise<string>;
     abstract downloadText(path: string): Promise<string>;
     abstract uploadText(path: string, text: string): Promise<void>;
     abstract uploadFile(path: string, contents: File, progressCallback: (percentage: number) => void): Promise<void>;
@@ -77,6 +78,8 @@ class LiveDirectoryImpl extends LiveDirectory {
         makeObservable(this, {
             pathCache: observable,
             _setCachedPath: action,
+            _onReceivedPubSubUpdate: action,
+            _onReceivedPubSubDelete: action
         });
 
         // Register PubSub update listener
@@ -101,14 +104,11 @@ class LiveDirectoryImpl extends LiveDirectory {
     }
 
     getPath(originalPath: string, recursive: boolean = false): PathData {
-        if (originalPath.startsWith('/')) {
-            originalPath = originalPath.substring(1);
-        }
         let prefix = this.prefix;
         if (!prefix.endsWith('/')) {
             prefix += '/';
         }
-        const path = prefix + originalPath;
+        const path = this.normalizePath(originalPath);
 
         // Now we want to check if this path is a folder or not. If it is a folder, we always want to 
         // append the "/" so that we load its children. If it's not a folder, then we never want to 
@@ -187,6 +187,8 @@ class LiveDirectoryImpl extends LiveDirectory {
         if (!prefix.endsWith('/')) {
             prefix += '/';
         }
+        // Replace any accidental // with /
+        path = path.replace(/\/\//g, '/');
         return prefix + path;
     }
 
@@ -219,6 +221,15 @@ class LiveDirectoryImpl extends LiveDirectory {
                 if (!selfData.files.map(f => f.key).includes(localPath)) {
                     selfData.files.push(file);
                     this._setCachedPath(file.key, selfData);
+                }
+                else {
+                    // If the file is already in the list, then we need to update its lastModified and size
+                    const existingFile = selfData.files.find(f => f.key === localPath);
+                    if (existingFile) {
+                        existingFile.lastModified = file.lastModified;
+                        existingFile.size = file.size;
+                        this._setCachedPath(file.key, selfData);
+                    }
                 }
             }
         }
@@ -293,9 +304,9 @@ class LiveDirectoryImpl extends LiveDirectory {
         }
     }
     
-    getSignedURL(path: string): Promise<string>
+    getSignedURL(path: string, expiresIn: number): Promise<string>
     {
-        return this.s3.getSignedURL(this.normalizePath(path));
+        return this.s3.getSignedURL(this.normalizePath(path), expiresIn);
     }
 
     downloadText(path: string): Promise<string>
@@ -321,6 +332,7 @@ class LiveDirectoryImpl extends LiveDirectory {
     {
         const fullPath = this.normalizePath(path);
         return this.s3.uploadFile(fullPath, contents, progressCallback).then(() => {
+            console.log("Finished uploading file!");
             const topic = this.pubsub.makeTopicPubSubSafe("/UPDATE/" + fullPath);
             const updatedFile: FileMetadata = {
                 key: fullPath,

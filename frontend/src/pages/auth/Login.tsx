@@ -16,7 +16,7 @@ import VerticalForm from "../../components/VerticalForm";
 import FormInput from "../../components/FormInput";
 
 import AccountLayout from "./AccountLayout";
-import UserHomeDirectory from "../../model/UserHomeDirectory";
+import Session from "../../model/Session";
 
 /* bottom link of account pages */
 const BottomLink = () => {
@@ -38,7 +38,7 @@ const BottomLink = () => {
 
 type LoginProps = {
   onLogin?: (myIdentityId: string, email: string) => void;
-  home: UserHomeDirectory;
+  session: Session;
 };
 
 const Login = (props: LoginProps) => {
@@ -54,7 +54,7 @@ const Login = (props: LoginProps) => {
     from = '/';
   }
 
-  if (props.home.authenticated) {
+  if (props.session.loggedIn) {
     console.log("User is already logged in. Navigating to " + from);
     navigate(from, { replace: true });
   }

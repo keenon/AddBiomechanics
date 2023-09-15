@@ -55,16 +55,19 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
   const navigate = useNavigate();
   let manualIKRow = null;
   if (props.cursor.getShowValidationControls()) {
+    /*
     manualIKRow = (
       <td>
         <DropFile cursor={props.cursor} text={"Gold IK, *.mot or *.sto"} path={"trials/" + props.name + "/manual_ik.mot"} uploadOnMount={props.uploadIK} accept=".mot,.sto" onMultipleFiles={props.onMultipleManualIK} hideDate />
       </td>
     );
+    */
   }
   let fileData = null;
 
   let trcMetadata = props.cursor.rawCursor.getChildMetadata("trials/" + props.name + "/markers.trc");
   if (trcMetadata != null || props.uploadTRC != null) {
+    /*
     fileData = <>
       <td>
         <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.trc"} uploadOnMount={props.uploadTRC} accept=".trc,.sto" hideDate required />
@@ -73,13 +76,16 @@ const MocapTrialRowView = observer((props: MocapTrialRowViewProps) => {
         <DropFile cursor={props.cursor} text={"GRF, *.mot or *.sto"} path={"trials/" + props.name + "/grf.mot"} hideDate uploadOnMount={props.uploadGRF} accept=".mot,.sto" onMultipleFiles={props.onMultipleGRF} />
       </td>
     </>
+    */
   }
   else {
+    /*
     fileData = (
       <td colSpan={2}>
         <DropFile cursor={props.cursor} path={"trials/" + props.name + "/markers.c3d"} uploadOnMount={props.uploadC3D} accept=".c3d,.trc" hideDate required keepFileExtension />
       </td>
     );
+    */
   }
 
   let nameLink;
@@ -774,12 +780,14 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
   let manuallyScaledOpensimUpload = null;
   let manualIkRowHeader = null;
   if (showValidationControls) {
+    /*
     manuallyScaledOpensimUpload = (
       <div>
         <h5>Manually Scaled OpenSim</h5>
         <DropFile cursor={props.cursor} path={"manually_scaled.osim"} accept=".osim" validateFile={validateOpenSimFile} />
       </div>
     );
+    */
     manualIkRowHeader = (
       <th className="border-0">Gold IK</th>
     );
@@ -1377,7 +1385,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
             >
               <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i>
             </OverlayTrigger>
-            <DropFile cursor={props.cursor} path={"trials/static/markers"} text="Drop a .trc or .c3d file here for your static trial" accept=".trc,.c3d" keepFileExtension={true} />
+            {/* <DropFile cursor={props.cursor} path={"trials/static/markers"} text="Drop a .trc or .c3d file here for your static trial" accept=".trc,.c3d" keepFileExtension={true} /> */}
           </div>
           <div className="">
             <div className="alert alert-warning" role="alert">
@@ -1415,9 +1423,11 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     skeletonDetails = <div className="alert alert-secondary mb-15">The DEVELOPER PREVIEW full body model is unpublished work from Keenon Werling, Carmichael Ong, and Marilyn Keller. USE AT YOUR OWN RISK!</div>
   }
   if (skeletonPreset === 'custom') {
+    /*
     skeletonDetails = <div>
       <DropFile cursor={props.cursor} path={"unscaled_generic.osim"} accept=".osim" validateFile={validateOpenSimFile} required />
     </div>;
+    */
   }
 
   let footSelector = null;
