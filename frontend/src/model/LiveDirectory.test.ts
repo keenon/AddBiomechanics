@@ -78,7 +78,7 @@ describe("LiveDirectory", () => {
         expect(result.folders).toContain("dataset1/subject1/");
     });
 
-    test("Loading bug with real paths", async () => {
+    test("Loading with real paths", async () => {
         const s3 = new S3APIMock();
         const pubsub = new PubSubSocketMock("DEV");
         const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
@@ -103,6 +103,74 @@ describe("LiveDirectory", () => {
             return;
         }
         expect(result.folders).toContain("ASB2023/S01/");
+    });
+
+    test("Loading recursively with real paths", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/1",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials/1",
+        ]);
+
+        const path = api.getPath("ASB2023", true);
+        expect(path.loading).toBe(true);
+        expect(path.promise).toBeDefined();
+        const result: PathData | null = await path.promise;
+        if (result == null) {
+            fail("Promise returned null");
+            return;
+        }
+        expect(result.folders.length).toBe(0);
+        expect(result.files.length).toBe(9);
+        expect(result.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
+    });
+
+    test("Loading recursively with real paths prevents nested loads from hitting the network", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/1",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials/1",
+        ]);
+
+        const path = api.getPath("ASB2023", true);
+        expect(path.loading).toBe(true);
+        expect(path.promise).toBeDefined();
+        const result: PathData | null = await path.promise;
+        if (result == null) {
+            fail("Promise returned null");
+            return;
+        }
+        expect(s3.networkCallCount).toBe(1);
+        expect(result.folders.length).toBe(0);
+        expect(result.files.length).toBe(9);
+        expect(result.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
+
+        const childPath = api.getPath("ASB2023/S01/", false);
+        expect(s3.networkCallCount).toBe(1);
+        expect(childPath.loading).toBe(false);
+        expect(childPath.files.length).toBe(2);
+        expect(childPath.files.map(f => f.key)).toContain('ASB2023/S01/_subject.json');
+        expect(childPath.files.map(f => f.key)).toContain('ASB2023/S01/trials');
+        expect(childPath.folders.length).toBe(1);
+        expect(childPath.folders).toContain('ASB2023/S01/trials/');
     });
 
     test("observable does what it's supposed to with a simple object", async () => {
@@ -313,6 +381,47 @@ describe("LiveDirectory", () => {
             // This will always fail
             expect(updatedData).toBeDefined();
         }
+    });
+
+    test("Receiving a PubSub update that updates something nested within a recursive load causes a file to be created", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/1",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials/1",
+        ]);
+
+        const path = api.getPath("ASB2023", true);
+        expect(path.loading).toBe(true);
+        expect(path.promise).toBeDefined();
+        const result: PathData | null = await path.promise;
+        if (result == null) {
+            fail("Promise returned null");
+            return;
+        }
+        expect(result.folders.length).toBe(0);
+        expect(result.files.length).toBe(8);
+
+        pubsub.mockReceiveMessage({
+            topic: "/DEV/UPDATE/protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data",
+            message: JSON.stringify({
+                key: "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+                size: 10,
+                dateModified: new Date().toString(),
+            })
+        });
+
+        const newPath = api.getPath("ASB2023", true);
+        expect(newPath.loading).toBe(false);
+        expect(newPath.files.length).toBe(9);
+        expect(newPath.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
     });
 
 });

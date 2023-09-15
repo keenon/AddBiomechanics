@@ -116,7 +116,7 @@ class LiveDirectoryImpl extends LiveDirectory {
 
         const cached: PathData | undefined = this.pathCache.get(path);
         // Check if we've already loaded this path
-        if (this.pathCache.has(path) && cached != null) {
+        if (cached != null) {
             if (recursive && !cached.recursive) {
                 // Then we still want to load this path, but recursively now
             }
@@ -125,6 +125,61 @@ class LiveDirectoryImpl extends LiveDirectory {
                 return cached;
             }
         }
+        // Check if we've loaded any parent path recursively, in which case we can infer the contents of this path
+        // without having to load it.
+        const pathParts = originalPath.split('/');
+        if (pathParts[-1] === '') {
+            pathParts.pop();
+        }
+        for (let i = pathParts.length; i >= 0; i--) {
+            for (let slash = 0; slash <= 1; slash++) {
+                const parentPath = pathParts.slice(0, i).join('/') + (slash == 0 ? '' : '/');
+                const normalizedParentPath = this.normalizePath(parentPath);
+                const cachedParentPath: PathData | undefined = this.pathCache.get(normalizedParentPath);
+                if (cachedParentPath != null && cachedParentPath.recursive) {
+                    // We've already loaded the parent path recursively, so we can infer the contents of this path
+                    // without having to load it.
+                    let allFiles = cachedParentPath.files.filter((file) => {
+                        return file.key.startsWith(originalPath);
+                    });
+                    if (recursive) {
+                        const result: PathData = {
+                            loading: false,
+                            promise: null,
+                            path,
+                            folders: [],
+                            files: allFiles,
+                            recursive: true,
+                        };
+                        this._setCachedPath(path, result);
+                        return result;
+                    }
+                    else {
+                        // We have to infer the folders from the paths in the parent files
+                        const originalPathWithSlash = originalPath + (originalPath.endsWith('/') ? '' : '/');
+                        let folders: string[] = [...new Set(allFiles.filter((file) => {
+                            return file.key.substring(originalPathWithSlash.length).includes('/');
+                        }).map((file) => {
+                            return file.key.substring(0, file.key.indexOf('/', originalPathWithSlash.length) + 1);
+                        }))];
+                        let files = allFiles.filter((file) => {
+                            return !file.key.substring(originalPathWithSlash.length).includes('/');
+                        });
+                        const result: PathData = {
+                            loading: false,
+                            promise: null,
+                            path,
+                            folders,
+                            files,
+                            recursive: false,
+                        };
+                        this._setCachedPath(path, result);
+                        return result;
+                    }
+                }
+            }
+        }
+
         // If we reach this point, the path has not yet been loaded
         // Kick off a load for the PathData, and keep around a promise for that load completing
         const promise: Promise<PathData> = this.s3.loadPathData(path, recursive).then(action(({folders, files}) => {
@@ -202,9 +257,9 @@ class LiveDirectoryImpl extends LiveDirectory {
         this.pathChangeListeners.set(path, [...(this.pathChangeListeners.get(path) ?? []), listener]);
     }
 
-    _setCachedPath(path: string, data: PathData) {
-        this.pathCache.set(path, data);
-        for (let listener of this.pathChangeListeners.get(path) ?? []) {
+    _setCachedPath(normalizedPath: string, data: PathData) {
+        this.pathCache.set(normalizedPath, data);
+        for (let listener of this.pathChangeListeners.get(normalizedPath) ?? []) {
             listener(data);
         }
     }
@@ -213,53 +268,54 @@ class LiveDirectoryImpl extends LiveDirectory {
         // Look for any already loaded PathData objects that contain 
         // this file, which is only the immediate parent, and itself
         const localPath = file.key.substring(this.prefix.length);
+        file.key = localPath;
 
-        // 1. Check if this file has already been loaded, and if so update it
-        const selfData: PathData | undefined = this.pathCache.get(file.key);
-        if (selfData) {
-            if (!selfData.loading) {
-                if (!selfData.files.map(f => f.key).includes(localPath)) {
-                    selfData.files.push(file);
-                    this._setCachedPath(file.key, selfData);
-                }
-                else {
-                    // If the file is already in the list, then we need to update its lastModified and size
-                    const existingFile = selfData.files.find(f => f.key === localPath);
-                    if (existingFile) {
-                        existingFile.lastModified = file.lastModified;
-                        existingFile.size = file.size;
-                        this._setCachedPath(file.key, selfData);
+        const localPathParts: string[] = localPath.split('/');
+        // For every level of hierarchy depth, we want to check if that path has already been 
+        // loaded (either with a trailing slash or without) and then send appropriate updates.
+        for (let i = localPathParts.length; i > 0; i--) {
+            let localSubPath = localPathParts.slice(0, i).join('/');
+            if (!this.prefix.endsWith('/')) {
+                localSubPath = '/' + localSubPath;
+            }
+            const fullPath = this.prefix + localSubPath;
+            for (let slash = 0; slash <= 1; slash++) {
+                const pathToCheck = fullPath + (slash == 0 ? '' : '/');
+
+                // 1. Check if this file has already been loaded, and if so update it
+                const cachedData: PathData | undefined = this.pathCache.get(pathToCheck);
+                if (cachedData) {
+                    if (!cachedData.loading) {
+                        if (cachedData.recursive || i >= localPathParts.length - 1) {
+                            if (!cachedData.files.map(f => f.key).includes(localPath)) {
+                                cachedData.files.push(file);
+                                this._setCachedPath(pathToCheck, cachedData);
+                            }
+                            else {
+                                // If the file is already in the list, then we need to update its lastModified and size
+                                const existingFile = cachedData.files.find(f => f.key === localPath);
+                                if (existingFile) {
+                                    existingFile.lastModified = file.lastModified;
+                                    existingFile.size = file.size;
+                                    this._setCachedPath(pathToCheck, cachedData);
+                                }
+                            }
+                        }
                     }
                 }
-            }
-        }
-        else {
-            // Even if this isn't loaded yet, we should notify the change listeners that something 
-            // happened at this path, if anyone is listening for it.
-            for (let listener of this.pathChangeListeners.get(file.key) ?? []) {
-                listener({
-                    loading: false,
-                    promise: null,
-                    path: file.key,
-                    folders: [],
-                    files: [file],
-                    recursive: false,
-                });
-            }
-        }
-
-        // 2. Check if the parent has already been loaded
-        const parentPath: string = file.key.substring(0, file.key.lastIndexOf('/')) + "/";
-        const parentData: PathData | undefined = this.pathCache.get(parentPath);
-        if (parentData) {
-            if (!parentData.loading) {
-                if (!parentData.files.map(f => f.key).includes(file.key)) {
-                    parentData.files.push({
-                        key: localPath,
-                        lastModified: file.lastModified,
-                        size: file.size,
-                    });
-                    this._setCachedPath(parentPath, parentData);
+                else {
+                    // Even if this isn't loaded yet, we should notify the change listeners that something 
+                    // happened at this path, if anyone is listening for it.
+                    for (let listener of this.pathChangeListeners.get(pathToCheck) ?? []) {
+                        listener({
+                            loading: false,
+                            promise: null,
+                            path: file.key,
+                            folders: [],
+                            files: [file],
+                            recursive: false,
+                        });
+                    }
                 }
             }
         }
@@ -270,36 +326,40 @@ class LiveDirectoryImpl extends LiveDirectory {
         // Look for any already loaded PathData objects that contain 
         // this file, which is only the immediate parent, and itself
 
-        // 1. Check if this file has already been loaded, and if so update it
-        const selfData: PathData | undefined = this.pathCache.get(path);
-        if (selfData) {
-            if (!selfData.loading) {
-                selfData.files = selfData.files.filter(f => f.key !== localPath);
-                this._setCachedPath(path, selfData);
+        const localPathParts: string[] = localPath.split('/');
+        // For every level of hierarchy depth, we want to check if that path has already been 
+        // loaded (either with a trailing slash or without) and then send appropriate updates.
+        for (let i = localPathParts.length; i > 0; i--) {
+            let localSubPath = localPathParts.slice(0, i).join('/');
+            if (!this.prefix.endsWith('/')) {
+                localSubPath = '/' + localSubPath;
             }
-        }
-        else {
-            // Even if this isn't loaded yet, we should notify the change listeners that something 
-            // happened at this path, if anyone is listening for it.
-            for (let listener of this.pathChangeListeners.get(path) ?? []) {
-                listener({
-                    loading: false,
-                    promise: null,
-                    path: path,
-                    folders: [],
-                    files: [],
-                    recursive: false,
-                });
-            }
-        }
+            const fullPath = this.prefix + localSubPath;
+            for (let slash = 0; slash <= 1; slash++) {
+                const pathToCheck = fullPath + (slash == 0 ? '' : '/');
 
-        // 2. Check if the parent has already been loaded
-        const parentPath: string = path.substring(0, path.lastIndexOf('/')) + "/";
-        const parentData: PathData | undefined = this.pathCache.get(parentPath);
-        if (parentData) {
-            if (!parentData.loading) {
-                parentData.files = parentData.files.filter(f => f.key !== localPath);
-                this._setCachedPath(parentPath, parentData);
+                // 1. Check if this file has already been loaded, and if so update it
+                const cachedData: PathData | undefined = this.pathCache.get(pathToCheck);
+                if (cachedData) {
+                    if (!cachedData.loading) {
+                        cachedData.files = cachedData.files.filter(f => f.key !== localPath);
+                        this._setCachedPath(pathToCheck, cachedData);
+                    }
+                }
+                else {
+                    // Even if this isn't loaded yet, we should notify the change listeners that something 
+                    // happened at this path, if anyone is listening for it.
+                    for (let listener of this.pathChangeListeners.get(pathToCheck) ?? []) {
+                        listener({
+                            loading: false,
+                            promise: null,
+                            path: pathToCheck,
+                            folders: [],
+                            files: [],
+                            recursive: false,
+                        });
+                    }
+                }
             }
         }
     }

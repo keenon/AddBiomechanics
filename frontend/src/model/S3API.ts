@@ -36,6 +36,7 @@ class S3APIMock extends S3API {
     networkOutage: boolean = false;
     networkErrorMessage: string | null = null;
     networkErrorMessageListeners: ((message: string | null) => void)[] = [];
+    networkCallCount: number = 0;
 
     constructor() {
         super();
@@ -82,6 +83,7 @@ class S3APIMock extends S3API {
     }
 
     loadPathData(path: string, recursive: boolean): Promise<{files: FileMetadata[], folders: string[]}> {
+        this.networkCallCount ++;
         return new Promise((resolve, reject) => {
             if (this.networkOutage) {
                 reject("Network outage");
@@ -111,6 +113,8 @@ class S3APIMock extends S3API {
     }
 
     getSignedURL(path: string, expiresIn: number): Promise<string> {
+        this.networkCallCount ++;
+
         return new Promise((resolve, reject) => {
             if (this.networkOutage) {
                 reject("Network outage");
@@ -121,6 +125,8 @@ class S3APIMock extends S3API {
     }
 
     downloadText(path: string): Promise<string> {
+        this.networkCallCount ++;
+
         return new Promise((resolve, reject) => {
             if (this.networkOutage) {
                 reject("Network outage");
@@ -136,6 +142,8 @@ class S3APIMock extends S3API {
     }
 
     uploadText(path: string, text: string): Promise<void> {
+        this.networkCallCount ++;
+
         return new Promise((resolve, reject) => {
             if (this.networkOutage) {
                 reject("Network outage");
@@ -154,6 +162,7 @@ class S3APIMock extends S3API {
 
     uploadFile(path: string, contents: File, progressCallback: (percentage: number) => void): Promise<void>
     {
+        this.networkCallCount++;
         return new Promise((resolve, reject) => {
             if (this.networkOutage) {
                 reject("Network outage");
@@ -172,6 +181,7 @@ class S3APIMock extends S3API {
 
     delete(path: string): Promise<void>
     {
+        this.networkCallCount++;
         return new Promise((resolve, reject) => {
             if (this.networkOutage) {
                 reject("Network outage");
