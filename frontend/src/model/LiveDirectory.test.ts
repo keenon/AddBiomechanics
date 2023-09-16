@@ -667,7 +667,7 @@ describe("LiveDirectory", () => {
         expect(newPath.files.length).toBe(1);
     });
 
-    test("Delete by prefix works as expected with a recursive parent", async () => {
+    test("Delete by prefix works as expected with a recursive root parent", async () => {
         const s3 = new S3APIMock();
         const pubsub = new PubSubSocketMock("DEV");
         const api = new LiveDirectoryImpl("protected/us-west-2:test/data/", s3, pubsub);
@@ -693,7 +693,7 @@ describe("LiveDirectory", () => {
         expect(rootAfterDelete.folders.length).toBe(2);
     });
 
-    test("Delete by prefix works as expected with a non-recursive parent", async () => {
+    test("Delete by prefix works as expected with a non-recursive root parent", async () => {
         const s3 = new S3APIMock();
         const pubsub = new PubSubSocketMock("DEV");
         const api = new LiveDirectoryImpl("protected/us-west-2:test/data/", s3, pubsub);
@@ -718,4 +718,31 @@ describe("LiveDirectory", () => {
         expect(rootAfterDelete.loading).toBe(false);
         expect(rootAfterDelete.folders.length).toBe(2);
     });
+
+    test("Delete by prefix works as expected with a non-recursive non-root parent", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:test/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:test/data/dataset1/subject1",
+            "protected/us-west-2:test/data/dataset1/subject1/_subject.json",
+            "protected/us-west-2:test/data/dataset1/subject2",
+            "protected/us-west-2:test/data/dataset1/subject2/_subject.json",
+            "protected/us-west-2:test/data/dataset1/subject2/trials/1/markers.c3d",
+            "protected/us-west-2:test/data/dataset1/subject3/_subject.json",
+            "protected/us-west-2:test/data/dataset2/",
+            "protected/us-west-2:test/data/root_subject/_subject.json",
+            "protected/us-west-2:test/data/_subject.json",
+        ]);
+        const root = api.getPath("dataset1/", false);
+        await root.promise;
+
+        await api.deleteByPrefix("dataset1/subject2");
+        expect(s3.files.length).toBe(6);
+
+        const rootAfterDelete = api.getPath("dataset1/", false);
+        expect(rootAfterDelete.loading).toBe(false);
+        expect(rootAfterDelete.folders.length).toBe(2);
+    });
+
 });

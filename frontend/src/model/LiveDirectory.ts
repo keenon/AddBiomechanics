@@ -443,7 +443,8 @@ class LiveDirectoryImpl extends LiveDirectory {
                             if (parentPath.endsWith('/')) parentPath = parentPath.substring(0, parentPath.length - 1);
                             parentPath = parentPath.substring(0, parentPath.lastIndexOf('/') + 1);
                             const parentData = this.pathCache.get(parentPath);
-                            const folderNameToDelete = pathToCheck.substring(this.prefix.length);
+                            let folderNameToDelete = pathToCheck.substring(this.prefix.length);
+                            if (!folderNameToDelete.endsWith('/')) folderNameToDelete += '/';
                             if (parentData != null && !parentData.recursive) {
                                 this._setCachedPath(parentPath, {
                                     ...parentData,
