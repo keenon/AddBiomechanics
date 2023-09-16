@@ -112,6 +112,7 @@ class TestSubject(unittest.TestCase):
         subject.initialIKRestarts = 3
         subject.run_kinematics_fit(os.path.abspath('../../data'))
         subject.write_opensim_results(os.path.abspath('../test_data/opencap_test/osim_results'), os.path.abspath('../../data'))
+        subject.write_web_results(os.path.abspath('../test_data/opencap_test/'))
 
     def test_dynamics_fit(self):
         subject = Subject()
@@ -123,3 +124,4 @@ class TestSubject(unittest.TestCase):
         subject.run_kinematics_fit(os.path.abspath('../../data'))
         subject.run_dynamics_fit()
         subject.write_opensim_results(os.path.abspath('../test_data/opencap_test/osim_results'), os.path.abspath('../../data'))
+        subject.write_web_results(os.path.abspath('../test_data/opencap_test/'))

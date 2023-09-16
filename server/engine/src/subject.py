@@ -7,6 +7,7 @@ import numpy as np
 import os
 import shutil
 import subprocess
+import textwrap
 
 
 # Global paths to the geometry and data folders.
@@ -273,12 +274,28 @@ class Subject:
     ###################################################################################################################
 
     def segment_trials(self):
+        """
+        This function splits the trials into segments based on when the GRF is zero, and also based on a maximum length
+        per trial, to allow the kinematics and dynamics pipelines to run more efficiently.
+        """
         for trial in self.trials:
             trial.split_segments(max_grf_gap_fill_size=1.0, max_segment_frames=2000)
 
+    def evaluate_manually_scaled_error(self):
+        """
+        This function computes the error between the manually scaled skeleton and the marker data, if present.
+        """
+        if self.goldOsim is None:
+            return
+        for trial in self.trials:
+            for segment in trial.segments:
+                segment.compute_manually_scaled_ik_error(self.goldOsim)
+
     def run_kinematics_fit(self, data_folder_path: str):
-        # 1. Configure the MarkerFitter object.
-        # -------------------------------------
+        """
+        This will optimize for body scales, marker offsets, and joint positions over time to minimize marker error. It
+        ignores the dynamics information at this stage, even if it was provided.
+        """
         marker_fitter = nimble.biomechanics.MarkerFitter(
             self.skeleton, self.markerSet)
         marker_fitter.setInitialIKSatisfactoryLoss(1e-5)
@@ -435,8 +452,17 @@ class Subject:
             trial_segments[i].kinematics_status = ProcessingStatus.FINISHED
             trial_segments[i].kinematics_poses = marker_fitter_results[i].poses
             trial_segments[i].marker_fitter_result = marker_fitter_results[i]
+            trial_segments[i].kinematics_ik_error_report = nimble.biomechanics.IKErrorReport(
+                self.finalSkeleton,
+                self.finalMarkers,
+                trial_segments[i].kinematics_poses,
+                trial_segments[i].marker_observations)
 
     def run_dynamics_fit(self):
+        """
+        This will optimize for body masses, body scales, marker offsets, and joint positions over time to try to
+        minimize the error with both marker data and force plate data simultaneously.
+        """
         trial_segments: List[TrialSegment] = []
         for trial in self.trials:
             if not trial.error:
@@ -462,17 +488,17 @@ class Subject:
             foot_bodies.append(self.finalSkeleton.getBodyNode(name))
         print('Using feet: ' + str(self.footBodyNames), flush=True)
 
-        self.finalSkeleton.setGravity([0, -9.81, 0])
+        self.finalSkeleton.setGravity([0.0, -9.81, 0.0])
         dynamics_fitter = nimble.biomechanics.DynamicsFitter(
             self.finalSkeleton, foot_bodies, self.customOsim.trackingMarkers)
         print('Created DynamicsFitter', flush=True)
 
-        # Sanity check the force plate data
-        for trial in trial_segments:
-            for force_plate in trial.force_plates:
-                print('poses cols: '+str(trial.kinematics_poses.shape[1]))
+        # Sanity check the force plate data sizes match the kinematics data sizes
+        for trial_segment in trial_segments:
+            for force_plate in trial_segment.force_plates:
+                print('poses cols: '+str(trial_segment.kinematics_poses.shape[1]))
                 print('force len: '+str(len(force_plate.forces)))
-                assert(trial.kinematics_poses.shape[1] == len(force_plate.forces))
+                assert(trial_segment.kinematics_poses.shape[1] == len(force_plate.forces))
                 assert(len(force_plate.forces) == len(force_plate.centersOfPressure))
                 assert(len(force_plate.forces) == len(force_plate.moments))
 
@@ -659,14 +685,45 @@ class Subject:
 
             trial_segments[i].bad_dynamics_frames = bad_dynamics_frames
             trial_segments[i].dynamics_poses = dynamics_init.poseTrials[i]
-            trial_segments[i].force_plates = dynamics_init.forcePlateTrials[i]
+            trial_segments[i].output_force_plates = dynamics_init.forcePlateTrials[i]
             trial_segments[i].dynamics_status = ProcessingStatus.FINISHED
+            trial_segments[i].dynamics_ik_error_report = nimble.biomechanics.IKErrorReport(
+                self.finalSkeleton,
+                self.finalMarkers,
+                trial_segments[i].dynamics_poses,
+                trial_segments[i].marker_observations)
 
         self.finalMarkers = dynamics_init.updatedMarkerMap
 
     ###################################################################################################################
     # Writing out results
     ###################################################################################################################
+
+    def get_overall_results_json(self) -> Dict[str, Any]:
+        overall_results: Dict[str, Any] = {}
+        for trial in self.trials:
+            trial_results: Dict[str, Any] = {}
+            segment_results: List[Dict[str, Any]] = [segment.get_segment_results_json() for segment in trial.segments]
+            trial_results['segments'] = segment_results
+            overall_results[trial.trial_name] = trial_results
+        return overall_results
+
+    def generate_readme(self) -> str:
+        # 11. Generate the README file.
+        # -----------------------------
+        print('Generating README file...')
+
+        text = ''
+        text += "*** This data was generated with AddBiomechanics (www.addbiomechanics.org) ***\n"
+        text += "AddBiomechanics was written by Keenon Werling.\n"
+        text += "\n"
+        text += textwrap.fill(
+            "Please visit our forums on SimTK for help using the tool: "
+            "https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB")
+
+        # TODO: Add the rest of the autogenerated README file
+
+        return text
 
     def write_opensim_results(self, results_path: str, data_folder_path: str):
         if not results_path.endswith('/'):
@@ -888,6 +945,10 @@ class Subject:
             if not os.path.exists(results_path):
                 os.mkdir(results_path)
 
+            overall_results = self.get_overall_results_json()
+            with open(results_path + '_results.json', 'w') as f:
+                json.dump(overall_results, f, indent=4)
+
             trials_folder_path = results_path + 'trials/'
             if not os.path.exists(trials_folder_path):
                 os.mkdir(trials_folder_path)
@@ -904,10 +965,13 @@ class Subject:
                         os.mkdir(segment_path)
                     # Write out the result summary JSON
                     print('Writing JSON result to ' + segment_path + '_results.json', flush=True)
-                    segment.save_segment_results_to_json(segment_path + '_results.json')
-                    segment.save_segment_to_gui(segment_path + 'preview.bin')
-                    segment.save_segment_csv(segment_path + 'data.csv')
-                    # Gzip up the animation preview binary.
-                    print('Gzip up ' + segment_path + 'preview.bin', flush=True)
-                    subprocess.run(["gzip", 'preview.bin'], cwd=segment_path, capture_output=True)
-                    print('Finished zipping up ' + segment_path + 'preview.bin.zip', flush=True)
+                    segment_json = segment.get_segment_results_json()
+                    with open(segment_path + '_results.json', 'w') as f:
+                        json.dump(segment_json, f, indent=4)
+                    # Write out the animation preview binary
+                    segment.save_segment_to_gui(segment_path + 'preview.bin',
+                                                self.finalSkeleton,
+                                                self.fitMarkers,
+                                                self.goldOsim)
+                    # Write out the data CSV for the plotting software to synchronize on the frontend
+                    segment.save_segment_csv(segment_path + 'data.csv', self.finalSkeleton)

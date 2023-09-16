@@ -3,7 +3,7 @@ import unittest
 from src.trial import Trial, TrialSegment
 import numpy as np
 import nimblephysics as nimble
-from typing import List, Dict, Tuple
+from typing import List, Dict, Any
 import os
 
 
@@ -263,16 +263,9 @@ class TestTrial(unittest.TestCase):
         trial.split_segments()
         self.assertEqual(1, len(trial.segments))
 
-    def test_dump_trial_json(self):
+    def test_get_trial_json(self):
         trial = Trial()
         segment = TrialSegment(trial, 1, 2)
-        segment.save_segment_results_to_json(os.path.abspath('../test_data/test_segment.json'))
-        self.assertTrue(os.path.exists(os.path.abspath('../test_data/test_segment.json')))
-        with open(os.path.abspath('../test_data/test_segment.json'), 'r') as f:
-            try:
-                blob = json.load(f)
-                self.assertEqual(1, blob['start'])
-                self.assertEqual(2, blob['end'])
-            except json.decoder.JSONDecodeError:
-                self.fail('JSONDecodeError')
-        os.remove(os.path.abspath('../test_data/test_segment.json'))
+        results: Dict[str, Any] = segment.get_segment_results_json()
+        self.assertEqual(1, results['start'])
+        self.assertEqual(2, results['end'])

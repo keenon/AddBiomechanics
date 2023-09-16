@@ -209,15 +209,14 @@ class TrialSegment:
         self.manually_scaled_ik_poses: Optional[np.ndarray] = None
         if self.parent.manually_scaled_ik is not None and self.parent.manually_scaled_ik.shape[1] >= self.end:
             self.manually_scaled_ik_poses = self.parent.manually_scaled_ik[:, self.start:self.end]
-        # General output data
-        self.linear_residuals: float = 0.0
-        self.angular_residuals: float = 0.0
+        self.manually_scaled_ik_error_report: Optional[nimble.biomechanics.IKErrorReport] = None
         # Kinematics output data
         self.marker_error_report: Optional[nimble.biomechanics.MarkersErrorReport] = None
         self.marker_observations: List[Dict[str, np.ndarray]] = self.original_marker_observations
         self.kinematics_status: ProcessingStatus = ProcessingStatus.NOT_STARTED
         self.kinematics_poses: Optional[np.ndarray] = None
         self.marker_fitter_result: Optional[nimble.biomechanics.MarkerInitialization] = None
+        self.kinematics_ik_error_report: Optional[nimble.biomechanics.IKErrorReport] = None
         # Dynamics output data
         self.dynamics_status: ProcessingStatus = ProcessingStatus.NOT_STARTED
         self.dynamics_poses: Optional[np.ndarray] = None
@@ -225,96 +224,160 @@ class TrialSegment:
         self.bad_dynamics_frames: List[int] = []
         self.ground_height: float = 0.0
         self.foot_body_wrenches: Optional[np.ndarray] = None
+        self.output_force_plates: List[nimble.biomechanics.ForcePlate] = []
+        self.linear_residuals: float = 0.0
+        self.angular_residuals: float = 0.0
+        self.dynamics_ik_error_report: Optional[nimble.biomechanics.IKErrorReport] = None
         # Rendering state
         self.render_markers_set: Set[str] = set()
         self.render_markers_renamed_set: Set[Tuple[str, str]] = set()
 
-    def save_segment_results_to_json(self,
-                                     json_file_path: str,
-                                     final_skeleton: Optional[nimble.dynamics.Skeleton] = None,
-                                     fit_markers: Optional[Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]]] = None,
-                                     manually_scaled_osim: Optional[nimble.biomechanics.OpenSimFile] = None):
-        with open(json_file_path, 'w') as f:
-            has_marker_warnings: bool = False
-            if self.marker_error_report is not None:
-                if len(self.marker_error_report.droppedMarkerWarnings) > 0:
-                    has_marker_warnings = True
-                if len(self.marker_error_report.markersRenamedFromTo) > 0:
-                    has_marker_warnings = True
+    def compute_manually_scaled_ik_error(self, manually_scaled_osim: nimble.biomechanics.OpenSimFile):
+        self.manually_scaled_ik_error_report = nimble.biomechanics.IKErrorReport(
+            manually_scaled_osim.skeleton,
+            manually_scaled_osim.markersMap,
+            self.manually_scaled_ik_poses,
+            self.marker_observations)
 
-            manually_scaled_ik: Optional[nimble.biomechanics.IKErrorReport] = None
-            if self.manually_scaled_ik_poses is not None:
-                manually_scaled_ik = nimble.biomechanics.IKErrorReport(
-                    manually_scaled_osim.skeleton,
-                    manually_scaled_osim.markersMap,
-                    self.manually_scaled_ik_poses,
-                    self.marker_observations)
-                print('manually scaled average RMSE cm: ' +
-                      str(manually_scaled_ik.averageRootMeanSquaredError), flush=True)
-                print('manually scaled average max cm: ' +
-                      str(manually_scaled_ik.averageMaxError), flush=True)
+    def get_segment_results_json(self) -> Dict[str, Any]:
+        has_marker_warnings: bool = False
+        if self.marker_error_report is not None:
+            if len(self.marker_error_report.droppedMarkerWarnings) > 0:
+                has_marker_warnings = True
+            if len(self.marker_error_report.markersRenamedFromTo) > 0:
+                has_marker_warnings = True
 
-            # Store the marker errors.
-            result_kinematics: Optional[nimble.biomechanics.IKErrorReport] = None
-            if self.kinematics_poses is not None and final_skeleton is not None and fit_markers is not None:
-                result_kinematics = nimble.biomechanics.IKErrorReport(
-                    final_skeleton, fit_markers, self.kinematics_poses, self.marker_observations)
+        results: Dict[str, Any] = {
+            'trialName': self.parent.trial_name,
+            'start_frame': self.start,
+            'start': self.timestamps[0],
+            'end_frame': self.end,
+            'end': self.timestamps[-1],
+            # Kinematics fit marker error results, if present
+            'kinematicsStatus': self.kinematics_status.name,
+            'kinematicsAvgRMSE': self.kinematics_ik_error_report.averageRootMeanSquaredError if self.kinematics_ik_error_report is not None else None,
+            'kinematicsAvgMax': self.kinematics_ik_error_report.averageMaxError if self.kinematics_ik_error_report is not None else None,
+            'kinematicsPerMarkerRMSE': self.kinematics_ik_error_report.getSortedMarkerRMSE() if self.kinematics_ik_error_report is not None else None,
+            # Dynamics fit results, if present
+            'dynamicsStatus': self.dynamics_status.name,
+            'dynanimcsAvgRMSE': self.dynamics_ik_error_report.averageRootMeanSquaredError if self.dynamics_ik_error_report is not None else None,
+            'dynanimcsAvgMax': self.dynamics_ik_error_report.averageMaxError if self.dynamics_ik_error_report is not None else None,
+            'dynanimcsPerMarkerRMSE': self.dynamics_ik_error_report.getSortedMarkerRMSE() if self.dynamics_ik_error_report is not None else None,
+            'linearResiduals': self.linear_residuals,
+            'angularResiduals': self.angular_residuals,
+            # Hand scaled marker error results, if present
+            'goldAvgRMSE': self.manually_scaled_ik_error_report.averageRootMeanSquaredError if self.manually_scaled_ik_error_report is not None else None,
+            'goldAvgMax': self.manually_scaled_ik_error_report.averageMaxError if self.manually_scaled_ik_error_report is not None else None,
+            'goldPerMarkerRMSE': self.manually_scaled_ik_error_report.getSortedMarkerRMSE() if self.manually_scaled_ik_error_report is not None else None,
+            'hasMarkers': self.has_markers,
+            'hasForces': self.has_forces,
+            'hasMarkerWarnings': has_marker_warnings
+        }
+        return results
 
-            result_dynamics: Optional[nimble.biomechanics.IKErrorReport] = None
-            if self.dynamics_poses is not None and final_skeleton is not None and fit_markers is not None:
-                result_dynamics = nimble.biomechanics.IKErrorReport(
-                    final_skeleton, fit_markers, self.dynamics_poses, self.marker_observations)
-
-            results: Dict[str, Any] = {
-                'trialName': self.parent.trial_name,
-                'start': self.start,
-                'end': self.end,
-                # Kinematics fit marker error results, if present
-                'kinematicsStatus': self.kinematics_status.name,
-                'kinematicsAvgRMSE': result_kinematics.averageRootMeanSquaredError if result_kinematics is not None else None,
-                'kinematicsAvgMax': result_kinematics.averageMaxError if result_kinematics is not None else None,
-                'kinematicsPerMarkerRMSE': result_kinematics.getSortedMarkerRMSE() if result_kinematics is not None else None,
-                # Dynamics fit results, if present
-                'dynamicsStatus': self.dynamics_status.name,
-                'dynanimcsAvgRMSE': result_dynamics.averageRootMeanSquaredError if result_dynamics is not None else None,
-                'dynanimcsAvgMax': result_dynamics.averageMaxError if result_dynamics is not None else None,
-                'dynanimcsPerMarkerRMSE': result_dynamics.getSortedMarkerRMSE() if result_dynamics is not None else None,
-                'linearResiduals': self.linear_residuals,
-                'angularResiduals': self.angular_residuals,
-                # Hand scaled marker error results, if present
-                'goldAvgRMSE': manually_scaled_ik.averageRootMeanSquaredError if manually_scaled_ik is not None else None,
-                'goldAvgMax': manually_scaled_ik.averageMaxError if manually_scaled_ik is not None else None,
-                'goldPerMarkerRMSE': manually_scaled_ik.getSortedMarkerRMSE() if manually_scaled_ik is not None else None,
-                'hasMarkers': self.has_markers,
-                'hasForces': self.has_forces,
-                'hasMarkerWarnings': has_marker_warnings
-            }
-            json.dump(results, f)
-
-    def save_segment_to_gui(self, gui_file_path: str):
+    def save_segment_to_gui(self,
+                            gui_file_path: str,
+                            final_skeleton: Optional[nimble.dynamics.Skeleton] = None,
+                            final_markers: Optional[Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]]] = None,
+                            manually_scaled_skeleton: Optional[nimble.biomechanics.OpenSimFile] = None):
         """
         Write this trial segment to a file that can be read by the 3D web GUI
         """
         gui = nimble.server.GUIRecording()
 
         for t in range(len(self.marker_observations)):
-            self.render_markers_frame(gui, t)
+            self.render_markers_frame(gui, t, final_skeleton, final_markers, manually_scaled_skeleton)
             gui.saveFrame()
 
         gui.setFramesPerSecond(int(1.0 / self.parent.timestep))
         gui.writeFramesJson(gui_file_path)
 
-    def save_segment_csv(self, csv_file_path: str):
-        with open(csv_file_path, 'w') as f:
-            f.write('timestamp,')
-            # TODO
+    def save_segment_csv(self, csv_file_path: str, final_skeleton: Optional[nimble.dynamics.Skeleton] = None):
+        # Finite difference out the joint quantities we care about
+        poses: np.ndarray = np.zeros(0)
+        if self.dynamics_status == ProcessingStatus.FINISHED and self.dynamics_poses is not None:
+            poses = self.dynamics_poses
+        elif self.kinematics_status == ProcessingStatus.FINISHED and self.kinematics_poses is not None:
+            poses = self.kinematics_poses
+        vels: np.ndarray = np.zeros_like(poses)
+        accs: np.ndarray = np.zeros_like(poses)
+        for i in range(1, poses.shape[1]):
+            vels[:, i] = (poses[:, i] - poses[:, i - 1]) / self.parent.timestep
+        vels[:, 0] = vels[:, 1]
+        for i in range(1, vels.shape[1]):
+            accs[:, i] = (vels[:, i] - vels[:, i - 1]) / self.parent.timestep
+        accs[:, 0] = accs[:, 1]
 
-    def render_markers_frame(self, gui: nimble.server.GUIRecording, t: int):
-        # On the first frame, we want to create all the markers for subsequent frames
+        # Write the CSV file
+        with open(csv_file_path, 'w') as f:
+            f.write('timestamp')
+            if final_skeleton is not None:
+                if self.kinematics_status == ProcessingStatus.FINISHED:
+                    # Joint positions
+                    for i in range(final_skeleton.getNumDofs()):
+                        f.write(',' + final_skeleton.getDofByIndex(i).getName()+'_pos')
+                    # Joint velocities
+                    for i in range(final_skeleton.getNumDofs()):
+                        f.write(',' + final_skeleton.getDofByIndex(i).getName()+'_vel')
+                    # Joint accelerations
+                    for i in range(final_skeleton.getNumDofs()):
+                        f.write(',' + final_skeleton.getDofByIndex(i).getName()+'_acc')
+                if self.dynamics_status == ProcessingStatus.FINISHED:
+                    # Joint torques
+                    for i in range(final_skeleton.getNumDofs()):
+                        f.write(',' + final_skeleton.getDofByIndex(i).getName()+'_acc')
+            f.write('\n')
+
+            for t in range(len(self.marker_observations)):
+                f.write(str(self.timestamps[t]))
+                if final_skeleton is not None:
+                    if self.kinematics_status == ProcessingStatus.FINISHED:
+                        # Joint positions
+                        for i in range(final_skeleton.getNumDofs()):
+                            f.write(',' + str(poses[i, t]))
+                        # Joint velocities
+                        for i in range(final_skeleton.getNumDofs()):
+                            f.write(',' + str(vels[i, t]))
+                        # Joint accelerations
+                        for i in range(final_skeleton.getNumDofs()):
+                            f.write(',' + str(accs[i, t]))
+                    if self.dynamics_status == ProcessingStatus.FINISHED:
+                        # Joint torques
+                        for i in range(final_skeleton.getNumDofs()):
+                            f.write(',' + str(self.dynamics_taus[i, t]))
+                f.write('\n')
+
+    def render_markers_frame(self,
+                             gui: nimble.server.GUIRecording,
+                             t: int,
+                             final_skeleton: Optional[nimble.dynamics.Skeleton] = None,
+                             final_markers: Optional[Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]]] = None,
+                             manually_scaled_skeleton: Optional[nimble.biomechanics.OpenSimFile] = None):
         markers_layer_name: str = 'Markers'
-        marker_warnings_layer_name: str = 'Marker Warnings'
+        warnings_layer_name: str = 'Warnings'
+        force_plate_layer_name: str = 'Force Plates'
+        manually_fit_layer_name: str = 'Manually Fit'
+        kinematics_fit_layer_name: str = 'Kinematics Fit'
+        dynamics_fit_layer_name: str = 'Dynamics Fit'
+
+        # 1. On the first frame, we want to create all the markers for subsequent frames
         if t == 0:
-            # Create the data structures we'll re-use when rendering other frames
+            # 1.1. Set up the layers
+            gui.createLayer(markers_layer_name, [0.5, 0.5, 0.5, 1.0], defaultShow=False)
+            gui.createLayer(warnings_layer_name, [1.0, 0.0, 0.0, 1.0], defaultShow=False)
+            gui.createLayer(force_plate_layer_name, [0.0, 0.0, 1.0, 1.0], defaultShow=False)
+
+            if manually_scaled_skeleton is not None:
+                gui.createLayer(manually_fit_layer_name, [0.0, 0.0, 1.0, 1.0], defaultShow=False)
+            if self.kinematics_status == ProcessingStatus.FINISHED and final_skeleton is not None:
+                # Default to showing kinematics only if dynamics didn't finish
+                gui.createLayer(kinematics_fit_layer_name,
+                                defaultShow=(self.dynamics_status != ProcessingStatus.FINISHED))
+            if self.dynamics_status == ProcessingStatus.FINISHED and final_skeleton is not None:
+                # Default to showing dynamics if it finished
+                gui.createLayer(dynamics_fit_layer_name, defaultShow=True)
+
+            # 1.2. Create the marker set objects, so we don't recreate them every frame
             self.render_markers_set = set()
             for obs in self.marker_observations:
                 for key in obs:
@@ -324,10 +387,6 @@ class TrialSegment:
                 for renamedFrame in self.marker_error_report.markersRenamedFromTo:
                     for from_marker, to_marker in renamedFrame:
                         self.render_markers_renamed_set.add((from_marker, to_marker))
-
-            gui.createLayer(markers_layer_name, [0.5, 0.5, 0.5, 1.0], defaultShow=True)
-            if self.marker_error_report is not None:
-                gui.createLayer(marker_warnings_layer_name, [1.0, 0.0, 0.0, 1.0], defaultShow=False)
             for marker in self.render_markers_set:
                 gui.createBox('marker_' + str(marker),
                               np.ones(3, dtype=np.float64) * 0.02,
@@ -337,7 +396,7 @@ class TrialSegment:
                               layer=markers_layer_name)
                 gui.setObjectTooltip('marker_' + str(marker), str(marker))
 
-        # Now we can render the markers for this frame
+        # 2. Always render the markers, even if we don't have kinematics or dynamics
         for marker in self.render_markers_set:
             if marker in self.marker_observations[t]:
                 # Render all the marker observations
@@ -362,9 +421,28 @@ class TrialSegment:
                         to_marker_location = self.marker_observations[t][to_marker]
 
                     if to_marker_location is not None and from_marker_location is not None:
-                        gui.createLine('marker_renamed_' + str(from_marker) + '_to_' + str(to_marker), [to_marker_location, from_marker_location], [1.0, 0.0, 0.0, 1.0], layer=marker_warnings_layer_name)
-                    gui.setObjectWarning('marker_'+str(to_marker), 'warning_marker_renamed_' + str(from_marker) + '_to_' + str(to_marker), 'Marker ' + str(to_marker) + ' was originally named ' + str(from_marker))
+                        gui.createLine('marker_renamed_' + str(from_marker) + '_to_' + str(to_marker), [to_marker_location, from_marker_location], [1.0, 0.0, 0.0, 1.0], layer=warnings_layer_name)
+                    gui.setObjectWarning('marker_'+str(to_marker), 'warning_marker_renamed_' + str(from_marker) + '_to_' + str(to_marker), 'Marker ' + str(to_marker) + ' was originally named ' + str(from_marker), warnings_layer_name)
                 for from_marker, to_marker in self.render_markers_renamed_set:
                     if (from_marker, to_marker) not in renamed_from_to:
                         gui.deleteObject('marker_renamed_' + str(from_marker) + '_to_' + str(to_marker))
                     gui.deleteObjectWarning('marker_'+str(to_marker), 'warning_marker_renamed_' + str(from_marker) + '_to_' + str(to_marker))
+
+        # 3. Always render the force plates if we've got them, even if we don't have kinematics or dynamics
+        for i, force_plate in enumerate(self.force_plates):
+            if len(force_plate.centersOfPressure) > t and len(force_plate.forces) > t and len(force_plate.moments) > t:
+                cop = force_plate.centersOfPressure[t]
+                force = force_plate.forces[t]
+                moment = force_plate.moments[t]
+                line = [cop, cop + force * 0.001]
+                gui.createLine('force_plate_' + str(i), line, [1.0, 0.0, 0.0, 1.0], layer=force_plate_layer_name)
+
+        # 4. Render the kinematics skeleton, if we have it
+        if self.kinematics_status == ProcessingStatus.FINISHED and final_skeleton is not None:
+            final_skeleton.setPositions(self.kinematics_poses[:, t])
+            gui.renderSkeleton(final_skeleton, prefix='kinematics_', layer=kinematics_fit_layer_name)
+
+        # 5. Render the dynamics skeleton, if we have it
+        if self.dynamics_status == ProcessingStatus.FINISHED and final_skeleton is not None:
+            final_skeleton.setPositions(self.dynamics_poses[:, t])
+            gui.renderSkeleton(final_skeleton, prefix='dynamics_', layer=dynamics_fit_layer_name)
