@@ -128,7 +128,7 @@ const DataView = observer((props: DataViewProps) => {
     </div>
   }
   else if (pathType === 'trial_segment') {
-    body = <TrialSegmentView session={props.session} path={path} />
+    return <TrialSegmentView session={props.session} path={path} />
   }
   else {
     body = <div>Not yet implemented type: {pathType}</div>;

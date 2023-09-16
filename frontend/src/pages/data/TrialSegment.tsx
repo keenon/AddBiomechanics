@@ -93,6 +93,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
     const location = useLocation();
     const navigate = useNavigate();
     const standalone = useRef(null as null | any);
+    const [previewUrl, setPreviewUrl] = useState("");
     const [resultsJson, setResultsJson] = useState({} as ProcessingResultsJSON);
     const [plotCSV, setPlotCSV] = useState([] as Map<string, number | boolean>[]);
     const [plotTags, setPlotTags] = useState([] as string[]);
@@ -107,12 +108,16 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
     const dir = home.dir;
 
     useEffect(() => {
-        if (dir == null) {
-            return;
-        }
+        dir.getSignedURL(segmentContents.previewPath, 3600).then((url: string) => {
+            console.log("Got preview URL: " + url);
+            setPreviewUrl(url);
+        }).catch((e) => {
+            console.error(e);
+        });
 
         // Load the results JSON
         dir.downloadText(segmentContents.resultsJsonPath).then((text: string) => {
+            console.log("Got results JSON: " + text);
             setResultsJson(JSON.parse(text));
 
             // Scroll to the top
@@ -152,9 +157,11 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                 dataset.push(valuesMap);
             }
 
+            console.log(dataset);
+
             setPlotCSV(dataset);
         }).catch((e) => { });
-    }, [dir]); // note: don't depend on props.cursor, because that leads to an infinite loop in rendering
+    }, []);
 
     let body = null;
     let percentImprovementRMSE = ((resultsJson.goldAvgRMSE - resultsJson.autoAvgRMSE) / resultsJson.goldAvgRMSE) * 100;
@@ -195,7 +202,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
         let tagOptions: { value: string, label: string }[] = [];
         if (plotCSV.length > 0) {
             plotCSV[0].forEach((v, key) => {
-                if (key !== 'time') {
+                if (key !== 'timestamp') {
                     tagOptions.push({ value: key, label: key });
                 }
             });
@@ -210,6 +217,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             <Select
                 isMulti
                 isSearchable
+                placeholder="Select data series to plot"
                 styles={customStyles}
                 value={selectedOptions}
                 onChange={(newOptions) => {
@@ -227,7 +235,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
 
         let labels = [];
         for (let i = 0; i < plotCSV.length; i++) {
-            labels.push(plotCSV[i].get('time'));
+            labels.push(plotCSV[i].get('timestamp'));
         }
 
         let colors = [
@@ -334,12 +342,15 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             let label = plotTags[j];
             let data: any[] = [];
             for (let i = 0; i < plotCSV.length; i++) {
+                /*
                 if (plotCSV[i].get('missing_grf_data') && (label.indexOf('tau') !== -1 || label.indexOf('force') !== -1 || label.indexOf('moment') !== -1)) {
                     data.push(null);
                 }
                 else {
                     data.push(plotCSV[i].get(label) as number);
                 }
+                */
+                data.push(plotCSV[i].get(label) as number);
             }
             let yAxisID = "";
             if (label.indexOf("tau") !== -1) {
@@ -413,9 +424,10 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             scales[yAxisID].min = minValueAsPercentageOverall * (axisDataRanges.get(yAxisID) ?? 0.0);
             scales[yAxisID].max = maxValueAsPercentageOverall * (axisDataRanges.get(yAxisID) ?? 0.0);
         });
-        console.log(scales);
 
         let options: any = {
+            responsive: true,
+            maintainAspectRatio: false,
             scales,
             interaction: {
                 intersect: false,
@@ -462,51 +474,50 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
         let downloadButton = null;
         if (dir != null) {
             downloadButton = (
-                <Button onClick={() => dir?.downloadText(segmentContents.dataPath)}>
+                <Button onClick={() => dir.downloadFile(segmentContents.dataPath)}>
                     <i className="mdi mdi-download me-2 vertical-middle"></i>
                     Download Raw Data CSV
                 </Button>
             );
         }
 
-        plot = <div>
-            <p>
-                Analyze the results:
-            </p>
-            {select}
-            <Line data={data as any} options={options} ref={(r) => {
-                chartRef.current = r;
-            }} onMouseDownCapture={(e) => {
-                const onMouseEvent = (e: any) => {
-                    e.preventDefault();
-                    globalCurrentFrame[0] = globalMouseoverIndex[0];
-                    setFrame(globalCurrentFrame[0]);
-                };
-                onMouseEvent(e);
-
-                window.addEventListener('mousemove', onMouseEvent);
-
-                const onMouseUp = () => {
-                    window.removeEventListener('mousemove', onMouseEvent);
-                    window.removeEventListener('mouseup', onMouseUp);
-                }
-                window.addEventListener('mouseup', onMouseUp);
-            }} />
-            <div className="mt-2">
-                {downloadButton}
+        plot = <>
+            <div style={{ height: '50px' }}>
+                {select}
             </div>
-        </div>;
+            <div style={{ height: 'calc(50vh - 50px)' }}>
+                <Line data={data as any} options={options} ref={(r) => {
+                    chartRef.current = r;
+                }} onMouseDownCapture={(e) => {
+                    const onMouseEvent = (e: any) => {
+                        e.preventDefault();
+                        globalCurrentFrame[0] = globalMouseoverIndex[0];
+                        setFrame(globalCurrentFrame[0]);
+                    };
+                    onMouseEvent(e);
+
+                    window.addEventListener('mousemove', onMouseEvent);
+
+                    const onMouseUp = () => {
+                        window.removeEventListener('mousemove', onMouseEvent);
+                        window.removeEventListener('mouseup', onMouseUp);
+                    }
+                    window.addEventListener('mouseup', onMouseUp);
+                }} />
+            </div>
+        </>;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
     // Set up the 3D Visualizer
     ////////////////////////////////////////////////////////////////////////////////////
 
-    body = (
-        <div className="MocapView">
+    let viewer = null;
+    if (previewUrl !== "") {
+        viewer =
             <NimbleStandaloneReact
-                style={{ height: '400px' }}
-                loadUrl={segmentContents.previewPath}
+                style={{ height: '100%' }}
+                loadUrl={previewUrl}
                 frame={frame}
                 onFrameChange={(newFrame) => {
                     globalCurrentFrame[0] = newFrame;
@@ -516,44 +527,16 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                     // setFrame(newFrame);
                 }}
             />
-            <div>
-                <Table>
-                    <thead>
-                        <tr>
-                            <td></td>
-                            <td>Avg. Marker-error RMSE</td>
-                            <td>Avg. Marker-error Max</td>
-                            <td>Avg. Linear Residual</td>
-                            <td>Avg. Angular Residual</td>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {(() => {
-                            if (!isNaN(resultsJson.goldAvgRMSE)) {
-                                return (
-                                    <tr>
-                                        <td>Hand-scaling Performance:</td>
-                                        <td>{(resultsJson.goldAvgRMSE * 100 ?? 0.0).toFixed(2)} cm</td>
-                                        <td>{(resultsJson.goldAvgMax * 100 ?? 0.0).toFixed(2)} cm</td>
-                                    </tr>
-                                );
-                            }
-                        })()}
-                        <tr>
-                            <td>Auto-scaling Performance:</td>
-                            <td>{(resultsJson.autoAvgRMSE * 100 ?? 0.0).toFixed(2)} cm {
-                                isNaN(percentImprovementRMSE) ? null : <b>({percentImprovementRMSE.toFixed(1)}% error {percentImprovementRMSE > 0 ? 'reduction' : 'increase'})</b>
-                            }</td>
-                            <td>{(resultsJson.autoAvgMax * 100 ?? 0.0).toFixed(2)} cm {
-                                isNaN(percentImprovementMax) ? null : <b>({percentImprovementMax.toFixed(1)}% error {percentImprovementMax > 0 ? 'reduction' : 'increase'})</b>
-                            }</td>
-                            <td>{linearResidualText}</td>
-                            <td>{angularResidualText}</td>
-                        </tr>
-                    </tbody>
-                </Table>
+    }
+
+    body = (
+        <div>
+            <div style={{ height: '50vh', width: '100vw', padding: 0, margin: 0, overflow: 'hidden' }}>
+                {viewer}
             </div>
-            {plot}
+            <div style={{ height: '50vh', width: '100vw', padding: 0, margin: 0 }}>
+                {plot}
+            </div>
         </div>
     );
 

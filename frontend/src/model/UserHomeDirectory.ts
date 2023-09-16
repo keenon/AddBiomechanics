@@ -104,7 +104,7 @@ class UserHomeDirectory {
         }
 
         // The shape of the path gives away that this is a trial segment
-        if (path.match(/trials\/[^\/]+\/segment_\d+$/)) {
+        if (path.match(/trials\/[^\/]+\/segment_\d+(\/)?$/)) {
             return 'trial_segment';
         }
         // The presence of marker files indicate that this is a trial

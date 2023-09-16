@@ -33,6 +33,7 @@ abstract class LiveDirectory {
 
     abstract getSignedURL(path: string, expiresIn: number): Promise<string>;
     abstract downloadText(path: string): Promise<string>;
+    abstract downloadFile(path: string): void;
     abstract uploadText(path: string, text: string): Promise<void>;
     abstract uploadFile(path: string, contents: File, progressCallback: (percentage: number) => void): Promise<void>;
     getJsonFile(path: string): LiveJsonFile {
@@ -482,6 +483,19 @@ class LiveDirectoryImpl extends LiveDirectory {
     downloadText(path: string): Promise<string>
     {
         return this.s3.downloadText(this.normalizePath(path));
+    }
+
+    downloadFile(path: string): void
+    {
+        this.getSignedURL(path, 3600).then((url) => {
+            // Download the file in the browser
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', '');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        });
     }
 
     uploadText(path: string, text: string): Promise<void>
