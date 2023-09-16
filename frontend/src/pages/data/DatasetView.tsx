@@ -7,7 +7,8 @@ import UserHomeDirectory, { DatasetContents } from "../../model/UserHomeDirector
 import Session from "../../model/Session";
 
 type DatasetViewProps = {
-    session: Session;
+    home: UserHomeDirectory;
+    currentLocationUserId: string;
     path: string;
 };
 
@@ -16,9 +17,8 @@ const DatasetView = observer((props: DatasetViewProps) => {
     const navigate = useNavigate();
     const [folderName, setFolderName] = useState("");
 
-    const dataPath = props.session.parseDataURL(location.pathname);
-    const home = dataPath.homeDirectory;
-    const path = dataPath.path;
+    const home = props.home;
+    const path = props.path;
     const dir = home.dir;
     const datasetContents: DatasetContents = home.getDatasetContents(path);
 
@@ -28,10 +28,10 @@ const DatasetView = observer((props: DatasetViewProps) => {
     return <div>
         <ul>
             {datasetContents.contents.map(({ name, type, path }) => {
-                return <li key={name}>{type}: <Link to={props.session.getDataURL(dataPath, path)}>{name}</Link> <button onClick={() => {
+                return <li key={name}>{type}: <Link to={Session.getDataURL(props.currentLocationUserId, path)}>{name}</Link> <button onClick={() => {
                     if (window.confirm("Are you sure you want to delete " + name + "?")) {
-                        console.log("Deleting " + name + " from " + dataPath.path);
-                        home.deleteFolder(dataPath.path, name);
+                        console.log("Deleting " + name + " from " + path);
+                        home.deleteFolder(path, name);
                     }
                 }}>Delete</button></li>;
             })}

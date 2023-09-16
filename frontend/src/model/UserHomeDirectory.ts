@@ -32,39 +32,11 @@ type TrialSegmentContents = {
 class UserHomeDirectory {
     dir: LiveDirectory;
 
-    // Login relate data
-    loadingLoginState: boolean = true;
-    authenticated: boolean = false;
-    email: string = '';
-
     // 'protected/' + s3.region + ':' + userId + '/data/'
     constructor(dir: LiveDirectory) {
         this.dir = dir;
 
-        this.setEmail = this.setEmail.bind(this);
-        this.setAuthFailed = this.setAuthFailed.bind(this);
         this.getPathType = this.getPathType.bind(this);
-
-        makeObservable(this, {
-            dir: observable,
-            loadingLoginState: observable,
-            authenticated: observable,
-            email: observable,
-            setEmail: action,
-            setAuthFailed: action,
-        });
-    }
-
-    setEmail(email: string): void {
-        this.authenticated = true;
-        this.loadingLoginState = false;
-        this.email = email;
-    }
-
-    setAuthFailed(): void {
-        this.authenticated = false;
-        this.loadingLoginState = false;
-        this.email = '';
     }
 
     getPath(path: string, recursive: boolean = false): PathData {

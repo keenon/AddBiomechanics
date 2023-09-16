@@ -85,7 +85,7 @@ ChartJS.register(
 );
 
 type TrialSegmentViewProps = {
-    session: Session;
+    home: UserHomeDirectory;
     path: string;
 };
 
@@ -93,6 +93,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
     const location = useLocation();
     const navigate = useNavigate();
     const standalone = useRef(null as null | any);
+    const [playing, setPlaying] = useState(false);
     const [previewUrl, setPreviewUrl] = useState("");
     const [resultsJson, setResultsJson] = useState({} as ProcessingResultsJSON);
     const [plotCSV, setPlotCSV] = useState([] as Map<string, number | boolean>[]);
@@ -101,9 +102,8 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
     const chartRef = useRef(null as any);
     const modalRef = useRef(null as any);
 
-    const dataPath = props.session.parseDataURL(location.pathname);
-    const home = dataPath.homeDirectory;
-    const path = dataPath.path;
+    const home = props.home;
+    const path = props.path;
     const segmentContents: TrialSegmentContents = home.getTrialSegmentContents(path);
     const dir = home.dir;
 
@@ -226,6 +226,16 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                 options={tagOptions}
                 noOptionsMessage={() => {
                     return "No columns of data available match your search.";
+                }}
+                onKeyDown={(e) => {
+                    console.log("Key down: ", e.key);
+                    if (e.key === ' ') {
+                        console.log("Spacebar pressed");
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPlaying(!playing);
+                    }
+                    return false;
                 }}
             />;
 
@@ -481,30 +491,39 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             );
         }
 
+        let body = null;
+        if (selectedOptions.length === 0) {
+            body = <h1>Select Options to Plot ^</h1>
+        }
+        else {
+            body = <Line data={data as any} options={options} ref={(r) => {
+                chartRef.current = r;
+            }} onMouseDownCapture={(e) => {
+                const onMouseEvent = (e: any) => {
+                    e.preventDefault();
+                    globalCurrentFrame[0] = globalMouseoverIndex[0];
+                    setFrame(globalCurrentFrame[0]);
+                    setPlaying(false);
+                };
+                onMouseEvent(e);
+
+                window.addEventListener('mousemove', onMouseEvent);
+
+                const onMouseUp = () => {
+                    window.removeEventListener('mousemove', onMouseEvent);
+                    window.removeEventListener('mouseup', onMouseUp);
+                }
+                window.addEventListener('mouseup', onMouseUp);
+            }} />
+        }
+
         plot = <>
             <div style={{ height: '50px' }}>
                 {select}
             </div>
             <div style={{ height: 'calc(50vh - 50px)' }}>
-                <Line data={data as any} options={options} ref={(r) => {
-                    chartRef.current = r;
-                }} onMouseDownCapture={(e) => {
-                    const onMouseEvent = (e: any) => {
-                        e.preventDefault();
-                        globalCurrentFrame[0] = globalMouseoverIndex[0];
-                        setFrame(globalCurrentFrame[0]);
-                    };
-                    onMouseEvent(e);
-
-                    window.addEventListener('mousemove', onMouseEvent);
-
-                    const onMouseUp = () => {
-                        window.removeEventListener('mousemove', onMouseEvent);
-                        window.removeEventListener('mouseup', onMouseUp);
-                    }
-                    window.addEventListener('mouseup', onMouseUp);
-                }} />
-            </div>
+                {body}
+            </div>;
         </>;
     }
 
@@ -519,6 +538,8 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                 style={{ height: '100%' }}
                 loadUrl={previewUrl}
                 frame={frame}
+                playing={playing}
+                onPlayPause={(newPlaying) => setPlaying(newPlaying)}
                 onFrameChange={(newFrame) => {
                     globalCurrentFrame[0] = newFrame;
                     if (chartRef.current != null) {
@@ -534,7 +555,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             <div style={{ height: '50vh', width: '100vw', padding: 0, margin: 0, overflow: 'hidden' }}>
                 {viewer}
             </div>
-            <div style={{ height: '50vh', width: '100vw', padding: 0, margin: 0 }}>
+            <div style={{ height: '50vh', width: '100vw', padding: 0, margin: 0, overflow: 'hidden' }}>
                 {plot}
             </div>
         </div>

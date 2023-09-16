@@ -95,12 +95,12 @@ class Session {
      * @param currentLocation The parsed current location of the browser
      * @param pathInCurrentUserDirectory The path to the file or folder, within the same UserHomeDirectory as we're currently viewing, to get the full URL for
      */
-    getDataURL(currentLocation: DataURL, pathInCurrentUserDirectory: string): string
+    static getDataURL(currentLocationUserId: string, pathInCurrentUserDirectory: string): string
     {
         if (pathInCurrentUserDirectory.startsWith("/")) {
             pathInCurrentUserDirectory = pathInCurrentUserDirectory.substring(1);
         }
-        return '/data/' + currentLocation.userId + '/' + pathInCurrentUserDirectory;
+        return '/data/' + currentLocationUserId + '/' + pathInCurrentUserDirectory;
     }
 
     /**

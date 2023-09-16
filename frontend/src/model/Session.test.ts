@@ -83,7 +83,7 @@ describe("Session", () => {
         // We're not logged in in this test, so everything should be readonly
         expect(parsed.readonly).toBe(true);
 
-        const link: string = session.getDataURL(parsed, 'ASB2023/S01/trials/walking/segment_1/markers.c3d');
+        const link: string = Session.getDataURL(parsed.userId, 'ASB2023/S01/trials/walking/segment_1/markers.c3d');
         expect(link).toBe('/data/35e1c7ca-cc58-457e-bfc5-f6161cc7278b/ASB2023/S01/trials/walking/segment_1/markers.c3d');
     });
 

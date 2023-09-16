@@ -4,18 +4,18 @@ import {
     useLocation,
     Outlet
 } from "react-router-dom";
-import UserHomeDirectory from "../../model/UserHomeDirectory";
+import Session from "../../model/Session";
 import { observer } from "mobx-react-lite";
 
 type RequiresAuthProps = {
-    home: UserHomeDirectory;
+    session: Session;
 }
 
 const RequiresAuth = observer((props: RequiresAuthProps) => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    if (!props.home.loadingLoginState && !props.home.authenticated) {
+    if (!props.session.loadingLoginState && !props.session.loggedIn) {
         console.log("User is not logged in. Navigating to /login");
         navigate("/login", { replace: true, state: { from: location } });
     }

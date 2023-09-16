@@ -4,9 +4,9 @@ import UserHomeDirectory from "../../model/UserHomeDirectory";
 import { observer } from "mobx-react-lite";
 import { PathData } from "../../model/LiveDirectory";
 import { Link } from "react-router-dom";
-import DropFile from "../../components/DropFile";
 import TrialSegmentView from "./TrialSegment";
 import DatasetView from "./DatasetView";
+import SubjectView from "./SubjectView";
 import Session from "../../model/Session";
 
 type DataViewProps = {
@@ -45,75 +45,10 @@ const DataView = observer((props: DataViewProps) => {
 
   const pathType = home.getPathType(path);
   if (pathType === 'dataset') {
-    body = <DatasetView session={props.session} path={path} />
+    body = <DatasetView home={home} path={path} currentLocationUserId={dataPath.userId} />
   }
   else if (pathType === 'subject') {
-    const subjectContents = home.getSubjectContents(path);
-    const subjectJson = subjectContents.subjectJson;
-    const testFlag = subjectContents.testFlagFile;
-    let subjectJsonContents = <div>Loading...</div>;
-    if (subjectJson != null) {
-      subjectJsonContents = <div>
-        <ul>
-          <li>
-            Sex: <input type="text"
-              value={subjectJson.getAttribute("sex", "unknown")}
-              onFocus={() => subjectJson.onFocusAttribute("sex")}
-              onBlur={() => subjectJson.onBlurAttribute("sex")}
-              onChange={(e) => {
-                subjectJson.setAttribute("sex", e.target.value);
-              }}></input>
-          </li>
-        </ul>
-      </div>
-    }
-    let testFlagContents = <div>Loading...</div>;
-    if (testFlag != null) {
-      if (testFlag.exists) {
-        testFlagContents = <div>TEST: True <button onClick={testFlag.delete}>Set False</button></div>
-      }
-      else {
-        testFlagContents = <div>TEST: False <button onClick={testFlag.upload}>Set True</button></div>
-      }
-    }
-
-    const uploadPath = path + "/test.c3d";
-    const pathData = home.getPath(uploadPath, false);
-    const uploadTest = (
-      <div>
-        <DropFile
-          pathData={pathData}
-          accept=".c3d"
-          upload={(file: File, progressCallback: (progress: number) => void) => {
-            if (home == null) {
-              throw new Error("No directory");
-            }
-            return home.dir.uploadFile(uploadPath, file, progressCallback);
-          }}
-          download={() => {
-            if (home == null) {
-              throw new Error("No directory");
-            }
-            // dir.downloadFile(uploadPath);
-            console.log("Download TODO");
-          }}
-          required={false} />
-      </div>
-    );
-
-    body = <div>
-      <div>
-        {subjectJsonContents}
-      </div>
-      {testFlagContents}
-      {uploadTest}
-      <h2>Trials:</h2>
-      <ul>
-        {subjectContents.trials.map(({ name, path }) => {
-          return <li key={name}>Trial: <Link to={props.session.getDataURL(dataPath, path)}>{name}</Link></li>;
-        })}
-      </ul>
-    </div>
+    body = <SubjectView home={home} path={path} currentLocationUserId={dataPath.userId} />
   }
   else if (pathType === 'trial') {
     const trialContents = home.getTrialContents(path);
@@ -122,13 +57,13 @@ const DataView = observer((props: DataViewProps) => {
       It has {trialContents.segments.length} segments.
       <ul>
         {trialContents.segments.map(({ name, path }) => {
-          return <li key={name}>Trial Segment: <Link to={props.session.getDataURL(dataPath, path)}>{name}</Link></li>;
+          return <li key={name}>Trial Segment: <Link to={Session.getDataURL(dataPath.userId, path)}>{name}</Link></li>;
         })}
       </ul>
     </div>
   }
   else if (pathType === 'trial_segment') {
-    return <TrialSegmentView session={props.session} path={path} />
+    return <TrialSegmentView home={home} path={path} />
   }
   else {
     body = <div>Not yet implemented type: {pathType}</div>;
