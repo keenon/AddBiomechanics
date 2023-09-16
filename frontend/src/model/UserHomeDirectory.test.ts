@@ -180,4 +180,64 @@ describe("UserHomeDirectory", () => {
         await api.createFolder("", "TestFolder");
         expect(counter.count).toBe(2);
     });
+
+    test("Delete folder triggers an autorun in subfolder", async () => {
+        // This test has side effects, so we isolate it
+        const isolated_s3 = new S3APIMock();
+        isolated_s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking/markers.c3d",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S02",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S02/trials",
+        ]);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
+        const api = new UserHomeDirectory(dir);
+        await api.getPath("ASB2023/", false);
+
+        const counter = { count: 0 };
+        autorun(() => {
+            api.getDatasetContents('ASB2023/');
+            counter.count++;
+        });
+        expect(counter.count).toBe(1);
+
+        await api.deleteFolder("ASB2023/", "S01");
+        expect(counter.count).toBeGreaterThan(1);
+    });
+
+    test("Delete folder triggers an autorun in root", async () => {
+        // This test has side effects, so we isolate it
+        const isolated_s3 = new S3APIMock();
+        isolated_s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking/markers.c3d",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/CVPR/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/CVPR/S02/trials",
+        ]);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
+        const api = new UserHomeDirectory(dir);
+        await api.getPath("", true);
+
+        const counter = { count: 0 };
+        autorun(() => {
+            api.getDatasetContents('');
+            counter.count++;
+        });
+        expect(counter.count).toBe(1);
+
+        await api.deleteFolder("", "ASB2023");
+        expect(counter.count).toBeGreaterThan(1);
+
+        let result = api.getPath("", true);
+        expect(result.loading).toBe(false);
+        expect(result.folders.length).toBe(1);
+    });
 });

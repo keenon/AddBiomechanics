@@ -639,4 +639,57 @@ describe("LiveDirectory", () => {
         disposer();
     });
 
+    test("Receiving a PubSub delete that is the only child of a recursively loaded folder should delete a folder", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/NewSubject/_dataset.json",
+        ]);
+
+        const path = api.getPath("ASB2023", true);
+        await path.promise;
+
+        pubsub.mockReceiveMessage({
+            topic: "/DEV/DELETE/protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data",
+            message: JSON.stringify({
+                key: "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/NewSubject/_dataset.json",
+                size: 0,
+                dateModified: new Date().toString(),
+            })
+        });
+
+        const newPath = api.getPath("ASB2023", false);
+        expect(newPath.loading).toBe(false);
+        expect(newPath.recursive).toBe(true);
+        expect(newPath.folders.length).toBe(0);
+        expect(newPath.files.length).toBe(1);
+    });
+
+    test("Delete by prefix works as expected", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:test/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:test/data/dataset1/subject1",
+            "protected/us-west-2:test/data/dataset1/subject1/_subject.json",
+            "protected/us-west-2:test/data/dataset1/subject2",
+            "protected/us-west-2:test/data/dataset1/subject2/_subject.json",
+            "protected/us-west-2:test/data/dataset1/subject2/trials/1/markers.c3d",
+            "protected/us-west-2:test/data/dataset1/subject3/_subject.json",
+            "protected/us-west-2:test/data/dataset2/",
+            "protected/us-west-2:test/data/root_subject/_subject.json",
+            "protected/us-west-2:test/data/_subject.json",
+        ]);
+        const root = api.getPath("", true);
+        await root.promise;
+
+        await api.deleteByPrefix("dataset1/");
+        expect(s3.files.length).toBe(3);
+
+        const rootAfterDelete = api.getPath("", true);
+        expect(rootAfterDelete.loading).toBe(false);
+        expect(rootAfterDelete.folders.length).toBe(2);
+    });
 });

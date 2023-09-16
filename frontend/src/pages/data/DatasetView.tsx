@@ -28,7 +28,12 @@ const DatasetView = observer((props: DatasetViewProps) => {
     return <div>
         <ul>
             {datasetContents.contents.map(({ name, type, path }) => {
-                return <li key={name}>{type}: <Link to={props.session.getDataURL(dataPath, path)}>{name}</Link></li>;
+                return <li key={name}>{type}: <Link to={props.session.getDataURL(dataPath, path)}>{name}</Link> <button onClick={() => {
+                    if (window.confirm("Are you sure you want to delete " + name + "?")) {
+                        console.log("Deleting " + name + " from " + dataPath.path);
+                        home.deleteFolder(dataPath.path, name);
+                    }
+                }}>Delete</button></li>;
             })}
         </ul>
         <div>

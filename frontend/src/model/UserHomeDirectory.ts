@@ -163,7 +163,19 @@ class UserHomeDirectory {
      */
     createFolder(path: string, folderName: string): Promise<void> {
         const dir = this.dir;
-        return dir.uploadText(path + '/' + folderName + '/_dataset.json', '{}');
+        return dir.uploadText(path + (path.length > 0 ? '/' : '') + folderName + '/_dataset.json', '{}');
+    }
+
+    /**
+     * This call will delete a folder.
+     * 
+     * @param path The path to the folder to delete
+     * @param folderName The name of the folder to delete
+     * @returns A promise for when the folder is deleted
+     */
+    deleteFolder(path: string, folderName: string): Promise<void> {
+        const dir = this.dir;
+        return dir.deleteByPrefix(path + (path.length > 0 ? '/' : '') + folderName);
     }
 
     /**

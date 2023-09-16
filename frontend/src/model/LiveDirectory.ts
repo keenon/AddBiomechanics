@@ -375,7 +375,6 @@ class LiveDirectoryImpl extends LiveDirectory {
                     }
 
                     if (anyChanged) {
-                        console.log("Notifying listeners of change to path "+pathToCheck, updatedCacheData);
                         this._setCachedPath(pathToCheck, updatedCacheData);
                     }
                 }
@@ -405,12 +404,12 @@ class LiveDirectoryImpl extends LiveDirectory {
         const localPathParts: string[] = localPath.split('/');
         // For every level of hierarchy depth, we want to check if that path has already been 
         // loaded (either with a trailing slash or without) and then send appropriate updates.
-        for (let i = localPathParts.length; i > 0; i--) {
+        for (let i = localPathParts.length; i >= 0; i--) {
             let localSubPath = localPathParts.slice(0, i).join('/');
             if (!this.prefix.endsWith('/')) {
                 localSubPath = '/' + localSubPath;
             }
-            const fullPath = this.prefix + localSubPath;
+            const fullPath = this.normalizePath(localSubPath);
             for (let slash = 0; slash <= 1; slash++) {
                 const pathToCheck = fullPath + (slash == 0 ? '' : '/');
 
@@ -418,9 +417,23 @@ class LiveDirectoryImpl extends LiveDirectory {
                 const cachedData: PathData | undefined = this.pathCache.get(pathToCheck);
                 if (cachedData) {
                     if (!cachedData.loading) {
+                        const files = cachedData.files.filter(f => f.key !== localPath);
+                        let folders = cachedData.folders;
+                        if (cachedData.recursive) {
+                            // If we loaded recursively, we can regenerate the list of folders from 
+                            // the files after we delete a file, to ensure that we propagate deletions 
+                            // of empty folders.
+                            const localPathNoLeadingSlash = localPathParts.slice(0, i).join('/');
+                            folders = [...new Set(files.filter((file) => {
+                                return file.key.substring(localPathNoLeadingSlash.length).includes('/');
+                            }).map((file) => {
+                                return file.key.substring(0, file.key.indexOf('/', localPathNoLeadingSlash.length) + 1);
+                            }))];
+                        }
                         this._setCachedPath(pathToCheck, {
                             ...cachedData,
-                            files: cachedData.files.filter(f => f.key !== localPath)
+                            files,
+                            folders
                         });
                     }
                 }
@@ -463,7 +476,6 @@ class LiveDirectoryImpl extends LiveDirectory {
                 size: text.length,
             };
             // We're about to receive this back from PubSub, but we can synchronously update it now
-            console.log("Uploaded file "+fullPath+"! Now immediately sending ourselves a PubSub update about it.", updatedFile);
             this._onReceivedPubSubUpdate({... updatedFile});
             // Also send to PubSub
             this.pubsub.publish({ topic, message: JSON.stringify(updatedFile) });
@@ -498,15 +510,23 @@ class LiveDirectoryImpl extends LiveDirectory {
                 lastModified: new Date(),
                 size: 0
             };
+            // We're about to receive this back from PubSub, but we can synchronously update it now
+            this._onReceivedPubSubDelete(fullPath);
+            // Also send to PubSub
             this.pubsub.publish({ topic, message: JSON.stringify(updatedFile) });
         });
     }
 
-    deleteByPrefix(path: string): Promise<void>
+    async deleteByPrefix(path: string): Promise<void>
     {
-        throw new Error("Not implemented yet.");
-        
-        return this.s3.deleteByPrefix(this.normalizePath(path));
+        let data = this.getPath(path, true);
+        if (data.promise != null) {
+            data = await data.promise;
+        }
+        const files = data.files;
+        return Promise.all(files.map((file) => {
+            return this.delete(file.key);
+        })) as any as Promise<void>;
     }
 };
 
