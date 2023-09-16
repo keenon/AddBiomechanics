@@ -435,6 +435,24 @@ class LiveDirectoryImpl extends LiveDirectory {
                             files,
                             folders
                         });
+
+                        // This means that a folder has been completely deleted, so we should check if its parent was _not_
+                        // loaded recursively, and if so, we should delete it from the parent's list of folders.
+                        if (files.length === 0 && folders.length === 0) {
+                            let parentPath = pathToCheck;
+                            if (parentPath.endsWith('/')) parentPath = parentPath.substring(0, parentPath.length - 1);
+                            parentPath = parentPath.substring(0, parentPath.lastIndexOf('/') + 1);
+                            const parentData = this.pathCache.get(parentPath);
+                            const folderNameToDelete = pathToCheck.substring(this.prefix.length);
+                            if (parentData != null && !parentData.recursive) {
+                                this._setCachedPath(parentPath, {
+                                    ...parentData,
+                                    folders: parentData.folders.filter((folder) => {
+                                        return folder !== folderNameToDelete;
+                                    })
+                                });
+                            }
+                        }
                     }
                 }
                 else {
