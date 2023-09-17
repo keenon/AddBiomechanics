@@ -74,15 +74,20 @@ class TrialToProcess:
         else:
             print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                   trialPath + '_results.json', flush=True)
-        if os.path.exists(trialPath + 'preview.bin.zip'):
-            self.index.uploadFile(self.previewBinFile,
-                                  trialPath + 'preview.bin.zip')
-        else:
-            print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
-                  trialPath + 'preview.bin.zip', flush=True)
-        if os.path.exists(trialPath + 'plot.csv'):
-            self.index.uploadFile(self.plotCSVFile,
-                                  trialPath + 'plot.csv')
+        # Recursively list all the files in the trial folder, and upload them
+        for root, dirs, files in os.walk(trialPath):
+            for file in files:
+                # Skip the files we've already uploaded
+                if file in ['_results.json', 'preview.bin.zip', 'plot.csv']:
+                    continue
+                # Skip the files we don't want to upload
+                if file.endswith('.c3d') or file.endswith('.trc') or file.endswith('.mot'):
+                    continue
+                file_path = os.path.join(root, file)
+                relative_path = file_path.replace(trialsFolderPath, '')
+                if relative_path.startswith('/'):
+                    relative_path = relative_path[1:]
+                self.index.uploadFile(self.trialPath + relative_path, file_path)
 
     def hasMarkers(self) -> bool:
         return self.index.exists(self.c3dFile) or self.index.exists(self.trcFile)
