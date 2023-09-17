@@ -8,7 +8,7 @@ import SignUp from "./pages/auth/SignUp";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import ConfirmUser from "./pages/auth/ConfirmUser";
-import DataView from "./pages/data/DataView";
+import DataTypeRouter from "./pages/data/DataTypeRouter";
 import RequiresAuth from "./pages/auth/RequiresAuth";
 import Amplify, { API, Auth } from "aws-amplify";
 import awsExports from "./aws-exports";
@@ -74,7 +74,7 @@ ReactDOM.render(
   <BrowserRouter>
     <Routes>
       <Route index element={<RedirectHome session={session} />}></Route>
-      <Route path="/data/*" element={<DataView session={session} />} />
+      <Route path="/data/*" element={<DataTypeRouter session={session} />} />
       <Route
         path="/login"
         element={

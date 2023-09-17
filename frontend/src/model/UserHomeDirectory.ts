@@ -12,14 +12,22 @@ type DatasetContents = {
 
 type SubjectContents = {
     loading: boolean;
-    subjectJson: LiveJsonFile | null;
-    testFlagFile: LiveFlagFile | null;
+
+    name: string;
+    subjectJson: LiveJsonFile;
+
+    resultsExist: boolean;
+    resultsJsonPath: string;
+    processingFlagFile: LiveFlagFile; // "PROCESSING"
+    readyFlagFile: LiveFlagFile; // "READY_TO_PROCESS"
+    errorFlagFile: LiveFlagFile; // "ERROR"
+
     trials: {name: string, path: string}[]
 };
 
 type TrialContents = {
     loading: boolean;
-    trialJson: LiveJsonFile | null;
+    trialJson: LiveJsonFile;
     segments: {name: string, path: string}[];
 };
 
@@ -128,14 +136,25 @@ class UserHomeDirectory {
     }
 
     /**
-     * This call will create a stub file to hold a new folder.
+     * This call will create a stub file to hold a new dataset folder.
      * 
      * @param path The path to the folder to create the new folder in
      * @param folderName The name of the new folder
      */
-    createFolder(path: string, folderName: string): Promise<void> {
+    createDataset(path: string, folderName: string): Promise<void> {
         const dir = this.dir;
         return dir.uploadText(path + (path.length > 0 ? '/' : '') + folderName + '/_dataset.json', '{}');
+    }
+
+    /**
+     * This call will create a stub file to hold a new subject
+     * 
+     * @param path The path to the folder to create the new folder in
+     * @param folderName The name of the new folder
+     */
+    createSubject(path: string, folderName: string): Promise<void> {
+        const dir = this.dir;
+        return dir.uploadText(path + (path.length > 0 ? '/' : '') + folderName + '/_subject.json', '{}');
     }
 
     /**
@@ -157,38 +176,34 @@ class UserHomeDirectory {
      */
     getSubjectContents(path: string): SubjectContents {
         const dir = this.dir;
-        if (dir == null) {
-            return {
-                loading: true,
-                subjectJson: null,
-                testFlagFile: null,
-                trials: [],
-            };
-        }
-
-        /*
-        const thisPathData = dir.getPath(path, false);
-        if (thisPathData.promise) {
-            thisPathData.promise.then((result) => {
-                console.log(result);
-            });
-        }
-        else {
-            console.log(thisPathData);
-        }
-        */
 
         if (path.endsWith('/')) {
             path = path.substring(0, path.length-1);
         }
+        let name = '';
+        if (path.includes('/')) {
+            name = path.split('/').slice(-1)[0];
+        }
         const subjectJson = dir.getJsonFile(path + '/_subject.json');
-        const testFlagFile = dir.getFlagFile(path + '/TEST');
+        const resultsJsonPath: string = path + '/_results.json';
+        const processingFlagFile: LiveFlagFile = dir.getFlagFile(path + "/PROCESSING");
+        const readyFlagFile: LiveFlagFile = dir.getFlagFile(path + "/READY_TO_PROCESS");
+        const errorFlagFile: LiveFlagFile = dir.getFlagFile(path + "/ERROR");
 
+        const subjectPathData: PathData = dir.getPath(path, false);
         const trialsPathData: PathData = dir.getPath(path+'/trials/', false);
+
         return {
-            loading: trialsPathData.loading,
+            name,
+            loading: trialsPathData.loading || subjectPathData.loading,
             subjectJson,
-            testFlagFile,
+            resultsJsonPath,
+            resultsExist: subjectPathData.files.map((file) => {
+                return file.key;
+            }).includes(resultsJsonPath),
+            processingFlagFile,
+            readyFlagFile,
+            errorFlagFile,
             trials: trialsPathData.folders.map((folder) => {
                 return {
                     name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
@@ -200,13 +215,6 @@ class UserHomeDirectory {
 
     getTrialContents(path: string): TrialContents {
         const dir = this.dir;
-        if (dir == null) {
-            return {
-                loading: true,
-                trialJson: null,
-                segments: [],
-            };
-        }
         if (path.endsWith('/')) {
             path = path.substring(0, path.length-1);
         }

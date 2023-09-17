@@ -136,7 +136,7 @@ describe("UserHomeDirectory", () => {
         const api = new UserHomeDirectory(dir);
         await api.getPath("ASB2023/", false);
         expect(api.getPath("ASB2023/", false).folders.length).toBe(0);
-        await api.createFolder("ASB2023/", "TestFolder");
+        await api.createDataset("ASB2023/", "TestFolder");
         expect(api.getPath("ASB2023/", false).loading).toBe(false);
         expect(api.getPath("ASB2023/", false).folders.length).toBe(1);
         expect(api.getPath("ASB2023/", false).folders).toContain("ASB2023/TestFolder/");
@@ -158,7 +158,7 @@ describe("UserHomeDirectory", () => {
         });
         expect(counter.count).toBe(1);
 
-        await api.createFolder("ASB2023/", "TestFolder");
+        await api.createDataset("ASB2023/", "TestFolder");
         expect(counter.count).toBe(2);
     });
 
@@ -176,7 +176,7 @@ describe("UserHomeDirectory", () => {
         });
         expect(counter.count).toBe(1);
 
-        await api.createFolder("", "TestFolder");
+        await api.createDataset("", "TestFolder");
         expect(counter.count).toBe(2);
     });
 

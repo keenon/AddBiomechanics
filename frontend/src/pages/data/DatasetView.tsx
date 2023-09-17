@@ -16,6 +16,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
     const location = useLocation();
     const navigate = useNavigate();
     const [folderName, setFolderName] = useState("");
+    const [subjectName, setSubjectName] = useState("");
 
     const home = props.home;
     const path = props.path;
@@ -42,8 +43,18 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 setFolderName(e.target.value);
             }}></input>
             <button onClick={() => {
-                home.createFolder(path, folderName);
+                home.createDataset(path, folderName);
                 setFolderName("");
+            }}>Create</button>
+        </div>
+        <div>
+            Create new subject:
+            <input type="text" placeholder="Name" value={subjectName} onChange={(e) => {
+                setSubjectName(e.target.value);
+            }}></input>
+            <button onClick={() => {
+                home.createSubject(path, subjectName);
+                setSubjectName("");
             }}>Create</button>
         </div>
     </div>

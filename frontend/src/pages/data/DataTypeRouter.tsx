@@ -13,7 +13,7 @@ type DataViewProps = {
   session: Session;
 };
 
-const DataView = observer((props: DataViewProps) => {
+const DataTypeRouter = observer((props: DataViewProps) => {
   const location = useLocation();
 
   console.log("Rerendering");
@@ -48,7 +48,7 @@ const DataView = observer((props: DataViewProps) => {
     body = <DatasetView home={home} path={path} currentLocationUserId={dataPath.userId} />
   }
   else if (pathType === 'subject') {
-    body = <SubjectView home={home} path={path} currentLocationUserId={dataPath.userId} />
+    return <SubjectView home={home} path={path} currentLocationUserId={dataPath.userId} />
   }
   else if (pathType === 'trial') {
     const trialContents = home.getTrialContents(path);
@@ -77,4 +77,4 @@ const DataView = observer((props: DataViewProps) => {
   );
 });
 
-export default DataView;
+export default DataTypeRouter;
