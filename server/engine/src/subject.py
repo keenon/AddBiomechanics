@@ -336,12 +336,7 @@ class Subject:
                 print('Checking and repairing marker data quality on trial ' +
                       trial.trial_name + ' segment ' + str(j+1) + '/' + str(len(trial.segments)) + '. This can take a '
                       'while, depending on trial length...', flush=True)
-                trial_error_report = marker_fitter.generateDataErrorsReport(
-                    trial_segment.original_marker_observations, trial.timestep)
-                trial_segment.marker_observations = trial_error_report.markerObservationsAttemptedFixed
-                trial_segment.marker_error_report = trial_error_report
                 has_enough_markers = marker_fitter.checkForEnoughMarkers(trial_segment.marker_observations)
-                self.totalFrames += len(trial_segment.marker_observations)
                 if not has_enough_markers:
                     marker_set = set()
                     for obs in trial_segment.marker_observations:
@@ -354,6 +349,12 @@ class Subject:
                                                f'{str(marker_set)}')
                     trial_segment.kinematics_status = ProcessingStatus.ERROR
                     print(trial_segment.error_msg, flush=True)
+                else:
+                    self.totalFrames += len(trial_segment.marker_observations)
+                    trial_error_report = marker_fitter.generateDataErrorsReport(
+                        trial_segment.original_marker_observations, trial.timestep)
+                    trial_segment.marker_observations = trial_error_report.markerObservationsAttemptedFixed
+                    trial_segment.marker_error_report = trial_error_report
 
         print('All trial markers have been cleaned up!', flush=True)
 

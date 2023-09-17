@@ -1721,8 +1721,10 @@ def main():
         # thrown an error during loading or kinematics fitting.
         subject.run_dynamics_fit()
         # This will write out a folder of OpenSim results files.
-        subject.write_opensim_results(os.path.abspath('../test_data/opencap_test/osim_results'),
+        subject.write_opensim_results(os.path.abspath(path + '/osim_results'),
                                       DATA_FOLDER_PATH)
+        # This will write out all the results to display in the web UI back into the existing folder structure
+        subject.write_web_results(os.path.abspath(path))
     except Error as e:
         # If we failed, write a JSON file with the error information.
         json_data = json.dumps(e.get_error_dict(), indent=4)
