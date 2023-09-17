@@ -67,11 +67,11 @@ class Trial:
             # marker_fitter.autorotateC3D(trial.c3d_file)
             trial.force_plates = trial.c3d_file.forcePlates
             trial.timestamps = trial.c3d_file.timestamps
+            trial.marker_observations = trial.c3d_file.markerTimesteps.copy()
             if len(trial.timestamps) > 1:
                 trial.timestep = trial.timestamps[1] - trial.timestamps[0]
             trial.frames_per_second = trial.c3d_file.framesPerSecond
             trial.marker_set = trial.c3d_file.markers
-            trial.marker_timesteps = trial.c3d_file.markerTimesteps
         elif os.path.exists(trc_file_path):
             trc_file: nimble.biomechanics.OpenSimTRC = nimble.biomechanics.OpenSimParser.loadTRC(
                 trc_file_path)
@@ -91,7 +91,6 @@ class Trial:
                 trial.timestep = trial.timestamps[1] - trial.timestamps[0]
             trial.frames_per_second = trc_file.framesPerSecond
             trial.marker_set = list(trc_file.markerLines.keys())
-            trial.marker_timesteps = trc_file.markerTimesteps
             grf_file_path = trial_path + 'grf.mot'
             trial.ignore_foot_not_over_force_plate = True  # .mot files do not contain force plate geometry
             if os.path.exists(grf_file_path):
@@ -104,7 +103,7 @@ class Trial:
         else:
             trial.error = True
             trial.error_loading_files = ('No marker files exist for trial ' + trial_name + '. Checked both ' +
-                                         c3d_file_path + ' and ' + trc_file_path + ', neither exist. Quitting.')
+                                         c3d_file_path + ' and ' + trc_file_path + ', neither exist.')
 
         # Load the IK for the manually scaled OpenSim model, if it exists
         if os.path.exists(gold_mot_file_path) and manually_scaled_opensim is not None:
@@ -118,6 +117,9 @@ class Trial:
                     manually_scaled_opensim.skeleton, gold_mot_file_path)
                 trial.manually_scaled_ik = manually_scaled_mot.poses
 
+        if len(trial.marker_observations) == 0 and not trial.error:
+            trial.error = True
+            trial.error_loading_files = ('No marker data frames found for trial ' + trial_name + '.')
         return trial
 
     def split_segments(self, max_grf_gap_fill_size=1.0, max_segment_frames=3000):

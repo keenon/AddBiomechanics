@@ -28,7 +28,7 @@ from subject import Subject
 
 # Global paths to the geometry and data folders.
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
-DATA_FOLDER_PATH = absPath('../data')
+DATA_FOLDER_PATH = absPath('../../data')
 TEMPLATES_PATH = absPath('templates')
 
 
@@ -1710,56 +1710,57 @@ def main():
     # ---------------------
     subject = Subject()
     try:
-        subject.load_folder(os.path.abspath(path), os.path.abspath(DATA_FOLDER_PATH))
+        subject.load_folder(os.path.abspath(path), DATA_FOLDER_PATH)
         # This auto-segments the trials, without throwing away any segments. The segments are split based on which parts
         # of the trial have GRF data, and also based on ensuring that the segments don't get beyond a certain length.
         subject.segment_trials()
         # The kinematics fit will fit the body scales, marker offsets, and motion of the subject, to all the trial
         # segments that have not yet thrown an error during loading.
-        subject.run_kinematics_fit(os.path.abspath(DATA_FOLDER_PATH))
+        subject.run_kinematics_fit(DATA_FOLDER_PATH)
         # The dynamics fit will fit the dynamics parameters of the subject, to all the trial segments that have not yet
         # thrown an error during loading or kinematics fitting.
         subject.run_dynamics_fit()
         # This will write out a folder of OpenSim results files.
         subject.write_opensim_results(os.path.abspath('../test_data/opencap_test/osim_results'),
-                                      os.path.abspath(DATA_FOLDER_PATH))
+                                      DATA_FOLDER_PATH)
     except Error as e:
         # If we failed, write a JSON file with the error information.
         json_data = json.dumps(e.get_error_dict(), indent=4)
-        with open(engine.errors_json_path, "w") as json_file:
-            json_file.write(json_data)
+        print(json_data)
+        # with open(engine.errors_json_path, "w") as json_file:
+        #     json_file.write(json_data)
         # Return a non-zero exit code to tell the `mocap_server.py` that we failed, so it can write an ERROR flag
         exit(1)
 
-    engine = Engine(path=path,
-                    output_name=output_name,
-                    href=href)
-
-    # Run the pipeline.
-    # -----------------
-    try:
-        # Each method is automatically wrapped in a try-catch block so
-        # that the pipeline will continue running if an error occurs.
-        engine.validate_paths()
-        engine.parse_subject_json()
-        engine.load_model_files()
-        engine.configure_marker_fitter()
-        engine.preprocess_trials()
-        engine.run_marker_fitting()
-        if engine.fitDynamics:
-            engine.run_dynamics_fitting()
-        engine.write_result_files()
-        if engine.exportMoco:
-            engine.run_moco()
-        engine.generate_readme()
-        engine.create_output_folder()
-    except Error as e:
-        # If we failed, write a JSON file with the error information.
-        json_data = json.dumps(e.get_error_dict(), indent=4)
-        with open(engine.errors_json_path, "w") as json_file:
-            json_file.write(json_data)
-        # Return a non-zero exit code to tell the `mocap_server.py` that we failed, so it can write an ERROR flag
-        exit(1)
+    # engine = Engine(path=path,
+    #                 output_name=output_name,
+    #                 href=href)
+    #
+    # # Run the pipeline.
+    # # -----------------
+    # try:
+    #     # Each method is automatically wrapped in a try-catch block so
+    #     # that the pipeline will continue running if an error occurs.
+    #     engine.validate_paths()
+    #     engine.parse_subject_json()
+    #     engine.load_model_files()
+    #     engine.configure_marker_fitter()
+    #     engine.preprocess_trials()
+    #     engine.run_marker_fitting()
+    #     if engine.fitDynamics:
+    #         engine.run_dynamics_fitting()
+    #     engine.write_result_files()
+    #     if engine.exportMoco:
+    #         engine.run_moco()
+    #     engine.generate_readme()
+    #     engine.create_output_folder()
+    # except Error as e:
+    #     # If we failed, write a JSON file with the error information.
+    #     json_data = json.dumps(e.get_error_dict(), indent=4)
+    #     with open(engine.errors_json_path, "w") as json_file:
+    #         json_file.write(json_data)
+    #     # Return a non-zero exit code to tell the `mocap_server.py` that we failed, so it can write an ERROR flag
+    #     exit(1)
 
 
 if __name__ == "__main__":
