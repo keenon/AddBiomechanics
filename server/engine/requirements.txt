@@ -1,2 +1,3 @@
 nimblephysics == 0.9.27
 pandas
+matplotlib

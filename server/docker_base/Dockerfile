@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y build-essential
 RUN apt-get install -y python3 python3-pip python3-dev python3-numpy python3-setuptools
 
 # Install NumPy
-RUN pip install numpy==1.20.2
+RUN pip install numpy
+# RUN pip install numpy==1.20.2
 
 # Install zip
 RUN apt-get install -y zip

@@ -5,15 +5,15 @@ Description: Plotting utilites for the AddBiomechanics processing engine.
 Author(s): Nicholas Bianco
 """
 
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.lines as mlines
 import os
 import numpy as np
 from collections import defaultdict, OrderedDict
-import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.lines as mlines
 import matplotlib
 matplotlib.use('Agg')
+import pandas as pd
 
 
 # Convert a STO file to a pandas DataFrame.
