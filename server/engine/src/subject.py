@@ -183,6 +183,16 @@ class Subject:
             subject_path += '/'
         self.subject_path = subject_path
 
+        geometry_folder_path = os.path.join(data_folder_path, 'Geometry')
+
+        # 1.1. Check that the Geometry folder exists.
+        if not os.path.exists(geometry_folder_path):
+            raise IsADirectoryError('Geometry folder "' + geometry_folder_path + '" does not exist.')
+
+        # 1.2. Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer and for priors
+        if not os.path.exists(subject_path + 'Geometry'):
+            os.symlink(geometry_folder_path, subject_path + 'Geometry')
+
         # 3. Load the unscaled OSIM file.
         # -------------------------------
         # 3.0. Check for if we're using a preset OpenSim model. Otherwise, use the custom one provided by the user.
