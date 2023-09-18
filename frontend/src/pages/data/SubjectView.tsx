@@ -16,6 +16,25 @@ type SubjectViewProps = {
     path: string;
 };
 
+type SegmentResultsJSON = {
+    trialName: string;
+    start_frame: number;
+    start: number;
+    end_frame: number;
+    end: number;
+    kinematicsStatus: "NOT_STARTED" | "FINISHED" | "ERROR";
+    kinematicsAvgRMSE: number;
+    kinematicsAvgMax: number;
+};
+
+type TrialResultsJSON = {
+    segments: SegmentResultsJSON[]
+};
+
+type SubjectResultsJSON = {
+    [trialName: string]: TrialResultsJSON
+};
+
 const SubjectView = observer((props: SubjectViewProps) => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -67,6 +86,18 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     // Create state to manage the collapse state of the wizard
     const [wizardCollapsed, setWizardCollapsed] = useState(readyFlagExists);
+
+    // Manage the results JSON blob
+    const [parsedResultsJSON, setParsedResultsJSON] = useState<SubjectResultsJSON>({});
+    useEffect(() => {
+        if (resultsExist) {
+            home.dir.downloadText(path + "/_results.json").then((resultsText) => {
+                setParsedResultsJSON(JSON.parse(resultsText));
+            }).catch((e) => {
+                console.error("Error downloading _results.json from " + path + ": ", e);
+            });
+        }
+    }, [resultsExist]);
 
     /////////////////////////////////////////////////////////////////////////
     // There are several states a subject can be in:
@@ -798,10 +829,53 @@ const SubjectView = observer((props: SubjectViewProps) => {
         }
     }
 
+    let resultsSection = null;
+    if (resultsExist) {
+        const trialNames: string[] = subjectContents.trials.map((trial) => trial.name);
+
+        resultsSection = <div>
+            <h3>Results:</h3>
+            <table className="table">
+                <thead>
+                    <tr>
+                        <th scope="col">Trial Segment</th>
+                        <th scope="col">Kinematics Error</th>
+                        <th scope="col">Dynamics Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {
+                        subjectContents.trials.flatMap((trial) => {
+                            if (trial.name in parsedResultsJSON) {
+                                const trialResults = parsedResultsJSON[trial.name];
+                                return trial.segments.map((segment, index) => {
+                                    const segmentResults = trialResults.segments[index];
+                                    return <tr key={segment.path}>
+                                        <td><Link to={Session.getDataURL(props.currentLocationUserId, segment.path)}>{trial.name} {segmentResults.start}s to {segmentResults.end}s</Link></td>
+                                        <td>{segmentResults.kinematicsAvgRMSE == null ? 'NaN' : segmentResults.kinematicsAvgRMSE.toFixed(2)} cm RMSE</td>
+                                        <td>Did not run</td>
+                                    </tr>
+                                });
+                            }
+                            else {
+                                return [<tr key={trial.name}>
+                                    <td>{trial.name} Loading...</td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>]
+                            }
+                        })
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
     return <div className='container'>
         {subjectForm}
         {trialsUploadSection}
         {statusSection}
+        {resultsSection}
     </div>
 });
 
