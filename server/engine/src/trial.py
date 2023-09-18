@@ -52,8 +52,17 @@ class Trial:
             trial.c3d_file = nimble.biomechanics.C3DLoader.loadC3D(
                 c3d_file_path)
 
+            # Do a deep copy of the marker observations, to avoid potential memory issues on the PyBind interface
+            file_marker_observations = trial.c3d_file.markerTimesteps
+            trial.marker_observations = []
+            for marker_timestep in file_marker_observations:
+                marker_timestep_copy = {}
+                for marker in marker_timestep:
+                    marker_timestep_copy[marker] = marker_timestep[marker].copy()
+                trial.marker_observations.append(marker_timestep_copy)
+
             any_have_markers = False
-            for markerTimestep in trial.c3d_file.markerTimesteps:
+            for markerTimestep in trial.marker_observations:
                 if len(markerTimestep.keys()) > 0:
                     any_have_markers = True
                     break
@@ -67,7 +76,6 @@ class Trial:
             # marker_fitter.autorotateC3D(trial.c3d_file)
             trial.force_plates = trial.c3d_file.forcePlates
             trial.timestamps = trial.c3d_file.timestamps
-            trial.marker_observations = trial.c3d_file.markerTimesteps.copy()
             if len(trial.timestamps) > 1:
                 trial.timestep = trial.timestamps[1] - trial.timestamps[0]
             trial.frames_per_second = trial.c3d_file.framesPerSecond
@@ -75,9 +83,16 @@ class Trial:
         elif os.path.exists(trc_file_path):
             trc_file: nimble.biomechanics.OpenSimTRC = nimble.biomechanics.OpenSimParser.loadTRC(
                 trc_file_path)
-
+            # Do a deep copy of the marker observations, to avoid potential memory issues on the PyBind interface
+            file_marker_observations = trc_file.markerTimesteps
+            trial.marker_observations = []
+            for marker_timestep in file_marker_observations:
+                marker_timestep_copy = {}
+                for marker in marker_timestep:
+                    marker_timestep_copy[marker] = marker_timestep[marker].copy()
+                trial.marker_observations.append(marker_timestep_copy)
             any_have_markers = False
-            for markerTimestep in trc_file.markerTimesteps:
+            for markerTimestep in trial.marker_observations:
                 if len(markerTimestep.keys()) > 0:
                     any_have_markers = True
                     break
@@ -85,7 +100,6 @@ class Trial:
                 trial.error = True
                 trial.error_loading_files = ('Trial {trial_name} has no markers on any timestep. Check that the TRC '
                                              'file is not corrupted.')
-            trial.marker_observations = trc_file.markerTimesteps
             trial.timestamps = trc_file.timestamps
             if len(trial.timestamps) > 1:
                 trial.timestep = trial.timestamps[1] - trial.timestamps[0]
@@ -207,7 +221,13 @@ class TrialSegment:
         self.has_forces: bool = False
         self.has_error: bool = False
         self.error_msg = ''
-        self.original_marker_observations: List[Dict[str, np.ndarray]] = self.parent.marker_observations[self.start:self.end]
+        self.original_marker_observations: List[Dict[str, np.ndarray]] = []
+        # Make a deep copy of the marker observations, so we can modify them without affecting the parent trial
+        for obs in self.parent.marker_observations[self.start:self.end]:
+            obs_copy = {}
+            for marker in obs:
+                obs_copy[marker] = obs[marker].copy()
+            self.original_marker_observations.append(obs_copy)
         self.force_plates: List[nimble.biomechanics.ForcePlate] = []
         for plate in self.parent.force_plates:
             new_plate = nimble.biomechanics.ForcePlate.copyForcePlate(plate)
