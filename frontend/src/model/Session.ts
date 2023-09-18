@@ -129,7 +129,7 @@ class Session {
         const parts = url.split("/");
         const userId = parts[0];
         const path = parts.slice(1).join("/");
-        const prefix = "protected/" + this.region + ":" + userId + "/data/";
+        const prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/data/";
 
         let homeDirectory = this.homeDirectories.get(userId);
         if (homeDirectory == null) {
@@ -137,7 +137,7 @@ class Session {
             this.homeDirectories.set(userId, homeDirectory);
         }
 
-        const readonly = !(this.loggedIn && this.userId === userId);
+        const readonly = !(this.loggedIn && (this.userId === userId || userId === 'private'));
 
         return {
             homeDirectory,

@@ -809,4 +809,40 @@ describe("LiveDirectory", () => {
         const trialsPathUpdated = api.getPath("Tiziana2019_Standard/Subject32/trials/", true);
         expect(trialsPathUpdated.folders.length).toBe(2);
     });
+
+    test("Loading the root recursively and then loading a single file path exactly should return a PathData with that single file", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:test/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:test/data/dataset1/subject1/_subject.json",
+            "protected/us-west-2:test/data/dataset2/",
+            "protected/us-west-2:test/data/root_subject/_subject.json",
+            "protected/us-west-2:test/data/_subject.json",
+        ]);
+
+        const path = api.getPath("", true);
+        await path.loading;
+
+        const fileResult: PathData = api.getPath("dataset1/subject1/_subject.json", false);
+        expect(fileResult.files.length).toBe(1);
+    });
+
+    test("Loading a non-root folder recursively and then loading a single file path exactly should return a PathData with that single file", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:test/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:test/data/dataset1/subject1/_subject.json",
+            "protected/us-west-2:test/data/dataset2/",
+            "protected/us-west-2:test/data/root_subject/_subject.json",
+            "protected/us-west-2:test/data/_subject.json",
+        ]);
+
+        const path = api.getPath("dataset1", true);
+        await path.loading;
+
+        const fileResult: PathData = api.getPath("dataset1/subject1/_subject.json", false);
+        expect(fileResult.files.length).toBe(1);
+    });
 });

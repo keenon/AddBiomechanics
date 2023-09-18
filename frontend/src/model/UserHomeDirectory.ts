@@ -175,6 +175,14 @@ class UserHomeDirectory {
     }
 
     /**
+     * This call will create an empty trial object
+     */
+    createTrial(subjectPath: string, trialName: string): Promise<void> {
+        const dir = this.dir;
+        return dir.uploadText(subjectPath + (subjectPath.length > 0 ? '/' : '') + 'trials/' + trialName + '/_trial.json', '{}');
+    }
+
+    /**
      * This call will delete a folder.
      * 
      * @param path The path to the folder to delete

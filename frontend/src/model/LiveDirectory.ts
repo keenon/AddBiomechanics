@@ -188,9 +188,9 @@ class LiveDirectoryImpl extends LiveDirectory {
                     });
                     return promise;
                 }
-                else {
-                    return Promise.reject("Promise on recursive withSlash call was null. This should never happen.");
-                }
+                // Otherwise, default to the result
+                this._setCachedPath(path, withSlash);
+                return Promise.resolve(withSlash);
             }
             else {
                 files = files.map((file) => {
@@ -219,7 +219,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                 const result: PathData = {
                     loading: false,
                     promise: null,
-                    path,
+                    path: originalPath,
                     folders,
                     files,
                     recursive: recursive,
@@ -233,7 +233,7 @@ class LiveDirectoryImpl extends LiveDirectory {
             const stub: PathData = {
                 loading: true,
                 promise: promise,
-                path,
+                path: originalPath,
                 folders: [],
                 files: [],
                 recursive: recursive,
