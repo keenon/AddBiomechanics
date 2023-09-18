@@ -365,6 +365,13 @@ class Subject:
                         trial_segment.original_marker_observations, trial.timestep)
                     trial_segment.marker_observations = trial_error_report.markerObservationsAttemptedFixed
                     trial_segment.marker_error_report = trial_error_report
+                    # Set an error if there are any NaNs in the marker data
+                    for t in range(len(trial_segment.marker_observations)):
+                        for marker in trial_segment.marker_observations[t]:
+                            if np.any(np.isnan(trial_segment.marker_observations[t][marker])):
+                                trial_segment.has_error = True
+                                trial_segment.error_msg = 'Trial had NaNs in the data after running MarkerFixer.'
+                                break
 
         print('All trial markers have been cleaned up!', flush=True)
 
