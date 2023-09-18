@@ -273,9 +273,6 @@ class S3APIImpl extends S3API {
     }
 
     async listAsync(path: string, recursive: boolean, continuationToken?: string, filesSoFar?: FileMetadata[], foldersSoFar?: string[]): Promise<{ files: FileMetadata[], folders: string[] }> {
-        console.log("Calling listAsync on \""+path+"\"");
-        console.log("Recursive: "+recursive);
-
         const listObjectsCommand = new ListObjectsV2Command({
             Bucket: this.bucketName,
             Prefix: path,
@@ -330,7 +327,6 @@ class S3APIImpl extends S3API {
 
     loadPathData(path: string, recursive: boolean): Promise<{files: FileMetadata[], folders: string[]}> {
         return this.listAsync(path, recursive).then((results) => {
-            console.log(path, results);
             return results;
         });
     };

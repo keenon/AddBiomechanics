@@ -56,8 +56,8 @@ const DataTypeRouter = observer((props: DataViewProps) => {
       This is a trial!
       It has {trialContents.segments.length} segments.
       <ul>
-        {trialContents.segments.map(({ name, path }) => {
-          return <li key={name}>Trial Segment: <Link to={Session.getDataURL(dataPath.userId, path)}>{name}</Link></li>;
+        {trialContents.segments.map((segment) => {
+          return <li key={segment.name}>Trial Segment: <Link to={Session.getDataURL(dataPath.userId, segment.path)}>{segment.name}</Link></li>;
         })}
       </ul>
     </div>

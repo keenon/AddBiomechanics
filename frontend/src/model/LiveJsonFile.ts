@@ -1,5 +1,6 @@
 import LiveDirectory from "./LiveDirectory";
 import { makeObservable, observable, action } from "mobx";
+import { PathData } from "./LiveDirectory";
 
 /// This is a cacheing layer for mobx-style interaction with JSON files stored in S3. This handles doing the downloading, parsing, 
 /// and re-uploading in the background.
@@ -39,9 +40,14 @@ class LiveJsonFile {
             setAttribute: action
         });
 
-        dir.addPathChangeListener(path, () => {
-            this.refreshFile();
-        });
+        dir.addPathChangeListener(path, action((pathData: PathData) => {
+            if (pathData.files.length > 0) {
+                this.refreshFile();
+            }
+            else {
+                this.values.clear();
+            }
+        }));
 
         this.refreshFile();
     }
@@ -76,10 +82,10 @@ class LiveJsonFile {
                 console.error("Bad JSON format for file \"" + this.path + "\", got: \"" + text + "\"");
                 this.values.clear();
             }
-        })).catch(() => {
+        })).catch(action(() => {
             // File does not exist, so assume it's empty and hasn't yet been created
             this.values.clear();
-        }).finally(action(() => {
+        })).finally(action(() => {
             this.loading = null;
         }));
     }

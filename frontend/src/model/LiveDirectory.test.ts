@@ -745,4 +745,68 @@ describe("LiveDirectory", () => {
         expect(rootAfterDelete.folders.length).toBe(2);
     });
 
+    test("Receiving a PubSub deletes of all children of a folder should eventually delete that folder", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial1/plot.csv",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial1/preview.bin.zip",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial7/plot.csv",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial7/preview.bin.zip",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial9/plot.csv",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial9/preview.bin.zip",
+        ]);
+
+        const subjectPath = api.getPath("Tiziana2019_Standard/Subject32", true);
+        await subjectPath.promise;
+        const trialsPath = api.getPath("/Tiziana2019_Standard/Subject32/trials/", true);
+        expect(trialsPath.folders.length).toBe(3);
+
+        pubsub.mockReceiveMessage({
+            topic: "/DEV/DELETE/protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data",
+            message: JSON.stringify({
+                key: "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial7/plot.csv",
+                size: 0,
+                dateModified: new Date().toString(),
+            })
+        });
+        pubsub.mockReceiveMessage({
+            topic: "/DEV/DELETE/protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data",
+            message: JSON.stringify({
+                key: "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial7/preview.bin.zip",
+                size: 0,
+                dateModified: new Date().toString(),
+            })
+        });
+
+        const trialsPathUpdated = api.getPath("Tiziana2019_Standard/Subject32/trials/", true);
+        expect(trialsPathUpdated.folders.length).toBe(2);
+    });
+
+    test("Delete by prefix in non-root with multiple files should still calculate correct folder structure", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial1/plot.csv",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial1/preview.bin.zip",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial7/plot.csv",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial7/preview.bin.zip",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial9/plot.csv",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial9/preview.bin.zip",
+        ]);
+
+        const subjectPath = api.getPath("Tiziana2019_Standard/Subject32", true);
+        await subjectPath.promise;
+        const trialsPath = api.getPath("/Tiziana2019_Standard/Subject32/trials/", true);
+        expect(trialsPath.folders.length).toBe(3);
+
+        await api.deleteByPrefix("Tiziana2019_Standard/Subject32/trials/Trial7/");
+
+        const trialsPathUpdated = api.getPath("Tiziana2019_Standard/Subject32/trials/", true);
+        expect(trialsPathUpdated.folders.length).toBe(2);
+    });
 });

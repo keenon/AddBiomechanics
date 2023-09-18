@@ -263,6 +263,9 @@ class LiveDirectoryImpl extends LiveDirectory {
     }
 
     getCachedPath(originalPath: string): PathData | undefined {
+        if (originalPath.startsWith('/')) {
+            originalPath = originalPath.substring(1);
+        }
         const normalizedPath = this.normalizePath(originalPath);
         const cached = this.pathCache.get(normalizedPath);
         if (cached != null) return cached;
@@ -288,7 +291,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                     let folders: string[] = [...new Set(allFiles.filter((file) => {
                         return file.key.substring(originalPathWithSlash.length).includes('/');
                     }).map((file) => {
-                        return file.key.substring(0, file.key.indexOf('/', originalPathWithSlash.length) + 1);
+                        return file.key.substring(0, file.key.indexOf('/', originalPathWithSlash.length + 1) + 1);
                     }))];
                     const result: PathData = {
                         loading: false,

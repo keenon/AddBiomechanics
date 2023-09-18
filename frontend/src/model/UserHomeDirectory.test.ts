@@ -110,9 +110,49 @@ describe("UserHomeDirectory", () => {
 
         expect(api.getPathType('/ASB2023/TestProsthetic/trials/walking')).toBe('trial');
         expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').loading).toBe(false);
+        expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').name).toBe('walking');
+        expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').c3dFilePath).toBe('ASB2023/TestProsthetic/trials/walking/markers.c3d');
+        expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').c3dFileExists).toBe(false);
+        expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').trcFilePath).toBe('ASB2023/TestProsthetic/trials/walking/markers.trc');
+        expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').trcFileExists).toBe(true);
+        expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').grfMotFilePath).toBe('ASB2023/TestProsthetic/trials/walking/grf.mot');
+        expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').grfMotFileExists).toBe(true);
         expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').segments.length).toBe(3);
         expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').segments.map(f => f.name)).toContain('segment_1');
         expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').segments.map(f => f.path)).toContain('ASB2023/TestProsthetic/trials/walking/segment_1/');
+    });
+
+    test("Delete trial still lists remaining trials correctly", async () => {
+        // Use an isolated S3 mock, because this test has side effects
+        const s3_isolated = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        s3_isolated.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking/markers.c3d",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/running",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/running/markers.trc",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/running/grf.mot",
+        ]);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3_isolated, pubsub);
+
+        const api = new UserHomeDirectory(dir);
+        await api.getPath("/ASB2023/S01", true).promise;
+        expect(api.getPath("/ASB2023/S01/trials/", true).folders.length).toBe(2);
+
+
+        expect(api.getPathType('/ASB2023/S01/')).toBe('subject');
+        expect(api.getSubjectContents('/ASB2023/S01').loading).toBe(false);
+        expect(api.getSubjectContents('/ASB2023/S01').trials.length).toBe(2);
+        expect(api.getSubjectContents('/ASB2023/S01').trials.map(trial => trial.name)).toContain('walking');
+
+        await api.deleteFolder("/ASB2023/S01/trials/walking");
+
+        expect(api.getSubjectContents('/ASB2023/S01').loading).toBe(false);
+        expect(api.getSubjectContents('/ASB2023/S01').trials.length).toBe(1);
     });
 
     test("List trial segment contents", async () => {
@@ -126,7 +166,8 @@ describe("UserHomeDirectory", () => {
         await api.getPath("/ASB2023/TestProsthetic/trials/walking", false).promise;
         await api.getPath("/ASB2023/TestProsthetic/trials/walking/segment_1", false).promise;
         expect(api.getPathType('/ASB2023/TestProsthetic/trials/walking/segment_1')).toBe('trial_segment');
-        expect(api.getTrialSegmentContents('/ASB2023/TestProsthetic/trials/walking/segment_1').dataPath).toBe("/ASB2023/TestProsthetic/trials/walking/segment_1/data.csv");
+        expect(api.getTrialSegmentContents('/ASB2023/TestProsthetic/trials/walking/segment_1').name).toBe("segment_1");
+        expect(api.getTrialSegmentContents('/ASB2023/TestProsthetic/trials/walking/segment_1').dataPath).toBe("ASB2023/TestProsthetic/trials/walking/segment_1/data.csv");
     });
 
     test("Upload folder creates a folder", async () => {
@@ -204,7 +245,7 @@ describe("UserHomeDirectory", () => {
         });
         expect(counter.count).toBe(1);
 
-        await api.deleteFolder("ASB2023/", "S01");
+        await api.deleteFolder("ASB2023/S01");
         expect(counter.count).toBeGreaterThan(1);
     });
 
@@ -232,7 +273,7 @@ describe("UserHomeDirectory", () => {
         });
         expect(counter.count).toBe(1);
 
-        await api.deleteFolder("", "ASB2023");
+        await api.deleteFolder("ASB2023");
         expect(counter.count).toBeGreaterThan(1);
 
         let result = api.getPath("", true);

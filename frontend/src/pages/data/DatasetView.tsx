@@ -32,7 +32,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 return <li key={name}>{type}: <Link to={Session.getDataURL(props.currentLocationUserId, path)}>{name}</Link> <button onClick={() => {
                     if (window.confirm("Are you sure you want to delete " + name + "?")) {
                         console.log("Deleting " + name + " from " + path);
-                        home.deleteFolder(path, name);
+                        home.deleteFolder(path);
                     }
                 }}>Delete</button></li>;
             })}

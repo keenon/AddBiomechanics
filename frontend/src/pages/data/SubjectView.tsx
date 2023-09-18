@@ -35,16 +35,18 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const subjectSex: '' | 'male' | 'female' | 'unknown' = subjectJson.getAttribute("sex", "");
     const subjectAgeYears: number = subjectJson.getAttribute("ageYears", "");
     const [subjectAgeComplete, setSubjectAgeComplete] = useState(true);
-    const subjectModel: '' | 'custom' | 'vicon' | 'cmu' = subjectJson.getAttribute("model", "");
+    const subjectModel: '' | 'custom' | 'vicon' | 'cmu' = subjectJson.getAttribute("skeletonPreset", "");
     const disableDynamics: boolean | null = subjectJson.getAttribute("disableDynamics", null);
     const footBodyNames = subjectJson.getAttribute("footBodyNames", []);
     const runMoco: boolean | null = subjectJson.getAttribute("runMoco", null);
 
-    const customOpensimModelPathData = home.getPath(path + "/unscaled_generic.osim", false);
+    // Get the details we'll need for custom OpenSim models unconditionaly, to ensure that MobX updates if the attributes change
+    const pathWithSlash = path + (path.endsWith('/') ? '' : '/');
+    const customOpensimModelPathData = home.getPath(pathWithSlash + "unscaled_generic.osim", false);
     const [availableBodyList, setAvailableBodyList] = useState<string[]>([]);
     useEffect(() => {
         if (customOpensimModelPathData.files.length > 0) {
-            home.dir.downloadText(path + '/unscaled_generic.osim').then((openSimText) => {
+            home.dir.downloadText(pathWithSlash + 'unscaled_generic.osim').then((openSimText) => {
                 setAvailableBodyList(getOpenSimBodyList(openSimText));
             });
         }
@@ -283,7 +285,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 autoFocus={subjectModel == ''}
                 aria-describedby="modelHelp"
                 onChange={(e) => {
-                    subjectJson.setAttribute("model", e.target.value);
+                    subjectJson.setAttribute("skeletonPreset", e.target.value);
                 }}>
                 <option value="">Needs selection</option>
                 <option value="custom">Upload my own model</option>
@@ -496,55 +498,129 @@ const SubjectView = observer((props: SubjectViewProps) => {
         }
     }
 
-    let subjectForm = <Form onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    }}>
-        {formElements}
-        <hr />
-        <ProgressBar now={completedFormElements} max={totalFormElements} />
-        <p>
-            {completedFormElements} of {totalFormElements} fields complete.
-        </p>
-    </Form>;
-
-    /*
-    const uploadPath = path + "/test.c3d";
-    const pathData = home.getPath(uploadPath, false);
-    const uploadTest = (
-        <div>
-            <DropFile
-                pathData={pathData}
-                accept=".c3d"
-                upload={(file: File, progressCallback: (progress: number) => void) => {
-                    if (home == null) {
-                        throw new Error("No directory");
-                    }
-                    return home.dir.uploadFile(uploadPath, file, progressCallback);
-                }}
-                download={() => {
-                    if (home == null) {
-                        throw new Error("No directory");
-                    }
-                    // dir.downloadFile(uploadPath);
-                    console.log("Download TODO");
-                }}
-                required={false} />
-        </div>
+    const subjectForm = (
+        <Form onSubmit={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        }}>
+            {formElements}
+        </Form>
     );
-    */
-
-    let trialsView = null;
-    if (formCompleteSoFar) {
-        trialsView = <>
-            <h2>Trials:</h2>
-            <ul>
-                {subjectContents.trials.map(({ name, path }) => {
-                    return <li key={name}>Trial: <Link to={Session.getDataURL(props.currentLocationUserId, path)}>{name}</Link></li>;
-                })}
-            </ul>
-        </>;
+    // If we haven't completed the form yet, then that's the only thing we need to render, along with a progress bar for filling out the form
+    if (completedFormElements < totalFormElements) {
+        return <div className='container'>
+            {subjectForm}
+            <hr />
+            <ProgressBar now={completedFormElements} max={totalFormElements} />
+            <p>
+                {completedFormElements} of {totalFormElements} fields complete.
+            </p>
+        </div>
     }
+
+    const trialsView = <>
+        <h3>Motion Capture Files:</h3>
+        <table className="table">
+            <thead>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col" colSpan={disableDynamics ? 1 : 2}>Marker {disableDynamics ? '' : ' and Forces'} Data</th>
+                    <th scope="col">Delete?</th>
+                </tr>
+            </thead>
+            <tbody>
+                {subjectContents.trials.map((trial) => {
+                    const uploadMarkerFile = (file: File, progressCallback: (progress: number) => void) => {
+                        if (file.name.endsWith('.c3d')) {
+                            return home.dir.uploadFile(trial.c3dFilePath, file, progressCallback).then(() => {
+                                // Delete the old TRC file, if there is one
+                                if (trial.trcFileExists) {
+                                    return home.dir.delete(trial.trcFilePath);
+                                }
+                                else {
+                                    return Promise.resolve();
+                                }
+                            });
+                        }
+                        else if (file.name.endsWith('.trc')) {
+                            return home.dir.uploadFile(trial.trcFilePath, file, progressCallback).then(() => {
+                                // Delete the old C3D file, if there is one
+                                if (trial.c3dFileExists) {
+                                    return home.dir.delete(trial.c3dFilePath);
+                                }
+                                else {
+                                    return Promise.resolve();
+                                }
+                            });
+                        }
+                        else {
+                            return Promise.reject("Unsupported marker file type");
+                        }
+                    };
+
+                    let dataFiles = [];
+                    if (!trial.c3dFileExists && !trial.trcFileExists) {
+                        const trialC3dPathData = home.getPath(trial.c3dFilePath, false);
+                        dataFiles.push(
+                            <td key='c3d' colSpan={disableDynamics ? 1 : 2}>
+                                <DropFile pathData={trialC3dPathData} accept=".c3d,.trc" upload={uploadMarkerFile} download={() => {
+                                    return home.dir.downloadFile(trialC3dPathData.path);
+                                }} />
+                            </td>
+                        );
+                    }
+                    else if (trial.c3dFileExists) {
+                        const trialC3dPathData = home.getPath(trial.c3dFilePath, false);
+                        dataFiles.push(
+                            <td key='c3d' colSpan={disableDynamics ? 1 : 2}>
+                                <DropFile pathData={trialC3dPathData} accept=".c3d,.trc" upload={uploadMarkerFile} download={() => {
+                                    return home.dir.downloadFile(trialC3dPathData.path);
+                                }} />
+                            </td>
+                        );
+                    }
+                    else {
+                        // Then the TRC file must exist
+                        const trialTrcPathData = home.getPath(trial.trcFilePath, false);
+                        dataFiles.push(
+                            <td>
+                                <DropFile pathData={trialTrcPathData} accept=".trc,.c3d" upload={uploadMarkerFile} download={() => {
+                                    return home.dir.downloadFile(trialTrcPathData.path);
+                                }} />
+                            </td>
+                        );
+                        if (!disableDynamics) {
+                            const trialGrfMotPathData = home.getPath(trial.grfMotFilePath, false);
+                            dataFiles.push(
+                                <td>
+                                    <DropFile pathData={trialGrfMotPathData} accept=".mot" text="GRF *.mot file" upload={(file, progressCallback) => {
+                                        return home.dir.uploadFile(trialGrfMotPathData.path, file, progressCallback);
+                                    }} download={() => {
+                                        return home.dir.downloadFile(trialGrfMotPathData.path);
+                                    }} />
+                                </td>
+                            );
+                        }
+                    }
+
+
+                    return <tr key={trial.name}>
+                        <td>{trial.name}</td>
+                        {dataFiles}
+                        <td><button className="btn btn-dark" onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (window.confirm("Are you sure you want to delete trial \"" + trial.name + "\"?")) {
+                                home.deleteFolder(trial.path);
+                            }
+                        }}>Delete</button></td>
+                    </tr>;
+                })}
+            </tbody>
+        </table>
+        <button className="btn btn-primary">Add new trial</button>
+    </>;
+    // Trial: <Link to={Session.getDataURL(props.currentLocationUserId, path)}>{name}</Link>
 
     return <div className='container'>
         {subjectForm}

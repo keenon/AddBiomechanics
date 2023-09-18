@@ -22,16 +22,30 @@ type SubjectContents = {
     readyFlagFile: LiveFlagFile; // "READY_TO_PROCESS"
     errorFlagFile: LiveFlagFile; // "ERROR"
 
-    trials: {name: string, path: string}[]
+    trials: TrialContents[]
 };
 
 type TrialContents = {
     loading: boolean;
+    path: string;
+    name: string;
     trialJson: LiveJsonFile;
-    segments: {name: string, path: string}[];
+    // C3D marker + GRF data
+    c3dFilePath: string;
+    c3dFileExists: boolean;
+    // TRC marker data
+    trcFilePath: string;
+    trcFileExists: boolean;
+    // MOT force plate data
+    grfMotFilePath: string;
+    grfMotFileExists: boolean;
+    // Segment data, if we've processed it
+    segments: TrialSegmentContents[];
 };
 
 type TrialSegmentContents = {
+    path: string;
+    name: string;
     resultsJsonPath: string;
     previewPath: string;
     dataPath: string;
@@ -45,6 +59,9 @@ class UserHomeDirectory {
         this.dir = dir;
 
         this.getPathType = this.getPathType.bind(this);
+        this.getSubjectContents = this.getSubjectContents.bind(this);
+        this.getTrialContents = this.getTrialContents.bind(this);
+        this.getTrialSegmentContents = this.getTrialSegmentContents.bind(this);
     }
 
     getPath(path: string, recursive: boolean = false): PathData {
@@ -161,12 +178,11 @@ class UserHomeDirectory {
      * This call will delete a folder.
      * 
      * @param path The path to the folder to delete
-     * @param folderName The name of the folder to delete
      * @returns A promise for when the folder is deleted
      */
-    deleteFolder(path: string, folderName: string): Promise<void> {
+    deleteFolder(path: string): Promise<void> {
         const dir = this.dir;
-        return dir.deleteByPrefix(path + (path.length > 0 ? '/' : '') + folderName);
+        return dir.deleteByPrefix(path + (path.length > 0 ? '/' : ''));
     }
 
     /**
@@ -204,12 +220,7 @@ class UserHomeDirectory {
             processingFlagFile,
             readyFlagFile,
             errorFlagFile,
-            trials: trialsPathData.folders.map((folder) => {
-                return {
-                    name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
-                    path: folder,
-                };
-            })
+            trials: trialsPathData.folders.map((folder) => this.getTrialContents(folder))
         };
     }
 
@@ -218,19 +229,36 @@ class UserHomeDirectory {
         if (path.endsWith('/')) {
             path = path.substring(0, path.length-1);
         }
+        if (path.startsWith('/')) {
+            path = path.substring(1);
+        }
 
+        const name = path.split('/').slice(-1)[0];
         const trial: PathData = dir.getPath(path + '/', false);
         const trialJson = dir.getJsonFile(path + '/_trial.json');
 
+        const c3dFilePath = path + '/markers.c3d';
+        const trcFilePath = path + '/markers.trc';
+        const grfMotFilePath = path + '/grf.mot';
+
         return {
             loading: trial.loading,
+            path: path + '/',
+            name,
+            c3dFilePath,
+            c3dFileExists: trial.files.map((file) => {
+                return file.key;
+            }).includes(c3dFilePath),
+            trcFilePath,
+            trcFileExists: trial.files.map((file) => {
+                return file.key;
+            }).includes(trcFilePath),
+            grfMotFilePath,
+            grfMotFileExists: trial.files.map((file) => {
+                return file.key;
+            }).includes(grfMotFilePath),
             trialJson,
-            segments: trial.folders.map((folder) => {
-                return {
-                    name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
-                    path: folder,
-                };
-            })
+            segments: trial.folders.map((folder) => this.getTrialSegmentContents(folder))
         };
     }
 
@@ -238,12 +266,18 @@ class UserHomeDirectory {
         if (path.endsWith('/')) {
             path = path.substring(0, path.length-1);
         }
+        if (path.startsWith('/')) {
+            path = path.substring(1);
+        }
 
+        const name = path.split('/').slice(-1)[0];
         const resultsJsonPath = path + '/_results.json';
         const previewPath = path + '/preview.bin';
         const dataPath = path + '/data.csv';
 
         return {
+            path: path + '/',
+            name,
             resultsJsonPath,
             previewPath,
             dataPath,
