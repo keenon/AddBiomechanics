@@ -117,9 +117,20 @@ class Trial:
                     manually_scaled_opensim.skeleton, gold_mot_file_path)
                 trial.manually_scaled_ik = manually_scaled_mot.poses
 
+        # Set an error if there are no marker data frames
         if len(trial.marker_observations) == 0 and not trial.error:
             trial.error = True
             trial.error_loading_files = ('No marker data frames found for trial ' + trial_name + '.')
+
+        # Set an error if there are any NaNs in the marker data
+        for t in range(len(trial.marker_observations)):
+            for marker in trial.marker_observations[t]:
+                if np.any(np.isnan(trial.marker_observations[t][marker])):
+                    trial.error = True
+                    trial.error_loading_files = (f'Trial {trial_name} has NaNs in marker data. Check that the marker '
+                                                 f'file is not corrupted.')
+                    break
+
         return trial
 
     def split_segments(self, max_grf_gap_fill_size=1.0, max_segment_frames=3000):
@@ -233,6 +244,18 @@ class TrialSegment:
         # Rendering state
         self.render_markers_set: Set[str] = set()
         self.render_markers_renamed_set: Set[Tuple[str, str]] = set()
+
+        # Set an error if there are no marker data frames
+        if len(self.marker_observations) == 0:
+            self.has_error = True
+            self.error_msg = 'No marker data frames found'
+
+        # Set an error if there are any NaNs in the marker data
+        for t in range(len(self.marker_observations)):
+            for marker in self.marker_observations[t]:
+                if np.any(np.isnan(self.marker_observations[t][marker])):
+                    self.has_error = True
+                    self.error_msg = 'Trial segment has NaNs in marker data.'
 
     def compute_manually_scaled_ik_error(self, manually_scaled_osim: nimble.biomechanics.OpenSimFile):
         self.manually_scaled_ik_error_report = nimble.biomechanics.IKErrorReport(
