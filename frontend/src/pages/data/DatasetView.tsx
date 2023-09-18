@@ -27,35 +27,64 @@ const DatasetView = observer((props: DatasetViewProps) => {
         return <div>Loading...</div>;
     }
     return <div>
-        <ul>
-            {datasetContents.contents.map(({ name, type, path }) => {
-                return <li key={name}>{type}: <Link to={Session.getDataURL(props.currentLocationUserId, path)}>{name}</Link> <button onClick={() => {
-                    if (window.confirm("Are you sure you want to delete " + name + "?")) {
-                        console.log("Deleting " + name + " from " + path);
-                        home.deleteFolder(path);
-                    }
-                }}>Delete</button></li>;
-            })}
-        </ul>
-        <div>
-            Create new folder:
-            <input type="text" placeholder="Name" value={folderName} onChange={(e) => {
-                setFolderName(e.target.value);
-            }}></input>
-            <button onClick={() => {
-                home.createDataset(path, folderName);
-                setFolderName("");
-            }}>Create</button>
-        </div>
-        <div>
-            Create new subject:
-            <input type="text" placeholder="Name" value={subjectName} onChange={(e) => {
+        <h3>Dataset Contents:</h3>
+        <table className="table">
+            <thead>
+                <tr>
+                    <th scope="col">Type</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Delete?</th>
+                </tr>
+            </thead>
+            <tbody>
+                {datasetContents.contents.map(({ name, type, path }) => {
+                    const typeFirstLetterCapitalized = type.charAt(0).toUpperCase() + type.slice(1);
+                    return <tr key={name}>
+                        <td>
+                            {typeFirstLetterCapitalized}
+                        </td>
+                        <td>
+                            <Link to={Session.getDataURL(props.currentLocationUserId, path)}>{name}</Link>
+                        </td>
+                        <td>
+                            <button className='btn btn-dark' onClick={() => {
+                                if (window.confirm("Are you sure you want to delete " + name + "?")) {
+                                    console.log("Deleting " + name + " from " + path);
+                                    home.deleteFolder(path);
+                                }
+                            }}>Delete</button>
+                        </td>
+                    </tr>;
+                })}
+            </tbody>
+        </table>
+        <div className="row mb-4">
+            <input type="text" placeholder="New Subject Name" value={subjectName} onChange={(e) => {
                 setSubjectName(e.target.value);
             }}></input>
-            <button onClick={() => {
+            <br/>
+            <button className='btn btn-primary mt-1' onClick={() => {
+                if (subjectName === "") {
+                    alert("Subject name cannot be empty");
+                    return;
+                }
                 home.createSubject(path, subjectName);
                 setSubjectName("");
-            }}>Create</button>
+            }}>Create New Subject</button>
+        </div>
+        <div className="row mb-4 mt-4">
+            <input type="text" placeholder="New Folder Name" value={folderName} onChange={(e) => {
+                setFolderName(e.target.value);
+            }}></input>
+            <br/>
+            <button className='btn btn-dark mt-1' onClick={() => {
+                if (folderName === "") {
+                    alert("Folder name cannot be empty");
+                    return;
+                }
+                home.createDataset(path, folderName);
+                setFolderName("");
+            }}>Create New Folder</button>
         </div>
     </div>
 });

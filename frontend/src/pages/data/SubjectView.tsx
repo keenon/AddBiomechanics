@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Table, Button, ProgressBar, Form } from "react-bootstrap";
+import { Table, Button, ProgressBar, Form, Collapse } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 import UserHomeDirectory, { SubjectContents, TrialSegmentContents } from "../../model/UserHomeDirectory";
 import DropFile from "../../components/DropFile";
@@ -8,12 +8,31 @@ import TagEditor from '../../components/TagEditor';
 import Session from "../../model/Session";
 import { Link } from "react-router-dom";
 import { getOpenSimBodyList } from "../../model/OpenSimUtils";
-import LiveJsonFile from "../../model/LiveJsonFile";
+import Dropzone from "react-dropzone";
 
 type SubjectViewProps = {
     home: UserHomeDirectory;
     currentLocationUserId: string;
     path: string;
+};
+
+type SegmentResultsJSON = {
+    trialName: string;
+    start_frame: number;
+    start: number;
+    end_frame: number;
+    end: number;
+    kinematicsStatus: "NOT_STARTED" | "FINISHED" | "ERROR";
+    kinematicsAvgRMSE: number;
+    kinematicsAvgMax: number;
+};
+
+type TrialResultsJSON = {
+    segments: SegmentResultsJSON[]
+};
+
+type SubjectResultsJSON = {
+    [trialName: string]: TrialResultsJSON
 };
 
 const SubjectView = observer((props: SubjectViewProps) => {
@@ -26,8 +45,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const subjectJson = subjectContents.subjectJson;
     const readyFlagFile = subjectContents.readyFlagFile;
     const processingFlagFile = subjectContents.processingFlagFile;
+    const errorFlagFile = subjectContents.errorFlagFile;
 
     // Check on the value of the key _subject.json attributes unconditionally, to ensure that MobX updates if the attributes change
+    const subjectConsent: boolean | null = subjectJson.getAttribute("subjectConsent", null);
     const subjectHeightM: number = subjectJson.getAttribute("heightM", "");
     const [subjectHeightComplete, setSubjectHeightComplete] = useState(true);
     const subjectMassKg: number = subjectJson.getAttribute("massKg", "");
@@ -45,16 +66,38 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const customOpensimModelPathData = home.getPath(pathWithSlash + "unscaled_generic.osim", false);
     const [availableBodyList, setAvailableBodyList] = useState<string[]>([]);
     useEffect(() => {
-        if (customOpensimModelPathData.files.length > 0) {
-            home.dir.downloadText(pathWithSlash + 'unscaled_generic.osim').then((openSimText) => {
+        if (!customOpensimModelPathData.loading && customOpensimModelPathData.files.length > 0) {
+            home.dir.downloadText(customOpensimModelPathData.path).then((openSimText) => {
                 setAvailableBodyList(getOpenSimBodyList(openSimText));
+            }).catch((e) => {
+                console.error("Error downloading OpenSim model text from " + customOpensimModelPathData.path + ": ", e);
             });
         }
-    }, [subjectModel, customOpensimModelPathData.files]);
+    }, [subjectModel, customOpensimModelPathData.files, customOpensimModelPathData.loading]);
+
+    // This allows us to have bulk-uploading of files from the drag and drop interface
+    const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
 
     // Check on the existence of each flag unconditionally, to ensure that MobX updates if the flags change
+    const resultsExist = subjectContents.resultsExist;
     const readyFlagExists = readyFlagFile.exists && !readyFlagFile.loading;
+    const errorFlagExists = errorFlagFile.exists && !errorFlagFile.loading;
     const processingFlagExists = processingFlagFile.exists && !processingFlagFile.loading;
+
+    // Create state to manage the collapse state of the wizard
+    const [wizardCollapsed, setWizardCollapsed] = useState(readyFlagExists);
+
+    // Manage the results JSON blob
+    const [parsedResultsJSON, setParsedResultsJSON] = useState<SubjectResultsJSON>({});
+    useEffect(() => {
+        if (resultsExist) {
+            home.dir.downloadText(path + "/_results.json").then((resultsText) => {
+                setParsedResultsJSON(JSON.parse(resultsText));
+            }).catch((e) => {
+                console.error("Error downloading _results.json from " + path + ": ", e);
+            });
+        }
+    }, [resultsExist]);
 
     /////////////////////////////////////////////////////////////////////////
     // There are several states a subject can be in:
@@ -78,6 +121,59 @@ const SubjectView = observer((props: SubjectViewProps) => {
     let formCompleteSoFar: boolean = true;
     let completedFormElements: number = 0;
     let totalFormElements: number = 0;
+
+    //////////////////////////////////////////////////////////////////
+    // 1.0. Create the entry for checking if the subject consented to have their data uploaded
+    totalFormElements++;
+    if (formCompleteSoFar) {
+        formElements.push(<div key="consent" className="mb-3">
+            <label>Subject Consent:</label>
+            <select
+                id="consent"
+                value={subjectConsent == null ? "" : (subjectConsent ? "true" : "false")}
+                className={"form-control" + ((subjectConsent == null) ? " border-primary border-2" : "") + ((subjectConsent == false) ? " border-danger border-2" : "")}
+                autoFocus={subjectConsent == null}
+                aria-describedby="consentHelp"
+                onChange={(e) => {
+                    subjectJson.setAttribute("subjectConsent", e.target.value === '' ? null : (e.target.value === 'true' ? true : false));
+                }}>
+                <option value="">Needs selection</option>
+                <option value="true">Subject Consented to Share Data</option>
+                <option value="false">Subject Did Not Consent</option>
+            </select>
+            <div id="consentHelp" className="form-text">All data uploaded to AddBiomechanics is publicly accessible, so subject consent is required</div>
+        </div>);
+
+        if (subjectConsent == null || subjectConsent === false) {
+            formCompleteSoFar = false;
+            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
+                <h4 className="alert-heading">Do I need subject consent to upload?</h4>
+                <p>
+                    Yes! Data processed on AddBiomechanics is shared with the community, so you need to make sure that the subject has consented to sharing their anonymized motion data before proceeding.
+                </p>
+                <p>
+                    <b>What should I put in my IRB?</b> You could use language like the following in your consent (IRB) forms to inform participants about how you will share their
+                    data, and give them the option to opt out.
+                </p>
+                <ul>
+                    <li><i>Consent forms example:</i> "I understand that my motion capture data (i.e., the time-history of how my body segments are moving when I walk or
+                        perform other movements) will be shared in a public repository. Sharing my data will enable others to replicate the
+                        results of this study, and enable future progress in human motion science. This motion data will not be linked with any
+                        other identifiable information about me."</li>
+                    <li><i>IRB paragraph example:</i> "Biomechanics data are processed using the AddBiomechanics web application and stored in Amazon Web Services (AWS) S3
+                        instances. All drafted and published data stored in these instances are publicly accessible to AddBiomechanics users. Public data
+                        will be accessible through the web interface and through aggregated data distributions."</li>
+                </ul>
+                <p>
+                    <b>If the data you are uploading comes from an existing public motion capture database,</b> it is fine to assume that the original publishers of that data got subject consent.
+                </p>
+            </div>);
+        }
+        else {
+            completedFormElements++;
+        }
+    }
+
     //////////////////////////////////////////////////////////////////
     // 1.1. Create the entry for the subject height
     totalFormElements++;
@@ -189,8 +285,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <select
                 id="sex"
                 value={subjectSex}
-                className={"form-control" + ((subjectSex == '') ? " border-primary border-2" : "")}
-                autoFocus={subjectSex == ''}
+                className={"form-control" + ((subjectSex === '') ? " border-primary border-2" : "")}
+                autoFocus={subjectSex === ''}
                 aria-describedby="sexHelp"
                 onChange={(e) => {
                     subjectJson.setAttribute("sex", e.target.value);
@@ -209,7 +305,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <div id="sexHelp" className="form-text">The biological sex of the subject, if available.</div>
         </div>);
 
-        if (subjectSex == '') {
+        if (subjectSex === '') {
             formCompleteSoFar = false;
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="sexExplanation">
                 <h4 className="alert-heading">How does AddBiomechanics use biological sex?</h4>
@@ -231,10 +327,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <input
                 type="number"
                 id="ageInput"
-                className={"form-control" + ((subjectAgeYears == 0 || !subjectAgeComplete) ? " border-primary border-2" : "")}
+                className={"form-control" + ((subjectAgeYears === 0 || !subjectAgeComplete) ? " border-primary border-2" : "")}
                 aria-describedby="ageHelp"
                 value={subjectAgeYears}
-                autoFocus={subjectAgeYears != 0 || !subjectAgeComplete}
+                autoFocus={subjectAgeYears === 0 || !subjectAgeComplete}
                 onFocus={() => subjectJson.onFocusAttribute("ageYears")}
                 onBlur={() => subjectJson.onBlurAttribute("ageYears")}
                 onKeyDown={(e) => {
@@ -253,7 +349,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <div id="ageHelp" className="form-text">The age of the subject, in years. -1 if not known.</div>
         </div>);
 
-        if (subjectAgeYears == 0 || !subjectAgeComplete) {
+        if (subjectAgeYears === 0 || !subjectAgeComplete) {
             if (subjectAgeComplete) {
                 setSubjectAgeComplete(false);
             }
@@ -305,11 +401,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     It's ok if the model has more markers than the motion capture files, as additional markers will be ignored.
                 </p>
                 <p>
-                    If you are not familiar with <a href="https://simtk.org/projects/opensim" target="_blank">OpenSim</a>, a good default model is the <a href="https://simtk.org/projects/full_body" target="_blank">Rajagopal 2016</a> model.
+                    If you are not familiar with <a href="https://simtk.org/projects/opensim" rel="noreferrer" target="_blank">OpenSim</a>, a good default model is the <a href="https://simtk.org/projects/full_body" target="_blank">Rajagopal 2016</a> model.
                     We offer a Rajagopal 2016 model with a few different common markersets as a convenience, if you don't want to upload your own model.
                     <ul>
-                        <li>The <a href="https://simtk.org/projects/full_body" target="_blank">Rajagopal 2016</a> model with a <a href="https://docs.vicon.com/download/attachments/133828966/Plug-in%20Gait%20Reference%20Guide.pdf?version=2&modificationDate=1637681079000&api=v2" target="_blank">standard Vicon markerset</a></li>
-                        <li>The <a href="https://simtk.org/projects/full_body" target="_blank">Rajagopal 2016</a> model with a <a href="http://mocap.cs.cmu.edu/markerPlacementGuide.pdf" target="_blank">CMU markerset</a></li>
+                        <li>The <a href="https://simtk.org/projects/full_body" rel="noreferrer" target="_blank">Rajagopal 2016</a> model with a <a href="https://docs.vicon.com/download/attachments/133828966/Plug-in%20Gait%20Reference%20Guide.pdf?version=2&modificationDate=1637681079000&api=v2" rel="noreferrer" target="_blank">standard Vicon markerset</a></li>
+                        <li>The <a href="https://simtk.org/projects/full_body" rel="noreferrer" target="_blank">Rajagopal 2016</a> model with a <a href="http://mocap.cs.cmu.edu/markerPlacementGuide.pdf" rel="noreferrer" target="_blank">CMU markerset</a></li>
                         <li>Upload your own custom OpenSim model</li>
                     </ul>
                 </p>
@@ -328,7 +424,13 @@ const SubjectView = observer((props: SubjectViewProps) => {
             formElements.push(<div key="customModel" className="mb-3">
                 <label>Upload Custom OpenSim Model:</label>
                 <DropFile pathData={customOpensimModelPathData} accept=".osim" upload={(file, progressCallback) => {
-                    return home.dir.uploadFile(customOpensimModelPathData.path, file, progressCallback);
+                    return home.dir.uploadFile(customOpensimModelPathData.path, file, progressCallback).then(() => {
+                        home.dir.downloadText(customOpensimModelPathData.path).then((openSimText) => {
+                            setAvailableBodyList(getOpenSimBodyList(openSimText));
+                        }).catch((e) => {
+                            console.error("Error downloading OpenSim model text from " + customOpensimModelPathData.path + ": ", e);
+                        });
+                    });
                 }} download={() => {
                     return home.dir.downloadFile(customOpensimModelPathData.path);
                 }}></DropFile>
@@ -518,9 +620,9 @@ const SubjectView = observer((props: SubjectViewProps) => {
         </div>
     }
 
-    const trialsView = <>
-        <h3>Motion Capture Files:</h3>
-        <table className="table">
+    let mocapFilesTable = null;
+    if (subjectContents.trials.length > 0) {
+        mocapFilesTable = <table className="table">
             <thead>
                 <tr>
                     <th scope="col">Name</th>
@@ -559,13 +661,14 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     };
 
                     let dataFiles = [];
+                    let uploadOnMount: File | undefined = uploadFiles[trial.name];
                     if (!trial.c3dFileExists && !trial.trcFileExists) {
                         const trialC3dPathData = home.getPath(trial.c3dFilePath, false);
                         dataFiles.push(
                             <td key='c3d' colSpan={disableDynamics ? 1 : 2}>
                                 <DropFile pathData={trialC3dPathData} accept=".c3d,.trc" upload={uploadMarkerFile} download={() => {
                                     return home.dir.downloadFile(trialC3dPathData.path);
-                                }} />
+                                }} uploadOnMount={uploadOnMount} />
                             </td>
                         );
                     }
@@ -575,7 +678,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                             <td key='c3d' colSpan={disableDynamics ? 1 : 2}>
                                 <DropFile pathData={trialC3dPathData} accept=".c3d,.trc" upload={uploadMarkerFile} download={() => {
                                     return home.dir.downloadFile(trialC3dPathData.path);
-                                }} />
+                                }} uploadOnMount={uploadOnMount} />
                             </td>
                         );
                     }
@@ -586,7 +689,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                             <td>
                                 <DropFile pathData={trialTrcPathData} accept=".trc,.c3d" upload={uploadMarkerFile} download={() => {
                                     return home.dir.downloadFile(trialTrcPathData.path);
-                                }} />
+                                }} uploadOnMount={uploadOnMount} />
                             </td>
                         );
                         if (!disableDynamics) {
@@ -618,13 +721,161 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 })}
             </tbody>
         </table>
-        <button className="btn btn-primary">Add new trial</button>
+    }
+
+    let mocapHelpText = null;
+    let submitButton = null;
+    if (!readyFlagExists) {
+        mocapHelpText = <div className="alert alert-dark mt-2" role="alert">
+            <h4 className="alert-heading">How do I add motion capture trials?</h4>
+            <p>
+                You can drag and drop <code>*.c3d</code> or <code>*.trc</code> files onto the dropzone above to create trials. We recommend you use <code>*.c3d</code> files when possible. Trials will be created which match the names of the files you upload.
+            </p>
+            {disableDynamics ? null :
+                <p>
+                    Because you are fitting physics, you will need to upload ground reaction force data. Forces come bundled in <code>*.c3d</code> files, so those require no extra steps. If instead you choose to use <code>*.trc</code> files for your markers, then you will also need to upload <code>*.mot</code> files containing ground reaction force data for each trial. These files should be named the same as the trial files, but with the <code>*.mot</code> extension.
+                </p>
+            }
+            <p>
+                When you've uploaded all the files you want, click the "Submit for Processing" button below.
+            </p>
+        </div>;
+        submitButton =
+            <button className="btn btn-lg btn-primary mt-2" disabled={subjectContents.trials.length === 0} style={{ width: '100%' }} onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                readyFlagFile.upload().then(() => {
+                    setWizardCollapsed(true);
+                });
+            }}>Submit for Processing</button>;
+    }
+
+    const trialsUploadSection = <>
+        <h3>Motion Capture Files:</h3>
+        {mocapFilesTable}
+        <Dropzone
+            {...props}
+            accept=".c3d,.trc"
+            onDrop={(acceptedFiles: File[]) => {
+                let trialNames: string[] = [];
+
+                let updatedUploadFiles = { ...uploadFiles };
+                for (let i = 0; i < acceptedFiles.length; i++) {
+                    const name = acceptedFiles[i].name.split('.')[0];
+                    trialNames.push(name);
+                    updatedUploadFiles[name] = acceptedFiles[i];
+                }
+                setUploadFiles(updatedUploadFiles);
+
+                trialNames.forEach((name) => {
+                    props.home.createTrial(path, name);
+                });
+            }}
+        >
+            {({ getRootProps, getInputProps, isDragActive }) => {
+                const rootProps = getRootProps();
+                const inputProps = getInputProps();
+                return <div className={"dropzone" + (isDragActive ? ' dropzone-hover' : '')} {...rootProps}>
+                    <div className="dz-message needsclick">
+                        <input {...inputProps} />
+                        <i className="h3 text-muted dripicons-cloud-upload"></i>
+                        <h5>
+                            Drop C3D or TRC files here to create trials.
+                        </h5>
+                        <span className="text-muted font-13">
+                            (You can drop multiple files at once to create multiple
+                            trials simultaneously)
+                        </span>
+                    </div>
+                </div>
+            }}
+        </Dropzone>
+        {submitButton}
+        {mocapHelpText}
     </>;
-    // Trial: <Link to={Session.getDataURL(props.currentLocationUserId, path)}>{name}</Link>
+
+    let statusSection = null;
+    if (readyFlagExists) {
+        if (errorFlagExists) {
+            statusSection = <div>
+                <h3>Status: Error</h3>
+                <button className="btn btn-primary" onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    errorFlagFile.delete();
+                    processingFlagFile.delete();
+                }}>Reprocess</button>
+            </div>;
+        }
+        else if (resultsExist) {
+            statusSection = <div>
+                <h3>Status: Finished!</h3>
+            </div>;
+        }
+        else if (processingFlagExists) {
+            statusSection = <div>
+                <h3>Status: Processing</h3>
+                <button className="btn btn-primary" onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    processingFlagFile.delete();
+                }}>Force Reprocess</button>
+            </div>;
+        }
+        else {
+            statusSection = <div>
+                <h3>Status: Waiting for server</h3>
+            </div>;
+        }
+    }
+
+    let resultsSection = null;
+    if (resultsExist) {
+        const trialNames: string[] = subjectContents.trials.map((trial) => trial.name);
+
+        resultsSection = <div>
+            <h3>Results:</h3>
+            <table className="table">
+                <thead>
+                    <tr>
+                        <th scope="col">Trial Segment</th>
+                        <th scope="col">Kinematics Error</th>
+                        <th scope="col">Dynamics Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {
+                        subjectContents.trials.flatMap((trial) => {
+                            if (trial.name in parsedResultsJSON) {
+                                const trialResults = parsedResultsJSON[trial.name];
+                                return trial.segments.map((segment, index) => {
+                                    const segmentResults = trialResults.segments[index];
+                                    return <tr key={segment.path}>
+                                        <td><Link to={Session.getDataURL(props.currentLocationUserId, segment.path)}>{trial.name} {segmentResults.start}s to {segmentResults.end}s</Link></td>
+                                        <td>{segmentResults.kinematicsAvgRMSE == null ? 'NaN' : segmentResults.kinematicsAvgRMSE.toFixed(2)} cm RMSE</td>
+                                        <td>Did not run</td>
+                                    </tr>
+                                });
+                            }
+                            else {
+                                return [<tr key={trial.name}>
+                                    <td>{trial.name} Loading...</td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>]
+                            }
+                        })
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 
     return <div className='container'>
         {subjectForm}
-        {trialsView}
+        {trialsUploadSection}
+        {statusSection}
+        {resultsSection}
     </div>
 });
 
