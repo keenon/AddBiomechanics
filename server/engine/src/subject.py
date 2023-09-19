@@ -424,9 +424,6 @@ class Subject:
                         segment.kinematics_status = ProcessingStatus.IN_PROGRESS
                     else:
                         segment.kinematics_status = ProcessingStatus.ERROR
-        for segment in trial_segments:
-            kinematics_results = marker_fitter.runKinematicsPipeline(segment.marker_observations, [False for _ in range(len(segment.marker_observations))], nimble.biomechanics.InitialMarkerFitParams())
-            assert(not np.any(np.isnan(kinematics_results.poses)))
         marker_fitter_results: List[
             nimble.biomechanics.MarkerInitialization] = marker_fitter.runMultiTrialKinematicsPipeline(
             [segment.marker_observations for segment in trial_segments],
