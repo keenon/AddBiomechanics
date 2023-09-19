@@ -491,7 +491,7 @@ class TrialSegment:
                 force = force_plate.forces[t]
                 moment = force_plate.moments[t]
                 line = [cop, cop + force * 0.001]
-                gui.createLine('force_plate_' + str(i), line, [1.0, 0.0, 0.0, 1.0], layer=force_plate_layer_name, width=[0.01, 0.01])
+                gui.createLine('force_plate_' + str(i), line, [1.0, 0.0, 0.0, 1.0], layer=force_plate_layer_name, width=[2.0, 1.0])
 
         # 4. Render the kinematics skeleton, if we have it
         if self.kinematics_status == ProcessingStatus.FINISHED and final_skeleton is not None:
