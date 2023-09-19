@@ -361,8 +361,11 @@ class Subject:
                     print(trial_segment.error_msg, flush=True)
                 else:
                     self.totalFrames += len(trial_segment.marker_observations)
+                    # NOTE: When this was passed trial_segment.original_marker_observations, we got weird crashes with
+                    # data corruption, but only on builds of Nimble coming from CI. Passing
+                    # trial_segment.marker_observations instead seems to fix it. This is scary.
                     trial_error_report = marker_fitter.generateDataErrorsReport(
-                        trial_segment.original_marker_observations, trial.timestep)
+                        trial_segment.marker_observations, trial.timestep)
                     trial_segment.marker_observations = trial_error_report.markerObservationsAttemptedFixed
                     trial_segment.marker_error_report = trial_error_report
                     # Set an error if there are any NaNs in the marker data
@@ -371,6 +374,11 @@ class Subject:
                             if np.any(np.isnan(trial_segment.marker_observations[t][marker])):
                                 trial_segment.has_error = True
                                 trial_segment.error_msg = 'Trial had NaNs in the data after running MarkerFixer.'
+                                break
+                            if np.any(np.abs(trial_segment.marker_observations[t][marker]) > 1e+6):
+                                trial_segment.has_error = True
+                                trial_segment.error_msg = ('Trial had suspiciously large marker values after running '
+                                                           'MarkerFixer.')
                                 break
 
         print('All trial markers have been cleaned up!', flush=True)
@@ -416,7 +424,9 @@ class Subject:
                         segment.kinematics_status = ProcessingStatus.IN_PROGRESS
                     else:
                         segment.kinematics_status = ProcessingStatus.ERROR
-
+        for segment in trial_segments:
+            kinematics_results = marker_fitter.runKinematicsPipeline(segment.marker_observations, [False for _ in range(len(segment.marker_observations))], nimble.biomechanics.InitialMarkerFitParams())
+            assert(not np.any(np.isnan(kinematics_results.poses)))
         marker_fitter_results: List[
             nimble.biomechanics.MarkerInitialization] = marker_fitter.runMultiTrialKinematicsPipeline(
             [segment.marker_observations for segment in trial_segments],

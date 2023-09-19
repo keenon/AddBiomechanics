@@ -136,14 +136,19 @@ class Trial:
             trial.error = True
             trial.error_loading_files = ('No marker data frames found for trial ' + trial_name + '.')
 
-        # Set an error if there are any NaNs in the marker data
+        # Set an error if there are any NaNs or suspiciously large values in the marker data
         for t in range(len(trial.marker_observations)):
             for marker in trial.marker_observations[t]:
                 if np.any(np.isnan(trial.marker_observations[t][marker])):
                     trial.error = True
                     trial.error_loading_files = (f'Trial {trial_name} has NaNs in marker data. Check that the marker '
                                                  f'file is not corrupted.')
-                    break
+                    break  # Exit inner loop
+                elif np.any(np.abs(trial.marker_observations[t][marker]) > 1e6):
+                    trial.error = True
+                    trial.error_loading_files = (f'Trial {trial_name} has suspiciously large values ({trial.marker_observations[t][marker]}) in marker data. '
+                                                 f'Check that the marker file is accurate.')
+                    break  # Exit inner loop
 
         return trial
 
@@ -234,8 +239,6 @@ class TrialSegment:
             if len(new_plate.forces) > 0:
                 assert(len(new_plate.forces) == len(self.parent.marker_observations))
                 new_plate.trimToIndexes(self.start, self.end)
-                print(len(new_plate.forces))
-                print(len(self.original_marker_observations))
                 assert(len(new_plate.forces) == len(self.original_marker_observations))
             self.force_plates.append(new_plate)
         # Manually scaled comparison data, to render visual comparisons if the user uploaded it
@@ -276,6 +279,11 @@ class TrialSegment:
                 if np.any(np.isnan(self.marker_observations[t][marker])):
                     self.has_error = True
                     self.error_msg = 'Trial segment has NaNs in marker data.'
+                elif np.any(np.abs(self.marker_observations[t][marker]) > 1e6):
+                    self.error = True
+                    self.error_msg = (f'Trial segment has suspiciously large values ({self.marker_observations[t][marker]}) in marker data. '
+                                     f'Check that the marker file is accurate.')
+                    break  # Exit inner loop
 
     def compute_manually_scaled_ik_error(self, manually_scaled_osim: nimble.biomechanics.OpenSimFile):
         self.manually_scaled_ik_error_report = nimble.biomechanics.IKErrorReport(
