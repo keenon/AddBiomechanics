@@ -84,7 +84,7 @@ class TrialToProcess:
                 if file.endswith('.c3d') or file.endswith('.trc') or file.endswith('.mot'):
                     continue
                 file_path = os.path.join(root, file)
-                relative_path = file_path.replace(trialsFolderPath, '')
+                relative_path = file_path.replace(trialPath, '')
                 if relative_path.startswith('/'):
                     relative_path = relative_path[1:]
                 self.index.uploadFile(self.trialPath + relative_path, file_path)
