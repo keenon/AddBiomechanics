@@ -81,7 +81,7 @@ RUN mkdir opensim_build && \
         -DSWIG_DIR="~/swig/share/swig" \
         -DSWIG_EXECUTABLE="~/swig/bin/swig" \
         -DWITH_BTK=ON && \
-    make -j4 && \
+    make -j8 && \
     make install
 
 # Install OpenSim Python interface
