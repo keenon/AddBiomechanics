@@ -347,19 +347,22 @@ class TrialSegment:
 
     def save_segment_csv(self, csv_file_path: str, final_skeleton: Optional[nimble.dynamics.Skeleton] = None):
         # Finite difference out the joint quantities we care about
-        poses: np.ndarray = np.zeros(0)
+        poses: np.ndarray = np.zeros((0, 0))
         if self.dynamics_status == ProcessingStatus.FINISHED and self.dynamics_poses is not None:
             poses = self.dynamics_poses
         elif self.kinematics_status == ProcessingStatus.FINISHED and self.kinematics_poses is not None:
             poses = self.kinematics_poses
+        
         vels: np.ndarray = np.zeros_like(poses)
         accs: np.ndarray = np.zeros_like(poses)
         for i in range(1, poses.shape[1]):
             vels[:, i] = (poses[:, i] - poses[:, i - 1]) / self.parent.timestep
-        vels[:, 0] = vels[:, 1]
+        if vels.shape[1] > 0:
+            vels[:, 0] = vels[:, 1]
         for i in range(1, vels.shape[1]):
             accs[:, i] = (vels[:, i] - vels[:, i - 1]) / self.parent.timestep
-        accs[:, 0] = accs[:, 1]
+        if accs.shape[1] > 0:
+            accs[:, 0] = accs[:, 1]
 
         # Write the CSV file
         with open(csv_file_path, 'w') as f:

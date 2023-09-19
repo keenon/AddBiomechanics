@@ -795,7 +795,7 @@ class Subject:
                 marker_offsets_map[k] = (v[0].getName(), v[1])
                 marker_names.append(k)
             nimble.biomechanics.OpenSimParser.moveOsimMarkers(
-                data_folder_path + 'unscaled_generic.osim',
+                self.subject_path + 'unscaled_generic.osim',
                 body_scales_map,
                 marker_offsets_map,
                 results_path + 'Models/unscaled_but_with_optimized_markers.osim')
