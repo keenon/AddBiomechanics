@@ -339,7 +339,7 @@ class TrialSegment:
         gui = nimble.server.GUIRecording()
 
         for t in range(len(self.marker_observations)):
-            self.render_markers_frame(gui, t, final_skeleton, final_markers, manually_scaled_skeleton)
+            self.render_frame(gui, t, final_skeleton, final_markers, manually_scaled_skeleton)
             gui.saveFrame()
 
         gui.setFramesPerSecond(int(1.0 / self.parent.timestep))
@@ -381,7 +381,7 @@ class TrialSegment:
                 if self.dynamics_status == ProcessingStatus.FINISHED:
                     # Joint torques
                     for i in range(final_skeleton.getNumDofs()):
-                        f.write(',' + final_skeleton.getDofByIndex(i).getName()+'_acc')
+                        f.write(',' + final_skeleton.getDofByIndex(i).getName()+'_tau')
             f.write('\n')
 
             for t in range(len(self.marker_observations)):
@@ -403,12 +403,12 @@ class TrialSegment:
                             f.write(',' + str(self.dynamics_taus[i, t]))
                 f.write('\n')
 
-    def render_markers_frame(self,
-                             gui: nimble.server.GUIRecording,
-                             t: int,
-                             final_skeleton: Optional[nimble.dynamics.Skeleton] = None,
-                             final_markers: Optional[Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]]] = None,
-                             manually_scaled_skeleton: Optional[nimble.biomechanics.OpenSimFile] = None):
+    def render_frame(self,
+                     gui: nimble.server.GUIRecording,
+                     t: int,
+                     final_skeleton: Optional[nimble.dynamics.Skeleton] = None,
+                     final_markers: Optional[Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]]] = None,
+                     manually_scaled_skeleton: Optional[nimble.biomechanics.OpenSimFile] = None):
         markers_layer_name: str = 'Markers'
         warnings_layer_name: str = 'Warnings'
         force_plate_layer_name: str = 'Force Plates'
@@ -421,7 +421,7 @@ class TrialSegment:
             # 1.1. Set up the layers
             gui.createLayer(markers_layer_name, [0.5, 0.5, 0.5, 1.0], defaultShow=False)
             gui.createLayer(warnings_layer_name, [1.0, 0.0, 0.0, 1.0], defaultShow=False)
-            gui.createLayer(force_plate_layer_name, [0.0, 0.0, 1.0, 1.0], defaultShow=False)
+            gui.createLayer(force_plate_layer_name, [1.0, 0.0, 0.0, 1.0], defaultShow=True)
 
             if manually_scaled_skeleton is not None:
                 gui.createLayer(manually_fit_layer_name, [0.0, 0.0, 1.0, 1.0], defaultShow=False)
@@ -491,7 +491,7 @@ class TrialSegment:
                 force = force_plate.forces[t]
                 moment = force_plate.moments[t]
                 line = [cop, cop + force * 0.001]
-                gui.createLine('force_plate_' + str(i), line, [1.0, 0.0, 0.0, 1.0], layer=force_plate_layer_name)
+                gui.createLine('force_plate_' + str(i), line, [1.0, 0.0, 0.0, 1.0], layer=force_plate_layer_name, width=[0.01, 0.01])
 
         # 4. Render the kinematics skeleton, if we have it
         if self.kinematics_status == ProcessingStatus.FINISHED and final_skeleton is not None:
