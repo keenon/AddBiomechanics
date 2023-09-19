@@ -1719,7 +1719,8 @@ def main():
         subject.run_kinematics_fit(DATA_FOLDER_PATH)
         # The dynamics fit will fit the dynamics parameters of the subject, to all the trial segments that have not yet
         # thrown an error during loading or kinematics fitting.
-        subject.run_dynamics_fit()
+        if not subject.disableDynamics:
+            subject.run_dynamics_fit()
         # This will write out a folder of OpenSim results files.
         subject.write_opensim_results(os.path.abspath(path + '/osim_results'),
                                       DATA_FOLDER_PATH)
