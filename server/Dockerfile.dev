@@ -57,7 +57,6 @@ COPY ./data /data
 COPY ./server_credentials.csv /server_credentials.csv
 RUN pip3 install -r /app/requirements.txt
 RUN pip3 install -r /engine/requirements.txt
-RUN pip3 install pandas matplotlib
 
 #########################################################
 # Run with dev settings
