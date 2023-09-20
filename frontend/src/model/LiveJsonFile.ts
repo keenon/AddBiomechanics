@@ -157,6 +157,10 @@ class LiveJsonFile {
      * @param value 
      */
     setAttribute(key: string, value: any, uploadImmediate?: boolean): void {
+        // If this is already recorded, then nothing new here
+        if (this.values.get(key) === value) {
+            return;
+        }
         this.values.set(key, value);
         if (uploadImmediate) {
             this.uploadNow();

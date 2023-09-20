@@ -173,6 +173,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                 return cached;
             }
         }
+        console.log("Getting path " + path + " recursively: " + recursive + ", cached", cached);
 
         // If we reach this point, the path has not yet been loaded
         // Kick off a load for the PathData, and keep around a promise for that load completing

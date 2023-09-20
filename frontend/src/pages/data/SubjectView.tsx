@@ -25,6 +25,17 @@ type SegmentResultsJSON = {
     kinematicsStatus: "NOT_STARTED" | "FINISHED" | "ERROR";
     kinematicsAvgRMSE: number;
     kinematicsAvgMax: number;
+    dynamicsStatus: "NOT_STARTED" | "FINISHED" | "ERROR";
+    dynanimcsAvgRMSE: number;
+    dynanimcsAvgMax: number;
+    linearResiduals: number;
+    angularResiduals: number;
+    goldAvgRMSE: number;
+    goldAvgMax: number;
+    goldPerMarkerRMSE: number | null;
+    hasMarkers: boolean;
+    hasForces: boolean;
+    hasMarkerWarnings: boolean;
 };
 
 type TrialResultsJSON = {
@@ -48,22 +59,27 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const errorFlagFile = subjectContents.errorFlagFile;
 
     // Check on the value of the key _subject.json attributes unconditionally, to ensure that MobX updates if the attributes change
+    const subjectDataSource: '' | 'published' | 'pilot' | 'study' = subjectJson.getAttribute("dataSource", "");
     const subjectConsent: boolean | null = subjectJson.getAttribute("subjectConsent", null);
     const subjectHeightM: number = subjectJson.getAttribute("heightM", "");
     const [subjectHeightComplete, setSubjectHeightComplete] = useState(true);
     const subjectMassKg: number = subjectJson.getAttribute("massKg", "");
     const [subjectMassComplete, setSubjectMassComplete] = useState(true);
     const subjectSex: '' | 'male' | 'female' | 'unknown' = subjectJson.getAttribute("sex", "");
-    const subjectAgeYears: number = subjectJson.getAttribute("ageYears", "");
+    const subjectAgeYears: number | '' = subjectJson.getAttribute("ageYears", '');
     const [subjectAgeComplete, setSubjectAgeComplete] = useState(true);
     const subjectModel: '' | 'custom' | 'vicon' | 'cmu' = subjectJson.getAttribute("skeletonPreset", "");
     const disableDynamics: boolean | null = subjectJson.getAttribute("disableDynamics", null);
     const footBodyNames = subjectJson.getAttribute("footBodyNames", []);
+    const subjectTags = subjectJson.getAttribute("subjectTags", []);
+    const subjectTagValues = subjectJson.getAttribute("subjectTagValues", {} as { [key: string]: number });
     const runMoco: boolean | null = subjectJson.getAttribute("runMoco", null);
+    const subjectCitation: string | null = subjectJson.getAttribute("citation", null);
+    const [subjectCitationComplete, setSubjectCitationComplete] = useState(true);
 
     // Get the details we'll need for custom OpenSim models unconditionaly, to ensure that MobX updates if the attributes change
     const pathWithSlash = path + (path.endsWith('/') ? '' : '/');
-    const customOpensimModelPathData = home.getPath(pathWithSlash + "unscaled_generic.osim", false);
+    const customOpensimModelPathData = home.dir.getPath(pathWithSlash + "unscaled_generic.osim", false);
     const [availableBodyList, setAvailableBodyList] = useState<string[]>([]);
     useEffect(() => {
         if (!customOpensimModelPathData.loading && customOpensimModelPathData.files.length > 0) {
@@ -73,10 +89,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 console.error("Error downloading OpenSim model text from " + customOpensimModelPathData.path + ": ", e);
             });
         }
-    }, [subjectModel, customOpensimModelPathData.files, customOpensimModelPathData.loading]);
+    }, [subjectModel, customOpensimModelPathData.loading]);
 
     // This allows us to have bulk-uploading of files from the drag and drop interface
-    const [uploadFiles, setUploadFiles] = useState({} as { [key: string]: File; });
+    const [uploadMarkerFiles, setUploadMarkerFiles] = useState({} as { [key: string]: File; });
+    const [uploadGrfFiles, setUploadGrfFiles] = useState({} as { [key: string]: File; });
 
     // Check on the existence of each flag unconditionally, to ensure that MobX updates if the flags change
     const resultsExist = subjectContents.resultsExist;
@@ -121,58 +138,6 @@ const SubjectView = observer((props: SubjectViewProps) => {
     let formCompleteSoFar: boolean = true;
     let completedFormElements: number = 0;
     let totalFormElements: number = 0;
-
-    //////////////////////////////////////////////////////////////////
-    // 1.0. Create the entry for checking if the subject consented to have their data uploaded
-    totalFormElements++;
-    if (formCompleteSoFar) {
-        formElements.push(<div key="consent" className="mb-3">
-            <label>Subject Consent:</label>
-            <select
-                id="consent"
-                value={subjectConsent == null ? "" : (subjectConsent ? "true" : "false")}
-                className={"form-control" + ((subjectConsent == null) ? " border-primary border-2" : "") + ((subjectConsent == false) ? " border-danger border-2" : "")}
-                autoFocus={subjectConsent == null}
-                aria-describedby="consentHelp"
-                onChange={(e) => {
-                    subjectJson.setAttribute("subjectConsent", e.target.value === '' ? null : (e.target.value === 'true' ? true : false));
-                }}>
-                <option value="">Needs selection</option>
-                <option value="true">Subject Consented to Share Data</option>
-                <option value="false">Subject Did Not Consent</option>
-            </select>
-            <div id="consentHelp" className="form-text">All data uploaded to AddBiomechanics is publicly accessible, so subject consent is required</div>
-        </div>);
-
-        if (subjectConsent == null || subjectConsent === false) {
-            formCompleteSoFar = false;
-            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
-                <h4 className="alert-heading">Do I need subject consent to upload?</h4>
-                <p>
-                    Yes! Data processed on AddBiomechanics is shared with the community, so you need to make sure that the subject has consented to sharing their anonymized motion data before proceeding.
-                </p>
-                <p>
-                    <b>What should I put in my IRB?</b> You could use language like the following in your consent (IRB) forms to inform participants about how you will share their
-                    data, and give them the option to opt out.
-                </p>
-                <ul>
-                    <li><i>Consent forms example:</i> "I understand that my motion capture data (i.e., the time-history of how my body segments are moving when I walk or
-                        perform other movements) will be shared in a public repository. Sharing my data will enable others to replicate the
-                        results of this study, and enable future progress in human motion science. This motion data will not be linked with any
-                        other identifiable information about me."</li>
-                    <li><i>IRB paragraph example:</i> "Biomechanics data are processed using the AddBiomechanics web application and stored in Amazon Web Services (AWS) S3
-                        instances. All drafted and published data stored in these instances are publicly accessible to AddBiomechanics users. Public data
-                        will be accessible through the web interface and through aggregated data distributions."</li>
-                </ul>
-                <p>
-                    <b>If the data you are uploading comes from an existing public motion capture database,</b> it is fine to assume that the original publishers of that data got subject consent.
-                </p>
-            </div>);
-        }
-        else {
-            completedFormElements++;
-        }
-    }
 
     //////////////////////////////////////////////////////////////////
     // 1.1. Create the entry for the subject height
@@ -327,10 +292,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <input
                 type="number"
                 id="ageInput"
-                className={"form-control" + ((subjectAgeYears === 0 || !subjectAgeComplete) ? " border-primary border-2" : "")}
+                className={"form-control" + ((subjectAgeYears === "" || !subjectAgeComplete) ? " border-primary border-2" : "")}
                 aria-describedby="ageHelp"
                 value={subjectAgeYears}
-                autoFocus={subjectAgeYears === 0 || !subjectAgeComplete}
+                autoFocus={subjectAgeYears === "" || !subjectAgeComplete}
                 onFocus={() => subjectJson.onFocusAttribute("ageYears")}
                 onBlur={() => subjectJson.onBlurAttribute("ageYears")}
                 onKeyDown={(e) => {
@@ -349,7 +314,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <div id="ageHelp" className="form-text">The age of the subject, in years. -1 if not known.</div>
         </div>);
 
-        if (subjectAgeYears === 0 || !subjectAgeComplete) {
+        if (subjectAgeYears === '' || !subjectAgeComplete) {
             if (subjectAgeComplete) {
                 setSubjectAgeComplete(false);
             }
@@ -362,6 +327,52 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <p>Currently, AddBiomechanics does not use the age value in the scaling process, though it may in the future. This field is included to allow large N studies of the effect of age on movement using AddBiomechanics data.</p>
                 <hr />
                 <p className="mb-0">If you don't know, please put -1.</p>
+            </div>);
+        }
+        else {
+            completedFormElements++;
+        }
+    }
+    //////////////////////////////////////////////////////////////////
+    // 1.5. Create the entry for the subject tags
+    totalFormElements++;
+    if (formCompleteSoFar) {
+        formElements.push(<div key="tags" className="mb-3">
+            <label>Subject Tags:</label>
+            <TagEditor
+                tagSet='subject'
+                error={subjectTags.length == 0}
+                tags={subjectTags}
+                readonly={false}
+                onTagsChanged={(newTags) => {
+                    subjectJson.setAttribute("subjectTags", newTags);
+                }}
+                tagValues={subjectTagValues}
+                onTagValuesChanged={(newTagValues) => {
+                    subjectJson.setAttribute("subjectTagValues", newTagValues);
+                }}
+                onFocus={() => {
+                    subjectJson.onFocusAttribute("subjectTags");
+                }}
+                onBlur={() => {
+                    subjectJson.onBlurAttribute("subjectTags");
+                }}
+            />
+        </div>);
+
+        if (subjectTags.length == 0) {
+            formCompleteSoFar = false;
+            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
+                <h4 className="alert-heading">Why do I need to tag my subject?</h4>
+                <p>
+                    Data uploaded to AddBiomechanics is periodically shared in large public releases. The data is vastly more useful 
+                    if it is tagged with some characteristics of the subject. When you download large public releases to ask "big N 
+                    questions" about populations, you will thank yourself (and everyone else) for tagging your data!
+                </p>
+                <hr />
+                <p className="mb-0">
+                    If there isn't any other available tag to use, you can specify "Unimpaired".
+                </p>
             </div>);
         }
         else {
@@ -423,13 +434,25 @@ const SubjectView = observer((props: SubjectViewProps) => {
         if (formCompleteSoFar) {
             formElements.push(<div key="customModel" className="mb-3">
                 <label>Upload Custom OpenSim Model:</label>
-                <DropFile pathData={customOpensimModelPathData} accept=".osim" upload={(file, progressCallback) => {
+                <DropFile pathData={customOpensimModelPathData} accept=".osim" upload={(file: File, progressCallback: (progress: number) => void) => {
                     return home.dir.uploadFile(customOpensimModelPathData.path, file, progressCallback).then(() => {
-                        home.dir.downloadText(customOpensimModelPathData.path).then((openSimText) => {
-                            setAvailableBodyList(getOpenSimBodyList(openSimText));
-                        }).catch((e) => {
-                            console.error("Error downloading OpenSim model text from " + customOpensimModelPathData.path + ": ", e);
-                        });
+                        // Read the text of `file` locally
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            const text = (event.target?.result as string);
+                            setAvailableBodyList(getOpenSimBodyList(text));
+                        };
+
+                        reader.onerror = (event) => {
+                            console.log("OpenSim model file could not be read:", event.target?.error?.message);
+                            home.dir.downloadText(customOpensimModelPathData.path).then((openSimText) => {
+                                setAvailableBodyList(getOpenSimBodyList(openSimText));
+                            }).catch((e) => {
+                                console.error("Error downloading OpenSim model text from " + customOpensimModelPathData.path + ": ", e);
+                            });
+                        };
+
+                        reader.readAsText(file);
                     });
                 }} download={() => {
                     return home.dir.downloadFile(customOpensimModelPathData.path);
@@ -599,6 +622,186 @@ const SubjectView = observer((props: SubjectViewProps) => {
             }
         }
     }
+    //////////////////////////////////////////////////////////////////
+    // 1.10. Create an entry for the state of this data
+    totalFormElements++;
+    if (formCompleteSoFar) {
+        formElements.push(<div key="data" className="mb-3">
+            <label>Quality of Raw Mocap Data:</label>
+            <select
+                id="data"
+                value={subjectDataSource}
+                className={"form-control" + ((subjectDataSource == '') ? " border-primary border-2" : "")}
+                autoFocus={subjectDataSource == ''}
+                aria-describedby="dataHelp"
+                onChange={(e) => {
+                    subjectJson.setAttribute("dataSource", e.target.value);
+                }}>
+                <option value="">Needs selection</option>
+                <option value="pilot">Just experimenting - rough pilot data</option>
+                <option value="study">Study data - carefully collected</option>
+                <option value="public">Found on the internet - unknown quality</option>
+            </select>
+            <div id="dataHelp" className="form-text">We treat different kinds of data differently</div>
+        </div>);
+
+        if (subjectDataSource == '') {
+            formCompleteSoFar = false;
+            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
+                <h4 className="alert-heading">How do I choose which "Quality of Data" to say?</h4>
+                <p>
+                    AddBiomechanics treats different kinds of data differently. By telling us how confident you 
+                    are in the data, we can modulate how much computation to use producing a result.
+                </p>
+                <p>
+                    This tag also helps us to determine what data needs extra quality checks before getting 
+                    included in any large public dataset releases.
+                </p>
+                <p>
+                    Here's what each option means:
+                    <ul>
+                        <li>
+                            <h5>Just experimenting:</h5>
+                            This is data you collected quickly, perhaps without 
+                            super careful marker placement, and maybe while still debugging the protocol for your 
+                            study. We will <b>use fewer optimization iterations</b> to process your data.
+                            We will also treat it with extreme caution when evaluating for inclusion in public 
+                            dataset releases.
+                        </li>
+                        <li>
+                            <h5>Study data:</h5>
+                            This is data you collected carefully. We will <b>use more 
+                            optimization iterations</b> to process your data to get the highest quality results.
+                        </li>
+                        <li>
+                            <h5>Found on the internet:</h5>
+                            This is not data you collected yourself. It could be very high 
+                            quality, or it could be bad -- and you're about to find out! AddBiomechanics will be optimistic 
+                            and use <b>more optimization iterations</b> to try to get the highest quality results.
+                        </li>
+                    </ul>
+                </p>
+            </div>);
+        }
+        else {
+            completedFormElements++;
+        }
+    }
+    //////////////////////////////////////////////////////////////////
+    // 1.11. Create the entry for checking if the subject consented to have their data uploaded
+    totalFormElements++;
+    if (formCompleteSoFar) {
+        formElements.push(<div key="consent" className="mb-3">
+            <label>Subject Consent:</label>
+            <select
+                id="consent"
+                value={subjectConsent == null ? "" : (subjectConsent ? "true" : "false")}
+                className={"form-control" + ((subjectConsent == null) ? " border-primary border-2" : "") + ((subjectConsent == false) ? " border-danger border-2" : "")}
+                autoFocus={subjectConsent == null}
+                aria-describedby="consentHelp"
+                onChange={(e) => {
+                    subjectJson.setAttribute("subjectConsent", e.target.value === '' ? null : (e.target.value === 'true' ? true : false));
+                }}>
+                <option value="">Needs selection</option>
+                <option value="true">Subject Consented to Share Data</option>
+                <option value="false">Subject Did Not Consent</option>
+            </select>
+            <div id="consentHelp" className="form-text">All data uploaded to AddBiomechanics is publicly accessible, so subject consent is required</div>
+        </div>);
+
+        if (subjectConsent == null || subjectConsent === false) {
+            formCompleteSoFar = false;
+            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
+                <h4 className="alert-heading">Do I need subject consent to upload?</h4>
+                <p>
+                    Yes! Data processed on AddBiomechanics is shared with the community, so you need to make sure that the subject has consented to sharing their anonymized motion data before proceeding.
+                </p>
+                <p>
+                    <b>What should I put in my IRB?</b> You could use language like the following in your consent (IRB) forms to inform participants about how you will share their
+                    data, and give them the option to opt out.
+                </p>
+                <ul>
+                    <li><i>Consent forms example:</i> "I understand that my motion capture data (i.e., the time-history of how my body segments are moving when I walk or
+                        perform other movements) will be shared in a public repository. Sharing my data will enable others to replicate the
+                        results of this study, and enable future progress in human motion science. This motion data will not be linked with any
+                        other identifiable information about me."</li>
+                    <li><i>IRB paragraph example:</i> "Biomechanics data are processed using the AddBiomechanics web application and stored in Amazon Web Services (AWS) S3
+                        instances. All drafted and published data stored in these instances are publicly accessible to AddBiomechanics users. Public data
+                        will be accessible through the web interface and through aggregated data distributions."</li>
+                </ul>
+                <p>
+                    <b>If the data you are uploading comes from an existing public motion capture database,</b> it is fine to assume that the original publishers of that data got subject consent.
+                </p>
+            </div>);
+        }
+        else {
+            completedFormElements++;
+        }
+    }
+    //////////////////////////////////////////////////////////////////
+    // 1.12. Create the entry for citation info
+    totalFormElements++;
+    if (formCompleteSoFar) {
+        formElements.push(<div key="citation" className="mb-3">
+            <label>Desired Citation:</label>
+            <textarea
+                id="citation"
+                value={subjectCitation == null ? "" : subjectCitation}
+                className={"form-control" + ((subjectCitation == null) ? " border-primary border-2" : "")}
+                autoFocus={subjectCitation == null || !subjectCitationComplete}
+                aria-describedby="citeHelp"
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === 'Tab') {
+                        if (subjectCitation == null) {
+                            subjectJson.setAttribute("citation", "");
+                        }
+                        setSubjectCitationComplete(true);
+                        const input = e.target as HTMLInputElement;
+                        input.blur();
+                    }
+                }}
+                onFocus={() => {
+                    subjectJson.onFocusAttribute("citation");
+                }}
+                onBlur={() => {
+                    subjectJson.onBlurAttribute("citation");
+                }}
+                onChange={(e) => {
+                    subjectJson.setAttribute("citation", e.target.value);
+                }}>
+            </textarea>
+            <div id="citeHelp" className="form-text">How do you want this data to be cited?</div>
+        </div>);
+
+        if (subjectCitation == null || !subjectCitationComplete) {
+            if (subjectCitationComplete) {
+                setSubjectCitationComplete(false);
+            }
+            formCompleteSoFar = false;
+            formElements.push(<div>
+                <button type="button" className="btn btn-primary" onClick={() => setSubjectCitationComplete(true)}>Confirm Citation</button> (or press Enter or Tab)
+            </div>);
+            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
+                <h4 className="alert-heading">What should I put for my citation?</h4>
+                <p>
+                    It's fine to leave this blank, if you don't have a preferred citation. If you do, please include it here.
+                </p>
+                <p>
+                    You can include your citation in any format you like, just note that this information is public.
+                </p>
+                <p>
+                    <h5>IMPORTANT: NEVER INCLUDE PATIENT IDENTIFYING INFORMATION IN YOUR CITATION!</h5>
+                    Definitely do not put something like "Keenon Werling's gait data" in the citation field, unless 
+                    your subject has explicitly given informed consent to be identified and has requested that users 
+                    of the data cite them by name.
+                </p>
+            </div>);
+        }
+        else {
+            completedFormElements++;
+        }
+    }
+
 
     const subjectForm = (
         <Form onSubmit={(e) => {
@@ -661,7 +864,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     };
 
                     let dataFiles = [];
-                    let uploadOnMount: File | undefined = uploadFiles[trial.name];
+                    let uploadOnMount: File | undefined = uploadMarkerFiles[trial.name];
                     if (!trial.c3dFileExists && !trial.trcFileExists) {
                         const trialC3dPathData = home.getPath(trial.c3dFilePath, false);
                         dataFiles.push(
@@ -693,6 +896,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                             </td>
                         );
                         if (!disableDynamics) {
+                            let uploadGrfOnMount: File | undefined = uploadGrfFiles[trial.name];
                             const trialGrfMotPathData = home.getPath(trial.grfMotFilePath, false);
                             dataFiles.push(
                                 <td>
@@ -700,7 +904,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                         return home.dir.uploadFile(trialGrfMotPathData.path, file, progressCallback);
                                     }} download={() => {
                                         return home.dir.downloadFile(trialGrfMotPathData.path);
-                                    }} />
+                                    }} uploadOnMount={uploadGrfOnMount} />
                                 </td>
                             );
                         }
@@ -755,17 +959,29 @@ const SubjectView = observer((props: SubjectViewProps) => {
         {mocapFilesTable}
         <Dropzone
             {...props}
-            accept=".c3d,.trc"
+            accept=".c3d,.trc,.mot"
             onDrop={(acceptedFiles: File[]) => {
                 let trialNames: string[] = [];
 
-                let updatedUploadFiles = { ...uploadFiles };
+                let updatedUploadMarkerFiles = { ...uploadMarkerFiles };
+                let updatedUploadGrfFiles = { ...uploadGrfFiles };
                 for (let i = 0; i < acceptedFiles.length; i++) {
                     const name = acceptedFiles[i].name.split('.')[0];
                     trialNames.push(name);
-                    updatedUploadFiles[name] = acceptedFiles[i];
+                    if (acceptedFiles[i].name.endsWith('.mot')) {
+                        updatedUploadGrfFiles[name] = acceptedFiles[i];
+                    }
+                    else if (acceptedFiles[i].name.endsWith('.trc') || acceptedFiles[i].name.endsWith('.c3d')) {
+                        updatedUploadMarkerFiles[name] = acceptedFiles[i];
+                    }
                 }
-                setUploadFiles(updatedUploadFiles);
+                setUploadMarkerFiles(updatedUploadMarkerFiles);
+                setUploadGrfFiles(updatedUploadGrfFiles);
+
+                // De-duplicate trialNames
+                trialNames = [...new Set(trialNames)];
+
+                console.log("Accepted files: ", acceptedFiles, " trialNames: ", trialNames, " uploadMarkerFiles: ", updatedUploadMarkerFiles, " uploadGrfFiles: ", updatedUploadGrfFiles);
 
                 trialNames.forEach((name) => {
                     props.home.createTrial(path, name);
@@ -799,26 +1015,33 @@ const SubjectView = observer((props: SubjectViewProps) => {
         if (errorFlagExists) {
             statusSection = <div>
                 <h3>Status: Error</h3>
-                <button className="btn btn-primary" onClick={(e) => {
+                <button className="btn btn-primary" onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    errorFlagFile.delete();
-                    processingFlagFile.delete();
+                    await errorFlagFile.delete();
+                    await processingFlagFile.delete();
                 }}>Reprocess</button>
             </div>;
         }
         else if (resultsExist) {
             statusSection = <div>
                 <h3>Status: Finished!</h3>
+                <button className="btn btn-primary" onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await props.home.dir.delete(subjectContents.resultsJsonPath);
+                    await errorFlagFile.delete();
+                    await processingFlagFile.delete();
+                }}>Reprocess</button>
             </div>;
         }
         else if (processingFlagExists) {
             statusSection = <div>
                 <h3>Status: Processing</h3>
-                <button className="btn btn-primary" onClick={(e) => {
+                <button className="btn btn-primary" onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    processingFlagFile.delete();
+                    await processingFlagFile.delete();
                 }}>Force Reprocess</button>
             </div>;
         }
@@ -850,10 +1073,32 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                 const trialResults = parsedResultsJSON[trial.name];
                                 return trial.segments.map((segment, index) => {
                                     const segmentResults = trialResults.segments[index];
+                                    let kinematicsResults: string = '';
+                                    if (segmentResults.kinematicsStatus === 'FINISHED') {
+                                        kinematicsResults = (segmentResults.kinematicsAvgRMSE == null ? 'NaN' : segmentResults.kinematicsAvgRMSE.toFixed(2)) + ' cm RMSE';
+                                    }
+                                    else if (segmentResults.kinematicsStatus === 'ERROR') {
+                                        kinematicsResults = 'Error';
+                                    }
+                                    else if (segmentResults.kinematicsStatus === 'NOT_STARTED') {
+                                        kinematicsResults = 'Not run';
+                                    }
+
+                                    let dynamicsResults: string = '';
+                                    if (segmentResults.dynamicsStatus === 'FINISHED') {
+                                        dynamicsResults = (segmentResults.linearResiduals == null ? 'NaN' : segmentResults.linearResiduals.toFixed(2)) + ' N, ' + (segmentResults.angularResiduals == null ? 'NaN' : segmentResults.angularResiduals.toFixed(2)) + ' Nm';
+                                    }
+                                    else if (segmentResults.dynamicsStatus === 'ERROR') {
+                                        dynamicsResults = 'Error';
+                                    }
+                                    else if (segmentResults.dynamicsStatus === 'NOT_STARTED') {
+                                        dynamicsResults = 'Not run';
+                                    }
+
                                     return <tr key={segment.path}>
                                         <td><Link to={Session.getDataURL(props.currentLocationUserId, segment.path)}>{trial.name} {segmentResults.start}s to {segmentResults.end}s</Link></td>
-                                        <td>{segmentResults.kinematicsAvgRMSE == null ? 'NaN' : segmentResults.kinematicsAvgRMSE.toFixed(2)} cm RMSE</td>
-                                        <td>Did not run</td>
+                                        <td>{kinematicsResults}</td>
+                                        <td>{dynamicsResults}</td>
                                     </tr>
                                 });
                             }
