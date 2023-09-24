@@ -750,7 +750,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <thead>
                 <tr>
                     <th scope="col">Name</th>
-                    <th scope="col" colSpan={disableDynamics ? 1 : 2}>Marker {disableDynamics ? '' : ' and Forces'} Data</th>
+                    <th scope="col">Marker {disableDynamics ? '' : ' and Forces'} Data</th>
+                    <th scope="col">Tags</th>
                     <th scope="col">Delete?</th>
                 </tr>
             </thead>
@@ -760,22 +761,49 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     let dataFiles: React.ReactElement[] = [];
 
                     dataFiles.push(
-                        <td key='markers' colSpan={disableDynamics ? 1 : 2}>
+                        <div key='markers'>
                             <DropFile file={markerLiveFile} accept=".c3d,.trc" readonly={props.readonly} onDrop={(files: File[]) => subjectState.dropMarkerFiles(trial, files)} />
-                        </td>
+                        </div>
                     );
                     if (trial.trcFileExists && !trial.c3dFileExists && !disableDynamics) {
                         const grfMotLiveFile = home.dir.getLiveFile(trial.grfMotFilePath);
                         dataFiles.push(
-                            <td key='grf'>
+                            <div key='grf' className="mt-2">
                                 <DropFile file={grfMotLiveFile} accept=".mot" text="GRF *.mot file" readonly={props.readonly} onDrop={(files: File[]) => subjectState.dropGRFFiles(trial, files)} />
-                            </td>
+                            </div>
                         );
                     }
 
+                    const trialTags = trial.trialJson.getAttribute("trialTags", []);
+                    const trialTagValues = subjectJson.getAttribute("trialTagValues", {} as { [key: string]: number });
                     return <tr key={trial.name}>
                         <td>{trial.name}</td>
-                        {dataFiles}
+                        <td>
+                            {dataFiles}
+                        </td>
+                        <td style={{
+                            minWidth: '200px'
+                        }}>
+                            <TagEditor 
+                                tagSet='trial' 
+                                error={false}
+                                tags={trialTags}
+                                readonly={props.readonly} 
+                                onTagsChanged={(newTags) => {
+                                    trial.trialJson.setAttribute("trialTags", newTags);
+                                }}
+                                tagValues={trialTagValues}
+                                onTagValuesChanged={(newTagValues) => {
+                                    trial.trialJson.setAttribute("trialTagValues", trialTagValues);
+                                }}
+                                onFocus={() => {
+                                    trial.trialJson.onFocusAttribute("trialTags");
+                                }}
+                                onBlur={() => {
+                                    trial.trialJson.onBlurAttribute("trialTags");
+                                }}
+                            />
+                        </td>
                         <td><button className="btn btn-dark" onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
