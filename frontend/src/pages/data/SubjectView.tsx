@@ -748,13 +748,13 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     let mocapFilesTable = null;
     if (subjectState.trials.length > 0) {
-        mocapFilesTable = <table className="table">
+        mocapFilesTable = <table className="table" style={{width: '100%', overflow: 'hidden', tableLayout: 'fixed'}}>
             <thead>
                 <tr>
-                    <th scope="col">Name</th>
+                    <th scope="col" style={{width: '100px', maxWidth: '30%'}}>Name</th>
                     <th scope="col">Marker {disableDynamics ? '' : ' and Forces'} Data</th>
                     <th scope="col">Tags</th>
-                    <th scope="col">Delete?</th>
+                    <th scope="col" style={{width: '100px'}}>Delete?</th>
                 </tr>
             </thead>
             <tbody>

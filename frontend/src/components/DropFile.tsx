@@ -105,7 +105,11 @@ const DropFile = observer((props: DropFileProps) => {
         onDragLeave={() => {
           setIsDragActive(false);
         }}>
-      <div className="dz-message needsclick">
+      <div className="dz-message needsclick" style={{
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}>
         {body}
       </div>
     </div>
