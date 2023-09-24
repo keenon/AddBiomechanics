@@ -347,4 +347,35 @@ describe("SubjectViewState", () => {
         expect(subject.availableBodyNodes).toContain('calcn_r');
         expect(subject.availableBodyNodes).toContain('calcn_l');
     });
+
+    test('Already existing results JSON file', async () => {
+        const resultsFileS3Path = "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_results.json";
+
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        s3.setFilePathsExist([...fileList, resultsFileS3Path]);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        const home = new UserHomeDirectory(dir);
+        s3.setFileContents(resultsFileS3Path, JSON.stringify({
+            trials: [
+                {
+                    name: 'running'
+                },
+                {
+                    name: 'walking'
+                }
+            ]
+        }));
+
+        await home.getPath("ASB2023/S01", true).promise;
+
+        const subject = home.getSubjectViewState("ASB2023/S01");
+
+        expect(subject).toBeInstanceOf(SubjectViewState);
+
+        expect(subject.loadingResultsJsonPromise).not.toBeNull();
+        await subject.loadingResultsJsonPromise;
+        expect(subject.parsedResultsJson).not.toBeNull();
+        expect('trials' in subject.parsedResultsJson).toBeTruthy();
+    });
 });

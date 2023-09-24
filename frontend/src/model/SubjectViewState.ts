@@ -69,6 +69,8 @@ class SubjectViewState {
     trials: TrialContents[];
     uploadedTrialPaths: Map<string, string> = new Map();
 
+    loadedResultsJsonFirstTime: boolean = false;
+    loadingResultsJsonPromise: Promise<void> | null = null;
     parsedResultsJson: SubjectResultsJSON = {};
 
     // This counts the number of times our autorun function has been called. This is mostly here for testing purposes.
@@ -176,13 +178,32 @@ class SubjectViewState {
             }
         }
 
+        // If the results file exists on the server, and we haven't loaded it yet, then load it
+        const resultsExist = subjectPathData.files.map((file) => {
+            return file.key;
+        }).includes(this.resultsJsonPath);
+        if (!this.loadedResultsJsonFirstTime) {
+            if (resultsExist) {
+                this.loadedResultsJsonFirstTime = true;
+                this.loadingResultsJsonPromise = this.home.dir.downloadText(this.path + "/_results.json").then(action((resultsText) => {
+                    try {
+                        const results: SubjectResultsJSON = JSON.parse(resultsText);
+                        this.parsedResultsJson = results;
+                    }
+                    catch (e) {
+                        console.error("Bad JSON format for file \"" + this.path + "/_results.json\", got: \"" + resultsText + "\"");
+                    }
+                })).catch((e) => {
+                    console.error("Error downloading _results.json from " + this.path + '/_results.json' + ": ", e);
+                });
+            }
+        }
+
         // Edit the observable state in a single transaction, so that we only trigger a single re-render
         action(() => {
             this.reloadCount++;
             this.loading = trialsPathData.loading || subjectPathData.loading;
-            this.resultsExist = subjectPathData.files.map((file) => {
-                return file.key;
-            }).includes(this.resultsJsonPath);
+            this.resultsExist = resultsExist;
 
             const trialPaths = trialsPathData.folders.map((folder) => {
                 if (folder.endsWith('/')) {
