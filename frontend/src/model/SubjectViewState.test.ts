@@ -121,7 +121,6 @@ describe("SubjectViewState", () => {
         expect(uploadingFile.exists).toBe(true);
     });
 
-    /*
     test("Create trial loading", async () => {
         const s3 = new S3APIMock();
         const pubsub = new PubSubSocketMock("DEV");
@@ -147,13 +146,15 @@ describe("SubjectViewState", () => {
 
         // We should have auto-updated our trial map
         expect(subject.trials.length).toBe(1);
+        expect(subject.trials[0].c3dFileExists).toBe(false);
+        expect(subject.trials[0].trcFileExists).toBe(true);
 
         const uploadingFile = dir.getLiveFile(subject.trials[0].trcFilePath);
         expect(uploadingFile.exists).toBe(false);
         expect(uploadingFile.uploading).toBeDefined();
         expect(uploadingFile.uploadProgress).toBe(0.5);
 
-        expect(s3.mockFileUploadResolves.length).toBe(1);
+        expect(s3.mockFileUploadResolves.length).toBe(2);
         s3.resolveMockFileUploads();
         await promise;
         flushPromises();
@@ -163,7 +164,6 @@ describe("SubjectViewState", () => {
         expect(uploadingFile.exists).toBe(true);
         expect(uploadingFile.uploading).toBeNull();
     });
-    */
 
     test("Delete trial", async () => {
         const s3 = new S3APIMock();
@@ -194,6 +194,88 @@ describe("SubjectViewState", () => {
         pubsub.mockSentMessagesLog = [];
 
         // We should have auto-updated our trial map
+        expect(subject.trials.length).toBe(2);
+    });
+
+    test("Create trial then delete", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        s3.setFilePathsExist(fileList);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        const home = new UserHomeDirectory(dir);
+
+        await home.getPath("ASB2023/TestProsthetic", false).promise;
+        await home.getPath("ASB2023/TestProsthetic/trials", false).promise;
+
+        const subject = home.getSubjectViewState("ASB2023/TestProsthetic");
+
+        expect(subject).toBeInstanceOf(SubjectViewState);
+        expect(subject.trials.length).toBe(0);
+
+        // Create a mock file
+        const file = new File(['running_trial'], 'running_trial.trc', {
+            type: 'text/plain',
+        });
+
+        const promise = subject.dropFilesToUpload([file]);
+        await promise;
+        flushPromises();
+
+        // We should have auto-updated our trial map
+        expect(subject.trials.length).toBe(1);
+        expect(subject.trials[0].trcFileExists).toBe(true);
+        expect(subject.trials[0].c3dFileExists).toBe(false);
+
+        // Delete the trial
+        await subject.deleteTrial(subject.trials[0]);
+
+        // The trial should be gone again
+        expect(subject.trials.length).toBe(0);
+    });
+
+    test("Create multiple trials then delete", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        s3.setFilePathsExist(fileList);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        const home = new UserHomeDirectory(dir);
+
+        await home.getPath("ASB2023/TestProsthetic", false).promise;
+        await home.getPath("ASB2023/TestProsthetic/trials", false).promise;
+
+        const subject = home.getSubjectViewState("ASB2023/TestProsthetic");
+
+        expect(subject).toBeInstanceOf(SubjectViewState);
+        expect(subject.trials.length).toBe(0);
+
+        // Create a mock file
+        const fileNames = [
+            'running_trial.trc',
+            'running_trial.mot',
+            'walking_trial.trc',
+            'walking_trial.mot',
+            'jumping_trial.trc',
+            'jumping_trial.mot',
+        ];
+        const files = fileNames.map((fileName) => {
+            return new File([fileName.split('.')[0]], fileName, {
+                type: 'text/plain',
+            });
+        });
+
+        const promise = subject.dropFilesToUpload(files);
+        await promise;
+        flushPromises();
+
+        // We should have auto-updated our trial map
+        expect(subject.trials.length).toBe(3);
+        expect(subject.trials[0].trcFileExists).toBe(true);
+        expect(subject.trials[0].c3dFileExists).toBe(false);
+
+        // Delete the trial
+        await subject.deleteTrial(subject.trials[0]);
+
+        // The trial should be gone again
         expect(subject.trials.length).toBe(2);
     });
 });

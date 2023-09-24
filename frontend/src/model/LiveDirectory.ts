@@ -44,10 +44,10 @@ abstract class LiveDirectory {
         }
         return file;
     }
-    getLiveFile(path: string): LiveFile {
+    getLiveFile(path: string, skipImmediateRefreshOnCreate: boolean = false): LiveFile {
         let file = this.liveFiles.get(path);
         if (file == null) {
-            file = new LiveFile(this, path);
+            file = new LiveFile(this, path, skipImmediateRefreshOnCreate);
             this.liveFiles.set(path, file);
         }
         return file;

@@ -15,7 +15,7 @@ class LiveFile {
     uploading: Promise<void> | null;
     uploadProgress: number;
 
-    constructor(dir: LiveDirectory, path: string) {
+    constructor(dir: LiveDirectory, path: string, skipImmediateRefresh: boolean = false) {
         this.dir = dir;
         if (path.startsWith('/')) {
             path = path.substring(1);
@@ -46,7 +46,9 @@ class LiveFile {
             this.refreshFile();
         });
 
-        this.refreshFile();
+        if (!skipImmediateRefresh) {
+            this.refreshFile();
+        }
     }
 
     /**
@@ -67,6 +69,11 @@ class LiveFile {
         })).then(action(() => {
             this.uploading = null;
             this.exists = true;
+            this.metadata = {
+                key: this.path,
+                lastModified: new Date(),
+                size: file.size
+            };
         }));
         return this.uploading;
     }
@@ -91,7 +98,7 @@ class LiveFile {
      * This will do a refresh of the contents of the file from S3
      */
     refreshFile(): Promise<void> {
-        const pathData = this.dir.getPath(this.parentPath, false);
+        const pathData = this.dir.getPath(this.path, false);
         if (pathData.loading && pathData.promise != null) {
             this.loading = pathData.promise.then(action((resultDate: PathData) => {
                 this.exists = resultDate.files.map((file) => file.key).includes(this.path);

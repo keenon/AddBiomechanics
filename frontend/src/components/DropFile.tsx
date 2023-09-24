@@ -52,13 +52,18 @@ const DropFile = observer((props: DropFileProps) => {
     if (loading != null) {
       body = <><i className="mdi mdi-loading mdi-spin me-2"></i> Loading...</>
     }
-    else if (exists && metadata != null) {
-      const file: FileMetadata = metadata;
-      if (props.hideDate) {
-        body = <>{humanFileSize(file.size)}</>
+    else if (exists) {
+      if (metadata != null) {
+        const file: FileMetadata = metadata;
+        if (props.hideDate) {
+          body = <>{humanFileSize(file.size)}</>
+        }
+        else {
+          body = <>{humanFileSize(file.size)} on {file.lastModified.toDateString()}</>
+        }
       }
       else {
-        body = <>{humanFileSize(file.size)} on {file.lastModified.toDateString()}</>
+          body = <>Loading size...</>
       }
     }
     else {

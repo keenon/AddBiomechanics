@@ -65,6 +65,7 @@ class SubjectViewState {
     availableBodyNodes: string[];
 
     trials: TrialContents[];
+    uploadedTrialPaths: Map<string, string> = new Map();
 
     parsedResultsJson: SubjectResultsJSON = {};
 
@@ -115,10 +116,12 @@ class SubjectViewState {
             trials: observable,
             parsedResultsJson: observable,
             reloadCount: observable,
+            uploadedTrialPaths: observable,
             dropOpensimFile: action,
             dropFilesToUpload: action,
             dropMarkerFiles: action,
             dropGRFFiles: action,
+            deleteTrial: action,
             submitForProcessing: action,
         });
 
@@ -154,6 +157,8 @@ class SubjectViewState {
     reloadState() {
         const subjectPathData: PathData = this.home.dir.getPath(this.path, false);
         const trialsPathData: PathData = this.home.dir.getPath(this.path+'/trials/', true);
+        // Do nothing, just touch all the entries outside the action() call to get MobX to re-render when this changes
+        this.uploadedTrialPaths.forEach((name, path) => {});
 
         // Edit the observable state in a single transaction, so that we only trigger a single re-render
         action(() => {
@@ -162,7 +167,30 @@ class SubjectViewState {
             this.resultsExist = subjectPathData.files.map((file) => {
                 return file.key;
             }).includes(this.resultsJsonPath);
-            this.trials = trialsPathData.folders.map((folder) => this.home.getTrialContents(folder));
+
+            const trialPaths = trialsPathData.folders.map((folder) => {
+                if (folder.endsWith('/')) {
+                    return folder.substring(0, folder.length-1);
+                }
+                return folder;
+            });
+            const overrideFileType = trialPaths.map((path) => '');
+            this.uploadedTrialPaths.forEach((name, path) => {
+                if (!trialPaths.includes(path)) {
+                    trialPaths.push(path);
+                    overrideFileType.push(name.split('.').slice(-1)[0]);
+                }
+            });
+
+            this.trials = trialPaths.map((folder) => this.home.getTrialContents(folder));
+            for (let i = 0; i < this.trials.length; i++) {
+                if (overrideFileType[i].toLocaleLowerCase() === 'c3d') {
+                    this.trials[i].c3dFileExists = true;
+                }
+                if (overrideFileType[i].toLocaleLowerCase() === 'trc') {
+                    this.trials[i].trcFileExists = true;
+                }
+            }
         })();
     }
 
@@ -225,6 +253,11 @@ class SubjectViewState {
         // De-duplicate trialNames
         const trialNames: string[] = [...new Set([...markerFiles.keys(), ...grfFiles.keys()])];
 
+        // Ensure all the trialPaths are in this.uploadedTrialPaths
+        for (let name of trialNames) {
+            this.uploadedTrialPaths.set(this.path + '/trials/' + name, markerFiles.get(name)?.name ?? '');
+        }
+
         return Promise.all(trialNames.map((name) => {
             return this.home.createTrial(this.path, name, markerFiles.get(name), grfFiles.get(name));
         })).then(() => {});
@@ -252,6 +285,7 @@ class SubjectViewState {
         if (path.endsWith('/')) {
             path = path.substring(0, path.length-1);
         }
+        this.uploadedTrialPaths.delete(path);
         return this.home.dir.deleteByPrefix(path);
     }
 
@@ -262,7 +296,7 @@ class SubjectViewState {
         if (files.length === 1) {
             const file = files[0];
             if (file.name.endsWith('.c3d')) {
-                return this.home.dir.getLiveFile(trial.c3dFilePath).uploadFile(file).then(() => {
+                return this.home.dir.getLiveFile(trial.c3dFilePath, true).uploadFile(file).then(() => {
                     // Delete the old TRC file, if there is one
                     if (trial.trcFileExists) {
                         return this.home.dir.delete(trial.trcFilePath);
@@ -273,7 +307,7 @@ class SubjectViewState {
                 });
             }
             else if (file.name.endsWith('.trc')) {
-                return this.home.dir.getLiveFile(trial.trcFilePath).uploadFile(file).then(() => {
+                return this.home.dir.getLiveFile(trial.trcFilePath, true).uploadFile(file).then(() => {
                     // Delete the old C3D file, if there is one
                     if (trial.c3dFileExists) {
                         return this.home.dir.delete(trial.c3dFilePath);

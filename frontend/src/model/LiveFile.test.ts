@@ -99,4 +99,38 @@ describe("LiveFile", () => {
         expect(file.exists).toBe(true);
     });
 
+    test("Simple upload in progress", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        pubsub.connect();
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+
+        s3.setMockFileUploadPartialProgress(true);
+
+        // Create a mock file
+        const file = new File(['running_trial'], 'running_trial.trc', {
+            type: 'text/plain',
+        });
+
+        const liveFile = new LiveFile(api, "ASB2023/S01/PROCESSING");
+        const promise = liveFile.uploadFile(file);
+        expect(liveFile.exists).toBe(false);
+        expect(liveFile.metadata).toBeNull();
+        expect(liveFile.loading).not.toBeNull();
+
+        s3.resolveMockFileUploads();
+
+        await liveFile.uploading;
+
+        expect(liveFile.exists).toBe(true);
+        expect(liveFile.metadata).not.toBeNull();
+        expect(liveFile.loading).toBeNull();
+
+        await promise;
+
+        expect(liveFile.exists).toBe(true);
+        expect(liveFile.metadata).not.toBeNull();
+        expect(liveFile.loading).toBeNull();
+    });
+
 });
