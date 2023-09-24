@@ -62,6 +62,8 @@ class SubjectViewState {
     slurmFlagFile: LiveFile; // "SLURM"
 
     customOpensimModel: LiveFile;
+    loadedOpensimModelFirstTime: boolean = false;
+    loadingOpenSimModelPromise: Promise<void> | null = null;
     availableBodyNodes: string[];
 
     trials: TrialContents[];
@@ -160,6 +162,20 @@ class SubjectViewState {
         // Do nothing, just touch all the entries outside the action() call to get MobX to re-render when this changes
         this.uploadedTrialPaths.forEach((name, path) => {});
 
+        // If the OpenSim model exists on the server, and we haven't loaded it yet, then load it
+        if (!this.loadedOpensimModelFirstTime) {
+            if (!this.customOpensimModel.loading && this.customOpensimModel.exists) {
+                this.loadedOpensimModelFirstTime = true;
+
+                this.loadingOpenSimModelPromise = this.home.dir.downloadText(this.customOpensimModel.path).then(action((openSimText) => {
+                    this.availableBodyNodes = getOpenSimBodyList(openSimText);
+                    this.loadingOpenSimModelPromise = null;
+                })).catch((e) => {
+                    console.error("Error downloading OpenSim model text from " + this.customOpensimModel.path + ": ", e);
+                });
+            }
+        }
+
         // Edit the observable state in a single transaction, so that we only trigger a single re-render
         action(() => {
             this.reloadCount++;
@@ -201,30 +217,34 @@ class SubjectViewState {
         if (files.length === 1) {
             const file = files[0];
             if (file.name.endsWith('.osim')) {
-                const promise = this.customOpensimModel.uploadFile(file);
+                this.loadedOpensimModelFirstTime = true;
+
+                const uploadPromise = this.customOpensimModel.uploadFile(file);
 
                 // Read the text of `file` locally
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const text = (event.target?.result as string);
-                    this.availableBodyNodes = getOpenSimBodyList(text);
-                };
+                const localPromise = new Promise<void>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const text = (event.target?.result as string);
+                        const availableBodyNodes = getOpenSimBodyList(text);
+                        action(() => {
+                            this.availableBodyNodes = availableBodyNodes;
+                            resolve();
+                        })();
+                    };
 
-                reader.onerror = action((event) => {
-                    console.log("OpenSim model file could not be read:", event.target?.error?.message);
-                    this.home.dir.downloadText(this.customOpensimModel.path).then(action((openSimText) => {
-                        this.availableBodyNodes = getOpenSimBodyList(openSimText);
-                    })).catch((e) => {
-                        console.error("Error downloading OpenSim model text from " + this.customOpensimModel.path + ": ", e);
+                    reader.onerror = action((event) => {
+                        console.log("Local OpenSim model file could not be read:", event.target?.error?.message);
+                        reject(event);
                     });
+
+                    reader.readAsText(file);
                 });
 
-                reader.readAsText(file);
-
-                return promise;
+                return Promise.all([uploadPromise, localPromise]).then(() => {});
             }
             else {
-                return Promise.reject("Unsupported GRF file type");
+                return Promise.reject("Unsupported OpenSim file type");
             }
         }
         else {

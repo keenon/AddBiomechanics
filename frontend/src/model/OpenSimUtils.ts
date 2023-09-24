@@ -119,6 +119,12 @@ function getOpenSimBodyList(opensimFileText: string | null): string[] {
         rootNode = rootNode.childNodes[0];
     }
 
+    if (rootNode.nodeName === "parsererror") {
+      const errorMsg = rootNode.textContent || "Unknown parser error"; // Extract the error message from the node's text content
+      console.error("Error parsing XML:", errorMsg, opensimFileText.substring(0, 100)+'...');
+      return [];
+    }
+
     if (rootNode.nodeName !== "OpenSimDocument") {
         console.error("Error getting body list! Malformed *.osim file! Root node of XML file isn't an <OpenSimDocument>, instead it's <" + rootNode.nodeName + ">");
         return [];

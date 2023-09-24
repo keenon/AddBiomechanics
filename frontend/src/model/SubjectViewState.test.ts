@@ -3,6 +3,9 @@ import { PubSubSocketMock } from "./PubSubSocket";
 import { S3APIMock } from "./S3API";
 import SubjectViewState from "./SubjectViewState";
 import UserHomeDirectory from "./UserHomeDirectory";
+// NodeJS imports
+import * as fs from 'fs';
+import * as path from 'path';
 
 const flushPromises = () => new Promise(resolve => Promise.resolve().then(resolve));
 
@@ -277,5 +280,71 @@ describe("SubjectViewState", () => {
 
         // The trial should be gone again
         expect(subject.trials.length).toBe(2);
+    });
+
+    test('Can read local test_data folder for testing', async () => {
+        // Open and read the file "unscaled_generic.osim" in the "../test_data" folder
+
+        const filePath = path.join(__dirname, '..', 'test_data', 'unscaled_generic.osim');
+        const fileContent = fs.readFileSync(filePath, 'utf-8');
+        expect(fileContent).toContain('<MarkerSet>');
+    });
+
+    test('Already existing model file', async () => {
+        // Open and read the file "unscaled_generic.osim" in the "../test_data" folder
+
+        const modelFileLocalPath = path.join(__dirname, '..', 'test_data', 'unscaled_generic.osim');
+        const modelFileContent = fs.readFileSync(modelFileLocalPath, 'utf-8');
+
+        const modelFileS3Path = "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/unscaled_generic.osim";
+
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        s3.setFilePathsExist([...fileList, modelFileS3Path]);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        const home = new UserHomeDirectory(dir);
+        s3.setFileContents(modelFileS3Path, modelFileContent);
+
+        await home.getPath("ASB2023/S01", true).promise;
+
+        const subject = home.getSubjectViewState("ASB2023/S01");
+
+        expect(subject).toBeInstanceOf(SubjectViewState);
+
+        expect(subject.loadingOpenSimModelPromise).not.toBeNull();
+        await subject.loadingOpenSimModelPromise;
+        expect(subject.availableBodyNodes.length).toBeGreaterThan(1);
+        expect(subject.availableBodyNodes).toContain('calcn_r');
+        expect(subject.availableBodyNodes).toContain('calcn_l');
+    });
+
+    test('Upload model file', async () => {
+        // Open and read the file "unscaled_generic.osim" in the "../test_data" folder
+
+        const modelFileLocalPath = path.join(__dirname, '..', 'test_data', 'unscaled_generic.osim');
+        const modelFileContent = fs.readFileSync(modelFileLocalPath, 'utf-8');
+
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        s3.setFilePathsExist(fileList);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        const home = new UserHomeDirectory(dir);
+
+        await home.getPath("ASB2023/S01", true).promise;
+
+        const subject = home.getSubjectViewState("ASB2023/S01");
+
+        expect(subject.loadingOpenSimModelPromise).toBeNull();
+
+        // Create a mock file
+        const opensimFile = new File([modelFileContent], 'unscaled_generic.osim', {
+            type: 'text/xml',
+        });
+
+        await subject.dropOpensimFile([opensimFile]);
+
+        expect(subject.availableBodyNodes.length).toBeGreaterThan(1);
+        expect(subject.availableBodyNodes).toContain('calcn_r');
+        expect(subject.availableBodyNodes).toContain('calcn_l');
     });
 });
