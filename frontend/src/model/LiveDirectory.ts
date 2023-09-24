@@ -126,8 +126,30 @@ class LiveDirectoryImpl extends LiveDirectory {
                 const loadRecursive = (folderData: PathData) => {
                     // Load each child recursively
                     Promise.all(folderData.folders.map((folder) => {
-                        return this.getPath(folder, true).promise ?? Promise.resolve();
-                    })).then(() => {
+                        const folderPathData = this.getPath(folder, true);
+                        if (folderPathData.promise != null) {
+                            return folderPathData.promise;
+                        }
+                        else {
+                            return Promise.resolve(folderPathData);
+                        }
+                    })).then((folderPathDatas: PathData[]) => {
+                        // Finally, convert the root node to be a recursive node, and include all 
+                        // the files we've loaded from the children
+                        let rootPathDataOrNull: PathData | undefined = this.getCachedPath(originalPath);
+                        if (rootPathDataOrNull == null) {
+                            reject("Root path data was null, this should never happen.");
+                            return;
+                        }
+                        let rootPathData: PathData = {...rootPathDataOrNull};
+                        if (!rootPathData.recursive) {
+                            rootPathData.recursive = true;
+                            rootPathData.files = [...folderPathDatas.flatMap((folderPathData) => {
+                                return folderPathData.files;
+                            }), ...rootPathData.files];
+                            const normalizedPath = this.normalizePath(originalPath);
+                            this._setCachedPath(normalizedPath, rootPathData);
+                        }
                         resolve();
                     }).catch((e) => {
                         reject(e);

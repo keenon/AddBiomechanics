@@ -203,6 +203,21 @@ describe("LiveDirectory", () => {
         // Redundant calls should do nothing
         await api.faultInPath("ASB2023");
         expect(s3.networkCallCount).toBe(4);
+
+        // We want the root node to be recursive, after the progressive faulting in of all its children, so that subsequent 
+        // file creations get registered correctly.
+        const cachedRootNode = api.getPath("ASB2023", false);
+        expect(cachedRootNode.recursive).toBe(true);
+
+        // We want to ensure we get exactly the same thing as if we had loaded recursively from the start
+        const api2 = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        let cachedRootNode2 = api2.getPath("ASB2023", true);
+        if (cachedRootNode2.promise != null) {
+            cachedRootNode2 = await cachedRootNode2.promise;
+        }
+        expect(cachedRootNode.folders).toStrictEqual(cachedRootNode2.folders);
+        // TODO: I'm not sure why the recursive load on the mocks returns the ASB2023 object as a file, but the fault-in load doesn't
+        expect(new Set(cachedRootNode.files.map(f => f.key))).toStrictEqual(new Set(cachedRootNode2.files.map(f => f.key).filter(k => k != "ASB2023")));
     });
 
     test("Loading recursively with real paths prevents nested loads from hitting the network", async () => {

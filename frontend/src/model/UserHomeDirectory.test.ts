@@ -7,7 +7,7 @@ import { autorun } from "mobx";
 describe("UserHomeDirectory", () => {
     const s3 = new S3APIMock();
     const pubsub = new PubSubSocketMock("DEV");
-    s3.setFilePathsExist([
+    const filePaths = [
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
@@ -38,7 +38,8 @@ describe("UserHomeDirectory", () => {
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/trials/trials/_subject.json",
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/trials/trials/trials",
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/trials/trials/trials/",
-    ]);
+    ]
+    s3.setFilePathsExist(filePaths);
 
     test("Constructor", () => {
         const s3 = new S3APIMock();
@@ -307,5 +308,37 @@ describe("UserHomeDirectory", () => {
         expect(counter.count).toBeGreaterThan(1);
 
         expect(api.getSubjectContents('ASB2023/S01').trials.length).toBe(2);
+    });
+
+    test("Create subject gets correct type", async () => {
+        // This test has side effects, so we isolate it
+        const isolated_s3 = new S3APIMock();
+        isolated_s3.setFilePathsExist(filePaths);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
+        const api = new UserHomeDirectory(dir);
+        await dir.faultInPath("");
+
+        await api.createSubject("", "TestSubject");
+
+        const dataset = api.getDatasetContents('');
+
+        expect(dataset.contents.map(f => f.name)).toContain('ASB2023');
+        expect(dataset.contents.map(f => f.name)).toContain('TestSubject');
+        expect(dataset.contents.filter(f => f.name === 'ASB2023').length).toBe(1);
+        expect(dataset.contents.filter(f => f.name === 'ASB2023')[0].type).toBe('dataset');
+        expect(dataset.contents.filter(f => f.name === 'TestSubject').length).toBe(1);
+        expect(dataset.contents.filter(f => f.name === 'TestSubject')[0].type).toBe('subject');
+    });
+
+    test("Fault in subject gets correct type", async () => {
+        // This test has side effects, so we isolate it
+        const isolated_s3 = new S3APIMock();
+        isolated_s3.setFilePathsExist(filePaths);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
+        const api = new UserHomeDirectory(dir);
+        await dir.faultInPath("ASB2023/S01");
+
+        const type = api.getPathType('ASB2023/S01');
+        expect(type).toBe('subject');
     });
 });
