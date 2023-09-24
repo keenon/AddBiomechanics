@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Table, Button, ProgressBar, Form, Collapse } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 import UserHomeDirectory, { SubjectContents, TrialSegmentContents } from "../../model/UserHomeDirectory";
@@ -19,6 +20,7 @@ type SubjectViewProps = {
 const SubjectView = observer((props: SubjectViewProps) => {
     const home = props.home;
     const path = props.path;
+    const navigate = useNavigate();
 
     const subjectState: SubjectViewState = home.getSubjectViewState(path);
     const subjectJson = subjectState.subjectJson;
@@ -906,12 +908,14 @@ const SubjectView = observer((props: SubjectViewProps) => {
         else if (resultsExist) {
             statusSection = <div>
                 <h3>Status: Finished!</h3>
-                <button className="btn btn-primary" onClick={async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    await props.home.dir.delete(subjectState.resultsJsonPath);
-                    await errorFlagFile.delete();
-                    await processingFlagFile.delete();
+                <button className="btn btn-warning" onClick={async (e) => {
+                    if (window.confirm("Are you sure you want to reprocess the data? That will delete your current results.")) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await props.home.dir.delete(subjectState.resultsJsonPath);
+                        await errorFlagFile.delete();
+                        await processingFlagFile.delete();
+                    }
                 }}>Reprocess</button>
             </div>;
         }
@@ -942,8 +946,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <thead>
                     <tr>
                         <th scope="col">Trial Segment</th>
-                        <th scope="col">Kinematics Error</th>
-                        <th scope="col">Dynamics Error</th>
+                        <th scope="col">Marker Error</th>
+                        <th scope="col">Forces Error</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -976,7 +980,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                     }
 
                                     return <tr key={segment.path}>
-                                        <td><Link to={Session.getDataURL(props.currentLocationUserId, segment.path)}>{trial.name} {segmentResults.start}s to {segmentResults.end}s</Link></td>
+                                        <td><button className="btn btn-primary" onClick={() => {
+                                            navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
+                                        }}>
+                                            View "{trial.name}" {segmentResults.start}s to {segmentResults.end}s
+                                        </button></td>
                                         <td>{kinematicsResults}</td>
                                         <td>{dynamicsResults}</td>
                                     </tr>
