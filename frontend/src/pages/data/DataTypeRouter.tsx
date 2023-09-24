@@ -18,11 +18,10 @@ const DataTypeRouter = observer((props: DataViewProps) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  console.log("Rerendering");
-
   const dataPath = props.session.parseDataURL(location.pathname);
   const home = dataPath.homeDirectory;
   const path = dataPath.path;
+  const readonly = dataPath.userId !== props.session.userId;
 
   //////////////////////////////////////////////////////////////
   // Set up the breadcrumbs
@@ -104,7 +103,7 @@ const DataTypeRouter = observer((props: DataViewProps) => {
     body = <DatasetView home={home} path={path} currentLocationUserId={dataPath.userId} />
   }
   else if (pathType === 'subject') {
-    body = <SubjectView home={home} path={path} currentLocationUserId={dataPath.userId} />
+    body = <SubjectView home={home} path={path} currentLocationUserId={dataPath.userId} readonly={readonly} />
   }
   else if (pathType === 'trial') {
     const trialContents = home.getTrialContents(path);

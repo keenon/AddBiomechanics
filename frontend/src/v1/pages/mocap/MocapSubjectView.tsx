@@ -13,7 +13,7 @@ import {
   Form
 } from "react-bootstrap";
 import DropFile from "../../../components/DropFile";
-import Dropzone from "react-dropzone";
+// import Dropzone from "react-dropzone";
 import MocapTrialModal from "./MocapTrialModal";
 import MocapLogModal from "./MocapLogModal";
 import MocapTagModal from "./MocapTagModal";
@@ -732,6 +732,7 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
     trialViews.push(
       <tr key="upload">
         <td colSpan={6}>
+          {/*
           <Dropzone
             {...props}
             accept=".c3d,.mot,.trc,.sto"
@@ -770,6 +771,8 @@ const MocapSubjectView = observer((props: MocapSubjectViewProps) => {
               </div>
             }}
           </Dropzone>
+
+    */}
         </td>
       </tr>
     );

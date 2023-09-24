@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
 import { Table, Button, ProgressBar, Form, Collapse } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 import UserHomeDirectory, { SubjectContents, TrialSegmentContents } from "../../model/UserHomeDirectory";
@@ -7,56 +6,25 @@ import DropFile from "../../components/DropFile";
 import TagEditor from '../../components/TagEditor';
 import Session from "../../model/Session";
 import { Link } from "react-router-dom";
-import { getOpenSimBodyList } from "../../model/OpenSimUtils";
-import Dropzone from "react-dropzone";
+import SubjectViewState, { SubjectResultsJSON } from "../../model/SubjectViewState";
+import LiveFile from "../../model/LiveFile";
 
 type SubjectViewProps = {
     home: UserHomeDirectory;
     currentLocationUserId: string;
     path: string;
-};
-
-type SegmentResultsJSON = {
-    trialName: string;
-    start_frame: number;
-    start: number;
-    end_frame: number;
-    end: number;
-    kinematicsStatus: "NOT_STARTED" | "FINISHED" | "ERROR";
-    kinematicsAvgRMSE: number;
-    kinematicsAvgMax: number;
-    dynamicsStatus: "NOT_STARTED" | "FINISHED" | "ERROR";
-    dynanimcsAvgRMSE: number;
-    dynanimcsAvgMax: number;
-    linearResiduals: number;
-    angularResiduals: number;
-    goldAvgRMSE: number;
-    goldAvgMax: number;
-    goldPerMarkerRMSE: number | null;
-    hasMarkers: boolean;
-    hasForces: boolean;
-    hasMarkerWarnings: boolean;
-};
-
-type TrialResultsJSON = {
-    segments: SegmentResultsJSON[]
-};
-
-type SubjectResultsJSON = {
-    [trialName: string]: TrialResultsJSON
+    readonly: boolean;
 };
 
 const SubjectView = observer((props: SubjectViewProps) => {
-    const location = useLocation();
-    const navigate = useNavigate();
     const home = props.home;
     const path = props.path;
 
-    const subjectContents: SubjectContents = home.getSubjectContents(path);
-    const subjectJson = subjectContents.subjectJson;
-    const readyFlagFile = subjectContents.readyFlagFile;
-    const processingFlagFile = subjectContents.processingFlagFile;
-    const errorFlagFile = subjectContents.errorFlagFile;
+    const subjectState: SubjectViewState = home.getSubjectViewState(path);
+    const subjectJson = subjectState.subjectJson;
+    const readyFlagFile = subjectState.readyFlagFile;
+    const processingFlagFile = subjectState.processingFlagFile;
+    const errorFlagFile = subjectState.errorFlagFile;
 
     // Check on the value of the key _subject.json attributes unconditionally, to ensure that MobX updates if the attributes change
     const subjectDataSource: '' | 'published' | 'pilot' | 'study' = subjectJson.getAttribute("dataSource", "");
@@ -77,44 +45,14 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const subjectCitation: string | null = subjectJson.getAttribute("citation", null);
     const [subjectCitationComplete, setSubjectCitationComplete] = useState(true);
 
-    // Get the details we'll need for custom OpenSim models unconditionaly, to ensure that MobX updates if the attributes change
-    const pathWithSlash = path + (path.endsWith('/') ? '' : '/');
-    const customOpensimModelPathData = home.dir.getPath(pathWithSlash + "unscaled_generic.osim", false);
-    const [availableBodyList, setAvailableBodyList] = useState<string[]>([]);
-    useEffect(() => {
-        if (!customOpensimModelPathData.loading && customOpensimModelPathData.files.length > 0) {
-            home.dir.downloadText(customOpensimModelPathData.path).then((openSimText) => {
-                setAvailableBodyList(getOpenSimBodyList(openSimText));
-            }).catch((e) => {
-                console.error("Error downloading OpenSim model text from " + customOpensimModelPathData.path + ": ", e);
-            });
-        }
-    }, [subjectModel, customOpensimModelPathData.loading]);
-
-    // This allows us to have bulk-uploading of files from the drag and drop interface
-    const [uploadMarkerFiles, setUploadMarkerFiles] = useState({} as { [key: string]: File; });
-    const [uploadGrfFiles, setUploadGrfFiles] = useState({} as { [key: string]: File; });
-
     // Check on the existence of each flag unconditionally, to ensure that MobX updates if the flags change
-    const resultsExist = subjectContents.resultsExist;
+    const resultsExist = subjectState.resultsExist;
     const readyFlagExists = readyFlagFile.exists && !readyFlagFile.loading;
     const errorFlagExists = errorFlagFile.exists && !errorFlagFile.loading;
     const processingFlagExists = processingFlagFile.exists && !processingFlagFile.loading;
 
-    // Create state to manage the collapse state of the wizard
-    const [wizardCollapsed, setWizardCollapsed] = useState(readyFlagExists);
-
-    // Manage the results JSON blob
-    const [parsedResultsJSON, setParsedResultsJSON] = useState<SubjectResultsJSON>({});
-    useEffect(() => {
-        if (resultsExist) {
-            home.dir.downloadText(path + "/_results.json").then((resultsText) => {
-                setParsedResultsJSON(JSON.parse(resultsText));
-            }).catch((e) => {
-                console.error("Error downloading _results.json from " + path + ": ", e);
-            });
-        }
-    }, [resultsExist]);
+    // Create state to manage the file drop zone
+    const [dropZoneActive, setDropZoneActive] = useState(false);
 
     /////////////////////////////////////////////////////////////////////////
     // There are several states a subject can be in:
@@ -125,14 +63,14 @@ const SubjectView = observer((props: SubjectViewProps) => {
     /////////////////////////////////////////////////////////////////////////
 
     // 0. We're still loading
-    if (subjectContents.loading || subjectJson.isLoadingFirstTime() || readyFlagFile.loading || processingFlagFile.loading) {
+    if (subjectState.loading || subjectJson.isLoadingFirstTime() || readyFlagFile.loading || processingFlagFile.loading) {
         return <div>Loading...</div>;
     }
 
     // 1. Create a wizard form for the _subject.json values, populated to the point in the journey that the user has reached.
     let formElements: JSX.Element[] = [
         <div key="title">
-            <h3>Subject {subjectContents.name} Metrics:</h3>
+            <h3>Subject {subjectState.name} Metrics:</h3>
         </div>
     ];
     let formCompleteSoFar: boolean = true;
@@ -177,7 +115,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 setSubjectHeightComplete(false);
             }
             formCompleteSoFar = false;
-            formElements.push(<div>
+            formElements.push(<div key='heightConfirm'>
                 <button type="button" className="btn btn-primary" onClick={() => setSubjectHeightComplete(true)}>Confirm Height</button> (or press Enter or Tab)
             </div>);
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="heightExplanation">
@@ -227,7 +165,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 setSubjectMassComplete(false);
             }
             formCompleteSoFar = false;
-            formElements.push(<div>
+            formElements.push(<div key='massConfirm'>
                 <button type="button" className="btn btn-primary" onClick={() => setSubjectMassComplete(true)}>Confirm Mass</button> (or press Enter or Tab)
             </div>);
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="heightExplanation">
@@ -319,7 +257,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 setSubjectAgeComplete(false);
             }
             formCompleteSoFar = false;
-            formElements.push(<div>
+            formElements.push(<div key='ageConfirm'>
                 <button type="button" className="btn btn-primary" onClick={() => setSubjectAgeComplete(true)}>Confirm Age</button> (or press Enter or Tab)
             </div>);
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="heightExplanation">
@@ -343,7 +281,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 tagSet='subject'
                 error={subjectTags.length == 0}
                 tags={subjectTags}
-                readonly={false}
+                readonly={props.readonly}
                 onTagsChanged={(newTags) => {
                     subjectJson.setAttribute("subjectTags", newTags);
                 }}
@@ -434,33 +372,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
         if (formCompleteSoFar) {
             formElements.push(<div key="customModel" className="mb-3">
                 <label>Upload Custom OpenSim Model:</label>
-                <DropFile pathData={customOpensimModelPathData} accept=".osim" upload={(file: File, progressCallback: (progress: number) => void) => {
-                    return home.dir.uploadFile(customOpensimModelPathData.path, file, progressCallback).then(() => {
-                        // Read the text of `file` locally
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                            const text = (event.target?.result as string);
-                            setAvailableBodyList(getOpenSimBodyList(text));
-                        };
-
-                        reader.onerror = (event) => {
-                            console.log("OpenSim model file could not be read:", event.target?.error?.message);
-                            home.dir.downloadText(customOpensimModelPathData.path).then((openSimText) => {
-                                setAvailableBodyList(getOpenSimBodyList(openSimText));
-                            }).catch((e) => {
-                                console.error("Error downloading OpenSim model text from " + customOpensimModelPathData.path + ": ", e);
-                            });
-                        };
-
-                        reader.readAsText(file);
-                    });
-                }} download={() => {
-                    return home.dir.downloadFile(customOpensimModelPathData.path);
-                }}></DropFile>
+                <DropFile file={subjectState.customOpensimModel} accept=".osim" onDrop={subjectState.dropOpensimFile} readonly={props.readonly}></DropFile>
                 <div id="customModelHelp" className="form-text">Custom OpenSim file to scale for the subject.</div>
             </div>);
 
-            if (customOpensimModelPathData.files.length === 0) {
+            if (!subjectState.customOpensimModel.exists) {
                 formCompleteSoFar = false;
                 formElements.push(<div className="alert alert-dark mt-2" role="alert" key="customModelExplanation">
                     <h4 className="alert-heading">What kinds of custom OpenSim models are supported?</h4>
@@ -546,9 +462,9 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <label>Specify Two Feet in Custom OpenSim Model:</label>
                 <TagEditor
                     error={footBodyNames.length != 2}
-                    tagSet={availableBodyList}
+                    tagSet={subjectState.availableBodyNodes}
                     tags={footBodyNames}
-                    readonly={false}
+                    readonly={props.readonly}
                     onTagsChanged={(newTags) => {
                         subjectJson.setAttribute("footBodyNames", newTags);
                     }}
@@ -567,7 +483,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
             if (footBodyNames.length != 2) {
                 formCompleteSoFar = false;
-                formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
+                formElements.push(<div className="alert alert-dark mt-2" role="alert" key="footExplanation">
                     <h4 className="alert-heading">Why do I need to specify two feet in my Custom OpenSim Model?</h4>
                     <p>
                         When AddBiomechanics is fitting physics to your model, it assumes every measured ground reaction force goes through one of the "foot" segments of your model. AddBiomechanics will automatically assign forces on each from to the appropriate foot segment based on their spatial location. The tool currently works best if you select only two segments to serve as "feet", even if your feet are modeled as articulated bodies.
@@ -607,7 +523,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
             if (runMoco == null) {
                 formCompleteSoFar = false;
-                formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
+                formElements.push(<div className="alert alert-dark mt-2" role="alert" key="mocoExplanation">
                     <h4 className="alert-heading">Should I Solve for Muscle Activations?</h4>
                     <p>
                         AddBiomechanics integrates with the powerful <a href="https://opensim-org.github.io/opensim-moco-site/">OpenSim Moco software</a> (created by Nick Bianco and Chris Dembia) to solve for muscle activations that are consistent with the physical motion that AddBiomechanics finds for your data.
@@ -778,10 +694,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 setSubjectCitationComplete(false);
             }
             formCompleteSoFar = false;
-            formElements.push(<div>
+            formElements.push(<div key='citationConfirm'>
                 <button type="button" className="btn btn-primary" onClick={() => setSubjectCitationComplete(true)}>Confirm Citation</button> (or press Enter or Tab)
             </div>);
-            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
+            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="citationExplanation">
                 <h4 className="alert-heading">What should I put for my citation?</h4>
                 <p>
                     It's fine to leave this blank, if you don't have a preferred citation. If you do, please include it here.
@@ -789,8 +705,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <p>
                     You can include your citation in any format you like, just note that this information is public.
                 </p>
+                <h5>IMPORTANT: NEVER INCLUDE PATIENT IDENTIFYING INFORMATION IN YOUR CITATION!</h5>
                 <p>
-                    <h5>IMPORTANT: NEVER INCLUDE PATIENT IDENTIFYING INFORMATION IN YOUR CITATION!</h5>
                     Definitely do not put something like "Keenon Werling's gait data" in the citation field, unless 
                     your subject has explicitly given informed consent to be identified and has requested that users 
                     of the data cite them by name.
@@ -823,8 +739,13 @@ const SubjectView = observer((props: SubjectViewProps) => {
         </div>
     }
 
+    const markerLiveFiles: LiveFile[] = [];
+    for (let i = 0; i < subjectState.trials.length; i++) {
+        markerLiveFiles.push(subjectState.getLiveFileForTrialMarkers(subjectState.trials[i]));
+    }
+
     let mocapFilesTable = null;
-    if (subjectContents.trials.length > 0) {
+    if (subjectState.trials.length > 0) {
         mocapFilesTable = <table className="table">
             <thead>
                 <tr>
@@ -834,82 +755,23 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 </tr>
             </thead>
             <tbody>
-                {subjectContents.trials.map((trial) => {
-                    const uploadMarkerFile = (file: File, progressCallback: (progress: number) => void) => {
-                        if (file.name.endsWith('.c3d')) {
-                            return home.dir.uploadFile(trial.c3dFilePath, file, progressCallback).then(() => {
-                                // Delete the old TRC file, if there is one
-                                if (trial.trcFileExists) {
-                                    return home.dir.delete(trial.trcFilePath);
-                                }
-                                else {
-                                    return Promise.resolve();
-                                }
-                            });
-                        }
-                        else if (file.name.endsWith('.trc')) {
-                            return home.dir.uploadFile(trial.trcFilePath, file, progressCallback).then(() => {
-                                // Delete the old C3D file, if there is one
-                                if (trial.c3dFileExists) {
-                                    return home.dir.delete(trial.c3dFilePath);
-                                }
-                                else {
-                                    return Promise.resolve();
-                                }
-                            });
-                        }
-                        else {
-                            return Promise.reject("Unsupported marker file type");
-                        }
-                    };
+                {subjectState.trials.map((trial, i: number) => {
+                    const markerLiveFile = markerLiveFiles[i];
+                    let dataFiles: React.ReactElement[] = [];
 
-                    let dataFiles = [];
-                    let uploadOnMount: File | undefined = uploadMarkerFiles[trial.name];
-                    if (!trial.c3dFileExists && !trial.trcFileExists) {
-                        const trialC3dPathData = home.getPath(trial.c3dFilePath, false);
+                    dataFiles.push(
+                        <td key='markers' colSpan={disableDynamics ? 1 : 2}>
+                            <DropFile file={markerLiveFile} accept=".c3d,.trc" readonly={props.readonly} onDrop={(files: File[]) => subjectState.dropMarkerFiles(trial, files)} />
+                        </td>
+                    );
+                    if (trial.trcFileExists && !trial.c3dFileExists && !disableDynamics) {
+                        const grfMotLiveFile = home.dir.getLiveFile(trial.grfMotFilePath);
                         dataFiles.push(
-                            <td key='c3d' colSpan={disableDynamics ? 1 : 2}>
-                                <DropFile pathData={trialC3dPathData} accept=".c3d,.trc" upload={uploadMarkerFile} download={() => {
-                                    return home.dir.downloadFile(trialC3dPathData.path);
-                                }} uploadOnMount={uploadOnMount} />
+                            <td key='grf'>
+                                <DropFile file={grfMotLiveFile} accept=".mot" text="GRF *.mot file" readonly={props.readonly} onDrop={(files: File[]) => subjectState.dropGRFFiles(trial, files)} />
                             </td>
                         );
                     }
-                    else if (trial.c3dFileExists) {
-                        const trialC3dPathData = home.getPath(trial.c3dFilePath, false);
-                        dataFiles.push(
-                            <td key='c3d' colSpan={disableDynamics ? 1 : 2}>
-                                <DropFile pathData={trialC3dPathData} accept=".c3d,.trc" upload={uploadMarkerFile} download={() => {
-                                    return home.dir.downloadFile(trialC3dPathData.path);
-                                }} uploadOnMount={uploadOnMount} />
-                            </td>
-                        );
-                    }
-                    else {
-                        // Then the TRC file must exist
-                        const trialTrcPathData = home.getPath(trial.trcFilePath, false);
-                        dataFiles.push(
-                            <td>
-                                <DropFile pathData={trialTrcPathData} accept=".trc,.c3d" upload={uploadMarkerFile} download={() => {
-                                    return home.dir.downloadFile(trialTrcPathData.path);
-                                }} uploadOnMount={uploadOnMount} />
-                            </td>
-                        );
-                        if (!disableDynamics) {
-                            let uploadGrfOnMount: File | undefined = uploadGrfFiles[trial.name];
-                            const trialGrfMotPathData = home.getPath(trial.grfMotFilePath, false);
-                            dataFiles.push(
-                                <td>
-                                    <DropFile pathData={trialGrfMotPathData} accept=".mot" text="GRF *.mot file" upload={(file, progressCallback) => {
-                                        return home.dir.uploadFile(trialGrfMotPathData.path, file, progressCallback);
-                                    }} download={() => {
-                                        return home.dir.downloadFile(trialGrfMotPathData.path);
-                                    }} uploadOnMount={uploadGrfOnMount} />
-                                </td>
-                            );
-                        }
-                    }
-
 
                     return <tr key={trial.name}>
                         <td>{trial.name}</td>
@@ -918,7 +780,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                             e.preventDefault();
                             e.stopPropagation();
                             if (window.confirm("Are you sure you want to delete trial \"" + trial.name + "\"?")) {
-                                home.deleteFolder(trial.path);
+                                subjectState.deleteTrial(trial);
                             }
                         }}>Delete</button></td>
                     </tr>;
@@ -945,67 +807,57 @@ const SubjectView = observer((props: SubjectViewProps) => {
             </p>
         </div>;
         submitButton =
-            <button className="btn btn-lg btn-primary mt-2" disabled={subjectContents.trials.length === 0} style={{ width: '100%' }} onClick={(e) => {
+            <button className="btn btn-lg btn-primary mt-2" disabled={subjectState.trials.length === 0} style={{ width: '100%' }} onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                readyFlagFile.upload().then(() => {
-                    setWizardCollapsed(true);
-                });
+                subjectState.submitForProcessing();
             }}>Submit for Processing</button>;
     }
+
+    const onDrop = (e: DragEvent) => {
+        setDropZoneActive(false);
+        e.preventDefault();
+
+        let acceptedFiles: File[] = [];
+        if (e.dataTransfer && e.dataTransfer.items) {
+            for (let i = 0; i < e.dataTransfer.items.length; i++) {
+                if (e.dataTransfer.items[i].kind === 'file') {
+                    const file = e.dataTransfer.items[i].getAsFile();
+                    if (file) {
+                        acceptedFiles.push(file);
+                    }
+                }
+            }
+        }
+
+        subjectState.dropFilesToUpload(acceptedFiles);
+    };
 
     const trialsUploadSection = <>
         <h3>Motion Capture Files:</h3>
         {mocapFilesTable}
-        <Dropzone
-            {...props}
-            accept=".c3d,.trc,.mot"
-            onDrop={(acceptedFiles: File[]) => {
-                let trialNames: string[] = [];
-
-                let updatedUploadMarkerFiles = { ...uploadMarkerFiles };
-                let updatedUploadGrfFiles = { ...uploadGrfFiles };
-                for (let i = 0; i < acceptedFiles.length; i++) {
-                    const name = acceptedFiles[i].name.split('.')[0];
-                    trialNames.push(name);
-                    if (acceptedFiles[i].name.endsWith('.mot')) {
-                        updatedUploadGrfFiles[name] = acceptedFiles[i];
-                    }
-                    else if (acceptedFiles[i].name.endsWith('.trc') || acceptedFiles[i].name.endsWith('.c3d')) {
-                        updatedUploadMarkerFiles[name] = acceptedFiles[i];
-                    }
-                }
-                setUploadMarkerFiles(updatedUploadMarkerFiles);
-                setUploadGrfFiles(updatedUploadGrfFiles);
-
-                // De-duplicate trialNames
-                trialNames = [...new Set(trialNames)];
-
-                console.log("Accepted files: ", acceptedFiles, " trialNames: ", trialNames, " uploadMarkerFiles: ", updatedUploadMarkerFiles, " uploadGrfFiles: ", updatedUploadGrfFiles);
-
-                trialNames.forEach((name) => {
-                    props.home.createTrial(path, name);
-                });
-            }}
-        >
-            {({ getRootProps, getInputProps, isDragActive }) => {
-                const rootProps = getRootProps();
-                const inputProps = getInputProps();
-                return <div className={"dropzone" + (isDragActive ? ' dropzone-hover' : '')} {...rootProps}>
-                    <div className="dz-message needsclick">
-                        <input {...inputProps} />
-                        <i className="h3 text-muted dripicons-cloud-upload"></i>
-                        <h5>
-                            Drop C3D or TRC files here to create trials.
-                        </h5>
-                        <span className="text-muted font-13">
-                            (You can drop multiple files at once to create multiple
-                            trials simultaneously)
-                        </span>
-                    </div>
-                </div>
-            }}
-        </Dropzone>
+        <div className={"dropzone" + (dropZoneActive ? ' dropzone-hover' : '')}
+             onDrop={onDrop as any}
+             onDragOver={(e) => {
+                e.preventDefault();
+             }}
+             onDragEnter={() => {
+                setDropZoneActive(true);
+             }}
+             onDragLeave={() => {
+                setDropZoneActive(false);
+             }}>
+            <div className="dz-message needsclick">
+                <i className="h3 text-muted dripicons-cloud-upload"></i>
+                <h5>
+                    Drop C3D or TRC files here to create trials.
+                </h5>
+                <span className="text-muted font-13">
+                    (You can drop multiple files at once to create multiple
+                    trials simultaneously)
+                </span>
+            </div>
+        </div>
         {submitButton}
         {mocapHelpText}
     </>;
@@ -1029,7 +881,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <button className="btn btn-primary" onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    await props.home.dir.delete(subjectContents.resultsJsonPath);
+                    await props.home.dir.delete(subjectState.resultsJsonPath);
                     await errorFlagFile.delete();
                     await processingFlagFile.delete();
                 }}>Reprocess</button>
@@ -1054,7 +906,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     let resultsSection = null;
     if (resultsExist) {
-        const trialNames: string[] = subjectContents.trials.map((trial) => trial.name);
+        const trialNames: string[] = subjectState.trials.map((trial) => trial.name);
 
         resultsSection = <div>
             <h3>Results:</h3>
@@ -1068,9 +920,9 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 </thead>
                 <tbody>
                     {
-                        subjectContents.trials.flatMap((trial) => {
-                            if (trial.name in parsedResultsJSON) {
-                                const trialResults = parsedResultsJSON[trial.name];
+                        subjectState.trials.flatMap((trial) => {
+                            if (trial.name in subjectState.parsedResultsJson) {
+                                const trialResults = subjectState.parsedResultsJson[trial.name];
                                 return trial.segments.map((segment, index) => {
                                     const segmentResults = trialResults.segments[index];
                                     let kinematicsResults: string = '';

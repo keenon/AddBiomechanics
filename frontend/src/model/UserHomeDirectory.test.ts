@@ -280,4 +280,32 @@ describe("UserHomeDirectory", () => {
         expect(result.loading).toBe(false);
         expect(result.folders.length).toBe(1);
     });
+
+    test("Upload trial triggers an autorun in subfolder", async () => {
+        // This test has side effects, so we isolate it
+        const isolated_s3 = new S3APIMock();
+        isolated_s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking/markers.c3d",
+        ]);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
+        const api = new UserHomeDirectory(dir);
+        await api.getPath("ASB2023/", false);
+
+        const counter = { count: 0 };
+        autorun(() => {
+            api.getSubjectContents('ASB2023/S01');
+            counter.count++;
+        });
+        expect(counter.count).toBe(1);
+
+        await api.createTrial("ASB2023/S01/", "running");
+        expect(counter.count).toBeGreaterThan(1);
+
+        expect(api.getSubjectContents('ASB2023/S01').trials.length).toBe(2);
+    });
 });

@@ -2,7 +2,7 @@ import { PubSubSocket } from "./PubSubSocket";
 import { FileMetadata, S3API } from "./S3API"; 
 import { makeObservable, action, observable, ObservableMap } from 'mobx';
 import LiveJsonFile from "./LiveJsonFile";
-import LiveFlagFile from "./LiveFlagFile";
+import LiveFile from "./LiveFile";
 
 type PathData = {
     loading: boolean;
@@ -17,12 +17,12 @@ type PathData = {
 abstract class LiveDirectory {
     prefix: string;
     jsonFiles: Map<string, LiveJsonFile>;
-    flagFiles: Map<string, LiveFlagFile>;
+    liveFiles: Map<string, LiveFile>;
 
     constructor(prefix: string) {
         this.prefix = prefix;
         this.jsonFiles = new Map();
-        this.flagFiles = new Map();
+        this.liveFiles = new Map();
         this.getJsonFile = this.getJsonFile.bind(this);
     }
 
@@ -44,11 +44,11 @@ abstract class LiveDirectory {
         }
         return file;
     }
-    getFlagFile(path: string): LiveFlagFile {
-        let file = this.flagFiles.get(path);
+    getLiveFile(path: string): LiveFile {
+        let file = this.liveFiles.get(path);
         if (file == null) {
-            file = new LiveFlagFile(this, path);
-            this.flagFiles.set(path, file);
+            file = new LiveFile(this, path);
+            this.liveFiles.set(path, file);
         }
         return file;
     }
@@ -173,7 +173,6 @@ class LiveDirectoryImpl extends LiveDirectory {
                 return cached;
             }
         }
-        console.log("Getting path " + path + " recursively: " + recursive + ", cached", cached);
 
         // If we reach this point, the path has not yet been loaded
         // Kick off a load for the PathData, and keep around a promise for that load completing
@@ -432,7 +431,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                             folders = [...new Set(files.filter((file) => {
                                 return file.key.substring(localPathNoLeadingSlash.length).includes('/');
                             }).map((file) => {
-                                return file.key.substring(0, file.key.indexOf('/', localPathNoLeadingSlash.length) + 1);
+                                return file.key.substring(0, file.key.indexOf('/', localPathNoLeadingSlash.length + 1));
                             }))];
                         }
                         this._setCachedPath(pathToCheck, {
@@ -523,7 +522,6 @@ class LiveDirectoryImpl extends LiveDirectory {
     {
         const fullPath = this.normalizePath(path);
         return this.s3.uploadFile(fullPath, contents, progressCallback).then(() => {
-            console.log("Finished uploading file!");
             const topic = this.pubsub.makeTopicPubSubSafe("/UPDATE/" + fullPath);
             const updatedFile: FileMetadata = {
                 key: fullPath,
@@ -531,7 +529,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                 size: contents.size,
             };
             // We're about to receive this back from PubSub, but we can synchronously update it now
-            this._onReceivedPubSubUpdate(updatedFile);
+            this._onReceivedPubSubUpdate({... updatedFile});
             // Also send to PubSub
             this.pubsub.publish({ topic, message: JSON.stringify(updatedFile) });
         });

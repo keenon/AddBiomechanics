@@ -1,9 +1,9 @@
 import { LiveDirectoryImpl, PathData } from "./LiveDirectory";
 import { S3APIMock } from "./S3API";
 import { PubSubSocketMock } from "./PubSubSocket";
-import LiveFlagFile from "./LiveFlagFile";
+import LiveFile from "./LiveFile";
 
-describe("LiveFlagFile", () => {
+describe("LiveFile", () => {
     test("Simple download", async () => {
         const s3 = new S3APIMock();
         const pubsub = new PubSubSocketMock("DEV");
@@ -16,7 +16,7 @@ describe("LiveFlagFile", () => {
             "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/PROCESSING",
         ]);
 
-        const file = new LiveFlagFile(api, "ASB2023/S01/PROCESSING");
+        const file = new LiveFile(api, "ASB2023/S01/PROCESSING");
         await file.refreshFile();
         expect(file.exists).toBe(true);
     });
@@ -33,7 +33,7 @@ describe("LiveFlagFile", () => {
             "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/PROCESSING",
         ]);
 
-        const file = new LiveFlagFile(api, "/ASB2023/S01/PROCESSING");
+        const file = new LiveFile(api, "/ASB2023/S01/PROCESSING");
         await file.refreshFile();
         expect(file.exists).toBe(true);
     });
@@ -44,8 +44,8 @@ describe("LiveFlagFile", () => {
         pubsub.connect();
         const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
 
-        const file = new LiveFlagFile(api, "ASB2023/S01/PROCESSING");
-        await file.upload();
+        const file = new LiveFile(api, "ASB2023/S01/PROCESSING");
+        await file.uploadFlag();
         expect(file.exists).toBe(true);
         expect(pubsub.mockSentMessagesLog.length).toBe(1); // we should have updated PubSub with the changes
         expect(s3.files.length).toBe(1);
@@ -65,7 +65,7 @@ describe("LiveFlagFile", () => {
             "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/PROCESSING",
         ]);
 
-        const file = new LiveFlagFile(api, "ASB2023/S01/PROCESSING");
+        const file = new LiveFile(api, "ASB2023/S01/PROCESSING");
         await file.refreshFile();
         expect(file.exists).toBe(true);
         await file.delete();
@@ -80,7 +80,7 @@ describe("LiveFlagFile", () => {
         pubsub.connect();
         const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
 
-        const file = new LiveFlagFile(api, "ASB2023/S01/PROCESSING");
+        const file = new LiveFile(api, "ASB2023/S01/PROCESSING");
         await file.refreshFile();
         expect(file.exists).toBe(false);
 

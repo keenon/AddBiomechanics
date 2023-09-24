@@ -1,7 +1,8 @@
 import LiveDirectory, {PathData} from "./LiveDirectory";
 import { makeObservable, action, observable } from 'mobx';
 import LiveJsonFile from "./LiveJsonFile";
-import LiveFlagFile from "./LiveFlagFile";
+import LiveFile from "./LiveFile";
+import SubjectViewState from "./SubjectViewState";
 
 type PathType = 'dataset' | 'subject' | 'trial' | 'trial_segment' | 'trials_folder' | '404' | 'loading';
 
@@ -18,9 +19,9 @@ type SubjectContents = {
 
     resultsExist: boolean;
     resultsJsonPath: string;
-    processingFlagFile: LiveFlagFile; // "PROCESSING"
-    readyFlagFile: LiveFlagFile; // "READY_TO_PROCESS"
-    errorFlagFile: LiveFlagFile; // "ERROR"
+    processingFlagFile: LiveFile; // "PROCESSING"
+    readyFlagFile: LiveFile; // "READY_TO_PROCESS"
+    errorFlagFile: LiveFile; // "ERROR"
 
     trials: TrialContents[]
 };
@@ -53,6 +54,7 @@ type TrialSegmentContents = {
 
 class UserHomeDirectory {
     dir: LiveDirectory;
+    subjectViewStates: Map<string, SubjectViewState> = new Map();
 
     // 'protected/' + s3.region + ':' + userId + '/data/'
     constructor(dir: LiveDirectory) {
@@ -175,11 +177,32 @@ class UserHomeDirectory {
     }
 
     /**
-     * This call will create an empty trial object
+     * This call will create an empty trial object, and optionally begin uploading files to it.
      */
-    createTrial(subjectPath: string, trialName: string): Promise<void> {
+    createTrial(subjectPath: string, trialName: string, markerFile?: File, grfFile?: File): Promise<void> {
         const dir = this.dir;
-        return dir.uploadText(subjectPath + (subjectPath.length > 0 ? '/' : '') + 'trials/' + trialName + '/_trial.json', '{}');
+
+        // Create the trial object as a JSON file, which will upload quickly and cause the UI to update.
+        const promise = dir.uploadText(subjectPath + (subjectPath.length > 0 ? '/' : '') + 'trials/' + trialName + '/_trial.json', '{}');
+
+        // Upload files. These uploads will proceed asynchronously, but we don't need to wait for them.
+        const prefixPath = subjectPath + (subjectPath.length > 0 ? '/' : '') + 'trials/' + trialName;
+        if (markerFile != null) {
+            if (markerFile.name.endsWith('.c3d')) {
+                dir.getLiveFile(prefixPath + '/markers.c3d').uploadFile(markerFile);
+            }
+            else if (markerFile.name.endsWith('.trc')) {
+                dir.getLiveFile(prefixPath + '/markers.trc').uploadFile(markerFile);
+            }
+        }
+        if (grfFile != null) {
+            if (grfFile.name.endsWith('.mot')) {
+                dir.getLiveFile(prefixPath + '/grf.mot').uploadFile(grfFile);
+            }
+        }
+
+        // Return the promise for the _trial.json file, which will resolve when its upload is complete.
+        return promise;
     }
 
     /**
@@ -191,6 +214,25 @@ class UserHomeDirectory {
     deleteFolder(path: string): Promise<void> {
         const dir = this.dir;
         return dir.deleteByPrefix(path + (path.length > 0 ? '/' : ''));
+    }
+
+    /**
+     * This gets (and then caches) a SubjectViewState object for a given subject. This object
+     * is always the same for a given subject, and is used to track the state of the subject.
+     * 
+     * @param path The path to the subject
+     * @returns a SubjectViewState object
+     */
+    getSubjectViewState(path: string): SubjectViewState {
+        if (path.endsWith('/')) {
+            path = path.substring(0, path.length-1);
+        }
+        let state = this.subjectViewStates.get(path);
+        if (state == null) {
+            state = new SubjectViewState(this, path);
+            this.subjectViewStates.set(path, state);
+        }
+        return state;
     }
 
     /**
@@ -210,9 +252,9 @@ class UserHomeDirectory {
         }
         const subjectJson = dir.getJsonFile(path + '/_subject.json');
         const resultsJsonPath: string = path + '/_results.json';
-        const processingFlagFile: LiveFlagFile = dir.getFlagFile(path + "/PROCESSING");
-        const readyFlagFile: LiveFlagFile = dir.getFlagFile(path + "/READY_TO_PROCESS");
-        const errorFlagFile: LiveFlagFile = dir.getFlagFile(path + "/ERROR");
+        const processingFlagFile: LiveFile = dir.getLiveFile(path + "/PROCESSING");
+        const readyFlagFile: LiveFile = dir.getLiveFile(path + "/READY_TO_PROCESS");
+        const errorFlagFile: LiveFile = dir.getLiveFile(path + "/ERROR");
 
         const subjectPathData: PathData = dir.getPath(path, false);
         const trialsPathData: PathData = dir.getPath(path+'/trials/', false);

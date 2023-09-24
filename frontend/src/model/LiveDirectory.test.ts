@@ -799,16 +799,188 @@ describe("LiveDirectory", () => {
             "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/Tiziana2019_Standard/Subject32/trials/Trial9/preview.bin.zip",
         ]);
 
-        const subjectPath = api.getPath("Tiziana2019_Standard/Subject32", true);
-        await subjectPath.promise;
-        const trialsPath = api.getPath("/Tiziana2019_Standard/Subject32/trials/", true);
+        let trialsPath = api.getPath("Tiziana2019_Standard/Subject32/trials", true);
+        if (trialsPath.promise != null) {
+            trialsPath = await trialsPath.promise;
+        }
+        expect(trialsPath.path).toBe('Tiziana2019_Standard/Subject32/trials');
         expect(trialsPath.folders.length).toBe(3);
 
         await api.deleteByPrefix("Tiziana2019_Standard/Subject32/trials/Trial7/");
 
-        const trialsPathUpdated = api.getPath("Tiziana2019_Standard/Subject32/trials/", true);
-        expect(trialsPathUpdated.folders.length).toBe(2);
+        const trialsPathUpdated = api.getCachedPath("Tiziana2019_Standard/Subject32/trials");
+        expect(trialsPathUpdated).toBeDefined();
+        if (trialsPathUpdated != null) {
+            expect(trialsPathUpdated.folders.length).toBe(2);
+            expect(trialsPathUpdated.folders).toContain("Tiziana2019_Standard/Subject32/trials/Trial1");
+            expect(trialsPathUpdated.folders).toContain("Tiziana2019_Standard/Subject32/trials/Trial9");
+        }
     });
+
+    /*
+{
+    "loading": false,
+    "promise": null,
+    "path": "TestCreate2/trials/",
+    "folders": [
+        "TestCreate2/trials/DJ1/",
+        "TestCreate2/trials/DJ2/",
+        "TestCreate2/trials/STS1/",
+        "TestCreate2/trials/walkingTS3/",
+        "TestCreate2/trials/walkingTS4/"
+    ],
+    "files": [
+        {
+            "key": "TestCreate2/trials/DJ1/DJ1/segment_1/data.csv",
+            "lastModified": "2023-09-19T03:03:38.000Z",
+            "size": 506344
+        },
+        {
+            "key": "TestCreate2/trials/DJ1/DJ1/segment_1/preview.bin",
+            "lastModified": "2023-09-19T03:03:39.000Z",
+            "size": 2991917
+        },
+        {
+            "key": "TestCreate2/trials/DJ1/_trial.json",
+            "lastModified": "2023-09-18T14:51:42.000Z",
+            "size": 2
+        },
+        {
+            "key": "TestCreate2/trials/DJ1/markers.trc",
+            "lastModified": "2023-09-23T01:26:13.000Z",
+            "size": 489171
+        },
+        {
+            "key": "TestCreate2/trials/DJ2/_trial.json",
+            "lastModified": "2023-09-22T18:23:16.000Z",
+            "size": 2
+        },
+        {
+            "key": "TestCreate2/trials/DJ2/markers.trc",
+            "lastModified": "2023-09-22T18:23:17.000Z",
+            "size": 627580
+        },
+        {
+            "key": "TestCreate2/trials/STS1/_trial.json",
+            "lastModified": "2023-09-22T19:52:16.000Z",
+            "size": 2
+        },
+        {
+            "key": "TestCreate2/trials/STS1/markers.trc",
+            "lastModified": "2023-09-22T19:52:18.000Z",
+            "size": 1874086
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS3/_trial.json",
+            "lastModified": "2023-09-22T18:24:25.000Z",
+            "size": 2
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS3/grf.mot",
+            "lastModified": "2023-09-22T18:24:27.000Z",
+            "size": 1363510
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS3/markers.trc",
+            "lastModified": "2023-09-22T18:23:25.000Z",
+            "size": 272263
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS4/_trial.json",
+            "lastModified": "2023-09-22T18:24:25.000Z",
+            "size": 2
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS4/grf.mot",
+            "lastModified": "2023-09-22T18:24:27.000Z",
+            "size": 1251230
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS4/markers.trc",
+            "lastModified": "2023-09-22T18:23:25.000Z",
+            "size": 251128
+        }
+    ],
+    "recursive": true
+}
+
+{
+    "loading": false,
+    "promise": null,
+    "path": "TestCreate2/trials/",
+    "folders": [
+        "TestCreate2/trials/"
+    ],
+    "files": [
+        {
+            "key": "TestCreate2/trials/DJ1/DJ1/segment_1/data.csv",
+            "lastModified": "2023-09-19T03:03:38.000Z",
+            "size": 506344
+        },
+        {
+            "key": "TestCreate2/trials/DJ1/DJ1/segment_1/preview.bin",
+            "lastModified": "2023-09-19T03:03:39.000Z",
+            "size": 2991917
+        },
+        {
+            "key": "TestCreate2/trials/DJ1/_trial.json",
+            "lastModified": "2023-09-18T14:51:42.000Z",
+            "size": 2
+        },
+        {
+            "key": "TestCreate2/trials/DJ1/markers.trc",
+            "lastModified": "2023-09-23T01:26:13.000Z",
+            "size": 489171
+        },
+        {
+            "key": "TestCreate2/trials/DJ2/_trial.json",
+            "lastModified": "2023-09-22T18:23:16.000Z",
+            "size": 2
+        },
+        {
+            "key": "TestCreate2/trials/DJ2/markers.trc",
+            "lastModified": "2023-09-22T18:23:17.000Z",
+            "size": 627580
+        },
+        {
+            "key": "TestCreate2/trials/STS1/_trial.json",
+            "lastModified": "2023-09-22T19:52:16.000Z",
+            "size": 2
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS3/_trial.json",
+            "lastModified": "2023-09-22T18:24:25.000Z",
+            "size": 2
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS3/grf.mot",
+            "lastModified": "2023-09-22T18:24:27.000Z",
+            "size": 1363510
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS3/markers.trc",
+            "lastModified": "2023-09-22T18:23:25.000Z",
+            "size": 272263
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS4/_trial.json",
+            "lastModified": "2023-09-22T18:24:25.000Z",
+            "size": 2
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS4/grf.mot",
+            "lastModified": "2023-09-22T18:24:27.000Z",
+            "size": 1251230
+        },
+        {
+            "key": "TestCreate2/trials/walkingTS4/markers.trc",
+            "lastModified": "2023-09-22T18:23:25.000Z",
+            "size": 251128
+        }
+    ],
+    "recursive": true
+}
+    */
 
     test("Loading the root recursively and then loading a single file path exactly should return a PathData with that single file", async () => {
         const s3 = new S3APIMock();

@@ -37,6 +37,8 @@ class S3APIMock extends S3API {
     networkErrorMessage: string | null = null;
     networkErrorMessageListeners: ((message: string | null) => void)[] = [];
     networkCallCount: number = 0;
+    mockFileUploadPartialProgress: boolean = false;
+    mockFileUploadResolves: (() => void)[] = [];
 
     constructor() {
         super();
@@ -51,6 +53,7 @@ class S3APIMock extends S3API {
         this.loadPathData = this.loadPathData.bind(this);
         this.downloadText = this.downloadText.bind(this);
         this.uploadText = this.uploadText.bind(this);
+        this.uploadFile = this.uploadFile.bind(this);
         this.setNetworkErrorMessage = this.setNetworkErrorMessage.bind(this);
         this.getNetworkErrorMessage = this.getNetworkErrorMessage.bind(this);
         this.addNetworkErrorListener = this.addNetworkErrorListener.bind(this);
@@ -149,25 +152,64 @@ class S3APIMock extends S3API {
                 reject("Network outage");
                 return;
             }
-            this.files = this.files.filter(f => f.key !== path);
-            this.files.push({
-                key: path,
-                lastModified: new Date(),
-                size: text.length
-            });
-            this.fileContents.set(path, text);
-            resolve();
+            else if (this.mockFileUploadPartialProgress) {
+                // Return a promise that never resolevs
+                this.mockFileUploadResolves.push(() => {
+                    this.files = this.files.filter(f => f.key !== path);
+                    this.files.push({
+                        key: path,
+                        lastModified: new Date(),
+                        size: text.length
+                    });
+                    this.fileContents.set(path, text);
+                    resolve();
+                });
+            }
+            else {
+                this.files = this.files.filter(f => f.key !== path);
+                this.files.push({
+                    key: path,
+                    lastModified: new Date(),
+                    size: text.length
+                });
+                this.fileContents.set(path, text);
+                resolve();
+            }
         });
+    }
+
+    setMockFileUploadPartialProgress(partialProgress: boolean) {
+        this.mockFileUploadPartialProgress = partialProgress;
+    }
+
+    resolveMockFileUploads() {
+        this.mockFileUploadResolves.forEach(r => r());
+        this.mockFileUploadResolves = [];
     }
 
     uploadFile(path: string, contents: File, progressCallback: (percentage: number) => void): Promise<void>
     {
         this.networkCallCount++;
-        return new Promise((resolve, reject) => {
-            if (this.networkOutage) {
-                reject("Network outage");
-                return;
-            }
+        if (this.networkOutage) {
+            return Promise.reject("network outage");
+        }
+        else if (this.mockFileUploadPartialProgress) {
+            progressCallback(0.5);
+            // Return a promise that never resolevs
+            return new Promise((resolve, reject) => {
+                this.mockFileUploadResolves.push(() => {
+                    this.files = this.files.filter(f => f.key !== path);
+                    this.files.push({
+                        key: path,
+                        lastModified: new Date(),
+                        size: contents.size
+                    });
+                    this.fileContents.set(path, "[File]");
+                    resolve();
+                });
+            });
+        }
+        else {
             this.files = this.files.filter(f => f.key !== path);
             this.files.push({
                 key: path,
@@ -175,8 +217,8 @@ class S3APIMock extends S3API {
                 size: contents.size
             });
             this.fileContents.set(path, "[File]");
-            resolve();
-        });
+            return Promise.resolve();
+        }
     }
 
     delete(path: string): Promise<void>
