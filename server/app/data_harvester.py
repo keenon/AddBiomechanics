@@ -228,6 +228,7 @@ class SubjectSnapshot:
 
     def mark_incompatible(self, datasets: List[StandardizedDataset]):
         # First filter the datasets to just the ones we want to copy
+        # TODO: Janelle - figure out why bad skeletons are still sneaking in
         datasets = self.has_snapshots_to_copy(datasets)
         if len(datasets) == 0:
             return
