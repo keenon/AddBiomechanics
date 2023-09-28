@@ -9,8 +9,11 @@ import json
 import shutil
 import hashlib
 
+# ===================== CONSTANTS =====================
 GEOMETRY_FOLDER_PATH = absPath('../engine/Geometry')
 DATA_FOLDER_PATH = absPath('../data')
+MIN_TRIAL_LENGTH = 15  # trials with timesteps shorter than this will be removed
+# =====================================================
 
 
 class StandardizedDataset:
@@ -158,6 +161,7 @@ class SubjectSnapshot:
             print('Copying to Dataset: ' + dataset.s3_root_path)
 
             # 1. Translate the skeleton
+
             # 1.1. Download the skeleton
             if os.path.exists(tmp_folder + 'target_skeleton.osim'):
                 os.remove(tmp_folder + 'target_skeleton.osim')
@@ -198,10 +202,39 @@ class SubjectSnapshot:
                                     'originalFolder': self.path,
                                     'snapshotDate': time.strftime("%Y-%m-%d %H:%M:%S",
                                                                   time.gmtime())}
+
+                # 2. Discard faulty trials
+
+                # 2.1. Collect markers files corresponding to trials that are too short
+                trials_folder = os.path.join(tmp_folder, 'trials/')
+                trials_to_remove: List[str] = []
+                for root, dirs, files in os.walk(trials_folder):
+                    for file in files:
+                        local_filepath = os.path.join(root, file)
+                        if file.endswith('.trc'):
+                            trc_file = nimble.biomechanics.OpenSimParser.loadTRC(local_filepath)
+                            if len(trc_file.timestamps) < MIN_TRIAL_LENGTH:
+                                trials_to_remove.append(local_filepath)
+                        elif file.endswith('.c3d'):
+                            c3d_file = nimble.biomechanics.C3DLoader.loadC3D(local_filepath)
+                            if len(c3d_file.timestamps) < MIN_TRIAL_LENGTH:
+                                trials_to_remove.append(local_filepath)
+
+                # 2.2. Remove those trials from tmp folder
+                for trial in trials_to_remove:
+                    trial_folder = os.path.dirname(trial)
+                    try:
+                        shutil.rmtree(trial_folder)
+                    except OSError as e:
+                        print(f"Error: {e}")
+
+                # 3. Upload the skeleton translation output and all other filtered files
+
+                # 3.1. Upload the skeleton translation output
                 self.index.uploadText(
                     target_path + '/_translation.json', json.dumps(translation_data))
 
-                # Upload every file in the tmpFolder
+                # 3.2. Upload every file in the tmpFolder
                 for root, dirs, files in os.walk(tmp_folder):
                     for file in files:
                         if file.endswith('.osim') or file.endswith('.trc') or file.endswith('.mot') or file.endswith(
