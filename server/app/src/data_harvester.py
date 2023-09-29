@@ -122,10 +122,10 @@ class SubjectSnapshot:
         tmp_folder: str = self.index.downloadToTmp(self.path)
 
         # Identify trials that are too short. We don't want to process these
-        trials_to_remove = self.id_short_trials(tmp_folder)
+        trial_paths_to_remove: List[str] = self.id_short_trials(tmp_folder)
 
         # Remove those trials from tmp folder
-        for trial in trials_to_remove:
+        for trial in trial_paths_to_remove:
             trial_folder = os.path.dirname(trial)
             try:
                 shutil.rmtree(trial_folder)
@@ -133,7 +133,7 @@ class SubjectSnapshot:
                 print(f"Error: {e}")
 
         # Prepare the original skeleton model for translation step
-        self.prep_og_skeleton(tmp_folder)
+        self.prep_unscaled_skeleton(tmp_folder)
 
         for dataset in datasets:
             print('Copying to Dataset: ' + dataset.s3_root_path)
@@ -211,25 +211,25 @@ class SubjectSnapshot:
         os.system('rm -rf ' + tmp_folder)
 
     @staticmethod
-    def id_short_trials(tmp_folder: str):
+    def id_short_trials(tmp_folder: str) -> List[str]:
         # Collect markers files corresponding to trials that are too short
         trials_folder = os.path.join(tmp_folder, 'trials/')
-        trials_to_remove: List[str] = []
+        trial_paths_to_remove: List[str] = []
         for root, dirs, files in os.walk(trials_folder):
             for file in files:
                 local_filepath = os.path.join(root, file)
                 if file.endswith('.trc'):
                     trc_file = nimble.biomechanics.OpenSimParser.loadTRC(local_filepath)
                     if len(trc_file.timestamps) < MIN_TRIAL_LENGTH:
-                        trials_to_remove.append(local_filepath)
+                        trial_paths_to_remove.append(local_filepath)
                 elif file.endswith('.c3d'):
                     c3d_file = nimble.biomechanics.C3DLoader.loadC3D(local_filepath)
                     if len(c3d_file.timestamps) < MIN_TRIAL_LENGTH:
-                        trials_to_remove.append(local_filepath)
-        return trials_to_remove
+                        trial_paths_to_remove.append(local_filepath)
+        return trial_paths_to_remove
 
     @staticmethod
-    def prep_og_skeleton(tmp_folder: str):
+    def prep_unscaled_skeleton(tmp_folder: str):
         skeleton_preset = 'vicon'
         if os.path.exists(tmp_folder + '_subject.json'):
             subject_json = json.load(open(tmp_folder + '_subject.json'))
