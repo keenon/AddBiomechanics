@@ -121,48 +121,25 @@ class SubjectSnapshot:
         # Download the dataset locally
         tmp_folder: str = self.index.downloadToTmp(self.path)
 
-        # Deal with the original skeleton model
-        skeleton_preset = 'vicon'
-        if os.path.exists(tmp_folder + '_subject.json'):
-            subject_json = json.load(open(tmp_folder + '_subject.json'))
-            if 'skeletonPreset' in subject_json:
-                skeleton_preset = subject_json['skeletonPreset']
-                # Ensure that the _subject.json file is set to custom for the upload in the standardized folder
-                subject_json['skeletonPreset'] = 'custom'
-                json.dump(subject_json, open(tmp_folder + '_subject.json', 'w'))
+        # Identify trials that are too short. We don't want to process these
+        trials_to_remove = self.id_short_trials(tmp_folder)
 
-        if skeleton_preset == 'vicon':
-            shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_ViconPlugInGait.osim',
-                        tmp_folder + 'unscaled_generic.osim')
-        elif skeleton_preset == 'cmu':
-            shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
-                        tmp_folder + 'unscaled_generic.osim')
-        elif skeleton_preset == 'complete':
-            shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/CompleteHumanModel.osim',
-                        tmp_folder + 'unscaled_generic.osim')
-        else:
-            if skeleton_preset != 'custom':
-                print('Unrecognized skeleton preset "' + str(skeleton_preset) +
-                      '"! Behaving as though this is "custom"')
-            if not os.path.exists(tmp_folder + 'unscaled_generic.osim'):
-                raise FileNotFoundError('We are using a custom OpenSim skeleton, but there is no unscaled_generic.osim '
-                                        'file present.')
+        # Remove those trials from tmp folder
+        for trial in trials_to_remove:
+            trial_folder = os.path.dirname(trial)
+            try:
+                shutil.rmtree(trial_folder)
+            except OSError as e:
+                print(f"Error: {e}")
 
-        # Now move the "unscaled_generic.osim" to get ready to translate its markerset to the target model
-        shutil.move(tmp_folder + 'unscaled_generic.osim',
-                    tmp_folder + 'original_model.osim')
-        # Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer.
-        if not os.path.exists(tmp_folder + 'Geometry'):
-            os.symlink(GEOMETRY_FOLDER_PATH, tmp_folder + 'Geometry')
-
-        print('Downloaded to ' + tmp_folder)
+        # Prepare the original skeleton model for translation step
+        self.prep_og_skeleton(tmp_folder)
 
         for dataset in datasets:
             print('Copying to Dataset: ' + dataset.s3_root_path)
 
             # 1. Translate the skeleton
-
-            # 1.1. Download the skeleton
+            # 1.1. Download the target skeleton
             if os.path.exists(tmp_folder + 'target_skeleton.osim'):
                 os.remove(tmp_folder + 'target_skeleton.osim')
             self.index.download(dataset.osim_model_path,
@@ -194,7 +171,6 @@ class SubjectSnapshot:
                 print('Markers missing: ' + str(markers_missing))
                 target_path = self.get_target_path(dataset)
                 print('Re-uploading to ' + target_path)
-
                 # Write the data about how the translation was done to the new folder
                 translation_data = {'markersGuessed': markers_guessed,
                                     'markersMissing': markers_missing,
@@ -203,38 +179,12 @@ class SubjectSnapshot:
                                     'snapshotDate': time.strftime("%Y-%m-%d %H:%M:%S",
                                                                   time.gmtime())}
 
-                # 2. Discard faulty trials
-
-                # 2.1. Collect markers files corresponding to trials that are too short
-                trials_folder = os.path.join(tmp_folder, 'trials/')
-                trials_to_remove: List[str] = []
-                for root, dirs, files in os.walk(trials_folder):
-                    for file in files:
-                        local_filepath = os.path.join(root, file)
-                        if file.endswith('.trc'):
-                            trc_file = nimble.biomechanics.OpenSimParser.loadTRC(local_filepath)
-                            if len(trc_file.timestamps) < MIN_TRIAL_LENGTH:
-                                trials_to_remove.append(local_filepath)
-                        elif file.endswith('.c3d'):
-                            c3d_file = nimble.biomechanics.C3DLoader.loadC3D(local_filepath)
-                            if len(c3d_file.timestamps) < MIN_TRIAL_LENGTH:
-                                trials_to_remove.append(local_filepath)
-
-                # 2.2. Remove those trials from tmp folder
-                for trial in trials_to_remove:
-                    trial_folder = os.path.dirname(trial)
-                    try:
-                        shutil.rmtree(trial_folder)
-                    except OSError as e:
-                        print(f"Error: {e}")
-
-                # 3. Upload the skeleton translation output and all other filtered files
-
-                # 3.1. Upload the skeleton translation output
+                # 2. UPLOADING
+                # 2.1. Upload the skeleton translation output
                 self.index.uploadText(
                     target_path + '/_translation.json', json.dumps(translation_data))
 
-                # 3.2. Upload every file in the tmpFolder
+                # 2.2. Upload every file in the tmpFolder (excluding filtered out trials)
                 for root, dirs, files in os.walk(tmp_folder):
                     for file in files:
                         if file.endswith('.osim') or file.endswith('.trc') or file.endswith('.mot') or file.endswith(
@@ -248,6 +198,7 @@ class SubjectSnapshot:
 
                 # Mark the subject as ready to process
                 self.index.uploadText(target_path + '/READY_TO_PROCESS', '')
+
             except Exception as e:
                 print('Got an exception when trying to process dataset ' +
                       self.path+' to '+dataset.s3_root_path)
@@ -258,6 +209,58 @@ class SubjectSnapshot:
         print('Finished uploading processed datasets')
         # Delete the tmp folder
         os.system('rm -rf ' + tmp_folder)
+
+    @staticmethod
+    def id_short_trials(tmp_folder: str):
+        # Collect markers files corresponding to trials that are too short
+        trials_folder = os.path.join(tmp_folder, 'trials/')
+        trials_to_remove: List[str] = []
+        for root, dirs, files in os.walk(trials_folder):
+            for file in files:
+                local_filepath = os.path.join(root, file)
+                if file.endswith('.trc'):
+                    trc_file = nimble.biomechanics.OpenSimParser.loadTRC(local_filepath)
+                    if len(trc_file.timestamps) < MIN_TRIAL_LENGTH:
+                        trials_to_remove.append(local_filepath)
+                elif file.endswith('.c3d'):
+                    c3d_file = nimble.biomechanics.C3DLoader.loadC3D(local_filepath)
+                    if len(c3d_file.timestamps) < MIN_TRIAL_LENGTH:
+                        trials_to_remove.append(local_filepath)
+        return trials_to_remove
+
+    @staticmethod
+    def prep_og_skeleton(tmp_folder: str):
+        skeleton_preset = 'vicon'
+        if os.path.exists(tmp_folder + '_subject.json'):
+            subject_json = json.load(open(tmp_folder + '_subject.json'))
+            if 'skeletonPreset' in subject_json:
+                skeleton_preset = subject_json['skeletonPreset']
+                # Ensure that the _subject.json file is set to custom for the upload in the standardized folder
+                subject_json['skeletonPreset'] = 'custom'
+                json.dump(subject_json, open(tmp_folder + '_subject.json', 'w'))
+        if skeleton_preset == 'vicon':
+            shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_ViconPlugInGait.osim',
+                        tmp_folder + 'unscaled_generic.osim')
+        elif skeleton_preset == 'cmu':
+            shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
+                        tmp_folder + 'unscaled_generic.osim')
+        elif skeleton_preset == 'complete':
+            shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/CompleteHumanModel.osim',
+                        tmp_folder + 'unscaled_generic.osim')
+        else:
+            if skeleton_preset != 'custom':
+                print('Unrecognized skeleton preset "' + str(skeleton_preset) +
+                      '"! Behaving as though this is "custom"')
+            if not os.path.exists(tmp_folder + 'unscaled_generic.osim'):
+                raise FileNotFoundError('We are using a custom OpenSim skeleton, but there is no unscaled_generic.osim '
+                                        'file present.')
+        # Now move the "unscaled_generic.osim" to get ready to translate its markerset to the target model
+        shutil.move(tmp_folder + 'unscaled_generic.osim',
+                    tmp_folder + 'original_model.osim')
+        # Symlink in Geometry, if it doesn't come with the folder, so we can load meshes for the visualizer.
+        if not os.path.exists(tmp_folder + 'Geometry'):
+            os.symlink(GEOMETRY_FOLDER_PATH, tmp_folder + 'Geometry')
+        print('Downloaded to ' + tmp_folder)
 
     def mark_incompatible(self, datasets: List[StandardizedDataset]):
         # First filter the datasets to just the ones we want to copy
