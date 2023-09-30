@@ -104,7 +104,7 @@ class Subject:
             self.heightM = float(subject_json['heightM'])
 
         if 'ageYears' in subject_json:
-            self.ageYears = float(subject_json['ageYears'])
+            self.ageYears = int(subject_json['ageYears'])
 
         if 'subjectTags' in subject_json:
             self.subjectTags = subject_json['subjectTags']
@@ -1130,143 +1130,43 @@ class Subject:
                     trial_dynamics_data.setMarkerRMS(segment.dynamics_ik_error_report.rootMeanSquaredError)
                     trial_dynamics_data.setMarkerMax(segment.dynamics_ik_error_report.maxError)
 
-
-                    # trial_kinematic_data.setDofPositionsObserved(segment.po
-                #     // 3.3.Per pass header data
-                #     passData.setDofPositionsObserved(
-                #     dofPositionObservedTrialPasses[trial][pass]);
-                #     passData.setDofVelocitiesFiniteDifferenced(
-                #     dofVelocityFiniteDifferencedTrialPasses[trial][pass]);
-                #     passData.setDofAccelerationFiniteDifferenced(
-                #     dofAccelerationFiniteDifferencedTrialPasses[trial][pass]);
-                #
-                #     // 3.4.Per pass frame data
-                #     passData.setPoses(poseTrialPasses[trial][pass]);
-                #     passData.setVels(velTrialPasses[trial][pass]);
-                #     passData.setAccs(accTrialPasses[trial][pass]);
-                #     passData.setTaus(tauTrialPasses[trial][pass]);
-                #     passData.setGroundBodyWrenches(groundBodyWrenchTrialPasses[trial][pass]);
-                #     passData.setGroundBodyCopTorqueForce(
-                #     groundBodyCopTorqueForceTrialPasses[trial][pass]);
-                #     passData.setComPoses(comPosesTrialPasses[trial][pass]);
-                #     passData.setComVels(comVelsTrialPasses[trial][pass]);
-                #     passData.setComAccs(comAccsTrialPasses[trial][pass]);
-                #
-                #     // 3.5.Per pass results data
-                #     passData.setLinearResidual(linearResidualTrialPasses[trial][pass]);
-                #     passData.setAngularResidual(angularResidualTrialPasses[trial][pass]);
-                #     passData.setMarkerRMS(markerRMSTrialPasses[trial][pass]);
-                #     passData.setMarkerMax(markerMaxTrialPasses[trial][pass]);
-
-        # // 3.2.Per
-        # trial
-        # data
-        # for (int trial = 0; trial < numTrials; trial++)
-        #     {
-        #         auto & trialData = header.addTrial();
-        #     trialData.setTimestep(trialTimesteps[trial]);
-        #     trialData.setName(trialNames[trial]);
-        #     trialData.setOriginalTrialName(trialOriginalNames[trial]);
-        #     trialData.setSplitIndex(trialSplitIndex[trial]);
-        #     trialData.setMarkerObservations(markerObservations[trial]);
-        #     if (accObservations.size() > trial)
-        #     {
-        #     trialData.setAccObservations(accObservations[trial]);
-        #     }
-        #     if (gyroObservations.size() > trial)
-        #     {
-        #     trialData.setGyroObservations(gyroObservations[trial]);
-        #     }
-        #     if (emgObservations.size() > trial)
-        #     {
-        #     trialData.setEmgObservations(emgObservations[trial]);
-        #     }
-        #     if (exoObservations.size() > trial)
-        #     {
-        #     trialData.setExoTorques(exoObservations[trial]);
-        #     }
-        #     trialData.setMissingGRFReason(missingGRFReasonTrials[trial]);
-        #     if (customValueTrials.size() > trial)
-        #     {
-        #     trialData.setCustomValues(customValueTrials[trial]);
-        #     }
-        #     if (trialTags.size() > trial)
-        #     {
-        #     trialData.setTrialTags(trialTags[trial]);
-        #     }
-        #     if (forcePlateTrials.size() > trial)
-        #     {
-        #     trialData.setForcePlates(forcePlateTrials[trial]);
-        #     }
-        #
-        #     for (int pass = 0; pass < trialNumPasses[trial]; pass++)
-        #     {
-        #     auto & passData = trialData.addPass();
-        #
-        #     // 3.3.Per pass header data
-        #     passData.setDofPositionsObserved(
-        #     dofPositionObservedTrialPasses[trial][pass]);
-        #     passData.setDofVelocitiesFiniteDifferenced(
-        #     dofVelocityFiniteDifferencedTrialPasses[trial][pass]);
-        #     passData.setDofAccelerationFiniteDifferenced(
-        #     dofAccelerationFiniteDifferencedTrialPasses[trial][pass]);
-        #
-        #     // 3.4.Per pass frame data
-        #     passData.setPoses(poseTrialPasses[trial][pass]);
-        #     passData.setVels(velTrialPasses[trial][pass]);
-        #     passData.setAccs(accTrialPasses[trial][pass]);
-        #     passData.setTaus(tauTrialPasses[trial][pass]);
-        #     passData.setGroundBodyWrenches(groundBodyWrenchTrialPasses[trial][pass]);
-        #     passData.setGroundBodyCopTorqueForce(
-        #     groundBodyCopTorqueForceTrialPasses[trial][pass]);
-        #     passData.setComPoses(comPosesTrialPasses[trial][pass]);
-        #     passData.setComVels(comVelsTrialPasses[trial][pass]);
-        #     passData.setComAccs(comAccsTrialPasses[trial][pass]);
-        #
-        #     // 3.5.Per pass results data
-        #     passData.setLinearResidual(linearResidualTrialPasses[trial][pass]);
-        #     passData.setAngularResidual(angularResidualTrialPasses[trial][pass]);
-        #     passData.setMarkerRMS(markerRMSTrialPasses[trial][pass]);
-        #     passData.setMarkerMax(markerMaxTrialPasses[trial][pass]);
-        #     }
-        #     }
-
         # 4. Actually write the output file
         nimble.biomechanics.SubjectOnDisk.writeB3D(file_path, subject_header)
 
     def write_web_results(self, results_path: str):
         if not results_path.endswith('/'):
             results_path += '/'
-            if not os.path.exists(results_path):
-                os.mkdir(results_path)
+        if not os.path.exists(results_path):
+            os.mkdir(results_path)
 
-            overall_results = self.get_overall_results_json()
-            with open(results_path + '_results.json', 'w') as f:
-                json.dump(overall_results, f, indent=4)
+        overall_results = self.get_overall_results_json()
+        with open(results_path + '_results.json', 'w') as f:
+            json.dump(overall_results, f, indent=4)
+            print('Wrote JSON results to ' + results_path + '_results.json', flush=True)
 
-            trials_folder_path = results_path + 'trials/'
-            if not os.path.exists(trials_folder_path):
-                os.mkdir(trials_folder_path)
+        trials_folder_path = results_path + 'trials/'
+        if not os.path.exists(trials_folder_path):
+            os.mkdir(trials_folder_path)
 
-            for trial in self.trials:
-                trial_path = results_path + 'trials/' + trial.trial_name + '/'
-                if not os.path.exists(trial_path):
-                    os.mkdir(trial_path)
+        for trial in self.trials:
+            trial_path = results_path + 'trials/' + trial.trial_name + '/'
+            if not os.path.exists(trial_path):
+                os.mkdir(trial_path)
 
-                for i in range(len(trial.segments)):
-                    segment = trial.segments[i]
-                    segment_path = trial_path + 'segment_' + str(i + 1) + '/'
-                    if not os.path.exists(segment_path):
-                        os.mkdir(segment_path)
-                    # Write out the result summary JSON
-                    print('Writing JSON result to ' + segment_path + '_results.json', flush=True)
-                    segment_json = segment.get_segment_results_json()
-                    with open(segment_path + '_results.json', 'w') as f:
-                        json.dump(segment_json, f, indent=4)
-                    # Write out the animation preview binary
-                    segment.save_segment_to_gui(segment_path + 'preview.bin',
-                                                self.skeleton,
-                                                self.fitMarkers,
-                                                self.goldOsim)
-                    # Write out the data CSV for the plotting software to synchronize on the frontend
-                    segment.save_segment_csv(segment_path + 'data.csv', self.skeleton)
+            for i in range(len(trial.segments)):
+                segment = trial.segments[i]
+                segment_path = trial_path + 'segment_' + str(i + 1) + '/'
+                if not os.path.exists(segment_path):
+                    os.mkdir(segment_path)
+                # Write out the result summary JSON
+                print('Writing JSON result to ' + segment_path + '_results.json', flush=True)
+                segment_json = segment.get_segment_results_json()
+                with open(segment_path + '_results.json', 'w') as f:
+                    json.dump(segment_json, f, indent=4)
+                # Write out the animation preview binary
+                segment.save_segment_to_gui(segment_path + 'preview.bin',
+                                            self.skeleton,
+                                            self.fitMarkers,
+                                            self.goldOsim)
+                # Write out the data CSV for the plotting software to synchronize on the frontend
+                segment.save_segment_csv(segment_path + 'data.csv', self.skeleton)
