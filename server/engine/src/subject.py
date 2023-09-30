@@ -8,6 +8,8 @@ import os
 import shutil
 import subprocess
 import textwrap
+import tempfile
+import os
 
 
 # Global paths to the geometry and data folders.
@@ -26,7 +28,7 @@ class Subject:
         # 0.2. Subject pipeline parameters.
         self.massKg = 68.0
         self.heightM = 1.6
-        self.sex = 'unknown'
+        self.biologicalSex = 'unknown'
         self.ageYears = -1
         self.subjectTags = []
         self.skeletonPreset = 'vicon'
@@ -62,13 +64,17 @@ class Subject:
         # 0.3. Shared data structures.
         self.trials: List[Trial] = []
         self.skeleton: nimble.dynamics.Skeleton = None
+        self.fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]] = {}
         self.markerSet: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]] = {}
         self.customOsim: nimble.biomechanics.OpenSimFile = None
         self.goldOsim: nimble.biomechanics.OpenSimFile = None
         self.simplified: nimble.dynamics.Skeleton = None
-        self.finalSkeleton: nimble.dynamics.Skeleton = None
-        self.fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]] = {}
-        self.finalMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]] = {}
+        self.kinematics_skeleton: nimble.dynamics.Skeleton = None
+        self.kinematics_markers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]] = {}
+        self.dynamics_skeleton: nimble.dynamics.Skeleton = None
+        self.dynamics_markers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]] = {}
+        # self.fitMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]] = {}
+        # self.finalMarkers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]] = {}
         self.bodyMasses = []
 
         # 0.4. Outputs.
@@ -104,7 +110,7 @@ class Subject:
             self.subjectTags = subject_json['subjectTags']
 
         if 'sex' in subject_json:
-            self.sex = subject_json['sex']
+            self.biologicalSex = subject_json['sex']
 
         if 'skeletonPreset' in subject_json:
             self.skeletonPreset = subject_json['skeletonPreset']
@@ -268,6 +274,9 @@ class Subject:
 
         # This loads all the trials in the subject folder.
         for trial_name in os.listdir(trials_folder_path):
+            # We only want to load folders, not files
+            if not os.path.isdir(trials_folder_path + trial_name):
+                continue
             trial: Trial = Trial.load_trial(trial_name, trials_folder_path + trial_name + '/')
             self.trials.append(trial)
 
@@ -289,7 +298,8 @@ class Subject:
         per trial, to allow the kinematics and dynamics pipelines to run more efficiently.
         """
         for trial in self.trials:
-            trial.split_segments(max_grf_gap_fill_size=1.0, max_segment_frames=2000)
+            if not trial.error:
+                trial.split_segments(max_grf_gap_fill_size=1.0, max_segment_frames=2000)
 
     def evaluate_manually_scaled_error(self):
         """
@@ -388,12 +398,12 @@ class Subject:
             data_folder_path + '/ANSUR_metrics.xml')
         cols = anthropometrics.getMetricNames()
         cols.append('weightkg')
-        if self.sex == 'male':
+        if self.biologicalSex == 'male':
             gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
                 data_folder_path + '/ANSUR_II_MALE_Public.csv',
                 cols,
                 0.001)  # mm -> m
-        elif self.sex == 'female':
+        elif self.biologicalSex == 'female':
             gauss: nimble.math.MultivariateGaussian = nimble.math.MultivariateGaussian.loadFromCSV(
                 data_folder_path + '/ANSUR_II_FEMALE_Public.csv',
                 cols,
@@ -471,15 +481,15 @@ class Subject:
 
         # 2.6. Set up some interchangeable data structures, so that we can write out the results using the same code,
         # regardless of whether we used dynamics or not
-        self.finalSkeleton = self.skeleton
-        self.finalMarkers = self.fitMarkers
+        self.kinematics_skeleton = self.skeleton.clone()
+        self.kinematics_markers = self.fitMarkers.copy()
         for i in range(len(trial_segments)):
             trial_segments[i].kinematics_status = ProcessingStatus.FINISHED
             trial_segments[i].kinematics_poses = marker_fitter_results[i].poses
             trial_segments[i].marker_fitter_result = marker_fitter_results[i]
             trial_segments[i].kinematics_ik_error_report = nimble.biomechanics.IKErrorReport(
-                self.finalSkeleton,
-                self.finalMarkers,
+                self.kinematics_skeleton,
+                self.kinematics_markers,
                 trial_segments[i].kinematics_poses,
                 trial_segments[i].marker_observations)
 
@@ -507,15 +517,15 @@ class Subject:
         # 8.1. Construct a DynamicsFitter object.
         foot_bodies = []
         for name in self.footBodyNames:
-            foot = self.finalSkeleton.getBodyNode(name)
+            foot = self.skeleton.getBodyNode(name)
             if foot is None:
                 raise RuntimeError(f'Foot "{str(name)}" not found in skeleton! Cannot run dynamics fitting.')
-            foot_bodies.append(self.finalSkeleton.getBodyNode(name))
+            foot_bodies.append(self.skeleton.getBodyNode(name))
         print('Using feet: ' + str(self.footBodyNames), flush=True)
 
-        self.finalSkeleton.setGravity([0.0, -9.81, 0.0])
+        self.skeleton.setGravity([0.0, -9.81, 0.0])
         dynamics_fitter = nimble.biomechanics.DynamicsFitter(
-            self.finalSkeleton, foot_bodies, self.customOsim.trackingMarkers)
+            self.skeleton, foot_bodies, self.customOsim.trackingMarkers)
         print('Created DynamicsFitter', flush=True)
 
         # Sanity check the force plate data sizes match the kinematics data sizes
@@ -530,7 +540,7 @@ class Subject:
         # 8.2. Initialize the dynamics fitting problem.
         dynamics_init: nimble.biomechanics.DynamicsInitialization = \
             nimble.biomechanics.DynamicsFitter.createInitialization(
-                self.finalSkeleton,
+                self.skeleton,
                 [trial.marker_fitter_result for trial in trial_segments],
                 self.customOsim.trackingMarkers,
                 foot_bodies,
@@ -542,14 +552,14 @@ class Subject:
         dynamics_fitter.estimateFootGroundContacts(dynamics_init,
                                                    ignoreFootNotOverForcePlate=self.ignoreFootNotOverForcePlate)
         print("Initial mass: " +
-              str(self.finalSkeleton.getMass()) + " kg", flush=True)
+              str(self.skeleton.getMass()) + " kg", flush=True)
         print("What we'd expect average ~GRF to be (Mass * 9.8): " +
-              str(self.finalSkeleton.getMass() * 9.8) + " N", flush=True)
+              str(self.skeleton.getMass() * 9.8) + " N", flush=True)
         second_pair = dynamics_fitter.computeAverageRealForce(dynamics_init)
         print("Avg Force: " + str(second_pair[0]) + " N", flush=True)
         print("Avg Torque: " + str(second_pair[1]) + " Nm", flush=True)
 
-        dynamics_fitter.addJointBoundSlack(self.finalSkeleton, 0.1)
+        dynamics_fitter.addJointBoundSlack(self.skeleton, 0.1)
 
         # We don't actually want to do this. This pushes the state away from the initial state
         # if it near bounds, on the theory that this will lead to easier initialization with
@@ -598,7 +608,7 @@ class Subject:
                 dynamics_fitter.runIPOPTOptimization(
                     dynamics_init,
                     nimble.biomechanics.DynamicsFitProblemConfig(
-                        self.finalSkeleton)
+                        self.skeleton)
                     .setDefaults(True)
                     .setResidualWeight(1e-2 * self.tuneResidualLoss)
                     .setMaxNumTrials(self.maxTrialsToSolveMassOver)
@@ -629,7 +639,7 @@ class Subject:
                     dynamics_fitter.runIPOPTOptimization(
                         dynamics_init,
                         nimble.biomechanics.DynamicsFitProblemConfig(
-                            self.finalSkeleton)
+                            self.skeleton)
                         .setDefaults(True)
                         .setOnlyOneTrial(segment)
                         .setResidualWeight(1e-2 * self.tuneResidualLoss)
@@ -672,7 +682,7 @@ class Subject:
                   'body mass optimization and final bilevel optimization problem.', flush=True)
 
         # 8.4. Apply results to skeleton and check physical consistency.
-        dynamics_fitter.applyInitToSkeleton(self.finalSkeleton, dynamics_init)
+        dynamics_fitter.applyInitToSkeleton(self.skeleton, dynamics_init)
         dynamics_fitter.computePerfectGRFs(dynamics_init)
         dynamics_fitter.checkPhysicalConsistency(
             dynamics_init, maxAcceptableErrors=1e-3, maxTimestepsToTest=25)
@@ -690,6 +700,10 @@ class Subject:
         print("Avg force change in 'perfect' GRFs: " +
               str(dynamics_fitter.computeAverageForceMagnitudeChange(dynamics_init)) + " N", flush=True)
 
+        self.fitMarkers = dynamics_init.updatedMarkerMap
+        self.dynamics_markers = self.fitMarkers.copy()
+        self.dynamics_skeleton = self.skeleton.clone()
+
         # 8.6. Store the dynamics fitting results in the shared data structures.
         for i in range(len(trial_segments)):
             trial_segments[i].dynamics_taus = dynamics_fitter.computeInverseDynamics(dynamics_init, i)
@@ -698,6 +712,7 @@ class Subject:
             trial_segments[i].angular_residuals = pair[1]
             trial_segments[i].ground_height = dynamics_init.groundHeight[i]
             trial_segments[i].foot_body_wrenches = dynamics_init.grfTrials[i]
+            trial_segments[i].missing_grf_reason = dynamics_init.missingGRFReason[i]
 
             bad_dynamics_frames: Dict[str, List[int]] = {}
             num_bad_dynamics_frames = 0
@@ -713,12 +728,10 @@ class Subject:
             trial_segments[i].output_force_plates = dynamics_init.forcePlateTrials[i]
             trial_segments[i].dynamics_status = ProcessingStatus.FINISHED
             trial_segments[i].dynamics_ik_error_report = nimble.biomechanics.IKErrorReport(
-                self.finalSkeleton,
-                self.finalMarkers,
+                self.skeleton,
+                self.fitMarkers,
                 trial_segments[i].dynamics_poses,
                 trial_segments[i].marker_observations)
-
-        self.finalMarkers = dynamics_init.updatedMarkerMap
 
     ###################################################################################################################
     # Writing out results
@@ -750,7 +763,75 @@ class Subject:
 
         return text
 
-    def write_opensim_results(self, results_path: str, data_folder_path: str):
+    def scale_osim(self,
+                   unscaled_generic_osim_path: str,
+                   output_osim_path: str,
+                   skel: nimble.dynamics.Skeleton,
+                   markers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]]):
+        marker_names: List[str] = []
+        if skel is not None:
+            print('Adjusting marker locations on scaled OpenSim file', flush=True)
+            body_scales_map: Dict[str, np.ndarray] = {}
+            for i in range(skel.getNumBodyNodes()):
+                body_node: nimble.dynamics.BodyNode = skel.getBodyNode(i)
+                # Now that we adjust the markers BEFORE we rescale the body, we don't want to rescale the marker locations
+                # at all.
+                body_scales_map[body_node.getName()] = np.ones(3)
+            marker_offsets_map: Dict[str, Tuple[str, np.ndarray]] = {}
+            for k in markers:
+                v = markers[k]
+                marker_offsets_map[k] = (v[0].getName(), v[1])
+                marker_names.append(k)
+
+        # Create a temporary directory
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            if not tmpdirname.endswith('/'):
+                tmpdirname += '/'
+
+            nimble.biomechanics.OpenSimParser.moveOsimMarkers(
+                unscaled_generic_osim_path,
+                body_scales_map,
+                marker_offsets_map,
+                tmpdirname + 'unscaled_but_with_optimized_markers.osim')
+
+            # 9.3. Write the XML instructions for the OpenSim scaling tool
+            nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
+                'optimized_scale_and_markers',
+                skel,
+                self.massKg,
+                self.heightM,
+                'unscaled_but_with_optimized_markers.osim',
+                'Unassigned',
+                'optimized_scale_and_markers.osim',
+                tmpdirname + 'rescaling_setup.xml')
+
+            # 9.4. Call the OpenSim scaling tool
+            command = f'cd {tmpdirname} && opensim-cmd run-tool {tmpdirname}rescaling_setup.xml'
+            print('Scaling OpenSim files: ' + command, flush=True)
+            with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE) as p:
+                for line in iter(p.stdout.readline, b''):
+                    print(line.decode(), end='', flush=True)
+                p.wait()
+
+            # 9.5. Overwrite the inertia properties of the resulting OpenSim skeleton file
+            any_trial_has_dynamics = False
+            for trial in self.trials:
+                for segment in trial.segments:
+                    if segment.has_forces:
+                        any_trial_has_dynamics = True
+                        break
+            if any_trial_has_dynamics:
+                nimble.biomechanics.OpenSimParser.replaceOsimInertia(
+                    tmpdirname + 'optimized_scale_and_markers.osim',
+                    skel,
+                    output_osim_path)
+            else:
+                shutil.copyfile(tmpdirname + 'optimized_scale_and_markers.osim',
+                                output_osim_path)
+
+    def write_opensim_results(self,
+                              results_path: str,
+                              data_folder_path: str):
         if not results_path.endswith('/'):
             results_path += '/'
         if not data_folder_path.endswith('/'):
@@ -779,65 +860,25 @@ class Subject:
             shutil.copyfile(self.subject_path + 'unscaled_generic.osim', results_path +
                             'Models/unscaled_generic.osim')
 
-        # 9.2. Adjust marker locations.
-        marker_names: List[str] = []
-        if self.finalSkeleton is not None:
-            print('Adjusting marker locations on scaled OpenSim file', flush=True)
-            body_scales_map: Dict[str, np.ndarray] = {}
-            for i in range(self.finalSkeleton.getNumBodyNodes()):
-                body_node: nimble.dynamics.BodyNode = self.finalSkeleton.getBodyNode(i)
-                # Now that we adjust the markers BEFORE we rescale the body, we don't want to rescale the marker locations
-                # at all.
-                body_scales_map[body_node.getName()] = np.ones(3)
-            marker_offsets_map: Dict[str, Tuple[str, np.ndarray]] = {}
-            for k in self.finalMarkers:
-                v = self.finalMarkers[k]
-                marker_offsets_map[k] = (v[0].getName(), v[1])
-                marker_names.append(k)
-            nimble.biomechanics.OpenSimParser.moveOsimMarkers(
+        osim_path: str = 'Models/kinematics.osim'
+
+        # Create the kinematics model file
+        if self.kinematics_skeleton is not None:
+            osim_path = 'Models/kinematics.osim'
+            self.scale_osim(
                 self.subject_path + 'unscaled_generic.osim',
-                body_scales_map,
-                marker_offsets_map,
-                results_path + 'Models/unscaled_but_with_optimized_markers.osim')
+                results_path + osim_path,
+                self.kinematics_skeleton,
+                self.kinematics_markers)
 
-            # 9.3. Write the XML instructions for the OpenSim scaling tool
-            nimble.biomechanics.OpenSimParser.saveOsimScalingXMLFile(
-                'optimized_scale_and_markers',
-                self.finalSkeleton,
-                self.massKg,
-                self.heightM,
-                'Models/unscaled_but_with_optimized_markers.osim',
-                'Unassigned',
-                'Models/optimized_scale_and_markers.osim',
-                results_path + 'Models/rescaling_setup.xml')
-
-            # 9.4. Call the OpenSim scaling tool
-            command = f'cd {results_path} && opensim-cmd run-tool {results_path}Models/rescaling_setup.xml'
-            print('Scaling OpenSim files: ' + command, flush=True)
-            with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE) as p:
-                for line in iter(p.stdout.readline, b''):
-                    print(line.decode(), end='', flush=True)
-                p.wait()
-
-            # Delete the OpenSim log from running the scale tool
-            if os.path.exists(results_path + 'opensim.log'):
-                os.remove(results_path + 'opensim.log')
-
-            # 9.5. Overwrite the inertia properties of the resulting OpenSim skeleton file
-            any_trial_has_dynamics = False
-            for trial in self.trials:
-                for segment in trial.segments:
-                    if segment.has_forces:
-                        any_trial_has_dynamics = True
-                        break
-            if any_trial_has_dynamics:
-                nimble.biomechanics.OpenSimParser.replaceOsimInertia(
-                    results_path + 'Models/optimized_scale_and_markers.osim',
-                    self.finalSkeleton,
-                    results_path + 'Models/final.osim')
-            else:
-                shutil.copyfile(results_path + 'Models/optimized_scale_and_markers.osim',
-                                results_path + 'Models/final.osim')
+        # Create the dynamics model file
+        if self.dynamics_skeleton is not None:
+            osim_path = 'Models/dynamics.osim'
+            self.scale_osim(
+                self.subject_path + 'unscaled_generic.osim',
+                results_path + osim_path,
+                self.dynamics_skeleton,
+                self.dynamics_markers)
 
         # Copy over the manually scaled model file, if it exists.
         if os.path.exists(self.subject_path + 'manually_scaled.osim'):
@@ -846,6 +887,10 @@ class Subject:
         # Copy over the geometry files, so the model can be loaded directly in OpenSim without chasing down
         # Geometry files somewhere else.
         shutil.copytree(data_folder_path + 'Geometry', results_path + 'Models/Geometry')
+
+        marker_names: List[str] = []
+        for k in self.kinematics_markers:
+            marker_names.append(k)
 
         # 9.9. Write the results to disk.
         for trial in self.trials:
@@ -886,13 +931,13 @@ class Subject:
                     # Write out the inverse kinematics results,
                     ik_fpath = f'{results_path}IK/{segment_name}_ik.mot'
                     print(f'Writing OpenSim {ik_fpath} file, shape={str(segment.dynamics_poses.shape)}', flush=True)
-                    nimble.biomechanics.OpenSimParser.saveMot(self.finalSkeleton, ik_fpath, segment.timestamps, segment.dynamics_poses)
+                    nimble.biomechanics.OpenSimParser.saveMot(self.skeleton, ik_fpath, segment.timestamps, segment.dynamics_poses)
                     # Write the inverse dynamics results.
                     id_fpath = f'{results_path}ID/{segment_name}_id.sto'
-                    nimble.biomechanics.OpenSimParser.saveIDMot(self.finalSkeleton, id_fpath, segment.timestamps, segment.dynamics_taus)
+                    nimble.biomechanics.OpenSimParser.saveIDMot(self.skeleton, id_fpath, segment.timestamps, segment.dynamics_taus)
                     # Create the IK error report for this segment
                     result_ik = nimble.biomechanics.IKErrorReport(
-                        self.finalSkeleton, self.fitMarkers, segment.dynamics_poses, segment.marker_observations)
+                        self.skeleton, self.fitMarkers, segment.dynamics_poses, segment.marker_observations)
                     # Write out the OpenSim ID files:
                     grf_fpath = f'{results_path}ID/{segment_name}_grf.mot'
                     grf_raw_fpath = f'{results_path}ID/{segment_name}_grf_raw.mot'
@@ -900,25 +945,25 @@ class Subject:
                     nimble.biomechanics.OpenSimParser.saveProcessedGRFMot(
                         grf_fpath,
                         segment.timestamps,
-                        [self.finalSkeleton.getBodyNode(name) for name in self.footBodyNames],
+                        [self.skeleton.getBodyNode(name) for name in self.footBodyNames],
                         segment.ground_height,
                         segment.foot_body_wrenches)
                     nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsProcessedForcesXMLFile(
                         segment_name,
-                        [self.finalSkeleton.getBodyNode(name) for name in self.footBodyNames],
+                        [self.skeleton.getBodyNode(name) for name in self.footBodyNames],
                         segment_name + '_grf.mot',
                         results_path + 'ID/' + segment_name + '_external_forces.xml')
                     nimble.biomechanics.OpenSimParser.saveRawGRFMot(grf_fpath, segment.timestamps, segment.force_plates)
                     nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
                         segment_name,
-                        self.finalSkeleton,
+                        self.skeleton,
                         segment.dynamics_poses,
                         segment.force_plates,
                         segment_name + '_grf.mot',
                         results_path + 'ID/' + segment_name + '_external_forces.xml')
                     nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
                         segment_name,
-                        '../Models/final.osim',
+                        '../Models/dynamics.osim',
                         '../IK/' + segment_name + '_ik.mot',
                         segment_name + '_external_forces.xml',
                         segment_name + '_id.sto',
@@ -931,17 +976,17 @@ class Subject:
                     # Write out the inverse kinematics results,
                     ik_fpath = f'{results_path}IK/{segment_name}_ik.mot'
                     print(f'Writing OpenSim {ik_fpath} file, shape={str(segment.kinematics_poses.shape)}', flush=True)
-                    nimble.biomechanics.OpenSimParser.saveMot(self.finalSkeleton, ik_fpath, segment.timestamps, segment.kinematics_poses)
+                    nimble.biomechanics.OpenSimParser.saveMot(self.skeleton, ik_fpath, segment.timestamps, segment.kinematics_poses)
                     # Create the IK error report for this segment
                     result_ik = nimble.biomechanics.IKErrorReport(
-                        self.finalSkeleton, self.fitMarkers, segment.kinematics_poses, segment.marker_observations)
+                        self.skeleton, self.fitMarkers, segment.kinematics_poses, segment.marker_observations)
 
                 if result_ik is not None:
                     # Save OpenSim setup files to make it easy to (re)run IK on the results in OpenSim
                     nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
                         segment_name,
                         marker_names,
-                        '../Models/optimized_scale_and_markers.osim',
+                        f'../{osim_path}',
                         f'../MarkerData/{segment_name}.trc',
                         f'{segment_name}_ik_by_opensim.mot',
                         f'{results_path}IK/{segment_name}_ik_setup.xml')
@@ -961,8 +1006,233 @@ class Subject:
                     marker_errors_fpath = f'{results_path}IK/{segment_name}_marker_errors.csv'
                     result_ik.saveCSVMarkerErrorReport(marker_errors_fpath)
 
-    def write_bin_file(self, file_path: str):
-        pass
+    def write_b3d_file(self, file_path: str, osim_results_folder: str, href: str):
+        if not osim_results_folder.endswith('/'):
+            osim_results_folder += '/'
+
+        # 1. Create the SubjectOnDisk Header object, which will be used to write out the header of the B3D file.
+        subject_header: nimble.biomechanics.SubjectOnDiskHeader = nimble.biomechanics.SubjectOnDiskHeader()
+
+        kinematic_pass = subject_header.addProcessingPass()
+        kinematic_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.KINEMATICS)
+        with open(osim_results_folder + 'Models/kinematics.osim', 'r') as f:
+            kinematic_pass.setOpenSimFileText(f.read())
+
+        if not self.disableDynamics:
+            dynamics_pass = subject_header.addProcessingPass()
+            dynamics_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.DYNAMICS)
+            with open(osim_results_folder + 'Models/dynamics.osim', 'r') as f:
+                dynamics_pass.setOpenSimFileText(f.read())
+
+        # header.setNumDofs(dofs);
+        subject_header.setNumDofs(self.skeleton.getNumDofs())
+        # header.setGroundForceBodies(groundForceBodies);
+        subject_header.setGroundForceBodies(self.footBodyNames)
+        # header.setHref(originalHref);
+        subject_header.setHref(href)
+        # header.setNotes(originalNotes);
+        subject_header.setNotes("Generated by AddBiomechanics")
+        # header.setBiologicalSex(biologicalSex);
+        subject_header.setBiologicalSex(self.biologicalSex)
+        # header.setHeightM(heightM);
+        subject_header.setHeightM(self.heightM)
+        # header.setMassKg(massKg);
+        subject_header.setMassKg(self.massKg)
+        # header.setAgeYears(age);
+        subject_header.setAgeYears(self.ageYears)
+        # header.setSubjectTags(subjectTags);
+        subject_header.setSubjectTags(self.subjectTags)
+
+        # 2. Create the trials
+        for trial in self.trials:
+            # Write out all the data from the trial segments
+            for i in range(len(trial.segments)):
+                segment = trial.segments[i]
+
+                trial_data = subject_header.addTrial()
+                trial_data.setTimestep(trial.timestep)
+                trial_data.setOriginalTrialName(trial.trial_name)
+                trial_data.setName(trial.trial_name + '_segment_' + str(i))
+                trial_data.setSplitIndex(i)
+                trial_data.setMarkerNamesGuessed(False)
+                trial_data.setMarkerObservations(segment.marker_observations)
+                # TODO: Acc, Gyro, EMG, Exo
+                trial_data.setMissingGRFReason(segment.missing_grf_reason)
+                trial_data.setTrialTags(trial.tags)
+                trial_data.setForcePlates(trial.force_plates)
+
+                # 3. Create the passes, based on what we saw in the trials
+                if segment.kinematics_status == ProcessingStatus.FINISHED:
+                    trial_kinematic_data = trial_data.addPass()
+                    trial_kinematic_data.setType(nimble.biomechanics.ProcessingPassType.KINEMATICS)
+                    trial_kinematic_data.setDofPositionsObserved([True for _ in range(self.skeleton.getNumDofs())])
+                    trial_kinematic_data.setDofVelocitiesFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
+                    trial_kinematic_data.setDofAccelerationFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
+                    trial_kinematic_data.setPoses(segment.kinematics_poses)
+                    vels = np.zeros_like(segment.kinematics_poses)
+                    for iframe in range(1, segment.kinematics_poses.shape[1]):
+                        vels[:, iframe] = (segment.kinematics_poses[:, iframe] - segment.kinematics_poses[:, iframe - 1]) / trial.timestep
+                    trial_kinematic_data.setVels(vels)
+                    accs = np.zeros_like(segment.kinematics_poses)
+                    for iframe in range(1, segment.kinematics_poses.shape[1]):
+                        accs[:, iframe] = (vels[:, iframe] - vels[:, iframe - 1]) / trial.timestep
+                    trial_kinematic_data.setAccs(accs)
+                    taus = np.zeros_like(segment.kinematics_poses)
+                    com_poses = np.zeros((3, segment.kinematics_poses.shape[1]))
+                    com_vels = np.zeros((3, segment.kinematics_poses.shape[1]))
+                    com_accs = np.zeros((3, segment.kinematics_poses.shape[1]))
+                    for t in range(len(segment.timestamps)):
+                        self.kinematics_skeleton.setPositions(segment.kinematics_poses[:, t])
+                        self.kinematics_skeleton.setVelocities(vels[:, t])
+                        self.kinematics_skeleton.setAccelerations(accs[:, t])
+                        com_poses[:, t] = self.kinematics_skeleton.getCOM()
+                        com_vels[:, t] = self.kinematics_skeleton.getCOMLinearVelocity()
+                        com_accs[:, t] = self.kinematics_skeleton.getCOMLinearAcceleration()
+                        taus[:, t] = self.kinematics_skeleton.getInverseDynamics(accs[:, t])
+                    trial_kinematic_data.setTaus(taus)
+                    trial_kinematic_data.setComPoses(com_poses)
+                    trial_kinematic_data.setComVels(com_vels)
+                    trial_kinematic_data.setComAccs(com_accs)
+                    trial_kinematic_data.setMarkerRMS(segment.kinematics_ik_error_report.rootMeanSquaredError)
+                    trial_kinematic_data.setMarkerMax(segment.kinematics_ik_error_report.maxError)
+
+                if segment.dynamics_status == ProcessingStatus.FINISHED:
+                    trial_dynamics_data = trial_data.addPass()
+                    trial_dynamics_data.setType(nimble.biomechanics.ProcessingPassType.KINEMATICS)
+                    trial_dynamics_data.setDofPositionsObserved([True for _ in range(self.skeleton.getNumDofs())])
+                    trial_dynamics_data.setDofVelocitiesFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
+                    trial_dynamics_data.setDofAccelerationFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
+                    trial_dynamics_data.setPoses(segment.dynamics_poses)
+                    vels = np.zeros_like(segment.dynamics_poses)
+                    for iframe in range(1, segment.dynamics_poses.shape[1]):
+                        vels[:, iframe] = (segment.dynamics_poses[:, iframe] - segment.dynamics_poses[:, iframe - 1]) / trial.timestep
+                    trial_dynamics_data.setVels(vels)
+                    accs = np.zeros_like(segment.dynamics_poses)
+                    for iframe in range(1, segment.dynamics_poses.shape[1]):
+                        accs[:, iframe] = (vels[:, iframe] - vels[:, iframe - 1]) / trial.timestep
+                    trial_dynamics_data.setAccs(accs)
+                    taus = np.zeros_like(segment.dynamics_poses)
+                    trial_dynamics_data.setTaus(taus)
+                    com_poses = np.zeros((3, segment.dynamics_poses.shape[1]))
+                    com_vels = np.zeros((3, segment.dynamics_poses.shape[1]))
+                    com_accs = np.zeros((3, segment.dynamics_poses.shape[1]))
+                    for t in range(len(segment.timestamps)):
+                        self.dynamics_skeleton.setPositions(segment.dynamics_poses[:, t])
+                        self.dynamics_skeleton.setVelocities(vels[:, t])
+                        self.dynamics_skeleton.setAccelerations(accs[:, t])
+                        com_poses[:, t] = self.dynamics_skeleton.getCOM()
+                        com_vels[:, t] = self.dynamics_skeleton.getCOMLinearVelocity()
+                        com_accs[:, t] = self.dynamics_skeleton.getCOMLinearAcceleration()
+                    trial_dynamics_data.setTaus(segment.dynamics_taus)
+                    trial_dynamics_data.setComPoses(com_poses)
+                    trial_dynamics_data.setComVels(com_vels)
+                    trial_dynamics_data.setComAccs(com_accs)
+                    trial_dynamics_data.setMarkerRMS(segment.dynamics_ik_error_report.rootMeanSquaredError)
+                    trial_dynamics_data.setMarkerMax(segment.dynamics_ik_error_report.maxError)
+
+
+                    # trial_kinematic_data.setDofPositionsObserved(segment.po
+                #     // 3.3.Per pass header data
+                #     passData.setDofPositionsObserved(
+                #     dofPositionObservedTrialPasses[trial][pass]);
+                #     passData.setDofVelocitiesFiniteDifferenced(
+                #     dofVelocityFiniteDifferencedTrialPasses[trial][pass]);
+                #     passData.setDofAccelerationFiniteDifferenced(
+                #     dofAccelerationFiniteDifferencedTrialPasses[trial][pass]);
+                #
+                #     // 3.4.Per pass frame data
+                #     passData.setPoses(poseTrialPasses[trial][pass]);
+                #     passData.setVels(velTrialPasses[trial][pass]);
+                #     passData.setAccs(accTrialPasses[trial][pass]);
+                #     passData.setTaus(tauTrialPasses[trial][pass]);
+                #     passData.setGroundBodyWrenches(groundBodyWrenchTrialPasses[trial][pass]);
+                #     passData.setGroundBodyCopTorqueForce(
+                #     groundBodyCopTorqueForceTrialPasses[trial][pass]);
+                #     passData.setComPoses(comPosesTrialPasses[trial][pass]);
+                #     passData.setComVels(comVelsTrialPasses[trial][pass]);
+                #     passData.setComAccs(comAccsTrialPasses[trial][pass]);
+                #
+                #     // 3.5.Per pass results data
+                #     passData.setLinearResidual(linearResidualTrialPasses[trial][pass]);
+                #     passData.setAngularResidual(angularResidualTrialPasses[trial][pass]);
+                #     passData.setMarkerRMS(markerRMSTrialPasses[trial][pass]);
+                #     passData.setMarkerMax(markerMaxTrialPasses[trial][pass]);
+
+        # // 3.2.Per
+        # trial
+        # data
+        # for (int trial = 0; trial < numTrials; trial++)
+        #     {
+        #         auto & trialData = header.addTrial();
+        #     trialData.setTimestep(trialTimesteps[trial]);
+        #     trialData.setName(trialNames[trial]);
+        #     trialData.setOriginalTrialName(trialOriginalNames[trial]);
+        #     trialData.setSplitIndex(trialSplitIndex[trial]);
+        #     trialData.setMarkerObservations(markerObservations[trial]);
+        #     if (accObservations.size() > trial)
+        #     {
+        #     trialData.setAccObservations(accObservations[trial]);
+        #     }
+        #     if (gyroObservations.size() > trial)
+        #     {
+        #     trialData.setGyroObservations(gyroObservations[trial]);
+        #     }
+        #     if (emgObservations.size() > trial)
+        #     {
+        #     trialData.setEmgObservations(emgObservations[trial]);
+        #     }
+        #     if (exoObservations.size() > trial)
+        #     {
+        #     trialData.setExoTorques(exoObservations[trial]);
+        #     }
+        #     trialData.setMissingGRFReason(missingGRFReasonTrials[trial]);
+        #     if (customValueTrials.size() > trial)
+        #     {
+        #     trialData.setCustomValues(customValueTrials[trial]);
+        #     }
+        #     if (trialTags.size() > trial)
+        #     {
+        #     trialData.setTrialTags(trialTags[trial]);
+        #     }
+        #     if (forcePlateTrials.size() > trial)
+        #     {
+        #     trialData.setForcePlates(forcePlateTrials[trial]);
+        #     }
+        #
+        #     for (int pass = 0; pass < trialNumPasses[trial]; pass++)
+        #     {
+        #     auto & passData = trialData.addPass();
+        #
+        #     // 3.3.Per pass header data
+        #     passData.setDofPositionsObserved(
+        #     dofPositionObservedTrialPasses[trial][pass]);
+        #     passData.setDofVelocitiesFiniteDifferenced(
+        #     dofVelocityFiniteDifferencedTrialPasses[trial][pass]);
+        #     passData.setDofAccelerationFiniteDifferenced(
+        #     dofAccelerationFiniteDifferencedTrialPasses[trial][pass]);
+        #
+        #     // 3.4.Per pass frame data
+        #     passData.setPoses(poseTrialPasses[trial][pass]);
+        #     passData.setVels(velTrialPasses[trial][pass]);
+        #     passData.setAccs(accTrialPasses[trial][pass]);
+        #     passData.setTaus(tauTrialPasses[trial][pass]);
+        #     passData.setGroundBodyWrenches(groundBodyWrenchTrialPasses[trial][pass]);
+        #     passData.setGroundBodyCopTorqueForce(
+        #     groundBodyCopTorqueForceTrialPasses[trial][pass]);
+        #     passData.setComPoses(comPosesTrialPasses[trial][pass]);
+        #     passData.setComVels(comVelsTrialPasses[trial][pass]);
+        #     passData.setComAccs(comAccsTrialPasses[trial][pass]);
+        #
+        #     // 3.5.Per pass results data
+        #     passData.setLinearResidual(linearResidualTrialPasses[trial][pass]);
+        #     passData.setAngularResidual(angularResidualTrialPasses[trial][pass]);
+        #     passData.setMarkerRMS(markerRMSTrialPasses[trial][pass]);
+        #     passData.setMarkerMax(markerMaxTrialPasses[trial][pass]);
+        #     }
+        #     }
+
+        # 4. Actually write the output file
+        nimble.biomechanics.SubjectOnDisk.writeB3D(file_path, subject_header)
 
     def write_web_results(self, results_path: str):
         if not results_path.endswith('/'):
@@ -995,8 +1265,8 @@ class Subject:
                         json.dump(segment_json, f, indent=4)
                     # Write out the animation preview binary
                     segment.save_segment_to_gui(segment_path + 'preview.bin',
-                                                self.finalSkeleton,
+                                                self.skeleton,
                                                 self.fitMarkers,
                                                 self.goldOsim)
                     # Write out the data CSV for the plotting software to synchronize on the frontend
-                    segment.save_segment_csv(segment_path + 'data.csv', self.finalSkeleton)
+                    segment.save_segment_csv(segment_path + 'data.csv', self.skeleton)

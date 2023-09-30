@@ -18,6 +18,7 @@ class Trial:
         # Input data
         self.trial_path = ''
         self.trial_name = ''
+        self.tags: List[str] = []
         self.marker_observations: List[Dict[str, np.ndarray]] = []
         self.force_plates: List[nimble.biomechanics.ForcePlate] = []
         self.timestamps: List[float] = []
@@ -44,6 +45,7 @@ class Trial:
             trial_path += '/'
         c3d_file_path = trial_path + 'markers.c3d'
         trc_file_path = trial_path + 'markers.trc'
+        json_file_path = trial_path + '_trial.json'
         gold_mot_file_path = trial_path + 'manual_ik.mot'
         trial = Trial()
         trial.trial_path = trial_path
@@ -131,10 +133,18 @@ class Trial:
                     manually_scaled_opensim.skeleton, gold_mot_file_path)
                 trial.manually_scaled_ik = manually_scaled_mot.poses
 
+        # Read in the tags
+        if os.path.exists(json_file_path):
+            with open(json_file_path, 'r') as f:
+                trial_json = json.load(f)
+            if 'tags' in trial_json:
+                trial.tags = trial_json['tags']
+
         # Set an error if there are no marker data frames
         if len(trial.marker_observations) == 0 and not trial.error:
             trial.error = True
             trial.error_loading_files = ('No marker data frames found for trial ' + trial_name + '.')
+            print(trial.error_loading_files)
 
         # Set an error if there are any NaNs or suspiciously large values in the marker data
         for t in range(len(trial.marker_observations)):
@@ -156,6 +166,9 @@ class Trial:
         """
         Split the trial into segments based on the marker and force plate data.
         """
+        if self.error:
+            return
+
         self.segments = []
         split_points = [0, len(self.marker_observations)]
 
@@ -227,6 +240,7 @@ class TrialSegment:
         self.has_error: bool = False
         self.error_msg = ''
         self.original_marker_observations: List[Dict[str, np.ndarray]] = []
+        self.missing_grf_reason: List[nimble.biomechanics.MissingGRFReason] = [nimble.biomechanics.MissingGRFReason.notMissingGRF for _ in range(self.end - self.start)]
         # Make a deep copy of the marker observations, so we can modify them without affecting the parent trial
         for obs in self.parent.marker_observations[self.start:self.end]:
             obs_copy = {}
@@ -339,6 +353,8 @@ class TrialSegment:
         gui = nimble.server.GUIRecording()
 
         for t in range(len(self.marker_observations)):
+            if t % 50 == 0:
+                print(f'> Rendering frame {t} of {len(self.marker_observations)}')
             self.render_frame(gui, t, final_skeleton, final_markers, manually_scaled_skeleton)
             gui.saveFrame()
 

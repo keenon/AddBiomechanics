@@ -1726,6 +1726,8 @@ def main():
                                       DATA_FOLDER_PATH)
         # This will write out all the results to display in the web UI back into the existing folder structure
         subject.write_web_results(os.path.abspath(path))
+        # This will write out a B3D file
+        subject.write_b3d_file(os.path.abspath(path + '/results.b3d'), os.path.abspath(path + '/osim_results'), href)
     except Error as e:
         # If we failed, write a JSON file with the error information.
         json_data = json.dumps(e.get_error_dict(), indent=4)

@@ -1,3 +1,4 @@
 test_data
 venv
 .pytest_cache
+**/.DS_Store
