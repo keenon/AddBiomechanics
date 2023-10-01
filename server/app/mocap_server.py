@@ -156,7 +156,7 @@ class SubjectToProcess:
         self.resultsFile = self.subjectPath + '_results.json'
         self.errorsFile = self.subjectPath + '_errors.json'
         self.osimResults = self.subjectPath + self.subjectName + '.zip'
-        self.pytorchResults = self.subjectPath + self.subjectName + '.bin'
+        self.pytorchResults = self.subjectPath + self.subjectName + '.b3d'
         self.logfile = self.subjectPath + 'log.txt'
 
     def sendNotificationEmail(self, email: str, name: str, path: str):
