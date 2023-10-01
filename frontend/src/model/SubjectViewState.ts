@@ -56,6 +56,8 @@ class SubjectViewState {
 
     resultsExist: boolean;
     resultsJsonPath: string;
+    resultsOsimZipPath: string;
+    resultsB3dPath: string;
     processingFlagFile: LiveFile; // "PROCESSING"
     readyFlagFile: LiveFile; // "READY_TO_PROCESS"
     errorFlagFile: LiveFile; // "ERROR"
@@ -89,8 +91,14 @@ class SubjectViewState {
         if (path.includes('/')) {
             this.name = path.split('/').slice(-1)[0];
         }
+        else {
+            this.name = path;
+        }
+
         this.subjectJson = dir.getJsonFile(path + '/_subject.json');
         this.resultsJsonPath = path + '/_results.json';
+        this.resultsOsimZipPath = path + '/' + this.name + '.zip';
+        this.resultsB3dPath = path + '/' + this.name + '.b3d';
         this.processingFlagFile = dir.getLiveFile(path + "/PROCESSING");
         this.readyFlagFile = dir.getLiveFile(path + "/READY_TO_PROCESS");
         this.errorFlagFile = dir.getLiveFile(path + "/ERROR");

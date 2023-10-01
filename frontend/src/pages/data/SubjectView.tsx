@@ -72,7 +72,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     // 1. Create a wizard form for the _subject.json values, populated to the point in the journey that the user has reached.
     let formElements: JSX.Element[] = [
         <div key="title">
-            <h3>Subject {subjectState.name} Metrics:</h3>
+            <h3>Subject <code>{subjectState.name}</code> Metrics:</h3>
         </div>
     ];
     let formCompleteSoFar: boolean = true;
@@ -906,18 +906,36 @@ const SubjectView = observer((props: SubjectViewProps) => {
             </div>;
         }
         else if (resultsExist) {
-            statusSection = <div>
-                <h3>Status: Finished!</h3>
-                <button className="btn btn-warning" onClick={async (e) => {
-                    if (window.confirm("Are you sure you want to reprocess the data? That will delete your current results.")) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        await props.home.dir.delete(subjectState.resultsJsonPath);
-                        await errorFlagFile.delete();
-                        await processingFlagFile.delete();
-                    }
-                }}>Reprocess</button>
-            </div>;
+            statusSection = <>
+                <div className='row mt-2'>
+                    <h3>Status: Finished!</h3>
+                </div>
+                <div className='row'>
+                    <div className='col-md-3'>
+                        <p>
+                            <button className="btn btn-primary" onClick={async (e) => {
+                                props.home.dir.downloadFile(subjectState.resultsOsimZipPath);
+                            }}>Download Results, OpenSim Format</button>
+                        </p>
+                        <p>
+                            <button className="btn btn-primary" onClick={async (e) => {
+                                props.home.dir.downloadFile(subjectState.resultsB3dPath);
+                            }}>Download Results, B3D Format</button>
+                        </p>
+                        <p>
+                            <button className="btn btn-warning" onClick={async (e) => {
+                                if (window.confirm("Are you sure you want to reprocess the data? That will delete your current results.")) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    await props.home.dir.delete(subjectState.resultsJsonPath);
+                                    await errorFlagFile.delete();
+                                    await processingFlagFile.delete();
+                                }
+                            }}>Reprocess</button>
+                        </p>
+                    </div>
+                </div>
+            </>;
         }
         else if (processingFlagExists) {
             statusSection = <div>
@@ -946,8 +964,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <thead>
                     <tr>
                         <th scope="col">Trial Segment</th>
-                        <th scope="col">Marker Error</th>
-                        <th scope="col">Forces Error</th>
+                        <th scope="col">Marker Status</th>
+                        <th scope="col">Forces Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -956,38 +974,55 @@ const SubjectView = observer((props: SubjectViewProps) => {
                             if (trial.name in subjectState.parsedResultsJson) {
                                 const trialResults = subjectState.parsedResultsJson[trial.name];
                                 return trial.segments.map((segment, index) => {
+                                    let hasErrors = false;
+
                                     const segmentResults = trialResults.segments[index];
-                                    let kinematicsResults: string = '';
+                                    let kinematicsResults: string | React.ReactFragment = '';
                                     if (segmentResults.kinematicsStatus === 'FINISHED') {
                                         kinematicsResults = (segmentResults.kinematicsAvgRMSE == null ? 'NaN' : segmentResults.kinematicsAvgRMSE.toFixed(2)) + ' cm RMSE';
                                     }
                                     else if (segmentResults.kinematicsStatus === 'ERROR') {
-                                        kinematicsResults = 'Error';
+                                        hasErrors = true;
+                                        kinematicsResults = <span className='text-danger'>Error</span>;
                                     }
                                     else if (segmentResults.kinematicsStatus === 'NOT_STARTED') {
                                         kinematicsResults = 'Not run';
                                     }
 
-                                    let dynamicsResults: string = '';
+                                    let dynamicsResults: string | React.ReactFragment = '';
                                     if (segmentResults.dynamicsStatus === 'FINISHED') {
                                         dynamicsResults = (segmentResults.linearResiduals == null ? 'NaN' : segmentResults.linearResiduals.toFixed(2)) + ' N, ' + (segmentResults.angularResiduals == null ? 'NaN' : segmentResults.angularResiduals.toFixed(2)) + ' Nm';
                                     }
                                     else if (segmentResults.dynamicsStatus === 'ERROR') {
-                                        dynamicsResults = 'Error';
+                                        hasErrors = true;
+                                        dynamicsResults = <span className='text-danger'>Error</span>;
                                     }
                                     else if (segmentResults.dynamicsStatus === 'NOT_STARTED') {
                                         dynamicsResults = 'Not run';
                                     }
 
-                                    return <tr key={segment.path}>
-                                        <td><button className="btn btn-primary" onClick={() => {
-                                            navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
-                                        }}>
-                                            View "{trial.name}" {segmentResults.start}s to {segmentResults.end}s
-                                        </button></td>
-                                        <td>{kinematicsResults}</td>
-                                        <td>{dynamicsResults}</td>
-                                    </tr>
+                                    if (hasErrors) {
+                                        return <tr key={segment.path} className='table-danger'>
+                                            <td><button className="btn btn-dark" onClick={() => {
+                                                navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
+                                            }}>
+                                                View Error Results "{trial.name}" {segmentResults.start}s to {segmentResults.end}s
+                                            </button></td>
+                                            <td>{kinematicsResults}</td>
+                                            <td>{dynamicsResults}</td>
+                                        </tr>
+                                    }
+                                    else {
+                                        return <tr key={segment.path}>
+                                            <td><button className="btn btn-primary" onClick={() => {
+                                                navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
+                                            }}>
+                                                View "{trial.name}" {segmentResults.start}s to {segmentResults.end}s
+                                            </button></td>
+                                            <td>{kinematicsResults}</td>
+                                            <td>{dynamicsResults}</td>
+                                        </tr>
+                                    }
                                 });
                             }
                             else {
