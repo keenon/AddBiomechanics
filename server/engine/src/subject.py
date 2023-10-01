@@ -317,25 +317,6 @@ class Subject:
         This will optimize for body scales, marker offsets, and joint positions over time to minimize marker error. It
         ignores the dynamics information at this stage, even if it was provided.
         """
-        trial_segments: List[TrialSegment] = []
-        for trial in self.trials:
-            if not trial.error:
-                for segment in trial.segments:
-                    if segment.has_markers and not segment.has_error:
-                        trial_segments.append(segment)
-                        segment.kinematics_status = ProcessingStatus.IN_PROGRESS
-                    else:
-                        segment.kinematics_status = ProcessingStatus.ERROR
-                        if segment.has_error:
-                            print('Skipping kinematics fit of segment starting at ' + str(segment.start) + ' of trial ' + str(trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
-            else:
-                # If the whole trial is an error condition, then bail on all the segments as well
-                for segment in trial.segments:
-                    segment.kinematics_status = ProcessingStatus.ERROR
-        # If there are no segments left that aren't in error, quit
-        if len(trial_segments) == 0:
-            print('ERROR: No trial segments left (after filtering out errors) to fit kinematics on. Skipping kinematics fitting...', flush=True)
-            return
 
         # Set up the MarkerFitter
         marker_fitter = nimble.biomechanics.MarkerFitter(
@@ -406,14 +387,36 @@ class Subject:
                             if np.any(np.isnan(trial_segment.marker_observations[t][marker])):
                                 trial_segment.has_error = True
                                 trial_segment.error_msg = 'Trial had NaNs in the data after running MarkerFixer.'
+                                print(trial_segment.error_msg, flush=True)
                                 break
                             if np.any(np.abs(trial_segment.marker_observations[t][marker]) > 1e+6):
                                 trial_segment.has_error = True
                                 trial_segment.error_msg = ('Trial had suspiciously large marker values after running '
                                                            'MarkerFixer.')
+                                print(trial_segment.error_msg, flush=True)
                                 break
 
         print('All trial markers have been cleaned up!', flush=True)
+
+        trial_segments: List[TrialSegment] = []
+        for trial in self.trials:
+            if not trial.error:
+                for segment in trial.segments:
+                    if segment.has_markers and not segment.has_error:
+                        trial_segments.append(segment)
+                        segment.kinematics_status = ProcessingStatus.IN_PROGRESS
+                    else:
+                        segment.kinematics_status = ProcessingStatus.ERROR
+                        if segment.has_error:
+                            print('Skipping kinematics fit of segment starting at ' + str(segment.start) + ' of trial ' + str(trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
+            else:
+                # If the whole trial is an error condition, then bail on all the segments as well
+                for segment in trial.segments:
+                    segment.kinematics_status = ProcessingStatus.ERROR
+        # If there are no segments left that aren't in error, quit
+        if len(trial_segments) == 0:
+            print('ERROR: No trial segments left (after filtering out errors) to fit kinematics on. Skipping kinematics fitting...', flush=True)
+            return
 
         # 2.2. Create an anthropometric prior.
         anthropometrics: nimble.biomechanics.Anthropometrics = nimble.biomechanics.Anthropometrics.loadFromFile(
