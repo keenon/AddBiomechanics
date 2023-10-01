@@ -853,7 +853,6 @@ class Subject:
                                 output_osim_path)
 
     def write_opensim_results(self,
-                              results_name: str,
                               results_path: str,
                               data_folder_path: str):
         if not results_path.endswith('/'):
@@ -1030,7 +1029,7 @@ class Subject:
                     marker_errors_fpath = f'{results_path}IK/{segment_name}_marker_errors.csv'
                     result_ik.saveCSVMarkerErrorReport(marker_errors_fpath)
         print('Zipping up OpenSim files...', flush=True)
-        shutil.make_archive(results_name, 'zip', results_path, results_path)
+        shutil.make_archive(results_path, 'zip', results_path, results_path)
         print('Finished outputting OpenSim files.', flush=True)
 
     def write_b3d_file(self, file_path: str, osim_results_folder: str, href: str):

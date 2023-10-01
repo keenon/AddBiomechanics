@@ -56,15 +56,14 @@ def main():
             subject.run_dynamics_fit()
         # This will write out a folder of OpenSim results files.
         print('Writing OpenSim results', flush=True)
-        subject.write_opensim_results(output_name,
-                                      path + output_name,
+        subject.write_opensim_results(path + output_name,
                                       DATA_FOLDER_PATH)
         # This will write out all the results to display in the web UI back into the existing folder structure
         print('Writing web visualizer results', flush=True)
         subject.write_web_results(path)
         # This will write out a B3D file
         print('Writing B3D file encoded results', flush=True)
-        subject.write_b3d_file(path + 'results.b3d', path + output_name, href)
+        subject.write_b3d_file(path + output_name + '.b3d', path + output_name, href)
     except Error as e:
         # If we failed, write a JSON file with the error information.
         print(e, flush=True)
