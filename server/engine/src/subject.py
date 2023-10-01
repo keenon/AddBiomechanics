@@ -395,6 +395,8 @@ class Subject:
                                                            'MarkerFixer.')
                                 print(trial_segment.error_msg, flush=True)
                                 break
+                        if trial_segment.has_error:
+                            break
 
         print('All trial markers have been cleaned up!', flush=True)
 
@@ -1036,14 +1038,24 @@ class Subject:
 
         kinematic_pass = subject_header.addProcessingPass()
         kinematic_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.KINEMATICS)
-        with open(osim_results_folder + 'Models/kinematics.osim', 'r') as f:
-            kinematic_pass.setOpenSimFileText(f.read())
+        if os.path.exists(osim_results_folder + 'Models/kinematics.osim'):
+            with open(osim_results_folder + 'Models/kinematics.osim', 'r') as f:
+                kinematic_pass.setOpenSimFileText(f.read())
+        else:
+            print('WARNING: No kinematics.osim file found in ' + osim_results_folder + 'Models/kinematics.osim. '
+                  'This is probably because the kinematics pass did not succeed on a single trial. '
+                  'Leaving that model empty in the B3D file.', flush=True)
 
         if not self.disableDynamics:
             dynamics_pass = subject_header.addProcessingPass()
             dynamics_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.DYNAMICS)
-            with open(osim_results_folder + 'Models/dynamics.osim', 'r') as f:
-                dynamics_pass.setOpenSimFileText(f.read())
+            if os.path.exists(osim_results_folder + 'Models/dynamics.osim'):
+                with open(osim_results_folder + 'Models/dynamics.osim', 'r') as f:
+                    dynamics_pass.setOpenSimFileText(f.read())
+            else:
+                print('WARNING: No dynamics.osim file found in ' + osim_results_folder + 'Models/kinematics.osim. '
+                      'This is probably because the dynamics pass did not succeed on a single trial. '
+                      'Leaving that model empty in the B3D file.', flush=True)
 
         # header.setNumDofs(dofs);
         subject_header.setNumDofs(self.skeleton.getNumDofs())
