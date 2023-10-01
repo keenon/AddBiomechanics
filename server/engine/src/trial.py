@@ -426,8 +426,14 @@ class TrialSegment:
         # 1. On the first frame, we want to create all the markers for subsequent frames
         if t == 0:
             # 1.1. Set up the layers
-            gui.createLayer(markers_layer_name, [0.5, 0.5, 0.5, 1.0], defaultShow=False)
-            gui.createLayer(warnings_layer_name, [1.0, 0.0, 0.0, 1.0], defaultShow=False)
+            # We want to show the markers and warnings by default if the processing steps all failed
+            default_show_markers_and_warnings = True
+            if self.kinematics_status == ProcessingStatus.FINISHED and final_skeleton is not None:
+                default_show_markers_and_warnings = False
+            if self.dynamics_status == ProcessingStatus.FINISHED and final_skeleton is not None:
+                default_show_markers_and_warnings = False
+            gui.createLayer(markers_layer_name, [0.5, 0.5, 0.5, 1.0], defaultShow=default_show_markers_and_warnings)
+            gui.createLayer(warnings_layer_name, [1.0, 0.0, 0.0, 1.0], defaultShow=default_show_markers_and_warnings)
             gui.createLayer(force_plate_layer_name, [1.0, 0.0, 0.0, 1.0], defaultShow=True)
 
             if manually_scaled_skeleton is not None:

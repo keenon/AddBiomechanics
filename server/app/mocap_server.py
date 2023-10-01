@@ -49,7 +49,6 @@ class TrialToProcess:
         self.trcFile = self.trialPath + 'markers.trc'
         self.grfFile = self.trialPath + 'grf.mot'
         self.goldIKFile = self.trialPath + 'manual_ik.mot'
-        self.resultsFile = self.trialPath + '_results.json'
         self.previewBinFile = self.trialPath + 'preview.bin.zip'
         self.plotCSVFile = self.trialPath + 'plot.csv'
 
@@ -68,12 +67,6 @@ class TrialToProcess:
 
     def upload(self, trialsFolderPath: str):
         trialPath = trialsFolderPath + self.trialName
-        if os.path.exists(trialPath + '_results.json'):
-            self.index.uploadFile(
-                self.resultsFile, trialPath + '_results.json')
-        else:
-            print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
-                  trialPath + '_results.json', flush=True)
         # Recursively list all the files in the trial folder, and upload them
         for root, dirs, files in os.walk(trialPath):
             for file in files:
@@ -363,10 +356,10 @@ class SubjectToProcess:
                 else:
                     print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                           path + self.subjectName + '.zip', flush=True)
-                # 5.1.2. Upload the downloadable {self.subjectName}.bin file, which can be loaded into PyTorch loaders
-                if os.path.exists(path + self.subjectName + '.bin'):
+                # 5.1.2. Upload the downloadable {self.subjectName}.b3d file, which can be loaded into PyTorch loaders
+                if os.path.exists(path + self.subjectName + '.b3d'):
                     self.index.uploadFile(
-                        self.pytorchResults, path + self.subjectName + '.bin')
+                        self.pytorchResults, path + self.subjectName + '.b3d')
 
                 # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
                 # and it starts to be able
