@@ -10,7 +10,6 @@ import subprocess
 import textwrap
 import tempfile
 import os
-from memory_utils import deep_copy_marker_observations
 
 
 # Global paths to the geometry and data folders.
@@ -384,7 +383,13 @@ class Subject:
                         rippleReduceUseSparse=True,
                         rippleReduceUseIterativeSolver=True,
                         rippleReduceSolverIterations=int(1e5))
-                    trial_segment.marker_observations = deep_copy_marker_observations(trial_error_report.markerObservationsAttemptedFixed)
+                    # Set up the new marker observations
+                    new_marker_observations: List[Dict[str, np.ndarray]] = []
+                    for t in range(trial_error_report.getNumTimesteps()):
+                        new_marker_observations.append({})
+                        for marker_name in trial_error_report.getMarkerNamesOnTimestep(t):
+                            new_marker_observations[t][marker_name] = trial_error_report.getMarkerPositionOnTimestep(t, marker_name)
+                    trial_segment.marker_observations = new_marker_observations
                     trial_segment.marker_error_report = trial_error_report
                     # Set an error if there are any NaNs in the marker data
                     for t in range(len(trial_segment.marker_observations)):
@@ -487,7 +492,12 @@ class Subject:
             if marker_fitter.checkForFlippedMarkers(trial_segments[i].marker_observations, marker_fitter_results[i],
                                                     trial_segments[i].marker_error_report):
                 any_swapped = True
-                trial_segments[i].marker_observations = deep_copy_marker_observations(trial_segments[i].marker_error_report.markerObservationsAttemptedFixed)
+                new_marker_observations: List[Dict[str, np.ndarray]] = []
+                for t in range(trial_error_report.getNumTimesteps()):
+                    new_marker_observations.append({})
+                    for marker_name in trial_error_report.getMarkerNamesOnTimestep(t):
+                        new_marker_observations[t][marker_name] = trial_error_report.getMarkerPositionOnTimestep(t, marker_name)
+                trial_segment.marker_observations = new_marker_observations
 
         if any_swapped:
             print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, "
