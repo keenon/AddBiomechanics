@@ -378,7 +378,12 @@ class Subject:
                     # data corruption, but only on builds of Nimble coming from CI. Passing
                     # trial_segment.marker_observations instead seems to fix it. This is scary.
                     trial_error_report = marker_fitter.generateDataErrorsReport(
-                        trial_segment.marker_observations, trial.timestep)
+                        trial_segment.marker_observations,
+                        trial.timestep,
+                        rippleReduce=True,
+                        rippleReduceUseSparse=True,
+                        rippleReduceUseIterativeSolver=True,
+                        rippleReduceSolverIterations=int(1e5))
                     trial_segment.marker_observations = deep_copy_marker_observations(trial_error_report.markerObservationsAttemptedFixed)
                     trial_segment.marker_error_report = trial_error_report
                     # Set an error if there are any NaNs in the marker data
