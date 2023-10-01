@@ -327,8 +327,11 @@ class TrialSegment:
             'goldAvgRMSE': self.manually_scaled_ik_error_report.averageRootMeanSquaredError if self.manually_scaled_ik_error_report is not None else None,
             'goldAvgMax': self.manually_scaled_ik_error_report.averageMaxError if self.manually_scaled_ik_error_report is not None else None,
             'goldPerMarkerRMSE': self.manually_scaled_ik_error_report.getSortedMarkerRMSE() if self.manually_scaled_ik_error_report is not None else None,
+            # Details for helping report malformed uploads
             'hasMarkers': self.has_markers,
             'hasForces': self.has_forces,
+            'hasError': self.has_error,
+            'errorMsg': self.error_msg,
             'hasMarkerWarnings': has_marker_warnings
         }
         return results
