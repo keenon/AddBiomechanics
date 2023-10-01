@@ -4,6 +4,7 @@ import numpy as np
 import os
 import enum
 import json
+from memory_utils import deep_copy_marker_observations
 
 
 class ProcessingStatus(enum.Enum):
@@ -56,12 +57,7 @@ class Trial:
 
             # Do a deep copy of the marker observations, to avoid potential memory issues on the PyBind interface
             file_marker_observations = trial.c3d_file.markerTimesteps
-            trial.marker_observations = []
-            for marker_timestep in file_marker_observations:
-                marker_timestep_copy = {}
-                for marker in marker_timestep:
-                    marker_timestep_copy[marker] = marker_timestep[marker].copy()
-                trial.marker_observations.append(marker_timestep_copy)
+            trial.marker_observations = deep_copy_marker_observations(file_marker_observations)
 
             any_have_markers = False
             for markerTimestep in trial.marker_observations:
@@ -87,12 +83,7 @@ class Trial:
                 trc_file_path)
             # Do a deep copy of the marker observations, to avoid potential memory issues on the PyBind interface
             file_marker_observations = trc_file.markerTimesteps
-            trial.marker_observations = []
-            for marker_timestep in file_marker_observations:
-                marker_timestep_copy = {}
-                for marker in marker_timestep:
-                    marker_timestep_copy[marker] = marker_timestep[marker].copy()
-                trial.marker_observations.append(marker_timestep_copy)
+            trial.marker_observations = deep_copy_marker_observations(file_marker_observations)
             any_have_markers = False
             for markerTimestep in trial.marker_observations:
                 if len(markerTimestep.keys()) > 0:

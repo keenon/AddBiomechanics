@@ -4,7 +4,7 @@
   "sex": "unknown",
   "skeletonPreset": "custom",
   "email": "biomechanics.db@gmail.com",
-  "fitDynamics": true,
+  "disableDynamics": false,
   "footBodyNames": [
     "calcn_r",
     "calcn_l"

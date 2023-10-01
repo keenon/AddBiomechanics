@@ -10,6 +10,7 @@ import subprocess
 import textwrap
 import tempfile
 import os
+from memory_utils import deep_copy_marker_observations
 
 
 # Global paths to the geometry and data folders.
@@ -376,7 +377,7 @@ class Subject:
                     # trial_segment.marker_observations instead seems to fix it. This is scary.
                     trial_error_report = marker_fitter.generateDataErrorsReport(
                         trial_segment.marker_observations, trial.timestep)
-                    trial_segment.marker_observations = trial_error_report.markerObservationsAttemptedFixed
+                    trial_segment.marker_observations = deep_copy_marker_observations(trial_error_report.markerObservationsAttemptedFixed)
                     trial_segment.marker_error_report = trial_error_report
                     # Set an error if there are any NaNs in the marker data
                     for t in range(len(trial_segment.marker_observations)):
@@ -463,7 +464,7 @@ class Subject:
             if marker_fitter.checkForFlippedMarkers(trial_segments[i].marker_observations, marker_fitter_results[i],
                                                     trial_segments[i].marker_error_report):
                 any_swapped = True
-                trial_segments[i].marker_observations = trial_segments[i].marker_error_report.markerObservationsAttemptedFixed
+                trial_segments[i].marker_observations = deep_copy_marker_observations(trial_segments[i].marker_error_report.markerObservationsAttemptedFixed)
 
         if any_swapped:
             print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, "
@@ -482,7 +483,7 @@ class Subject:
         # 2.6. Set up some interchangeable data structures, so that we can write out the results using the same code,
         # regardless of whether we used dynamics or not
         self.kinematics_skeleton = self.skeleton.clone()
-        self.kinematics_markers = self.fitMarkers.copy()
+        self.kinematics_markers = {key: (self.kinematics_skeleton.getBodyNode(body.getName()), offset) for key, (body, offset) in self.fitMarkers.items()}
         for i in range(len(trial_segments)):
             trial_segments[i].kinematics_status = ProcessingStatus.FINISHED
             trial_segments[i].kinematics_poses = marker_fitter_results[i].poses
@@ -541,12 +542,12 @@ class Subject:
         dynamics_init: nimble.biomechanics.DynamicsInitialization = \
             nimble.biomechanics.DynamicsFitter.createInitialization(
                 self.skeleton,
-                [trial.marker_fitter_result for trial in trial_segments],
+                [segment.marker_fitter_result for segment in trial_segments],
                 self.customOsim.trackingMarkers,
                 foot_bodies,
-                [trial.force_plates for trial in trial_segments],
-                [int(1.0 / trial.parent.timestep) for trial in trial_segments],
-                [trial.marker_observations for trial in trial_segments])
+                [segment.force_plates for segment in trial_segments],
+                [int(1.0 / segment.parent.timestep) for segment in trial_segments],
+                [segment.marker_observations for segment in trial_segments])
         print('Created DynamicsInitialization', flush=True)
 
         dynamics_fitter.estimateFootGroundContacts(dynamics_init,
@@ -701,8 +702,8 @@ class Subject:
               str(dynamics_fitter.computeAverageForceMagnitudeChange(dynamics_init)) + " N", flush=True)
 
         self.fitMarkers = dynamics_init.updatedMarkerMap
-        self.dynamics_markers = self.fitMarkers.copy()
         self.dynamics_skeleton = self.skeleton.clone()
+        self.dynamics_markers = {key: (self.dynamics_skeleton.getBodyNode(body.getName()), offset) for key, (body, offset) in self.fitMarkers.items()}
 
         # 8.6. Store the dynamics fitting results in the shared data structures.
         for i in range(len(trial_segments)):
@@ -728,8 +729,8 @@ class Subject:
             trial_segments[i].output_force_plates = dynamics_init.forcePlateTrials[i]
             trial_segments[i].dynamics_status = ProcessingStatus.FINISHED
             trial_segments[i].dynamics_ik_error_report = nimble.biomechanics.IKErrorReport(
-                self.skeleton,
-                self.fitMarkers,
+                self.dynamics_skeleton,
+                self.dynamics_markers,
                 trial_segments[i].dynamics_poses,
                 trial_segments[i].marker_observations)
 
@@ -1068,33 +1069,9 @@ class Subject:
                     trial_kinematic_data.setDofPositionsObserved([True for _ in range(self.skeleton.getNumDofs())])
                     trial_kinematic_data.setDofVelocitiesFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
                     trial_kinematic_data.setDofAccelerationFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
-                    trial_kinematic_data.setPoses(segment.kinematics_poses)
-                    vels = np.zeros_like(segment.kinematics_poses)
-                    for iframe in range(1, segment.kinematics_poses.shape[1]):
-                        vels[:, iframe] = (segment.kinematics_poses[:, iframe] - segment.kinematics_poses[:, iframe - 1]) / trial.timestep
-                    trial_kinematic_data.setVels(vels)
-                    accs = np.zeros_like(segment.kinematics_poses)
-                    for iframe in range(1, segment.kinematics_poses.shape[1]):
-                        accs[:, iframe] = (vels[:, iframe] - vels[:, iframe - 1]) / trial.timestep
-                    trial_kinematic_data.setAccs(accs)
-                    taus = np.zeros_like(segment.kinematics_poses)
-                    com_poses = np.zeros((3, segment.kinematics_poses.shape[1]))
-                    com_vels = np.zeros((3, segment.kinematics_poses.shape[1]))
-                    com_accs = np.zeros((3, segment.kinematics_poses.shape[1]))
-                    for t in range(len(segment.timestamps)):
-                        self.kinematics_skeleton.setPositions(segment.kinematics_poses[:, t])
-                        self.kinematics_skeleton.setVelocities(vels[:, t])
-                        self.kinematics_skeleton.setAccelerations(accs[:, t])
-                        com_poses[:, t] = self.kinematics_skeleton.getCOM()
-                        com_vels[:, t] = self.kinematics_skeleton.getCOMLinearVelocity()
-                        com_accs[:, t] = self.kinematics_skeleton.getCOMLinearAcceleration()
-                        taus[:, t] = self.kinematics_skeleton.getInverseDynamics(accs[:, t])
-                    trial_kinematic_data.setTaus(taus)
-                    trial_kinematic_data.setComPoses(com_poses)
-                    trial_kinematic_data.setComVels(com_vels)
-                    trial_kinematic_data.setComAccs(com_accs)
                     trial_kinematic_data.setMarkerRMS(segment.kinematics_ik_error_report.rootMeanSquaredError)
                     trial_kinematic_data.setMarkerMax(segment.kinematics_ik_error_report.maxError)
+                    trial_kinematic_data.computeValuesFromForcePlates(self.kinematics_skeleton, trial.timestep, segment.kinematics_poses, self.footBodyNames, segment.force_plates)
 
                 if segment.dynamics_status == ProcessingStatus.FINISHED:
                     trial_dynamics_data = trial_data.addPass()
@@ -1102,36 +1079,28 @@ class Subject:
                     trial_dynamics_data.setDofPositionsObserved([True for _ in range(self.skeleton.getNumDofs())])
                     trial_dynamics_data.setDofVelocitiesFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
                     trial_dynamics_data.setDofAccelerationFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
-                    trial_dynamics_data.setPoses(segment.dynamics_poses)
-                    vels = np.zeros_like(segment.dynamics_poses)
-                    for iframe in range(1, segment.dynamics_poses.shape[1]):
-                        vels[:, iframe] = (segment.dynamics_poses[:, iframe] - segment.dynamics_poses[:, iframe - 1]) / trial.timestep
-                    trial_dynamics_data.setVels(vels)
-                    accs = np.zeros_like(segment.dynamics_poses)
-                    for iframe in range(1, segment.dynamics_poses.shape[1]):
-                        accs[:, iframe] = (vels[:, iframe] - vels[:, iframe - 1]) / trial.timestep
-                    trial_dynamics_data.setAccs(accs)
-                    taus = np.zeros_like(segment.dynamics_poses)
-                    trial_dynamics_data.setTaus(taus)
-                    com_poses = np.zeros((3, segment.dynamics_poses.shape[1]))
-                    com_vels = np.zeros((3, segment.dynamics_poses.shape[1]))
-                    com_accs = np.zeros((3, segment.dynamics_poses.shape[1]))
-                    for t in range(len(segment.timestamps)):
-                        self.dynamics_skeleton.setPositions(segment.dynamics_poses[:, t])
-                        self.dynamics_skeleton.setVelocities(vels[:, t])
-                        self.dynamics_skeleton.setAccelerations(accs[:, t])
-                        com_poses[:, t] = self.dynamics_skeleton.getCOM()
-                        com_vels[:, t] = self.dynamics_skeleton.getCOMLinearVelocity()
-                        com_accs[:, t] = self.dynamics_skeleton.getCOMLinearAcceleration()
-                    trial_dynamics_data.setTaus(segment.dynamics_taus)
-                    trial_dynamics_data.setComPoses(com_poses)
-                    trial_dynamics_data.setComVels(com_vels)
-                    trial_dynamics_data.setComAccs(com_accs)
                     trial_dynamics_data.setMarkerRMS(segment.dynamics_ik_error_report.rootMeanSquaredError)
                     trial_dynamics_data.setMarkerMax(segment.dynamics_ik_error_report.maxError)
+                    trial_dynamics_data.computeValuesFromForcePlates(self.dynamics_skeleton, trial.timestep, segment.dynamics_poses, self.footBodyNames, segment.force_plates)
 
         # 4. Actually write the output file
         nimble.biomechanics.SubjectOnDisk.writeB3D(file_path, subject_header)
+
+        # 5. Read the file back in, and print out some summary stats
+        print('B3D Summary Statistics:', flush=True)
+        read_back: nimble.biomechanics.SubjectOnDisk = nimble.biomechanics.SubjectOnDisk(file_path)
+        print('  Num Trials: ' + str(read_back.getNumTrials()), flush=True)
+        print('  Num Processing Passes: ' + str(read_back.getNumProcessingPasses()), flush=True)
+        print('  Num Dofs: ' + str(read_back.getNumDofs()), flush=True)
+        for t in range(read_back.getNumTrials()):
+            print('  Trial '+str(t)+':', flush=True)
+            print('    Name: ' + read_back.getTrialName(t), flush=True)
+            for p in range(read_back.getTrialNumProcessingPasses(t)):
+                print('    Processing pass '+str(p)+':', flush=True)
+                print('      Marker RMS: ' + str(np.mean(read_back.getTrialMarkerRMSs(t, p))), flush=True)
+                print('      Marker Max: ' + str(np.mean(read_back.getTrialMarkerMaxs(t, p))), flush=True)
+                print('      Linear Residual: ' + str(np.mean(read_back.getTrialLinearResidualNorms(t, p))), flush=True)
+                print('      Angular Residual: ' + str(np.mean(read_back.getTrialAngularResidualNorms(t, p))), flush=True)
 
     def write_web_results(self, results_path: str):
         if not results_path.endswith('/'):
