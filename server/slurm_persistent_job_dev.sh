@@ -24,5 +24,9 @@ curl -fsS -m 10 --retry 5 -o /dev/null https://hc-ping.com/29f8f84e-3b4e-4978-a0
 ## Run the mocap server, in SLURM mode, in the background so that we don't lose the trap signal
 export PYTHONUNBUFFERED=1
 CERT_HOME="/home/users/keenon/certs" python3 ~/AddBiomechanics/server/app/mocap_server.py --bucket biomechanics-uploads161949-dev --deployment DEV --singularity_image_path $GROUP_HOME/keenon/simg/biomechnet_dev_latest.sif || true &
-# Don't exit while the server is running
-wait
+# Loop forever, printing the time
+while true; do
+    echo "$(date): normal execution"
+    sleep 60 &
+    wait $!
+done
