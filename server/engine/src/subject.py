@@ -317,6 +317,27 @@ class Subject:
         This will optimize for body scales, marker offsets, and joint positions over time to minimize marker error. It
         ignores the dynamics information at this stage, even if it was provided.
         """
+        trial_segments: List[TrialSegment] = []
+        for trial in self.trials:
+            if not trial.error:
+                for segment in trial.segments:
+                    if segment.has_markers and not segment.has_error:
+                        trial_segments.append(segment)
+                        segment.kinematics_status = ProcessingStatus.IN_PROGRESS
+                    else:
+                        segment.kinematics_status = ProcessingStatus.ERROR
+                        if segment.has_error:
+                            print('Skipping kinematics fit of segment starting at ' + str(segment.start) + ' of trial ' + str(trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
+            else:
+                # If the whole trial is an error condition, then bail on all the segments as well
+                for segment in trial.segments:
+                    segment.kinematics_status = ProcessingStatus.ERROR
+        # If there are no segments left that aren't in error, quit
+        if len(trial_segments) == 0:
+            print('ERROR: No trial segments left (after filtering out errors) to fit kinematics on. Skipping kinematics fitting...', flush=True)
+            return
+
+        # Set up the MarkerFitter
         marker_fitter = nimble.biomechanics.MarkerFitter(
             self.skeleton, self.markerSet)
         marker_fitter.setInitialIKSatisfactoryLoss(1e-5)
@@ -426,15 +447,7 @@ class Subject:
         marker_fitter.setRegularizePelvisJointsWithVirtualSpring(0.1)
 
         # 2.3. Run the kinematics pipeline.
-        trial_segments: List[TrialSegment] = []
-        for trial in self.trials:
-            if not trial.error:
-                for segment in trial.segments:
-                    if segment.has_markers and not segment.has_error:
-                        trial_segments.append(segment)
-                        segment.kinematics_status = ProcessingStatus.IN_PROGRESS
-                    else:
-                        segment.kinematics_status = ProcessingStatus.ERROR
+
         marker_fitter_results: List[
             nimble.biomechanics.MarkerInitialization] = marker_fitter.runMultiTrialKinematicsPipeline(
             [segment.marker_observations for segment in trial_segments],
@@ -507,8 +520,12 @@ class Subject:
                             and segment.kinematics_status == ProcessingStatus.FINISHED and not segment.has_error):
                         trial_segments.append(segment)
                         segment.dynamics_status = ProcessingStatus.IN_PROGRESS
+                    elif segment.has_error:
+                        print('Skipping dynamics fit of segment starting at ' + str(segment.start) + ' of trial ' + str(
+                            trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
+        # If there are no segments left that aren't in error, quit
         if len(trial_segments) == 0:
-            print('No trial segments to fit dynamics on. Skipping dynamics fitting...', flush=True)
+            print('ERROR: No trial segments left (after filtering out errors) to fit dynamics on. Skipping dynamics fitting...', flush=True)
             return
 
         # 8. Run dynamics fitting.
