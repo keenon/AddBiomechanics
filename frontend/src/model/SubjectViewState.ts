@@ -398,6 +398,18 @@ class SubjectViewState {
             this.wizardCollapsed = true;
         });
     }
+
+    reprocess(): Promise<void> {
+        return this.errorFlagFile.delete().then(() => {
+            return this.processingFlagFile.delete().then(() => {
+                return this.home.dir.delete(this.resultsJsonPath).then(action(() => {
+                    this.parsedResultsJson = {};
+                    this.loadingResultsJsonPromise = null;
+                    this.loadedResultsJsonFirstTime = false;
+                }));
+            });
+        });
+    }
 };
 
 export type { SubjectResultsJSON, TrialResultsJSON, SegmentResultsJSON };

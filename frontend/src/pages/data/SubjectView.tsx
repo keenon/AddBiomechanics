@@ -900,8 +900,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <button className="btn btn-primary" onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    await errorFlagFile.delete();
-                    await processingFlagFile.delete();
+                    return subjectState.reprocess();
                 }}>Reprocess</button>
             </div>;
         }
@@ -979,7 +978,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                     const segmentResults = trialResults.segments[index];
                                     let kinematicsResults: string | React.ReactFragment = '';
                                     if (segmentResults.kinematicsStatus === 'FINISHED') {
-                                        kinematicsResults = (segmentResults.kinematicsAvgRMSE == null ? 'NaN' : segmentResults.kinematicsAvgRMSE.toFixed(2)) + ' cm RMSE';
+                                        kinematicsResults = (segmentResults.kinematicsAvgRMSE == null ? 'NaN' : (segmentResults.kinematicsAvgRMSE * 100).toFixed(2)) + ' cm RMSE';
                                     }
                                     else if (segmentResults.kinematicsStatus === 'ERROR') {
                                         hasErrors = true;
