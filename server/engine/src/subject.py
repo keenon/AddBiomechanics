@@ -924,7 +924,7 @@ class Subject:
 
         # Copy over the geometry files, so the model can be loaded directly in OpenSim without chasing down
         # Geometry files somewhere else.
-        shutil.copytree(data_folder_path + 'Geometry', results_path + 'Models/Geometry')
+        shutil.copytree(data_folder_path + 'OriginalGeometry', results_path + 'Models/Geometry')
 
         marker_names: List[str] = []
         for k in self.kinematics_markers:

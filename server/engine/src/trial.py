@@ -482,23 +482,24 @@ class TrialSegment:
                 gui.deleteObject('marker_' + str(marker))
 
             # Render any marker warnings
-            if self.marker_error_report is not None:
-                renamed_from_to: Set[Tuple[str, str]] = set(self.marker_error_report.markersRenamedFromTo[t])
-                for from_marker, to_marker in renamed_from_to:
-                    from_marker_location = None
-                    if from_marker in self.marker_observations[t]:
-                        from_marker_location = self.marker_observations[t][from_marker]
-                    to_marker_location = None
-                    if to_marker in self.marker_observations[t]:
-                        to_marker_location = self.marker_observations[t][to_marker]
-
-                    if to_marker_location is not None and from_marker_location is not None:
-                        gui.createLine('marker_renamed_' + str(from_marker) + '_to_' + str(to_marker), [to_marker_location, from_marker_location], [1.0, 0.0, 0.0, 1.0], layer=warnings_layer_name)
-                    gui.setObjectWarning('marker_'+str(to_marker), 'warning_marker_renamed_' + str(from_marker) + '_to_' + str(to_marker), 'Marker ' + str(to_marker) + ' was originally named ' + str(from_marker), warnings_layer_name)
-                for from_marker, to_marker in self.render_markers_renamed_set:
-                    if (from_marker, to_marker) not in renamed_from_to:
-                        gui.deleteObject('marker_renamed_' + str(from_marker) + '_to_' + str(to_marker))
-                    gui.deleteObjectWarning('marker_'+str(to_marker), 'warning_marker_renamed_' + str(from_marker) + '_to_' + str(to_marker))
+            # TODO: Find a more efficient way to do this, otherwise deleting unused warnings will be incredibly slow
+            # if self.marker_error_report is not None:
+            #     renamed_from_to: Set[Tuple[str, str]] = set(self.marker_error_report.markersRenamedFromTo[t])
+            #     for from_marker, to_marker in renamed_from_to:
+            #         from_marker_location = None
+            #         if from_marker in self.marker_observations[t]:
+            #             from_marker_location = self.marker_observations[t][from_marker]
+            #         to_marker_location = None
+            #         if to_marker in self.marker_observations[t]:
+            #             to_marker_location = self.marker_observations[t][to_marker]
+            #
+            #         if to_marker_location is not None and from_marker_location is not None:
+            #             gui.createLine('marker_renamed_' + str(from_marker) + '_to_' + str(to_marker), [to_marker_location, from_marker_location], [1.0, 0.0, 0.0, 1.0], layer=warnings_layer_name)
+            #         gui.setObjectWarning('marker_'+str(to_marker), 'warning_marker_renamed_' + str(from_marker) + '_to_' + str(to_marker), 'Marker ' + str(to_marker) + ' was originally named ' + str(from_marker), warnings_layer_name)
+            #     for from_marker, to_marker in self.render_markers_renamed_set:
+            #         if (from_marker, to_marker) not in renamed_from_to:
+            #             gui.deleteObject('marker_renamed_' + str(from_marker) + '_to_' + str(to_marker))
+            #         gui.deleteObjectWarning('marker_'+str(to_marker), 'warning_marker_renamed_' + str(from_marker) + '_to_' + str(to_marker))
 
         # 3. Always render the force plates if we've got them, even if we don't have kinematics or dynamics
         for i, force_plate in enumerate(self.force_plates):
