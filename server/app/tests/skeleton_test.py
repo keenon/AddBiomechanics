@@ -29,7 +29,7 @@ class TranslateSkeletonTest(unittest.TestCase):
         osimfile_path = os.path.abspath('../test_data/skeleton_test/unscaled_generic.osim')
         osimfile = nimble.biomechanics.OpenSimParser.parseOsim(osimfile_path)
         skel = osimfile.skeleton
-        self.assertFalse(self, nimble.biomechanics.OpenSimParser.hasArms(skel))
+        self.assertFalse(nimble.biomechanics.OpenSimParser.hasArms(skel))
 
 
 if __name__ == "__main__":
