@@ -8,7 +8,7 @@ class DataHarvesterTest(unittest.TestCase):
     def test_discard_short_trials(self):
 
         # Dir for all short trials
-        datadir = os.path.abspath('../data_harvester_test_data/test_short')
+        datadir = os.path.abspath('../test_data/data_harvester_test_short')
         trials_to_remove = SubjectSnapshot.id_short_trials(datadir)
 
         # Assert that the short trial paths are in the list
@@ -24,7 +24,7 @@ class DataHarvesterTest(unittest.TestCase):
     def test_keep_long_trials(self):
 
         # Dir for all long trials
-        datadir = os.path.abspath('../data_harvester_test_data/test_long')
+        datadir = os.path.abspath('../test_data/data_harvester_test_long')
         trials_to_remove = SubjectSnapshot.id_short_trials(datadir)
 
         # The list should be empty because we should not be removing any.
