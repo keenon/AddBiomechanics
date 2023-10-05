@@ -17,6 +17,9 @@ GEOMETRY_FOLDER_PATH = absPath('../../Geometry')
 DATA_FOLDER_PATH = absPath('../../../data')
 TEMPLATES_PATH = absPath('../../templates')
 
+KINEMATIC_OSIM_NAME = 'match_markers_but_ignore_physics.osim'
+DYNAMICS_OSIM_NAME = 'match_markers_and_physics.osim'
+
 
 class Subject:
     def __init__(self):
@@ -461,6 +464,9 @@ class Subject:
 
         marker_fitter.setRegularizePelvisJointsWithVirtualSpring(0.1)
 
+        # # TODO: Remove me
+        # marker_fitter.setIterationLimit(20)
+
         # 2.3. Run the kinematics pipeline.
 
         marker_fitter_results: List[
@@ -486,29 +492,30 @@ class Subject:
                    f'but the final mass is {self.skeleton.getMass()}')
         np.testing.assert_almost_equal(self.skeleton.getMass(), self.massKg, err_msg=err_msg, decimal=4)
 
-        # 2.5. Check for any flipped markers, now that we've done a first pass
-        any_swapped = False
-        for i in range(len(trial_segments)):
-            if marker_fitter.checkForFlippedMarkers(trial_segments[i].marker_observations, marker_fitter_results[i],
-                                                    trial_segments[i].marker_error_report):
-                any_swapped = True
-                new_marker_observations: List[Dict[str, np.ndarray]] = []
-                for t in range(trial_error_report.getNumTimesteps()):
-                    new_marker_observations.append({})
-                    for marker_name in trial_error_report.getMarkerNamesOnTimestep(t):
-                        new_marker_observations[t][marker_name] = trial_error_report.getMarkerPositionOnTimestep(t, marker_name)
-                trial_segment.marker_observations = new_marker_observations
-
-        if any_swapped:
-            print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, "
-                  "so we have to run the whole pipeline again with unswapped markers. ********",
-                  flush=True)
-            marker_fitter_results = marker_fitter.runMultiTrialKinematicsPipeline(
-                [trial.marker_observations for trial in trial_segments],
-                nimble.biomechanics.InitialMarkerFitParams()
-                .setMaxTrialsToUseForMultiTrialScaling(5)
-                .setMaxTimestepsToUseForMultiTrialScaling(4000),
-                150)
+        # # 2.5. Check for any flipped markers, now that we've done a first pass
+        # TODO: re-enable this section
+        # any_swapped = False
+        # for i in range(len(trial_segments)):
+        #     if marker_fitter.checkForFlippedMarkers(trial_segments[i].marker_observations, marker_fitter_results[i],
+        #                                             trial_segments[i].marker_error_report):
+        #         any_swapped = True
+        #         new_marker_observations: List[Dict[str, np.ndarray]] = []
+        #         for t in range(trial_segments[i].marker_error_report.getNumTimesteps()):
+        #             new_marker_observations.append({})
+        #             for marker_name in trial_segments[i].marker_error_report.getMarkerNamesOnTimestep(t):
+        #                 new_marker_observations[t][marker_name] = trial_segments[i].marker_error_report.getMarkerPositionOnTimestep(t, marker_name)
+        #         trial_segments[i].marker_observations = new_marker_observations
+        #
+        # if any_swapped:
+        #     print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, "
+        #           "so we have to run the whole pipeline again with unswapped markers. ********",
+        #           flush=True)
+        #     marker_fitter_results = marker_fitter.runMultiTrialKinematicsPipeline(
+        #         [trial.marker_observations for trial in trial_segments],
+        #         nimble.biomechanics.InitialMarkerFitParams()
+        #         .setMaxTrialsToUseForMultiTrialScaling(5)
+        #         .setMaxTimestepsToUseForMultiTrialScaling(4000),
+        #         150)
 
         self.skeleton.setGroupScales(marker_fitter_results[0].groupScales)
         self.fitMarkers = marker_fitter_results[0].updatedMarkerMap
@@ -566,10 +573,28 @@ class Subject:
             self.skeleton, foot_bodies, self.customOsim.trackingMarkers)
         print('Created DynamicsFitter', flush=True)
 
+        print('Fitting only last few trial segment')
+        trial_segments = trial_segments[-2:]
+
         # Sanity check the force plate data sizes match the kinematics data sizes
         for trial_segment in trial_segments:
+            # print('Trial name: ' + str(trial_segment.parent.trial_name))
+            # print('Trial start: ' + str(trial_segment.start))
+            # print('Trial poses: ' + str(trial_segment.kinematics_poses.shape))
+            # print('Trial poses head: ' + str(trial_segment.kinematics_poses[:, :5]))
+            # print('Trial poses tail: ' + str(trial_segment.kinematics_poses[:, -5:]))
+            # print('Trial force plates: ' + str(trial_segment.force_plates))
+            # print('Poses cols: ' + str(trial_segment.kinematics_poses.shape[1]))
+            # results: nimble.biomechanics.MarkerInitialization = trial_segment.marker_fitter_result
+            # print('Group scales: ' + str(results.groupScales))
+            # print('Updated marker map: ' + str(results.updatedMarkerMap))
+            # print('Joints: ' + str(results.joints))
+            # print('Joints adjacent markers: ' + str(results.jointsAdjacentMarkers))
+            # print('Joint weights shape: ' + str(results.jointWeights.shape))
+            # print('Axis weights shape: ' + str(results.axisWeights.shape))
+            # print('Joint axis shape: ' + str(results.jointAxis.shape))
+            # print('Joint centers shape: ' + str(results.jointCenters.shape))
             for force_plate in trial_segment.force_plates:
-                print('poses cols: '+str(trial_segment.kinematics_poses.shape[1]))
                 print('force len: '+str(len(force_plate.forces)))
                 assert(trial_segment.kinematics_poses.shape[1] == len(force_plate.forces))
                 assert(len(force_plate.forces) == len(force_plate.centersOfPressure))
@@ -643,6 +668,9 @@ class Subject:
                 # Run an optimization to figure out the model parameters
                 dynamics_fitter.setIterationLimit(200)
                 dynamics_fitter.setLBFGSHistoryLength(20)
+
+                dynamics_fitter.setIterationLimit(10)
+
                 dynamics_fitter.runIPOPTOptimization(
                     dynamics_init,
                     nimble.biomechanics.DynamicsFitProblemConfig(
@@ -674,6 +702,30 @@ class Subject:
                     else:
                         dynamics_fitter.setIterationLimit(50)
                         dynamics_fitter.setLBFGSHistoryLength(3)
+                    #
+                    # print('Running runIPOPTOptimization() for trial '+str(segment)+'...')
+                    # dynamics_fitter.setIterationLimit(10)
+                    #
+                    # trial_segment = trial_segments[segment]
+                    # print('Trial name: ' + str(trial_segment.parent.trial_name))
+                    # print('Trial start: ' + str(trial_segment.start))
+                    # print('Trial poses: ' + str(trial_segment.kinematics_poses.shape))
+                    # print('Trial poses head: ' + str(trial_segment.kinematics_poses[:, :5]))
+                    # print('Trial poses tail: ' + str(trial_segment.kinematics_poses[:, -5:]))
+                    # print('Trial force plates: ' + str(trial_segment.force_plates))
+                    # print('Poses cols: ' + str(trial_segment.kinematics_poses.shape[1]))
+                    # results: nimble.biomechanics.MarkerInitialization = trial_segment.marker_fitter_result
+                    # print('Group scales: ' + str(results.groupScales))
+                    # print('Updated marker map: ' + str(results.updatedMarkerMap))
+                    # print('Joints: ' + str(results.joints))
+                    # print('Joints adjacent markers: ' + str(results.jointsAdjacentMarkers))
+                    # print('Joint weights shape: ' + str(results.jointWeights.shape))
+                    # print('Axis weights shape: ' + str(results.axisWeights.shape))
+                    # print('Joint axis shape: ' + str(results.jointAxis.shape))
+                    # print('Joint centers shape: ' + str(results.jointCenters.shape))
+                    # for force_plate in trial_segment.force_plates:
+                    #     print('force len: ' + str(len(force_plate.forces)))
+
                     dynamics_fitter.runIPOPTOptimization(
                         dynamics_init,
                         nimble.biomechanics.DynamicsFitProblemConfig(
@@ -898,11 +950,11 @@ class Subject:
             shutil.copyfile(self.subject_path + 'unscaled_generic.osim', results_path +
                             'Models/unscaled_generic.osim')
 
-        osim_path: str = 'Models/kinematics.osim'
+        osim_path: str = 'Models/' + KINEMATIC_OSIM_NAME
 
         # Create the kinematics model file
         if self.kinematics_skeleton is not None:
-            osim_path = 'Models/kinematics.osim'
+            osim_path = 'Models/' + KINEMATIC_OSIM_NAME
             self.scale_osim(
                 self.subject_path + 'unscaled_generic.osim',
                 results_path + osim_path,
@@ -911,7 +963,7 @@ class Subject:
 
         # Create the dynamics model file
         if self.dynamics_skeleton is not None:
-            osim_path = 'Models/dynamics.osim'
+            osim_path = 'Models/' + DYNAMICS_OSIM_NAME
             self.scale_osim(
                 self.subject_path + 'unscaled_generic.osim',
                 results_path + osim_path,
@@ -1001,7 +1053,7 @@ class Subject:
                         results_path + 'ID/' + segment_name + '_external_forces.xml')
                     nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
                         segment_name,
-                        '../Models/dynamics.osim',
+                        '../Models/' + DYNAMICS_OSIM_NAME,
                         '../IK/' + segment_name + '_ik.mot',
                         segment_name + '_external_forces.xml',
                         segment_name + '_id.sto',
@@ -1056,22 +1108,22 @@ class Subject:
 
         kinematic_pass = subject_header.addProcessingPass()
         kinematic_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.KINEMATICS)
-        if os.path.exists(osim_results_folder + 'Models/kinematics.osim'):
-            with open(osim_results_folder + 'Models/kinematics.osim', 'r') as f:
+        if os.path.exists(osim_results_folder + 'Models/' + KINEMATIC_OSIM_NAME):
+            with open(osim_results_folder + 'Models/' + KINEMATIC_OSIM_NAME, 'r') as f:
                 kinematic_pass.setOpenSimFileText(f.read())
         else:
-            print('WARNING: No kinematics.osim file found in ' + osim_results_folder + 'Models/kinematics.osim. '
+            print('WARNING: No '+ KINEMATIC_OSIM_NAME + ' file found in ' + osim_results_folder + 'Models/' + KINEMATIC_OSIM_NAME + '. '
                   'This is probably because the kinematics pass did not succeed on a single trial. '
                   'Leaving that model empty in the B3D file.', flush=True)
 
         if not self.disableDynamics:
             dynamics_pass = subject_header.addProcessingPass()
             dynamics_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.DYNAMICS)
-            if os.path.exists(osim_results_folder + 'Models/dynamics.osim'):
-                with open(osim_results_folder + 'Models/dynamics.osim', 'r') as f:
+            if os.path.exists(osim_results_folder + 'Models/' + DYNAMICS_OSIM_NAME):
+                with open(osim_results_folder + 'Models/' + DYNAMICS_OSIM_NAME, 'r') as f:
                     dynamics_pass.setOpenSimFileText(f.read())
             else:
-                print('WARNING: No dynamics.osim file found in ' + osim_results_folder + 'Models/kinematics.osim. '
+                print('WARNING: No ' + DYNAMICS_OSIM_NAME +' file found in ' + osim_results_folder + 'Models/' + DYNAMICS_OSIM_NAME + '. '
                       'This is probably because the dynamics pass did not succeed on a single trial. '
                       'Leaving that model empty in the B3D file.', flush=True)
 

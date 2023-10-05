@@ -11,7 +11,10 @@ import os
 from nimblephysics.loader import absPath
 import json
 from exceptions import Error
-from subject import Subject
+from subject import Subject, ProcessingStatus
+
+import numpy as np
+import nimblephysics as nimble
 
 # Global paths to the geometry and data folders.
 GEOMETRY_FOLDER_PATH = absPath('Geometry')
@@ -49,6 +52,24 @@ def main():
         # segments that have not yet thrown an error during loading.
         print('Running kinematics fit', flush=True)
         subject.run_kinematics_fit(DATA_FOLDER_PATH)
+
+        # This plausibly skips kinematics, with placeholder 0s for (most of) the necessary kinematics results.
+        # for trial in subject.trials:
+        #     for segment in trial.segments:
+        #         segment.kinematics_status = ProcessingStatus.FINISHED
+        #         num_steps = len(segment.marker_observations)
+        #         segment.kinematics_poses = np.zeros((subject.skeleton.getNumDofs(), num_steps))
+        #         dummy_results: nimble.biomechanics.MarkerInitialization = nimble.biomechanics.MarkerInitialization()
+        #         dummy_results.poses = segment.kinematics_poses
+        #         dummy_results.updatedMarkerMap = subject.markerSet
+        #         dummy_results.groupScales = subject.skeleton.getGroupScales()
+        #         dummy_results.joints = []
+        #         dummy_results.jointWeights = np.zeros(0)
+        #         dummy_results.axisWeights = np.zeros(0)
+        #         dummy_results.jointAxis = np.zeros((0, num_steps))
+        #         dummy_results.jointCenters = np.zeros((0, num_steps))
+        #         segment.marker_fitter_result = dummy_results
+
         # The dynamics fit will fit the dynamics parameters of the subject, to all the trial segments that have not yet
         # thrown an error during loading or kinematics fitting.
         if not subject.disableDynamics:

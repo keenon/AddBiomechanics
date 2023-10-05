@@ -367,11 +367,11 @@ class TrialSegment:
         accs: np.ndarray = np.zeros_like(poses)
         for i in range(1, poses.shape[1]):
             vels[:, i] = (poses[:, i] - poses[:, i - 1]) / self.parent.timestep
-        if vels.shape[1] > 0:
+        if vels.shape[1] > 1:
             vels[:, 0] = vels[:, 1]
         for i in range(1, vels.shape[1]):
             accs[:, i] = (vels[:, i] - vels[:, i - 1]) / self.parent.timestep
-        if accs.shape[1] > 0:
+        if accs.shape[1] > 1:
             accs[:, 0] = accs[:, 1]
 
         # Write the CSV file
