@@ -87,21 +87,21 @@ class TrialToProcess:
 
     def latestInputTimestamp(self) -> int:
         if self.index.exists(self.c3dFile):
-            uploadedTimestamp = self.index.getMetadata(
-                self.c3dFile).lastModified
+            uploadedTimestamp: int = int(self.index.getMetadata(
+                self.c3dFile).lastModified)
             if self.index.exists(self.goldIKFile):
                 uploadedTimestamp = max(
-                    uploadedTimestamp, self.index.getMetadata(self.goldIKFile).lastModified)
+                    int(uploadedTimestamp), int(self.index.getMetadata(self.goldIKFile).lastModified))
             return uploadedTimestamp
         elif self.index.exists(self.trcFile):
-            uploadedTimestamp = self.index.getMetadata(
-                self.trcFile).lastModified
+            uploadedTimestamp: int = int(self.index.getMetadata(
+                self.trcFile).lastModified)
             if self.index.exists(self.grfFile):
                 uploadedTimestamp = max(
-                    uploadedTimestamp, self.index.getMetadata(self.grfFile).lastModified)
+                    int(uploadedTimestamp), int(self.index.getMetadata(self.grfFile).lastModified))
             if self.index.exists(self.goldIKFile):
                 uploadedTimestamp = max(
-                    uploadedTimestamp, self.index.getMetadata(self.goldIKFile).lastModified)
+                    int(uploadedTimestamp), int(self.index.getMetadata(self.goldIKFile).lastModified))
             return uploadedTimestamp
         else:
             return 0
@@ -501,11 +501,11 @@ class SubjectToProcess:
         return True
 
     def latestInputTimestamp(self) -> int:
-        uploadedTimestamp = 0
+        uploadedTimestamp: int = 0
         for trialName in self.trials:
             uploadedTimestamp = max(
-                uploadedTimestamp, self.trials[trialName].latestInputTimestamp())
-        return uploadedTimestamp
+                int(uploadedTimestamp), int(self.trials[trialName].latestInputTimestamp()))
+        return int(uploadedTimestamp)
 
     def __repr__(self) -> str:
         return self.subjectPath + "::" + self.trialName + " uploaded @" + str(self.latestInputTimestamp())
