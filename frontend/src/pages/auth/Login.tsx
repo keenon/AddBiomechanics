@@ -16,7 +16,7 @@ import VerticalForm from "../../components/VerticalForm";
 import FormInput from "../../components/FormInput";
 
 import AccountLayout from "./AccountLayout";
-import MocapS3Cursor from "../../state/MocapS3Cursor";
+import Session from "../../model/Session";
 
 /* bottom link of account pages */
 const BottomLink = () => {
@@ -37,8 +37,8 @@ const BottomLink = () => {
 };
 
 type LoginProps = {
-  onLogin?: (email: string) => void;
-  cursor: MocapS3Cursor;
+  onLogin?: (myIdentityId: string, email: string) => void;
+  session: Session;
 };
 
 const Login = (props: LoginProps) => {
@@ -54,7 +54,7 @@ const Login = (props: LoginProps) => {
     from = '/';
   }
 
-  if (props.cursor.s3Index.authenticated) {
+  if (props.session.loggedIn) {
     console.log("User is already logged in. Navigating to " + from);
     navigate(from, { replace: true });
   }
@@ -67,12 +67,12 @@ const Login = (props: LoginProps) => {
     Auth.signIn(email, password)
       .then(() => {
         return Auth.currentCredentials().then((credentials) => {
-          props.cursor.s3Index.authenticated = credentials.authenticated;
-          props.cursor.s3Index.myIdentityId = credentials.identityId.replace("us-west-2:", "");
-          console.log("Logged in successfully, got auth " + props.cursor.s3Index.authenticated + ", identity ID " + props.cursor.s3Index.myIdentityId);
+          const authenticated = credentials.authenticated;
+          const myIdentityId = credentials.identityId.replace("us-west-2:", "");
+          console.log("Logged in successfully, got auth " + authenticated + ", identity ID " + myIdentityId);
 
           if (props.onLogin) {
-            props.onLogin(email);
+            props.onLogin(myIdentityId, email);
           }
 
           // Send them back to the page they tried to visit when they were
