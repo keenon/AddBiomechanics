@@ -1,2 +1,4 @@
-nimblephysics == 0.9.20
+numpy == 1.24.4
+nimblephysics == 0.10.3.3
 pandas
+matplotlib

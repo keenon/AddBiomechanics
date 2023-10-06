@@ -49,7 +49,6 @@ class TrialToProcess:
         self.trcFile = self.trialPath + 'markers.trc'
         self.grfFile = self.trialPath + 'grf.mot'
         self.goldIKFile = self.trialPath + 'manual_ik.mot'
-        self.resultsFile = self.trialPath + '_results.json'
         self.previewBinFile = self.trialPath + 'preview.bin.zip'
         self.plotCSVFile = self.trialPath + 'plot.csv'
 
@@ -68,21 +67,20 @@ class TrialToProcess:
 
     def upload(self, trialsFolderPath: str):
         trialPath = trialsFolderPath + self.trialName
-        if os.path.exists(trialPath + '_results.json'):
-            self.index.uploadFile(
-                self.resultsFile, trialPath + '_results.json')
-        else:
-            print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
-                  trialPath + '_results.json', flush=True)
-        if os.path.exists(trialPath + 'preview.bin.zip'):
-            self.index.uploadFile(self.previewBinFile,
-                                  trialPath + 'preview.bin.zip')
-        else:
-            print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
-                  trialPath + 'preview.bin.zip', flush=True)
-        if os.path.exists(trialPath + 'plot.csv'):
-            self.index.uploadFile(self.plotCSVFile,
-                                  trialPath + 'plot.csv')
+        # Recursively list all the files in the trial folder, and upload them
+        for root, dirs, files in os.walk(trialPath):
+            for file in files:
+                # Skip the files we've already uploaded
+                if file in ['_results.json', 'preview.bin.zip', 'plot.csv']:
+                    continue
+                # Skip the files we don't want to upload
+                if file.endswith('.c3d') or file.endswith('.trc') or file.endswith('.mot'):
+                    continue
+                file_path = os.path.join(root, file)
+                relative_path = file_path.replace(trialPath, '')
+                if relative_path.startswith('/'):
+                    relative_path = relative_path[1:]
+                self.index.uploadFile(self.trialPath + relative_path, file_path)
 
     def hasMarkers(self) -> bool:
         return self.index.exists(self.c3dFile) or self.index.exists(self.trcFile)
@@ -158,7 +156,7 @@ class SubjectToProcess:
         self.resultsFile = self.subjectPath + '_results.json'
         self.errorsFile = self.subjectPath + '_errors.json'
         self.osimResults = self.subjectPath + self.subjectName + '.zip'
-        self.pytorchResults = self.subjectPath + self.subjectName + '.bin'
+        self.pytorchResults = self.subjectPath + self.subjectName + '.b3d'
         self.logfile = self.subjectPath + 'log.txt'
 
     def sendNotificationEmail(self, email: str, name: str, path: str):
@@ -255,7 +253,7 @@ class SubjectToProcess:
             self.pushProcessingFlag(procLogTopic)
 
             # 4. Launch a processing process
-            enginePath = absPath('../engine/engine.py')
+            enginePath = absPath('../engine/src/engine.py')
             print('Calling Command:\n'+enginePath+' ' +
                   path+' '+self.subjectName+' '+self.getHref(), flush=True)
             with open(path + 'log.txt', 'wb+') as logFile:
@@ -358,10 +356,10 @@ class SubjectToProcess:
                 else:
                     print('WARNING! FILE NOT UPLOADED BECAUSE FILE NOT FOUND! ' +
                           path + self.subjectName + '.zip', flush=True)
-                # 5.1.2. Upload the downloadable {self.subjectName}.bin file, which can be loaded into PyTorch loaders
-                if os.path.exists(path + self.subjectName + '.bin'):
+                # 5.1.2. Upload the downloadable {self.subjectName}.b3d file, which can be loaded into PyTorch loaders
+                if os.path.exists(path + self.subjectName + '.b3d'):
                     self.index.uploadFile(
-                        self.pytorchResults, path + self.subjectName + '.bin')
+                        self.pytorchResults, path + self.subjectName + '.b3d')
 
                 # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
                 # and it starts to be able
