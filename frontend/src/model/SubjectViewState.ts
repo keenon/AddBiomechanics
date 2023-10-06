@@ -424,11 +424,13 @@ class SubjectViewState {
     reprocess(): Promise<void> {
         return this.errorFlagFile.delete().then(() => {
             return this.processingFlagFile.delete().then(() => {
-                return this.home.dir.delete(this.resultsJsonPath).then(action(() => {
-                    this.parsedResultsJson = {};
-                    this.loadingResultsJsonPromise = null;
-                    this.loadedResultsJsonFirstTime = false;
-                }));
+                return this.slurmFlagFile.delete().then(() => {
+                    return this.home.dir.delete(this.resultsJsonPath).then(action(() => {
+                        this.parsedResultsJson = {};
+                        this.loadingResultsJsonPromise = null;
+                        this.loadedResultsJsonFirstTime = false;
+                    }));
+                });
             });
         });
     }
