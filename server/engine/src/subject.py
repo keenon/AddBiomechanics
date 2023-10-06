@@ -669,8 +669,6 @@ class Subject:
                 dynamics_fitter.setIterationLimit(200)
                 dynamics_fitter.setLBFGSHistoryLength(20)
 
-                dynamics_fitter.setIterationLimit(10)
-
                 dynamics_fitter.runIPOPTOptimization(
                     dynamics_init,
                     nimble.biomechanics.DynamicsFitProblemConfig(
@@ -1174,16 +1172,22 @@ class Subject:
                     trial_kinematic_data.setMarkerRMS(segment.kinematics_ik_error_report.rootMeanSquaredError)
                     trial_kinematic_data.setMarkerMax(segment.kinematics_ik_error_report.maxError)
                     trial_kinematic_data.computeValuesFromForcePlates(self.kinematics_skeleton, trial.timestep, segment.kinematics_poses, self.footBodyNames, segment.force_plates)
+                else:
+                    print('Not including trial ' + trial.trial_name + ' segment ' + str(i) + ' in B3D file, because kinematics failed.', flush=True)
+                    print('  Kinematics Status: ' + segment.kinematics_status.name, flush=True)
 
                 if segment.dynamics_status == ProcessingStatus.FINISHED:
                     trial_dynamics_data = trial_data.addPass()
-                    trial_dynamics_data.setType(nimble.biomechanics.ProcessingPassType.KINEMATICS)
+                    trial_dynamics_data.setType(nimble.biomechanics.ProcessingPassType.DYNAMICS)
                     trial_dynamics_data.setDofPositionsObserved([True for _ in range(self.skeleton.getNumDofs())])
                     trial_dynamics_data.setDofVelocitiesFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
                     trial_dynamics_data.setDofAccelerationFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
                     trial_dynamics_data.setMarkerRMS(segment.dynamics_ik_error_report.rootMeanSquaredError)
                     trial_dynamics_data.setMarkerMax(segment.dynamics_ik_error_report.maxError)
                     trial_dynamics_data.computeValuesFromForcePlates(self.dynamics_skeleton, trial.timestep, segment.dynamics_poses, self.footBodyNames, segment.force_plates)
+                else:
+                    print('Not including trial ' + trial.trial_name + ' segment ' + str(i) + ' in B3D file, because dynamics failed.', flush=True)
+                    print('  Dynamics Status: ' + segment.dynamics_status.name, flush=True)
 
         # 4. Actually write the output file
         nimble.biomechanics.SubjectOnDisk.writeB3D(file_path, subject_header)
