@@ -195,7 +195,29 @@ class SubjectViewState {
                 this.loadedResultsJsonFirstTime = true;
                 this.loadingResultsJsonPromise = this.home.dir.downloadText(this.path + "/_results.json").then(action((resultsText) => {
                     try {
-                        const results: SubjectResultsJSON = JSON.parse(resultsText);
+                        const reviver = (key: string, value: any) => {
+                            if (typeof value === 'string') {
+                                switch (value) {
+                                    case 'NaN':
+                                        return NaN;
+                                    case 'Infinity':
+                                        return Infinity;
+                                    case '-Infinity':
+                                        return -Infinity;
+                                    default:
+                                        return value;
+                                }
+                            }
+                            return value;
+                        };
+                        const preprocessJson = (jsonString: string): string => {
+                            return jsonString
+                                .replace(/(:\s*)NaN(\s*[,}])/g, '$1"NaN"$2')
+                                .replace(/(:\s*)Infinity(\s*[,}])/g, '$1"Infinity"$2')
+                                .replace(/(:\s*)-Infinity(\s*[,}])/g, '$1"-Infinity"$2');
+                        };
+                        const resultsTextProcessed = preprocessJson(resultsText);
+                        const results: SubjectResultsJSON = JSON.parse(resultsTextProcessed, reviver);
                         this.parsedResultsJson = results;
                     }
                     catch (e) {
