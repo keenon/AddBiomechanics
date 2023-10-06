@@ -573,9 +573,6 @@ class Subject:
             self.skeleton, foot_bodies, self.customOsim.trackingMarkers)
         print('Created DynamicsFitter', flush=True)
 
-        print('Fitting only last few trial segment')
-        trial_segments = trial_segments[-2:]
-
         # Sanity check the force plate data sizes match the kinematics data sizes
         for trial_segment in trial_segments:
             # print('Trial name: ' + str(trial_segment.parent.trial_name))

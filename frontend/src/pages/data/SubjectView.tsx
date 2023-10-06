@@ -26,6 +26,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const subjectJson = subjectState.subjectJson;
     const readyFlagFile = subjectState.readyFlagFile;
     const processingFlagFile = subjectState.processingFlagFile;
+    const slurmFlagFile = subjectState.slurmFlagFile;
     const errorFlagFile = subjectState.errorFlagFile;
 
     // Check on the value of the key _subject.json attributes unconditionally, to ensure that MobX updates if the attributes change
@@ -52,6 +53,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const readyFlagExists = readyFlagFile.exists && !readyFlagFile.loading;
     const errorFlagExists = errorFlagFile.exists && !errorFlagFile.loading;
     const processingFlagExists = processingFlagFile.exists && !processingFlagFile.loading;
+    const slurmFlagExists = slurmFlagFile.exists && !slurmFlagFile.loading;
 
     // Create state to manage the file drop zone
     const [dropZoneActive, setDropZoneActive] = useState(false);
@@ -910,7 +912,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     <h3>Status: Finished!</h3>
                 </div>
                 <div className='row'>
-                    <div className='col-md-3'>
+                    <div className='col-md-12'>
                         <p>
                             <button className="btn btn-primary" onClick={async (e) => {
                                 props.home.dir.downloadFile(subjectState.resultsOsimZipPath);
@@ -942,6 +944,17 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <button className="btn btn-primary" onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    await processingFlagFile.delete();
+                }}>Force Reprocess</button>
+            </div>;
+        }
+        else if (slurmFlagExists) {
+            statusSection = <div>
+                <h3>Status: Queued on <a href="https://www.sherlock.stanford.edu/docs/" target="_blank">Sherlock</a></h3>
+                <button className="btn btn-primary" onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await slurmFlagFile.delete();
                     await processingFlagFile.delete();
                 }}>Force Reprocess</button>
             </div>;
