@@ -61,4 +61,4 @@ RUN pip3 install -r /engine/requirements.txt
 #########################################################
 # Run with dev settings
 #########################################################
-CMD python3 /app/mocap_server.py --bucket biomechanics-uploads161949-dev --deployment DEV
+CMD python3 /app/src/mocap_server.py --bucket biomechanics-uploads161949-dev --deployment DEV
