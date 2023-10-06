@@ -570,7 +570,7 @@ class LiveDirectoryImpl extends LiveDirectory {
             // We're about to receive this back from PubSub, but we can synchronously update it now
             this._onReceivedPubSubDelete(fullPath);
             // Also send to PubSub
-            this.pubsub.publish({ topic, message: JSON.stringify(updatedFile) });
+            return this.pubsub.publish({ topic, message: JSON.stringify(updatedFile) });
         });
     }
 

@@ -928,9 +928,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                 if (window.confirm("Are you sure you want to reprocess the data? That will delete your current results.")) {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    await props.home.dir.delete(subjectState.resultsJsonPath);
-                                    await errorFlagFile.delete();
-                                    await processingFlagFile.delete();
+                                    await subjectState.reprocess();
                                 }
                             }}>Reprocess</button>
                         </p>
@@ -942,9 +940,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
             statusSection = <div>
                 <h3>Status: Processing</h3>
                 <button className="btn btn-primary" onClick={async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    await processingFlagFile.delete();
+                    if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await subjectState.reprocess();
+                    }
                 }}>Force Reprocess</button>
             </div>;
         }
@@ -954,8 +954,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <button className="btn btn-primary" onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    await slurmFlagFile.delete();
-                    await processingFlagFile.delete();
+                    if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await subjectState.reprocess();
+                    }
                 }}>Force Reprocess</button>
             </div>;
         }
