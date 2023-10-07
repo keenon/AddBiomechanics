@@ -760,7 +760,7 @@ class MocapServer:
                             else:
                                 job_name += '_new'
 
-                            sbatch_command = 'sbatch -p owners --job-name ' + job_name + ' --cpus-per-task=8 --mem=32000M --time=4:00:00 --wrap="' + \
+                            sbatch_command = 'sbatch -p owners --job-name ' + job_name + ' --cpus-per-task=8 --mem=32000M --output=processing-%j.out --time=8:00:00 --wrap="' + \
                                 raw_command.replace('"', '\\"')+'"'
                             print('Running command: '+sbatch_command)
                             try:
