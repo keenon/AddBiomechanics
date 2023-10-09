@@ -998,7 +998,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                     }
                                     else if (segmentResults.kinematicsStatus === 'ERROR') {
                                         hasErrors = true;
-                                        kinematicsResults = <span className='text-danger'>Error</span>;
+                                        kinematicsResults = <span className='text-danger'><b>Error</b> {segmentResults.errorMsg}</span>;
                                     }
                                     else if (segmentResults.kinematicsStatus === 'NOT_STARTED') {
                                         kinematicsResults = 'Not run';

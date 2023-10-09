@@ -24,6 +24,8 @@ type SegmentResultsJSON = {
     goldPerMarkerRMSE: number | null;
     hasMarkers: boolean;
     hasForces: boolean;
+    hasError: boolean;
+    errorMsg: string | null;
     hasMarkerWarnings: boolean;
 };
 
