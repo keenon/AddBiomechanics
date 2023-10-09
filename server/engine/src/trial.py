@@ -75,7 +75,7 @@ class Trial:
             trial.force_plates = trial.c3d_file.forcePlates
             trial.timestamps = trial.c3d_file.timestamps
             if len(trial.timestamps) > 1:
-                trial.timestep = trial.timestamps[1] - trial.timestamps[0]
+                trial.timestep = (trial.timestamps[-1] - trial.timestamps[0]) / len(trial.timestamps)
             trial.frames_per_second = trial.c3d_file.framesPerSecond
             trial.marker_set = trial.c3d_file.markers
         elif os.path.exists(trc_file_path):
@@ -95,7 +95,7 @@ class Trial:
                                              'file is not corrupted.')
             trial.timestamps = trc_file.timestamps
             if len(trial.timestamps) > 1:
-                trial.timestep = trial.timestamps[1] - trial.timestamps[0]
+                trial.timestep = (trial.timestamps[-1] - trial.timestamps[0]) / len(trial.timestamps)
             trial.frames_per_second = trc_file.framesPerSecond
             trial.marker_set = list(trc_file.markerLines.keys())
             grf_file_path = trial_path + 'grf.mot'
@@ -239,6 +239,9 @@ class TrialSegment:
                 obs_copy[marker] = obs[marker].copy()
             self.original_marker_observations.append(obs_copy)
         self.force_plates: List[nimble.biomechanics.ForcePlate] = []
+        self.force_plate_raw_cops: List[List[np.ndarray]] = []
+        self.force_plate_raw_forces: List[List[np.ndarray]] = []
+        self.force_plate_raw_moments: List[List[np.ndarray]] = []
         for plate in self.parent.force_plates:
             new_plate = nimble.biomechanics.ForcePlate.copyForcePlate(plate)
             if len(new_plate.forces) > 0:
@@ -246,6 +249,9 @@ class TrialSegment:
                 new_plate.trimToIndexes(self.start, self.end)
                 assert(len(new_plate.forces) == len(self.original_marker_observations))
             self.force_plates.append(new_plate)
+            self.force_plate_raw_cops.append(new_plate.centersOfPressure)
+            self.force_plate_raw_forces.append(new_plate.forces)
+            self.force_plate_raw_moments.append(new_plate.moments)
         # Manually scaled comparison data, to render visual comparisons if the user uploaded it
         self.manually_scaled_ik_poses: Optional[np.ndarray] = None
         if self.parent.manually_scaled_ik is not None and self.parent.manually_scaled_ik.shape[1] >= self.end:
@@ -345,6 +351,7 @@ class TrialSegment:
         Write this trial segment to a file that can be read by the 3D web GUI
         """
         gui = nimble.server.GUIRecording()
+        gui.setFramesPerSecond(int(1.0 / self.parent.timestep))
 
         for t in range(len(self.marker_observations)):
             if t % 50 == 0:
@@ -352,7 +359,6 @@ class TrialSegment:
             self.render_frame(gui, t, final_skeleton, final_markers, manually_scaled_skeleton)
             gui.saveFrame()
 
-        gui.setFramesPerSecond(int(1.0 / self.parent.timestep))
         gui.writeFramesJson(gui_file_path)
 
     def save_segment_csv(self, csv_file_path: str, final_skeleton: Optional[nimble.dynamics.Skeleton] = None):
@@ -482,7 +488,6 @@ class TrialSegment:
                 gui.deleteObject('marker_' + str(marker))
 
             # Render any marker warnings
-            # TODO: Find a more efficient way to do this, otherwise deleting unused warnings will be incredibly slow
             # if self.marker_error_report is not None:
             #     renamed_from_to: Set[Tuple[str, str]] = set(self.marker_error_report.markersRenamedFromTo[t])
             #     for from_marker, to_marker in renamed_from_to:
@@ -503,10 +508,13 @@ class TrialSegment:
 
         # 3. Always render the force plates if we've got them, even if we don't have kinematics or dynamics
         for i, force_plate in enumerate(self.force_plates):
-            if len(force_plate.centersOfPressure) > t and len(force_plate.forces) > t and len(force_plate.moments) > t:
-                cop = force_plate.centersOfPressure[t]
-                force = force_plate.forces[t]
-                moment = force_plate.moments[t]
+            # IMPORTANT PERFORMANCE NOTE: Every time force_plate.forces is referenced, it copies the ENTIRE ARRAY from
+            # C++ to Python, even if we're only asking for force_plate.forces[i]. So to avoid the performance hit, we
+            # need to use copies of these values that are already accessible from Python
+            if len(self.force_plate_raw_cops[i]) > t and len(self.force_plate_raw_forces[i]) > t and len(self.force_plate_raw_moments[i]) > t:
+                cop = self.force_plate_raw_cops[i][t]
+                force = self.force_plate_raw_forces[i][t]
+                moment = self.force_plate_raw_moments[i][t]
                 line = [cop, cop + force * 0.001]
                 gui.createLine('force_plate_' + str(i), line, [1.0, 0.0, 0.0, 1.0], layer=force_plate_layer_name, width=[2.0, 1.0])
 
