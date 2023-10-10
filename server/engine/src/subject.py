@@ -63,6 +63,7 @@ class Subject:
         self.skippedDynamicsReason = None
         self.runMoco = False
         self.skippedMocoReason = None
+        self.lowpass_hz = 25
 
         # 0.3. Shared data structures.
         self.trials: List[Trial] = []
@@ -525,14 +526,48 @@ class Subject:
         self.kinematics_skeleton = self.skeleton.clone()
         self.kinematics_markers = {key: (self.kinematics_skeleton.getBodyNode(body.getName()), offset) for key, (body, offset) in self.fitMarkers.items()}
         for i in range(len(trial_segments)):
-            trial_segments[i].kinematics_status = ProcessingStatus.FINISHED
-            trial_segments[i].kinematics_poses = marker_fitter_results[i].poses
-            trial_segments[i].marker_fitter_result = marker_fitter_results[i]
-            trial_segments[i].kinematics_ik_error_report = nimble.biomechanics.IKErrorReport(
+            if marker_fitter_results[i].error:
+                trial_segments[i].kinematics_status = ProcessingStatus.ERROR
+                trial_segments[i].error_msg = marker_fitter_results[i].errorMsg
+            else:
+                trial_segments[i].kinematics_status = ProcessingStatus.FINISHED
+                trial_segments[i].kinematics_poses = marker_fitter_results[i].poses
+                trial_segments[i].marker_fitter_result = marker_fitter_results[i]
+                trial_segments[i].kinematics_ik_error_report = nimble.biomechanics.IKErrorReport(
+                    self.kinematics_skeleton,
+                    self.kinematics_markers,
+                    trial_segments[i].kinematics_poses,
+                    trial_segments[i].marker_observations)
+
+    def lowpass_filter(self):
+        """
+        This will lowpass filter the results poses to smooth them out. It will also try to clean up the GRF data, by
+        setting a threshold for background noise, and cutting off appropriately.
+        """
+        trial_segments: List[TrialSegment] = []
+        for trial in self.trials:
+            if not trial.error:
+                for segment in trial.segments:
+                    if (segment.has_markers and segment.has_forces
+                            and segment.kinematics_status == ProcessingStatus.FINISHED and not segment.has_error):
+                        trial_segments.append(segment)
+                        segment.lowpass_status = ProcessingStatus.IN_PROGRESS
+                    elif segment.has_error:
+                        print('Skipping lowpass filtering of segment starting at ' + str(segment.start) + ' of trial ' + str(
+                            trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
+        # If there are no segments left that aren't in error, quit
+        if len(trial_segments) == 0:
+            print('ERROR: No trial segments left (after filtering out errors) to lowpass filter. Skipping lowpass filter...', flush=True)
+            return
+        # Actually do the lowpass filtering
+        for trial_segment in trial_segments:
+            trial_segment.lowpass_filter(self.lowpass_hz)
+            trial_segment.lowpass_ik_error_report = nimble.biomechanics.IKErrorReport(
                 self.kinematics_skeleton,
                 self.kinematics_markers,
-                trial_segments[i].kinematics_poses,
-                trial_segments[i].marker_observations)
+                trial_segment.lowpass_poses,
+                trial_segment.marker_observations)
+            trial_segment.lowpass_status = ProcessingStatus.FINISHED
 
     def run_dynamics_fit(self):
         """
@@ -604,7 +639,7 @@ class Subject:
                 [segment.marker_fitter_result for segment in trial_segments],
                 self.customOsim.trackingMarkers,
                 foot_bodies,
-                [segment.force_plates for segment in trial_segments],
+                [segment.lowpass_force_plates if segment.lowpass_status == ProcessingStatus.FINISHED else segment.force_plates for segment in trial_segments],
                 [int(1.0 / segment.parent.timestep) for segment in trial_segments],
                 [segment.marker_observations for segment in trial_segments])
         print('Created DynamicsInitialization', flush=True)
@@ -1111,6 +1146,9 @@ class Subject:
                   'This is probably because the kinematics pass did not succeed on a single trial. '
                   'Leaving that model empty in the B3D file.', flush=True)
 
+        lowpass_pass = subject_header.addProcessingPass()
+        lowpass_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.LOW_PASS_FILTER)
+
         if not self.disableDynamics:
             dynamics_pass = subject_header.addProcessingPass()
             dynamics_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.DYNAMICS)
@@ -1173,6 +1211,16 @@ class Subject:
                     print('Not including trial ' + trial.trial_name + ' segment ' + str(i) + ' in B3D file, because kinematics failed.', flush=True)
                     print('  Kinematics Status: ' + segment.kinematics_status.name, flush=True)
 
+                if segment.lowpass_status == ProcessingStatus.FINISHED:
+                    trial_lowpass_data = trial_data.addPass()
+                    trial_lowpass_data.setType(nimble.biomechanics.ProcessingPassType.LOW_PASS_FILTER)
+                    trial_lowpass_data.setDofPositionsObserved([True for _ in range(self.skeleton.getNumDofs())])
+                    trial_lowpass_data.setDofVelocitiesFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
+                    trial_lowpass_data.setDofAccelerationFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
+                    trial_lowpass_data.setMarkerRMS(segment.lowpass_ik_error_report.rootMeanSquaredError)
+                    trial_lowpass_data.setMarkerMax(segment.lowpass_ik_error_report.maxError)
+                    trial_lowpass_data.computeValuesFromForcePlates(self.kinematics_skeleton, trial.timestep, segment.lowpass_poses, self.footBodyNames, segment.lowpass_force_plates)
+
                 if segment.dynamics_status == ProcessingStatus.FINISHED:
                     trial_dynamics_data = trial_data.addPass()
                     trial_dynamics_data.setType(nimble.biomechanics.ProcessingPassType.DYNAMICS)
@@ -1181,7 +1229,7 @@ class Subject:
                     trial_dynamics_data.setDofAccelerationFiniteDifferenced([True for _ in range(self.skeleton.getNumDofs())])
                     trial_dynamics_data.setMarkerRMS(segment.dynamics_ik_error_report.rootMeanSquaredError)
                     trial_dynamics_data.setMarkerMax(segment.dynamics_ik_error_report.maxError)
-                    trial_dynamics_data.computeValuesFromForcePlates(self.dynamics_skeleton, trial.timestep, segment.dynamics_poses, self.footBodyNames, segment.force_plates)
+                    trial_dynamics_data.computeValuesFromForcePlates(self.dynamics_skeleton, trial.timestep, segment.dynamics_poses, self.footBodyNames, segment.lowpass_force_plates if segment.lowpass_status == ProcessingStatus.FINISHED else segment.force_plates)
                 else:
                     print('Not including trial ' + trial.trial_name + ' segment ' + str(i) + ' in B3D file, because dynamics failed.', flush=True)
                     print('  Dynamics Status: ' + segment.dynamics_status.name, flush=True)

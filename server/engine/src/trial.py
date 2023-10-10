@@ -5,6 +5,7 @@ import os
 import enum
 import json
 from memory_utils import deep_copy_marker_observations
+from scipy.signal import butter, filtfilt, resample_poly
 
 
 class ProcessingStatus(enum.Enum):
@@ -264,6 +265,11 @@ class TrialSegment:
         self.kinematics_poses: Optional[np.ndarray] = None
         self.marker_fitter_result: Optional[nimble.biomechanics.MarkerInitialization] = None
         self.kinematics_ik_error_report: Optional[nimble.biomechanics.IKErrorReport] = None
+        # Low-pass filtered output data
+        self.lowpass_status = ProcessingStatus.NOT_STARTED
+        self.lowpass_poses: Optional[np.ndarray] = None
+        self.lowpass_force_plates: List[nimble.biomechanics.ForcePlate] = []
+        self.lowpass_ik_error_report: Optional[nimble.biomechanics.IKErrorReport] = None
         # Dynamics output data
         self.dynamics_status: ProcessingStatus = ProcessingStatus.NOT_STARTED
         self.dynamics_poses: Optional[np.ndarray] = None
@@ -302,6 +308,103 @@ class TrialSegment:
             manually_scaled_osim.markersMap,
             self.manually_scaled_ik_poses,
             self.marker_observations)
+
+    def lowpass_filter(self, lowpass_hz: float = 25.0):
+        # 1. Setup the lowpass filter
+        b, a = butter(2, lowpass_hz, 'low', fs=1 / self.parent.timestep)
+
+        # 2. Lowpass filter the kinematics data.
+        self.lowpass_poses = filtfilt(b, a, self.kinematics_poses, axis=1)
+        self.marker_fitter_result.poses = self.lowpass_poses
+
+        # 3. First, ensure that the GRF data has proper zeros
+        trial_len = self.kinematics_poses.shape[1]
+        force_plate_norms: List[np.ndarray] = [np.zeros(trial_len) for _ in range(len(self.force_plates))]
+        for i in range(len(self.force_plates)):
+            force_norms = force_plate_norms[i]
+            for t in range(trial_len):
+                force_norms[t] = np.linalg.norm(self.force_plate_raw_forces[i][t])
+
+            num_bins = 200
+            hist, bin_edges = np.histogram(force_norms, bins=num_bins)
+            avg_bin_value = trial_len / num_bins
+            hist_max_index = np.argmax(hist)
+            # If the largest bin is in the bottom 25% of the distribution
+            if hist_max_index < num_bins / 4:
+                # Expand out from that bin in both directions until we find a bin that is below the
+                # average bin value.
+                right_bound = hist_max_index
+                for j in range(hist_max_index, num_bins):
+                    if hist[j] < avg_bin_value:
+                        right_bound = j
+                        break
+                # Now we have the boundary of the "big thumb" region. This generally corresponds to the
+                # zero point of the treadmill. If it is exactly at zero, then all is well. But if it is
+                # not, then we've found a cutoff threshold which we should use to zero the GRF data.
+                if right_bound > num_bins / 2:
+                    # We found a right bound, but it's suspiciously far up the distribution. Let's
+                    # ignore this zero.
+                    pass
+                else:
+                    # We found a right bound that is in the bottom half of the distribution. Let's
+                    # use it to zero the GRF data.
+                    zero_threshold = bin_edges[right_bound]
+                    for t in range(trial_len):
+                        if force_norms[t] < zero_threshold:
+                            self.force_plate_raw_forces[i][t] = np.zeros(3)
+                            self.force_plate_raw_cops[i][t] = np.zeros(3)
+                            self.force_plate_raw_moments[i][t] = np.zeros(3)
+                            force_norms[t] = 0.0
+
+        # 4. Next, low-pass filter the GRF data for each non-zero section
+        for i in range(len(self.force_plates)):
+            force_matrix = np.zeros((3, trial_len))
+            cop_matrix = np.zeros((3, trial_len))
+            moment_matrix = np.zeros((3, trial_len))
+            force_norms = force_plate_norms[i]
+            non_zero_segments: List[Tuple[int, int]] = []
+            last_nonzero = -1
+            # 4.1. Find the non-zero segments
+            for t in range(trial_len):
+                if force_norms[t] > 0.0:
+                    if last_nonzero < 0:
+                        last_nonzero = t
+                else:
+                    if last_nonzero >= 0:
+                        non_zero_segments.append((last_nonzero, t - 1))
+                        last_nonzero = -1
+                force_matrix[:, t] = self.force_plate_raw_forces[i][t]
+                cop_matrix[:, t] = self.force_plate_raw_cops[i][t]
+                moment_matrix[:, t] = self.force_plate_raw_moments[i][t]
+            if last_nonzero >= 0:
+                non_zero_segments.append((last_nonzero, trial_len - 1))
+
+            # 4.2. Lowpass filter each non-zero segment
+            for start, end in non_zero_segments:
+                # print(f"Filtering force plate {i} on non-zero range [{start}, {end}]")
+                if end - start < 10:
+                    # print(" - Skipping non-zero segment because it's too short. Zeroing instead")
+                    for t in range(start, end):
+                        self.force_plate_raw_forces[i][t] = np.zeros(3)
+                        self.force_plate_raw_cops[i][t] = np.zeros(3)
+                        self.force_plate_raw_moments[i][t] = np.zeros(3)
+                        force_norms[t] = 0.0
+                else:
+                    force_matrix[:, start:end] = filtfilt(b, a, force_matrix[:, start:end], padtype='constant')
+                    cop_matrix[:, start:end] = filtfilt(b, a, cop_matrix[:, start:end], padtype='constant')
+                    moment_matrix[:, start:end] = filtfilt(b, a, moment_matrix[:, start:end], padtype='constant')
+                    for t in range(start, end):
+                        self.force_plate_raw_forces[i][t] = force_matrix[:, t]
+                        self.force_plate_raw_cops[i][t] = cop_matrix[:, t]
+                        self.force_plate_raw_moments[i][t] = moment_matrix[:, t]
+
+            # 4.3. Create a new lowpass filtered force plate
+            force_plate_copy = nimble.biomechanics.ForcePlate.copyForcePlate(self.force_plates[i])
+            force_plate_copy.forces = self.force_plate_raw_forces[i]
+            force_plate_copy.centersOfPressure = self.force_plate_raw_cops[i]
+            force_plate_copy.moments = self.force_plate_raw_moments[i]
+            self.lowpass_force_plates.append(force_plate_copy)
+
 
     def get_segment_results_json(self) -> Dict[str, Any]:
         has_marker_warnings: bool = False
