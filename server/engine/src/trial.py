@@ -23,6 +23,10 @@ class Trial:
         self.tags: List[str] = []
         self.marker_observations: List[Dict[str, np.ndarray]] = []
         self.force_plates: List[nimble.biomechanics.ForcePlate] = []
+        self.force_plate_raw_cops: List[List[np.ndarray]] = []
+        self.force_plate_raw_forces: List[List[np.ndarray]] = []
+        self.force_plate_raw_moments: List[List[np.ndarray]] = []
+        self.force_plate_thresholds: List[float] = []
         self.timestamps: List[float] = []
         self.timestep: float = 0.01
         self.c3d_file: Optional[nimble.biomechanics.C3D] = None
@@ -73,7 +77,7 @@ class Trial:
             # TODO: autorotateC3D should be factored out into a separate function that can be called on both C3D
             #  and TRC data.
             # marker_fitter.autorotateC3D(trial.c3d_file)
-            trial.force_plates = trial.c3d_file.forcePlates
+            trial.set_force_plates(trial.c3d_file.forcePlates)
             trial.timestamps = trial.c3d_file.timestamps
             if len(trial.timestamps) > 1:
                 trial.timestep = (trial.timestamps[-1] - trial.timestamps[0]) / len(trial.timestamps)
@@ -104,7 +108,7 @@ class Trial:
             if os.path.exists(grf_file_path):
                 force_plates: List[nimble.biomechanics.ForcePlate] = nimble.biomechanics.OpenSimParser.loadGRF(
                     grf_file_path, trc_file.timestamps)
-                trial.force_plates = force_plates
+                trial.set_force_plates(force_plates)
             else:
                 print('Warning: No ground reaction forces specified for ' + trial_name)
                 trial.force_plates = []
@@ -154,6 +158,64 @@ class Trial:
 
         return trial
 
+    def set_force_plates(self, plates: List[nimble.biomechanics.ForcePlate]):
+        # Copy the raw force plate data to Python memory, so we don't have to copy back and forth every time we access
+        # it.
+        self.force_plates = plates
+        for plate in self.force_plates:
+            if len(plate.forces) > 0:
+                assert(len(plate.forces) == len(self.marker_observations))
+            self.force_plate_raw_cops.append(plate.centersOfPressure)
+            self.force_plate_raw_forces.append(plate.forces)
+            self.force_plate_raw_moments.append(plate.moments)
+            self.force_plate_thresholds.append(0)
+
+        # Run the autoclipper on the force plates
+        self.autoclip_force_plates()
+
+    def autoclip_force_plates(self):
+        # Ensure that the GRF data has proper zeros
+        trial_len = len(self.marker_observations)
+        force_plate_norms: List[np.ndarray] = [np.zeros(trial_len) for _ in range(len(self.force_plates))]
+        for i in range(len(self.force_plates)):
+            force_norms = force_plate_norms[i]
+            for t in range(trial_len):
+                force_norms[t] = np.linalg.norm(self.force_plate_raw_forces[i][t])
+
+            num_bins = 200
+            hist, bin_edges = np.histogram(force_norms, bins=num_bins)
+            avg_bin_value = trial_len / num_bins
+            hist_max_index = np.argmax(hist)
+            # If the largest bin is in the bottom 25% of the distribution
+            if hist_max_index < num_bins / 4:
+                # Expand out from that bin in both directions until we find a bin that is below the
+                # average bin value.
+                right_bound = hist_max_index
+                for j in range(hist_max_index, num_bins):
+                    if hist[j] < avg_bin_value:
+                        right_bound = j
+                        break
+                # Now we have the boundary of the "big thumb" region. This generally corresponds to the
+                # zero point of the treadmill. If it is exactly at zero, then all is well. But if it is
+                # not, then we've found a cutoff threshold which we should use to zero the GRF data.
+                if right_bound > num_bins / 2:
+                    print('not clipping force plate ' + str(i) + ' because it has no obvious thumb in the histogram')
+                    # We found a right bound, but it's suspiciously far up the distribution. Let's
+                    # ignore this zero.
+                    pass
+                else:
+                    # We found a right bound that is in the bottom half of the distribution. Let's
+                    # use it to zero the GRF data.
+                    print('clip force plate ' + str(i) + ' at ' + str(bin_edges[right_bound]) + ' N')
+                    zero_threshold = bin_edges[right_bound]
+                    self.force_plate_thresholds[i] = zero_threshold
+                    for t in range(trial_len):
+                        if force_norms[t] < zero_threshold:
+                            self.force_plate_raw_forces[i][t] = np.zeros(3)
+                            self.force_plate_raw_cops[i][t] = np.zeros(3)
+                            self.force_plate_raw_moments[i][t] = np.zeros(3)
+                            force_norms[t] = 0.0
+
     def split_segments(self, max_grf_gap_fill_size=1.0, max_segment_frames=3000):
         """
         Split the trial into segments based on the marker and force plate data.
@@ -174,9 +236,9 @@ class Trial:
         # Forces is a trickier case, because we want to split the trial on sections of zero GRF that last longer than a
         # threshold, but allow short sections to be contained in a normal GRF segment without splitting.
         total_forces: List[float] = [0.0] * len(self.marker_observations)
-        for force_plate in self.force_plates:
-            forces = force_plate.forces
-            moments = force_plate.moments
+        for i in range(len(self.force_plates)):
+            forces = self.force_plate_raw_forces[i]
+            moments = self.force_plate_raw_moments[i]
             assert (len(forces) == len(total_forces))
             assert (len(moments) == len(total_forces))
             for i in range(len(total_forces)):
@@ -243,16 +305,22 @@ class TrialSegment:
         self.force_plate_raw_cops: List[List[np.ndarray]] = []
         self.force_plate_raw_forces: List[List[np.ndarray]] = []
         self.force_plate_raw_moments: List[List[np.ndarray]] = []
-        for plate in self.parent.force_plates:
+        for i, plate in enumerate(self.parent.force_plates):
             new_plate = nimble.biomechanics.ForcePlate.copyForcePlate(plate)
             if len(new_plate.forces) > 0:
                 assert(len(new_plate.forces) == len(self.parent.marker_observations))
                 new_plate.trimToIndexes(self.start, self.end)
                 assert(len(new_plate.forces) == len(self.original_marker_observations))
+            raw_cops = self.parent.force_plate_raw_cops[i][self.start:self.end]
+            raw_forces = self.parent.force_plate_raw_forces[i][self.start:self.end]
+            raw_moments = self.parent.force_plate_raw_moments[i][self.start:self.end]
             self.force_plates.append(new_plate)
-            self.force_plate_raw_cops.append(new_plate.centersOfPressure)
-            self.force_plate_raw_forces.append(new_plate.forces)
-            self.force_plate_raw_moments.append(new_plate.moments)
+            new_plate.forces = raw_forces
+            self.force_plate_raw_forces.append(raw_forces)
+            new_plate.centersOfPressure = raw_cops
+            self.force_plate_raw_cops.append(raw_cops)
+            new_plate.moments = raw_moments
+            self.force_plate_raw_moments.append(raw_moments)
         # Manually scaled comparison data, to render visual comparisons if the user uploaded it
         self.manually_scaled_ik_poses: Optional[np.ndarray] = None
         if self.parent.manually_scaled_ik is not None and self.parent.manually_scaled_ik.shape[1] >= self.end:
@@ -317,45 +385,12 @@ class TrialSegment:
         self.lowpass_poses = filtfilt(b, a, self.kinematics_poses, axis=1)
         self.marker_fitter_result.poses = self.lowpass_poses
 
-        # 3. First, ensure that the GRF data has proper zeros
         trial_len = self.kinematics_poses.shape[1]
         force_plate_norms: List[np.ndarray] = [np.zeros(trial_len) for _ in range(len(self.force_plates))]
         for i in range(len(self.force_plates)):
             force_norms = force_plate_norms[i]
             for t in range(trial_len):
                 force_norms[t] = np.linalg.norm(self.force_plate_raw_forces[i][t])
-
-            num_bins = 200
-            hist, bin_edges = np.histogram(force_norms, bins=num_bins)
-            avg_bin_value = trial_len / num_bins
-            hist_max_index = np.argmax(hist)
-            # If the largest bin is in the bottom 25% of the distribution
-            if hist_max_index < num_bins / 4:
-                # Expand out from that bin in both directions until we find a bin that is below the
-                # average bin value.
-                right_bound = hist_max_index
-                for j in range(hist_max_index, num_bins):
-                    if hist[j] < avg_bin_value:
-                        right_bound = j
-                        break
-                # Now we have the boundary of the "big thumb" region. This generally corresponds to the
-                # zero point of the treadmill. If it is exactly at zero, then all is well. But if it is
-                # not, then we've found a cutoff threshold which we should use to zero the GRF data.
-                if right_bound > num_bins / 2:
-                    # We found a right bound, but it's suspiciously far up the distribution. Let's
-                    # ignore this zero.
-                    pass
-                else:
-                    # We found a right bound that is in the bottom half of the distribution. Let's
-                    # use it to zero the GRF data.
-                    zero_threshold = bin_edges[right_bound]
-                    for t in range(trial_len):
-                        if force_norms[t] < zero_threshold:
-                            self.force_plate_raw_forces[i][t] = np.zeros(3)
-                            self.force_plate_raw_cops[i][t] = np.zeros(3)
-                            self.force_plate_raw_moments[i][t] = np.zeros(3)
-                            force_norms[t] = 0.0
-
         # 4. Next, low-pass filter the GRF data for each non-zero section
         for i in range(len(self.force_plates)):
             force_matrix = np.zeros((3, trial_len))
@@ -417,9 +452,9 @@ class TrialSegment:
         results: Dict[str, Any] = {
             'trialName': self.parent.trial_name,
             'start_frame': self.start,
-            'start': self.timestamps[0],
+            'start': self.timestamps[0] if len(self.timestamps) > 0 else 0,
             'end_frame': self.end,
-            'end': self.timestamps[-1],
+            'end': self.timestamps[-1] if len(self.timestamps) > 0 else 0,
             # Kinematics fit marker error results, if present
             'kinematicsStatus': self.kinematics_status.name,
             'kinematicsAvgRMSE': self.kinematics_ik_error_report.averageRootMeanSquaredError if self.kinematics_ik_error_report is not None else None,

@@ -25,7 +25,7 @@ class TestTrial(unittest.TestCase):
         new_force_plate.moments = moments
         new_force_plate.centersOfPressure = cops
         new_force_plate.timestamps = [0.0]
-        trial.force_plates.append(new_force_plate)
+        trial.set_force_plates([new_force_plate])
 
         trial.split_segments()
 
@@ -56,7 +56,7 @@ class TestTrial(unittest.TestCase):
         new_force_plate.moments = moments
         new_force_plate.centersOfPressure = cops
         new_force_plate.timestamps = range(60)
-        trial.force_plates.append(new_force_plate)
+        trial.set_force_plates([new_force_plate])
 
         trial.split_segments()
 
@@ -95,7 +95,7 @@ class TestTrial(unittest.TestCase):
         new_force_plate.moments = moments
         new_force_plate.centersOfPressure = cops
         new_force_plate.timestamps = range(60)
-        trial.force_plates.append(new_force_plate)
+        trial.set_force_plates([new_force_plate])
 
         trial.split_segments(max_grf_gap_fill_size=0.0)
 
@@ -134,7 +134,7 @@ class TestTrial(unittest.TestCase):
         new_force_plate.moments = moments
         new_force_plate.centersOfPressure = cops
         new_force_plate.timestamps = range(60)
-        trial.force_plates.append(new_force_plate)
+        trial.set_force_plates([new_force_plate])
 
         trial.split_segments(max_grf_gap_fill_size=0.0)
 
@@ -175,7 +175,7 @@ class TestTrial(unittest.TestCase):
             moments.append(np.ones(3))
         new_force_plate.forces = forces
         new_force_plate.moments = moments
-        trial.force_plates.append(new_force_plate)
+        trial.set_force_plates([new_force_plate])
 
         trial.split_segments(max_grf_gap_fill_size=25 * trial.timestep)
 
@@ -197,18 +197,23 @@ class TestTrial(unittest.TestCase):
         new_force_plate = nimble.biomechanics.ForcePlate()
         forces = []
         moments = []
+        cops = []
         for _ in range(20):
             forces.append(np.zeros(3))
             moments.append(np.zeros(3))
+            cops.append(np.zeros(3))
         for _ in range(20):
             forces.append(np.ones(3))
             moments.append(np.ones(3))
+            cops.append(np.ones(3))
         for _ in range(20):
             forces.append(np.zeros(3))
             moments.append(np.zeros(3))
+            cops.append(np.zeros(3))
         new_force_plate.forces = forces
         new_force_plate.moments = moments
-        trial.force_plates.append(new_force_plate)
+        new_force_plate.centersOfPressure = cops
+        trial.set_force_plates([new_force_plate])
 
         trial.split_segments(max_grf_gap_fill_size=25 * trial.timestep)
 
@@ -239,7 +244,7 @@ class TestTrial(unittest.TestCase):
         new_force_plate.moments = moments
         new_force_plate.centersOfPressure = cops
         new_force_plate.timestamps = range(60)
-        trial.force_plates.append(new_force_plate)
+        trial.set_force_plates([new_force_plate])
 
         trial.split_segments(max_segment_frames=25)
 
@@ -257,6 +262,16 @@ class TestTrial(unittest.TestCase):
         self.assertEqual(True, trial.segments[2].has_markers)
         self.assertEqual(True, trial.segments[2].has_forces)
 
+    def test_split_initial_off_treadmill(self):
+        trial = Trial.load_trial('initial_off_treadmill', os.path.abspath('./data/initial_off_treadmill'))
+        trial.split_segments()
+        self.assertGreater(len(trial.segments), 1)
+        self.assertTrue(trial.segments[0].has_markers)
+        self.assertFalse(trial.segments[0].has_forces)
+        self.assertTrue(trial.segments[1].has_markers)
+        self.assertTrue(trial.segments[1].has_forces)
+        pass
+
     def test_load_trials(self):
         trial = Trial.load_trial('walking2', os.path.abspath('../test_data/opencap_test_original/trials/walking2'))
         self.assertEqual(False, trial.error)
@@ -267,5 +282,5 @@ class TestTrial(unittest.TestCase):
         trial = Trial()
         segment = TrialSegment(trial, 1, 2)
         results: Dict[str, Any] = segment.get_segment_results_json()
-        self.assertEqual(1, results['start'])
-        self.assertEqual(2, results['end'])
+        self.assertEqual(1, results['start_frame'])
+        self.assertEqual(2, results['end_frame'])

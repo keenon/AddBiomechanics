@@ -1207,6 +1207,7 @@ class Subject:
                     trial_kinematic_data.setMarkerRMS(segment.kinematics_ik_error_report.rootMeanSquaredError)
                     trial_kinematic_data.setMarkerMax(segment.kinematics_ik_error_report.maxError)
                     trial_kinematic_data.computeValuesFromForcePlates(self.kinematics_skeleton, trial.timestep, segment.kinematics_poses, self.footBodyNames, segment.force_plates)
+                    trial_kinematic_data.setForcePlateCutoffs(segment.parent.force_plate_thresholds)
                 else:
                     print('Not including trial ' + trial.trial_name + ' segment ' + str(i) + ' in B3D file, because kinematics failed.', flush=True)
                     print('  Kinematics Status: ' + segment.kinematics_status.name, flush=True)
@@ -1220,6 +1221,7 @@ class Subject:
                     trial_lowpass_data.setMarkerRMS(segment.lowpass_ik_error_report.rootMeanSquaredError)
                     trial_lowpass_data.setMarkerMax(segment.lowpass_ik_error_report.maxError)
                     trial_lowpass_data.computeValuesFromForcePlates(self.kinematics_skeleton, trial.timestep, segment.lowpass_poses, self.footBodyNames, segment.lowpass_force_plates)
+                    trial_lowpass_data.setForcePlateCutoffs(segment.parent.force_plate_thresholds)
 
                 if segment.dynamics_status == ProcessingStatus.FINISHED:
                     trial_dynamics_data = trial_data.addPass()
@@ -1230,6 +1232,7 @@ class Subject:
                     trial_dynamics_data.setMarkerRMS(segment.dynamics_ik_error_report.rootMeanSquaredError)
                     trial_dynamics_data.setMarkerMax(segment.dynamics_ik_error_report.maxError)
                     trial_dynamics_data.computeValuesFromForcePlates(self.dynamics_skeleton, trial.timestep, segment.dynamics_poses, self.footBodyNames, segment.lowpass_force_plates if segment.lowpass_status == ProcessingStatus.FINISHED else segment.force_plates)
+                    trial_dynamics_data.setForcePlateCutoffs(segment.parent.force_plate_thresholds)
                 else:
                     print('Not including trial ' + trial.trial_name + ' segment ' + str(i) + ' in B3D file, because dynamics failed.', flush=True)
                     print('  Dynamics Status: ' + segment.dynamics_status.name, flush=True)
