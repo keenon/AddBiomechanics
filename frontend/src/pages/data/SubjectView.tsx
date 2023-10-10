@@ -307,8 +307,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
                 <h4 className="alert-heading">Why do I need to tag my subject?</h4>
                 <p>
-                    Data uploaded to AddBiomechanics is periodically shared in large public releases. The data is vastly more useful 
-                    if it is tagged with some characteristics of the subject. When you download large public releases to ask "big N 
+                    Data uploaded to AddBiomechanics is periodically shared in large public releases. The data is vastly more useful
+                    if it is tagged with some characteristics of the subject. When you download large public releases to ask "big N
                     questions" about populations, you will thank yourself (and everyone else) for tagging your data!
                 </p>
                 <hr />
@@ -570,11 +570,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
                 <h4 className="alert-heading">How do I choose which "Quality of Data" to say?</h4>
                 <p>
-                    AddBiomechanics treats different kinds of data differently. By telling us how confident you 
+                    AddBiomechanics treats different kinds of data differently. By telling us how confident you
                     are in the data, we can modulate how much computation to use producing a result.
                 </p>
                 <p>
-                    This tag also helps us to determine what data needs extra quality checks before getting 
+                    This tag also helps us to determine what data needs extra quality checks before getting
                     included in any large public dataset releases.
                 </p>
                 <p>
@@ -582,21 +582,21 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     <ul>
                         <li>
                             <h5>Just experimenting:</h5>
-                            This is data you collected quickly, perhaps without 
-                            super careful marker placement, and maybe while still debugging the protocol for your 
+                            This is data you collected quickly, perhaps without
+                            super careful marker placement, and maybe while still debugging the protocol for your
                             study. We will <b>use fewer optimization iterations</b> to process your data.
-                            We will also treat it with extreme caution when evaluating for inclusion in public 
+                            We will also treat it with extreme caution when evaluating for inclusion in public
                             dataset releases.
                         </li>
                         <li>
                             <h5>Study data:</h5>
-                            This is data you collected carefully. We will <b>use more 
-                            optimization iterations</b> to process your data to get the highest quality results.
+                            This is data you collected carefully. We will <b>use more
+                                optimization iterations</b> to process your data to get the highest quality results.
                         </li>
                         <li>
                             <h5>Found on the internet:</h5>
-                            This is not data you collected yourself. It could be very high 
-                            quality, or it could be bad -- and you're about to find out! AddBiomechanics will be optimistic 
+                            This is not data you collected yourself. It could be very high
+                            quality, or it could be bad -- and you're about to find out! AddBiomechanics will be optimistic
                             and use <b>more optimization iterations</b> to try to get the highest quality results.
                         </li>
                     </ul>
@@ -711,8 +711,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 </p>
                 <h5>IMPORTANT: NEVER INCLUDE PATIENT IDENTIFYING INFORMATION IN YOUR CITATION!</h5>
                 <p>
-                    Definitely do not put something like "Keenon Werling's gait data" in the citation field, unless 
-                    your subject has explicitly given informed consent to be identified and has requested that users 
+                    Definitely do not put something like "Keenon Werling's gait data" in the citation field, unless
+                    your subject has explicitly given informed consent to be identified and has requested that users
                     of the data cite them by name.
                 </p>
             </div>);
@@ -750,13 +750,13 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     let mocapFilesTable = null;
     if (subjectState.trials.length > 0) {
-        mocapFilesTable = <table className="table" style={{width: '100%', overflow: 'hidden', tableLayout: 'fixed'}}>
+        mocapFilesTable = <table className="table" style={{ width: '100%', overflow: 'hidden', tableLayout: 'fixed' }}>
             <thead>
                 <tr>
-                    <th scope="col" style={{width: '100px', maxWidth: '30%'}}>Name</th>
+                    <th scope="col" style={{ width: '100px', maxWidth: '30%' }}>Name</th>
                     <th scope="col">Marker {disableDynamics ? '' : ' and Forces'} Data</th>
                     <th scope="col">Tags</th>
-                    <th scope="col" style={{width: '100px'}}>Delete?</th>
+                    <th scope="col" style={{ width: '100px' }}>Delete?</th>
                 </tr>
             </thead>
             <tbody>
@@ -788,11 +788,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
                         <td style={{
                             minWidth: '200px'
                         }}>
-                            <TagEditor 
-                                tagSet='trial' 
+                            <TagEditor
+                                tagSet='trial'
                                 error={false}
                                 tags={trialTags}
-                                readonly={props.readonly} 
+                                readonly={props.readonly}
                                 onTagsChanged={(newTags) => {
                                     trial.trialJson.setAttribute("trialTags", newTags);
                                 }}
@@ -869,16 +869,16 @@ const SubjectView = observer((props: SubjectViewProps) => {
         <h3>Motion Capture Files:</h3>
         {mocapFilesTable}
         <div className={"dropzone" + (dropZoneActive ? ' dropzone-hover' : '')}
-             onDrop={onDrop as any}
-             onDragOver={(e) => {
+            onDrop={onDrop as any}
+            onDragOver={(e) => {
                 e.preventDefault();
-             }}
-             onDragEnter={() => {
+            }}
+            onDragEnter={() => {
                 setDropZoneActive(true);
-             }}
-             onDragLeave={() => {
+            }}
+            onDragLeave={() => {
                 setDropZoneActive(false);
-             }}>
+            }}>
             <div className="dz-message needsclick">
                 <i className="h3 text-muted dripicons-cloud-upload"></i>
                 <h5>
@@ -904,6 +904,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     e.stopPropagation();
                     return subjectState.reprocess();
                 }}>Reprocess</button>
+                <h3>Processing log contents:</h3>
+                <pre>
+                    {subjectState.logText}
+                </pre>
             </div>;
         }
         else if (resultsExist) {

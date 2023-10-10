@@ -439,4 +439,35 @@ describe("SubjectViewState", () => {
         expect(subject2.loadingResultsJsonPromise).toBeNull();
         expect(subject2.parsedResultsJson).toStrictEqual({});
     });
+
+    test('Already existing log file then reprocess', async () => {
+        const logFilePath = "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/log.txt";
+
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        s3.setFilePathsExist([...fileList, logFilePath]);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        const home = new UserHomeDirectory(dir);
+        const originalLogText = "I am the log";
+        s3.setFileContents(logFilePath, originalLogText);
+
+        await home.getPath("ASB2023/S01", true).promise;
+
+        const subject = home.getSubjectViewState("ASB2023/S01");
+
+        expect(subject).toBeInstanceOf(SubjectViewState);
+
+        expect(subject.loadingLogsPromise).not.toBeNull();
+        await subject.loadingLogsPromise;
+        expect(subject.logText).not.toBeNull();
+        expect(subject.logText).toStrictEqual(originalLogText);
+
+        await subject.reprocess();
+        expect(subject.loadingLogsPromise).toBeNull();
+        expect(subject.logText).toStrictEqual("");
+
+        const subject2 = home.getSubjectViewState("ASB2023/S01");
+        expect(subject2.loadingLogsPromise).toBeNull();
+        expect(subject2.logText).toStrictEqual("");
+    });
 });
