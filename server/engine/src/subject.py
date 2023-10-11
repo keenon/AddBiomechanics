@@ -561,13 +561,16 @@ class Subject:
             return
         # Actually do the lowpass filtering
         for trial_segment in trial_segments:
-            trial_segment.lowpass_filter(self.lowpass_hz)
-            trial_segment.lowpass_ik_error_report = nimble.biomechanics.IKErrorReport(
-                self.kinematics_skeleton,
-                self.kinematics_markers,
-                trial_segment.lowpass_poses,
-                trial_segment.marker_observations)
-            trial_segment.lowpass_status = ProcessingStatus.FINISHED
+            success = trial_segment.lowpass_filter(self.lowpass_hz)
+            if success:
+                trial_segment.lowpass_ik_error_report = nimble.biomechanics.IKErrorReport(
+                    self.kinematics_skeleton,
+                    self.kinematics_markers,
+                    trial_segment.lowpass_poses,
+                    trial_segment.marker_observations)
+                trial_segment.lowpass_status = ProcessingStatus.FINISHED
+            else:
+                trial_segment.lowpass_status = ProcessingStatus.ERROR
 
     def run_dynamics_fit(self):
         """

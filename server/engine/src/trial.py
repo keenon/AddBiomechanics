@@ -377,15 +377,19 @@ class TrialSegment:
             self.manually_scaled_ik_poses,
             self.marker_observations)
 
-    def lowpass_filter(self, lowpass_hz: float = 25.0):
+    def lowpass_filter(self, lowpass_hz: float = 25.0) -> bool:
         # 1. Setup the lowpass filter
         b, a = butter(2, lowpass_hz, 'low', fs=1 / self.parent.timestep)
+
+        trial_len = self.kinematics_poses.shape[1]
+        if trial_len < 10:
+            # If the trial is too short, just skip it and return false
+            return False
 
         # 2. Lowpass filter the kinematics data.
         self.lowpass_poses = filtfilt(b, a, self.kinematics_poses, axis=1)
         self.marker_fitter_result.poses = self.lowpass_poses
 
-        trial_len = self.kinematics_poses.shape[1]
         force_plate_norms: List[np.ndarray] = [np.zeros(trial_len) for _ in range(len(self.force_plates))]
         for i in range(len(self.force_plates)):
             force_norms = force_plate_norms[i]
@@ -439,6 +443,8 @@ class TrialSegment:
             force_plate_copy.centersOfPressure = self.force_plate_raw_cops[i]
             force_plate_copy.moments = self.force_plate_raw_moments[i]
             self.lowpass_force_plates.append(force_plate_copy)
+
+            return True
 
 
     def get_segment_results_json(self) -> Dict[str, Any]:
