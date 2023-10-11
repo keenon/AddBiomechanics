@@ -548,8 +548,8 @@ class Subject:
         for trial in self.trials:
             if not trial.error:
                 for segment in trial.segments:
-                    if (segment.has_markers and segment.has_forces
-                            and segment.kinematics_status == ProcessingStatus.FINISHED and not segment.has_error):
+                    if (segment.has_markers and
+                            segment.kinematics_status == ProcessingStatus.FINISHED and not segment.has_error):
                         trial_segments.append(segment)
                         segment.lowpass_status = ProcessingStatus.IN_PROGRESS
                     elif segment.has_error:
