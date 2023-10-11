@@ -152,6 +152,10 @@ class UserHomeDirectory {
         const pathType: PathType = this.getPathType(path);
         if (pathType === 'dataset') {
             const folderStatus: PathStatus[] = pathData.folders.map((folder) => {
+                // If the folder is the same as the path, or just the path + '/'
+                if (folder.length <= path.length + 1) {
+                    return 'done';
+                }
                 return this.getPathStatus(folder);
             });
             if (folderStatus.includes('loading')) {
