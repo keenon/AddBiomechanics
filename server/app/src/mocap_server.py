@@ -257,7 +257,7 @@ class SubjectToProcess:
             print('Calling Command:\n'+enginePath+' ' +
                   path+' '+self.subjectName+' '+self.getHref(), flush=True)
             with open(path + 'log.txt', 'wb+') as logFile:
-                with subprocess.Popen([enginePath, path, self.subjectName, self.getHref()], stdout=subprocess.PIPE) as proc:
+                with subprocess.Popen([enginePath, path, self.subjectName, self.getHref()], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as proc:
                     print('Process created: '+str(proc.pid), flush=True)
 
                     unflushedLines: List[str] = []
