@@ -670,4 +670,7 @@ class TrialSegment:
         # 5. Render the dynamics skeleton, if we have it
         if self.dynamics_status == ProcessingStatus.FINISHED and final_skeleton is not None:
             final_skeleton.setPositions(self.dynamics_poses[:, t])
-            gui.renderSkeleton(final_skeleton, prefix='dynamics_', layer=dynamics_fit_layer_name)
+            if self.missing_grf_reason[t] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
+                gui.renderSkeleton(final_skeleton, prefix='dynamics_', layer=dynamics_fit_layer_name, overrideColor=np.array([1.0, 0.0, 0.0, 1.0]))
+            else:
+                gui.renderSkeleton(final_skeleton, prefix='dynamics_', layer=dynamics_fit_layer_name)
