@@ -33,18 +33,41 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 <tr>
                     <th scope="col">Type</th>
                     <th scope="col">Name</th>
+                    <th scope="col">Status</th>
                     <th scope="col">Delete?</th>
                 </tr>
             </thead>
             <tbody>
-                {datasetContents.contents.map(({ name, type, path }) => {
+                {datasetContents.contents.map(({ name, type, path, status }) => {
                     const typeFirstLetterCapitalized = type.charAt(0).toUpperCase() + type.slice(1);
+                    let statusBadge = <span className="badge bg-secondary">Unknown</span>;
+                    if (status === 'done') {
+                        statusBadge = <span className="badge bg-success">Done</span>;
+                    }
+                    else if (status === 'error') {
+                        statusBadge = <span className="badge bg-danger">Error</span>;
+                    }
+                    else if (status === 'processing') {
+                        statusBadge = <span className="badge bg-warning">Processing</span>;
+                    }
+                    else if (status === 'ready_to_process') {
+                        statusBadge = <span className="badge bg-info">Ready to Process</span>;
+                    }
+                    else if (status === 'loading') {
+                        statusBadge = <span className="badge bg-secondary">Loading</span>;
+                    }
+                    else if (status === 'needs_data') {
+                        statusBadge = <span className="badge bg-secondary">Needs Data</span>;
+                    }
                     return <tr key={name}>
                         <td>
                             {typeFirstLetterCapitalized}
                         </td>
                         <td>
                             <Link to={Session.getDataURL(props.currentLocationUserId, path)}>{name}</Link>
+                        </td>
+                        <td>
+                            {statusBadge}
                         </td>
                         <td>
                             <button className='btn btn-dark' onClick={() => {
@@ -62,7 +85,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
             <input type="text" placeholder="New Subject Name" value={subjectName} onChange={(e) => {
                 setSubjectName(e.target.value);
             }}></input>
-            <br/>
+            <br />
             <button className='btn btn-primary mt-1' onClick={() => {
                 if (subjectName === "") {
                     alert("Subject name cannot be empty");
@@ -76,7 +99,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
             <input type="text" placeholder="New Folder Name" value={folderName} onChange={(e) => {
                 setFolderName(e.target.value);
             }}></input>
-            <br/>
+            <br />
             <button className='btn btn-dark mt-1' onClick={() => {
                 if (folderName === "") {
                     alert("Folder name cannot be empty");

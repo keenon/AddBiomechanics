@@ -172,8 +172,8 @@ class LiveDirectoryImpl extends LiveDirectory {
                     loadRecursive(pathData);
                 }
             });
+            this.faultingIn.set(originalPath, promise);
         }
-        this.faultingIn.set(originalPath, promise);
         return promise;
     }
 
@@ -289,8 +289,11 @@ class LiveDirectoryImpl extends LiveDirectory {
             originalPath = originalPath.substring(1);
         }
         const normalizedPath = this.normalizePath(originalPath);
+
         const cached = this.pathCache.get(normalizedPath);
-        if (cached != null) return cached;
+        if (cached != null) {
+            return cached;
+        }
 
         // Check if we've loaded any parent path recursively, in which case we can infer the contents of this path
         // without having to load it.
@@ -299,7 +302,7 @@ class LiveDirectoryImpl extends LiveDirectory {
             pathParts.pop();
         }
         for (let i = pathParts.length; i >= 0; i--) {
-            for (let slash = 0; slash <= 1; slash++) {
+            for (let slash = 0; slash <= ((i < pathParts.length || originalPath.endsWith('/')) ? 1 : 0); slash++) {
                 const parentPath = pathParts.slice(0, i).join('/') + (slash == 0 ? '' : '/');
                 const normalizedParentPath = this.normalizePath(parentPath);
                 const cachedParentPath: PathData | undefined = this.pathCache.get(normalizedParentPath);
@@ -323,7 +326,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                         files: allFiles,
                         recursive: true,
                     };
-                    this._setCachedPath(originalPath, result);
+                    this._setCachedPath(normalizedPath, result);
                     return result;
                 }
             }
@@ -407,6 +410,8 @@ class LiveDirectoryImpl extends LiveDirectory {
                 else {
                     // Even if this isn't loaded yet, we should notify the change listeners that something 
                     // happened at this path, if anyone is listening for it.
+
+                    // In the other branch, these get called as part of this._setCachedPath
                     for (let listener of this.pathChangeListeners.get(pathToCheck) ?? []) {
                         listener({
                             loading: false,
@@ -454,13 +459,14 @@ class LiveDirectoryImpl extends LiveDirectory {
                                 return file.key.substring(localPathNoLeadingSlash.length).includes('/');
                             }).map((file) => {
                                 return file.key.substring(0, file.key.indexOf('/', localPathNoLeadingSlash.length + 1));
-                            }))];
+                            }).filter((folder) => folder.length > 0 ))];
                         }
-                        this._setCachedPath(pathToCheck, {
+                        const updatedData = {
                             ...cachedData,
                             files,
                             folders
-                        });
+                        };
+                        this._setCachedPath(pathToCheck, updatedData);
 
                         // This means that a folder has been completely deleted, so we should check if its parent was _not_
                         // loaded recursively, and if so, we should delete it from the parent's list of folders.
@@ -485,6 +491,8 @@ class LiveDirectoryImpl extends LiveDirectory {
                 else {
                     // Even if this isn't loaded yet, we should notify the change listeners that something 
                     // happened at this path, if anyone is listening for it.
+
+                    // In the other branch, these get called as part of this._setCachedPath
                     for (let listener of this.pathChangeListeners.get(pathToCheck) ?? []) {
                         listener({
                             loading: false,
@@ -576,6 +584,9 @@ class LiveDirectoryImpl extends LiveDirectory {
 
     async deleteByPrefix(path: string): Promise<void>
     {
+        if (path.endsWith('/')) {
+            path = path.substring(0, path.length - 1);
+        }
         let data = this.getPath(path, true);
         if (data.promise != null) {
             data = await data.promise;

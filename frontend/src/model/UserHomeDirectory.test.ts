@@ -11,6 +11,7 @@ describe("UserHomeDirectory", () => {
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+        "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_results.json",
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking",
         "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking/markers.c3d",
@@ -106,8 +107,11 @@ describe("UserHomeDirectory", () => {
         // Incremental loading of folders
         await api.getPath("/ASB2023", false).promise;
         await api.getPath("/ASB2023/TestProsthetic", false).promise;
+        await api.getPath("/ASB2023/S01", false).promise;
         await api.getPath("/ASB2023/TestProsthetic/trials", false).promise;
         await api.getPath("/ASB2023/TestProsthetic/trials/walking", false).promise;
+        expect(api.getPathStatus('/ASB2023/TestProsthetic/')).toBe('ready_to_process');
+        expect(api.getPathStatus('/ASB2023/S01/')).toBe('done');
 
         expect(api.getPathType('/ASB2023/TestProsthetic/trials/walking')).toBe('trial');
         expect(api.getTrialContents('/ASB2023/TestProsthetic/trials/walking').loading).toBe(false);
@@ -146,6 +150,7 @@ describe("UserHomeDirectory", () => {
 
 
         expect(api.getPathType('/ASB2023/S01/')).toBe('subject');
+        expect(api.getPathStatus('/ASB2023/S01/')).toBe('ready_to_process');
         expect(api.getSubjectContents('/ASB2023/S01').loading).toBe(false);
         expect(api.getSubjectContents('/ASB2023/S01').trials.length).toBe(2);
         expect(api.getSubjectContents('/ASB2023/S01').trials.map(trial => trial.name)).toContain('walking');
@@ -326,8 +331,10 @@ describe("UserHomeDirectory", () => {
         expect(dataset.contents.map(f => f.name)).toContain('TestSubject');
         expect(dataset.contents.filter(f => f.name === 'ASB2023').length).toBe(1);
         expect(dataset.contents.filter(f => f.name === 'ASB2023')[0].type).toBe('dataset');
+        expect(dataset.contents.filter(f => f.name === 'ASB2023')[0].status).toBe('ready_to_process');
         expect(dataset.contents.filter(f => f.name === 'TestSubject').length).toBe(1);
         expect(dataset.contents.filter(f => f.name === 'TestSubject')[0].type).toBe('subject');
+        expect(dataset.contents.filter(f => f.name === 'TestSubject')[0].status).toBe('ready_to_process');
     });
 
     test("Fault in subject gets correct type", async () => {
