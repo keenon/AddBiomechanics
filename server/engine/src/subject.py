@@ -678,7 +678,8 @@ class Subject:
             avgAngularChangeThreshold=0.20,
             reoptimizeTrackingMarkers=True,
             reoptimizeAnatomicalMarkers=self.dynamicsMarkerOffsets,
-            detectUnmeasuredTorque=detect_unmeasured_torque
+            detectUnmeasuredTorque=detect_unmeasured_torque,
+            tuneLinkMasses=False
         )
 
         # 8.3. If initialization succeeded, we will proceed with the full "kitchen sink" optimization.
@@ -712,7 +713,7 @@ class Subject:
                     .setResidualWeight(1e-2 * self.tuneResidualLoss)
                     .setMaxNumTrials(self.maxTrialsToSolveMassOver)
                     .setConstrainResidualsZero(False)
-                    .setIncludeMasses(True)
+                    # .setIncludeMasses(True)
                     .setMaxNumBlocksPerTrial(20)
                     # .setIncludeInertias(True)
                     # .setIncludeCOMs(True)
@@ -767,7 +768,6 @@ class Subject:
                         .setOnlyOneTrial(segment)
                         .setResidualWeight(1e-2 * self.tuneResidualLoss)
                         .setConstrainResidualsZero(False)
-                        .setIncludeMarkerOffsets(self.dynamicsMarkerOffsets)
                         .setIncludePoses(True)
                         .setJointWeight(self.dynamicsJointWeight)
                         .setMarkerWeight(self.dynamicsMarkerWeight)
