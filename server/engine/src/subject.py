@@ -609,6 +609,8 @@ class Subject:
         self.skeleton.setGravity([0.0, -9.81, 0.0])
         dynamics_fitter = nimble.biomechanics.DynamicsFitter(
             self.skeleton, foot_bodies, self.customOsim.trackingMarkers)
+        dynamics_fitter.setCOMHistogramClipBuckets(1)
+        dynamics_fitter.setFillInEndFramesGrfGaps(50)
         print('Created DynamicsFitter', flush=True)
 
         # Sanity check the force plate data sizes match the kinematics data sizes
@@ -830,9 +832,22 @@ class Subject:
         # 8.6. Store the dynamics fitting results in the shared data structures.
         for i in range(len(trial_segments)):
             trial_segments[i].dynamics_taus = dynamics_fitter.computeInverseDynamics(dynamics_init, i)
-            pair = dynamics_fitter.computeAverageTrialResidualForce(dynamics_init, i)
-            trial_segments[i].linear_residuals = pair[0]
-            trial_segments[i].angular_residuals = pair[1]
+            num_steps_with_grf = 0
+            num_steps_missing_grf = 0
+            for missing in dynamics_init.probablyMissingGRF[i]:
+                if missing:
+                    num_steps_missing_grf += 1
+                else:
+                    num_steps_with_grf += 1
+            trial_segments[i].total_timesteps_with_grf = num_steps_with_grf
+            trial_segments[i].total_timesteps_missing_grf = num_steps_missing_grf
+            if num_steps_with_grf > 0:
+                pair = dynamics_fitter.computeAverageTrialResidualForce(dynamics_init, i)
+                trial_segments[i].linear_residuals = pair[0]
+                trial_segments[i].angular_residuals = pair[1]
+            else:
+                trial_segments[i].linear_residuals = 0.0
+                trial_segments[i].angular_residuals = 0.0
             trial_segments[i].ground_height = dynamics_init.groundHeight[i]
             trial_segments[i].foot_body_wrenches = dynamics_init.grfTrials[i]
             trial_segments[i].missing_grf_reason = dynamics_init.missingGRFReason[i]
@@ -1252,12 +1267,23 @@ class Subject:
         for t in range(read_back.getNumTrials()):
             print('  Trial '+str(t)+':', flush=True)
             print('    Name: ' + read_back.getTrialName(t), flush=True)
+            missing_grf_reason = read_back.getMissingGRF(t)
+            num_have_grf = len([r for r in missing_grf_reason if r == nimble.biomechanics.MissingGRFReason.notMissingGRF])
+            print('    Num have GRF frames: ' + str(num_have_grf), flush=True)
+            print('    Num missing GRF frames: ' + str(len([r for r in missing_grf_reason if r != nimble.biomechanics.MissingGRFReason.notMissingGRF])), flush=True)
             for p in range(read_back.getTrialNumProcessingPasses(t)):
                 print('    Processing pass '+str(p)+':', flush=True)
                 print('      Marker RMS: ' + str(np.mean(read_back.getTrialMarkerRMSs(t, p))), flush=True)
                 print('      Marker Max: ' + str(np.mean(read_back.getTrialMarkerMaxs(t, p))), flush=True)
-                print('      Linear Residual: ' + str(np.mean(read_back.getTrialLinearResidualNorms(t, p))), flush=True)
-                print('      Angular Residual: ' + str(np.mean(read_back.getTrialAngularResidualNorms(t, p))), flush=True)
+                if num_have_grf > 0:
+                    linear_residuals = read_back.getTrialLinearResidualNorms(t, p)
+                    angular_residuals = read_back.getTrialAngularResidualNorms(t, p)
+                    for j in range(len(linear_residuals)):
+                        if missing_grf_reason[j] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
+                            linear_residuals[j] = 0.0
+                            angular_residuals[j] = 0.0
+                    print('      Linear Residual (on frames with GRF): ' + str(np.mean([r for r in linear_residuals if r > 0.0])), flush=True)
+                    print('      Angular Residual (on frames with GRF): ' + str(np.mean([r for r in angular_residuals if r > 0.0])), flush=True)
 
     def write_web_results(self, results_path: str):
         if not results_path.endswith('/'):

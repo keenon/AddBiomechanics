@@ -73,10 +73,6 @@ class Trial:
                 trial.error = True
                 trial.error_loading_files = (f'Trial {trial_name} has no markers on any timestep. Check that the C3D '
                                              f'file is not corrupted.')
-            # nimble.biomechanics.C3DLoader.fixupMarkerFlips(trial.c3d_file)
-            # TODO: autorotateC3D should be factored out into a separate function that can be called on both C3D
-            #  and TRC data.
-            # marker_fitter.autorotateC3D(trial.c3d_file)
             trial.set_force_plates(trial.c3d_file.forcePlates)
             trial.timestamps = trial.c3d_file.timestamps
             if len(trial.timestamps) > 1:
@@ -346,6 +342,8 @@ class TrialSegment:
         self.ground_height: float = 0.0
         self.foot_body_wrenches: Optional[np.ndarray] = None
         self.output_force_plates: List[nimble.biomechanics.ForcePlate] = []
+        self.total_timesteps_with_grf: int = 0
+        self.total_timesteps_missing_grf: int = 0
         self.linear_residuals: float = 0.0
         self.angular_residuals: float = 0.0
         self.dynamics_ik_error_report: Optional[nimble.biomechanics.IKErrorReport] = None
@@ -473,6 +471,8 @@ class TrialSegment:
             'dynanimcsPerMarkerRMSE': self.dynamics_ik_error_report.getSortedMarkerRMSE() if self.dynamics_ik_error_report is not None else None,
             'linearResiduals': self.linear_residuals,
             'angularResiduals': self.angular_residuals,
+            'totalTimestepsWithGRF': self.total_timesteps_with_grf,
+            'totalTimestepsMissingGRF': self.total_timesteps_missing_grf,
             # Hand scaled marker error results, if present
             'goldAvgRMSE': self.manually_scaled_ik_error_report.averageRootMeanSquaredError if self.manually_scaled_ik_error_report is not None else None,
             'goldAvgMax': self.manually_scaled_ik_error_report.averageMaxError if self.manually_scaled_ik_error_report is not None else None,
@@ -542,6 +542,7 @@ class TrialSegment:
                     # Joint torques
                     for i in range(final_skeleton.getNumDofs()):
                         f.write(',' + final_skeleton.getDofByIndex(i).getName()+'_tau')
+                    f.write(',missing_grf_data')
             f.write('\n')
 
             for t in range(len(self.marker_observations)):
@@ -561,6 +562,7 @@ class TrialSegment:
                         # Joint torques
                         for i in range(final_skeleton.getNumDofs()):
                             f.write(',' + str(self.dynamics_taus[i, t]))
+                        f.write(',' + str(self.missing_grf_reason[t] != nimble.biomechanics.MissingGRFReason.notMissingGRF))
                 f.write('\n')
 
     def render_frame(self,
@@ -670,7 +672,5 @@ class TrialSegment:
         # 5. Render the dynamics skeleton, if we have it
         if self.dynamics_status == ProcessingStatus.FINISHED and final_skeleton is not None:
             final_skeleton.setPositions(self.dynamics_poses[:, t])
-            if self.missing_grf_reason[t] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
-                gui.renderSkeleton(final_skeleton, prefix='dynamics_', layer=dynamics_fit_layer_name, overrideColor=np.array([1.0, 0.0, 0.0, 1.0]))
-            else:
-                gui.renderSkeleton(final_skeleton, prefix='dynamics_', layer=dynamics_fit_layer_name)
+            gui.renderSkeleton(final_skeleton, prefix='dynamics_', layer=dynamics_fit_layer_name)
+            # if self.missing_grf_reason[t] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
