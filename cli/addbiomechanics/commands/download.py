@@ -15,6 +15,8 @@ class DownloadCommand(AbstractCommand):
             'download', help='Download a dataset from AddBiomechanics')
         download_parser.add_argument('pattern', type=str,
                                      help='The regex to match files to be downloaded.')
+        download_parser.add_argument('prefix', type=str, default='standardized/',
+                                     help='The folder prefix to match when listing potential files to download.')
         download_parser.add_argument('--marker-error-cutoff', type=float,
                                      help='The maximum marker RMSE (in meters) we will tolerate. Files that match the regex '
                                           'pattern but are from subjects that are above bbove this threshold will not '
@@ -24,6 +26,7 @@ class DownloadCommand(AbstractCommand):
         if args.command != 'download':
             return
         pattern: str = args.pattern
+        prefix: str = args.prefix
         marker_error_cutoff = args.marker_error_cutoff
 
         # Compile the pattern as a regex
@@ -32,7 +35,7 @@ class DownloadCommand(AbstractCommand):
         s3 = ctx.aws_session.client('s3')
 
         response = s3.list_objects_v2(
-            Bucket=ctx.deployment['BUCKET'], Prefix='standardized/')
+            Bucket=ctx.deployment['BUCKET'], Prefix=prefix)
 
         to_download: List[str] = []
         to_download_e_tags: List[str] = []
@@ -56,7 +59,7 @@ class DownloadCommand(AbstractCommand):
             if response['IsTruncated']:
                 continuation_token = response['NextContinuationToken']
                 response = s3.list_objects_v2(
-                    Bucket=ctx.deployment['BUCKET'], Prefix='standardized/', ContinuationToken=continuation_token)
+                    Bucket=ctx.deployment['BUCKET'], Prefix=prefix, ContinuationToken=continuation_token)
             else:
                 break
 
