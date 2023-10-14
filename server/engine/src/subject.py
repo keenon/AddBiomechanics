@@ -494,29 +494,28 @@ class Subject:
         np.testing.assert_almost_equal(self.skeleton.getMass(), self.massKg, err_msg=err_msg, decimal=4)
 
         # # 2.5. Check for any flipped markers, now that we've done a first pass
-        # TODO: re-enable this section
-        # any_swapped = False
-        # for i in range(len(trial_segments)):
-        #     if marker_fitter.checkForFlippedMarkers(trial_segments[i].marker_observations, marker_fitter_results[i],
-        #                                             trial_segments[i].marker_error_report):
-        #         any_swapped = True
-        #         new_marker_observations: List[Dict[str, np.ndarray]] = []
-        #         for t in range(trial_segments[i].marker_error_report.getNumTimesteps()):
-        #             new_marker_observations.append({})
-        #             for marker_name in trial_segments[i].marker_error_report.getMarkerNamesOnTimestep(t):
-        #                 new_marker_observations[t][marker_name] = trial_segments[i].marker_error_report.getMarkerPositionOnTimestep(t, marker_name)
-        #         trial_segments[i].marker_observations = new_marker_observations
-        #
-        # if any_swapped:
-        #     print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, "
-        #           "so we have to run the whole pipeline again with unswapped markers. ********",
-        #           flush=True)
-        #     marker_fitter_results = marker_fitter.runMultiTrialKinematicsPipeline(
-        #         [trial.marker_observations for trial in trial_segments],
-        #         nimble.biomechanics.InitialMarkerFitParams()
-        #         .setMaxTrialsToUseForMultiTrialScaling(5)
-        #         .setMaxTimestepsToUseForMultiTrialScaling(4000),
-        #         150)
+        any_swapped = False
+        for i in range(len(trial_segments)):
+            if marker_fitter.checkForFlippedMarkers(trial_segments[i].marker_observations, marker_fitter_results[i],
+                                                    trial_segments[i].marker_error_report):
+                any_swapped = True
+                new_marker_observations: List[Dict[str, np.ndarray]] = []
+                for t in range(trial_segments[i].marker_error_report.getNumTimesteps()):
+                    new_marker_observations.append({})
+                    for marker_name in trial_segments[i].marker_error_report.getMarkerNamesOnTimestep(t):
+                        new_marker_observations[t][marker_name] = trial_segments[i].marker_error_report.getMarkerPositionOnTimestep(t, marker_name)
+                trial_segments[i].marker_observations = new_marker_observations
+
+        if any_swapped:
+            print("******** Unfortunately, it looks like some markers were swapped in the uploaded data, "
+                  "so we have to run the whole pipeline again with unswapped markers. ********",
+                  flush=True)
+            marker_fitter_results = marker_fitter.runMultiTrialKinematicsPipeline(
+                [trial.marker_observations for trial in trial_segments],
+                nimble.biomechanics.InitialMarkerFitParams()
+                .setMaxTrialsToUseForMultiTrialScaling(5)
+                .setMaxTimestepsToUseForMultiTrialScaling(4000),
+                150)
 
         self.skeleton.setGroupScales(marker_fitter_results[0].groupScales)
         self.fitMarkers = marker_fitter_results[0].updatedMarkerMap
