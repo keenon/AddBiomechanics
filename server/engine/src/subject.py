@@ -649,7 +649,7 @@ class Subject:
         print('Created DynamicsInitialization', flush=True)
 
         dynamics_fitter.estimateFootGroundContacts(dynamics_init,
-                                                   ignoreFootNotOverForcePlate=True)
+                                                   ignoreFootNotOverForcePlate=self.ignoreFootNotOverForcePlate)
         print("Initial mass: " +
               str(self.skeleton.getMass()) + " kg", flush=True)
         print("What we'd expect average ~GRF to be (Mass * 9.8): " +
