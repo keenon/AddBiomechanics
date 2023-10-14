@@ -63,7 +63,7 @@ class Subject:
         self.skippedDynamicsReason = None
         self.runMoco = False
         self.skippedMocoReason = None
-        self.lowpass_hz = 25
+        self.lowpass_hz = 30
 
         # 0.3. Shared data structures.
         self.trials: List[Trial] = []
@@ -650,7 +650,7 @@ class Subject:
         print('Created DynamicsInitialization', flush=True)
 
         dynamics_fitter.estimateFootGroundContacts(dynamics_init,
-                                                   ignoreFootNotOverForcePlate=self.ignoreFootNotOverForcePlate)
+                                                   ignoreFootNotOverForcePlate=True)
         print("Initial mass: " +
               str(self.skeleton.getMass()) + " kg", flush=True)
         print("What we'd expect average ~GRF to be (Mass * 9.8): " +
@@ -719,7 +719,7 @@ class Subject:
                     .setMaxNumBlocksPerTrial(20)
                     # .setIncludeInertias(True)
                     # .setIncludeCOMs(True)
-                    # .setIncludeBodyScales(True)
+                    .setIncludeBodyScales(True)
                     .setIncludeMarkerOffsets(self.dynamicsMarkerOffsets)
                     .setIncludePoses(True)
                     .setJointWeight(self.dynamicsJointWeight)
@@ -1240,6 +1240,8 @@ class Subject:
                     trial_lowpass_data.setMarkerMax(segment.lowpass_ik_error_report.maxError)
                     trial_lowpass_data.computeValuesFromForcePlates(self.kinematics_skeleton, trial.timestep, segment.lowpass_poses, self.footBodyNames, segment.lowpass_force_plates)
                     trial_lowpass_data.setForcePlateCutoffs(segment.parent.force_plate_thresholds)
+                    trial_lowpass_data.setLowpassCutoffFrequency(self.lowpass_hz)
+                    trial_lowpass_data.setLowpassFilterOrder(2)
 
                 if segment.dynamics_status == ProcessingStatus.FINISHED:
                     trial_dynamics_data = trial_data.addPass()

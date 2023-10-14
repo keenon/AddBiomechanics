@@ -237,8 +237,8 @@ class Trial:
             moments = self.force_plate_raw_moments[i]
             assert (len(forces) == len(total_forces))
             assert (len(moments) == len(total_forces))
-            for i in range(len(total_forces)):
-                total_forces[i] += np.linalg.norm(forces[i]) + np.linalg.norm(moments[i])
+            for t in range(len(total_forces)):
+                total_forces[t] += np.linalg.norm(forces[t]) + np.linalg.norm(moments[t])
         has_forces = [f > 1e-3 for f in total_forces]
         # Now we need to go through and fill in the "short gaps" in the has_forces array.
         last_transition_off = 0
@@ -375,7 +375,7 @@ class TrialSegment:
             self.manually_scaled_ik_poses,
             self.marker_observations)
 
-    def lowpass_filter(self, lowpass_hz: float = 25.0) -> bool:
+    def lowpass_filter(self, lowpass_hz: float = 30.0) -> bool:
         # 1. Setup the lowpass filter
         b, a = butter(2, lowpass_hz, 'low', fs=1 / self.parent.timestep)
 
@@ -442,7 +442,7 @@ class TrialSegment:
             force_plate_copy.moments = self.force_plate_raw_moments[i]
             self.lowpass_force_plates.append(force_plate_copy)
 
-            return True
+        return True
 
 
     def get_segment_results_json(self) -> Dict[str, Any]:
@@ -505,7 +505,7 @@ class TrialSegment:
 
         gui.writeFramesJson(gui_file_path)
 
-    def save_segment_csv(self, csv_file_path: str, final_skeleton: Optional[nimble.dynamics.Skeleton] = None):
+    def save_segment_csv(self, csv_file_path: str, final_skeleton: Optional[nimble.dynamics.Skeleton] = None, lowpass_hz: float = 30.0):
         # Finite difference out the joint quantities we care about
         poses: np.ndarray = np.zeros((0, 0))
         if self.dynamics_status == ProcessingStatus.FINISHED and self.dynamics_poses is not None:
@@ -523,6 +523,17 @@ class TrialSegment:
             accs[:, i] = (vels[:, i] - vels[:, i - 1]) / self.parent.timestep
         if accs.shape[1] > 1:
             accs[:, 0] = accs[:, 1]
+        if self.dynamics_status == ProcessingStatus.FINISHED:
+            taus: np.ndarray = np.copy(self.dynamics_taus)
+        else:
+            taus: np.ndarray = np.zeros_like(poses)
+
+        # Lowpass the data for the CSV
+        b, a = butter(2, lowpass_hz, 'low', fs=1 / self.parent.timestep)
+        poses = filtfilt(b, a, poses, axis=1)
+        vels = filtfilt(b, a, vels, axis=1)
+        accs = filtfilt(b, a, accs, axis=1)
+        taus = filtfilt(b, a, taus, axis=1)
 
         # Write the CSV file
         with open(csv_file_path, 'w') as f:
@@ -561,7 +572,7 @@ class TrialSegment:
                     if self.dynamics_status == ProcessingStatus.FINISHED:
                         # Joint torques
                         for i in range(final_skeleton.getNumDofs()):
-                            f.write(',' + str(self.dynamics_taus[i, t]))
+                            f.write(',' + str(taus[i, t]))
                         f.write(',' + str(self.missing_grf_reason[t] != nimble.biomechanics.MissingGRFReason.notMissingGRF))
                 f.write('\n')
 
