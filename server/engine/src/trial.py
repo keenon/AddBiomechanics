@@ -530,10 +530,14 @@ class TrialSegment:
 
         # Lowpass the data for the CSV
         b, a = butter(2, lowpass_hz, 'low', fs=1 / self.parent.timestep)
-        poses = filtfilt(b, a, poses, axis=1)
-        vels = filtfilt(b, a, vels, axis=1)
-        accs = filtfilt(b, a, accs, axis=1)
-        taus = filtfilt(b, a, taus, axis=1)
+        if poses.shape[1] > 10:
+            poses = filtfilt(b, a, poses, axis=1)
+        if vels.shape[1] > 10:
+            vels = filtfilt(b, a, vels, axis=1)
+        if accs.shape[1] > 10:
+            accs = filtfilt(b, a, accs, axis=1)
+        if taus.shape[1] > 10:
+            taus = filtfilt(b, a, taus, axis=1)
 
         # Write the CSV file
         with open(csv_file_path, 'w') as f:
