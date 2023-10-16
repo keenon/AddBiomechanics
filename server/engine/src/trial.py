@@ -509,9 +509,9 @@ class TrialSegment:
         # Finite difference out the joint quantities we care about
         poses: np.ndarray = np.zeros((0, 0))
         if self.dynamics_status == ProcessingStatus.FINISHED and self.dynamics_poses is not None:
-            poses = self.dynamics_poses
+            poses = np.copy(self.dynamics_poses)
         elif self.kinematics_status == ProcessingStatus.FINISHED and self.kinematics_poses is not None:
-            poses = self.kinematics_poses
+            poses = np.copy(self.kinematics_poses)
         
         vels: np.ndarray = np.zeros_like(poses)
         accs: np.ndarray = np.zeros_like(poses)

@@ -530,7 +530,7 @@ class Subject:
                 trial_segments[i].error_msg = marker_fitter_results[i].errorMsg
             else:
                 trial_segments[i].kinematics_status = ProcessingStatus.FINISHED
-                trial_segments[i].kinematics_poses = marker_fitter_results[i].poses
+                trial_segments[i].kinematics_poses = np.copy(marker_fitter_results[i].poses)
                 trial_segments[i].marker_fitter_result = marker_fitter_results[i]
                 trial_segments[i].kinematics_ik_error_report = nimble.biomechanics.IKErrorReport(
                     self.kinematics_skeleton,
