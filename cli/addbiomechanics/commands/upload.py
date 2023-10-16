@@ -248,9 +248,11 @@ class ParserFolderStructure:
         print('We are about to upload the following files:')
         for s3_key, local_path in self.s3_to_local_file.items():
             s3_key = s3_prefix + s3_key
+            s3_key = s3_key.replace('//', '/')
             print(f' > {local_path} to {s3_key}')
         for s3_key in self.s3_ready_flags:
             s3_key = s3_prefix + s3_key
+            s3_key = s3_key.replace('//', '/')
             print(f' > {s3_key}')
         print('Is that ok?')
         return input('y/n: ') == 'y'
