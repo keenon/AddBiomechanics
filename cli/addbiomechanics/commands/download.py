@@ -15,7 +15,7 @@ class DownloadCommand(AbstractCommand):
             'download', help='Download a dataset from AddBiomechanics')
         download_parser.add_argument('pattern', type=str,
                                      help='The regex to match files to be downloaded.')
-        download_parser.add_argument('prefix', type=str, default='standardized/',
+        download_parser.add_argument('--prefix', type=str, default='standardized/',
                                      help='The folder prefix to match when listing potential files to download.')
         download_parser.add_argument('--marker-error-cutoff', type=float,
                                      help='The maximum marker RMSE (in meters) we will tolerate. Files that match the regex '
