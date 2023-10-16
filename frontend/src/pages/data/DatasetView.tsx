@@ -56,6 +56,12 @@ const DatasetView = observer((props: DatasetViewProps) => {
                     else if (status === 'loading') {
                         statusBadge = <span className="badge bg-secondary">Loading</span>;
                     }
+                    else if (status === 'waiting_for_server') {
+                        statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
+                    }
+                    else if (status === 'slurm') {
+                        statusBadge = <span className="badge bg-warning">Queued on SLURM</span>;
+                    }
                     else if (status === 'needs_data') {
                         statusBadge = <span className="badge bg-secondary">Needs Data</span>;
                     }
