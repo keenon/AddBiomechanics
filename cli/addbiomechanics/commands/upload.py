@@ -35,6 +35,7 @@ def upload_files(ctx: AuthContext, s3_to_local_file: Dict[str, str], s3_to_conte
     # Upload the files
     for s3_key, local_path in s3_to_local_file.items():
         s3_key = s3_prefix + s3_key
+        s3_key = s3_key.replace('//', '/')
         print(f'Uploading {local_path} to {s3_key}')
         s3.upload_file(local_path, deployment['BUCKET'], s3_key)
         # Notify PubSub that this file changed
@@ -43,6 +44,7 @@ def upload_files(ctx: AuthContext, s3_to_local_file: Dict[str, str], s3_to_conte
     # Upload the raw contents
     for s3_key, contents in s3_to_contents.items():
         s3_key = s3_prefix + s3_key
+        s3_key = s3_key.replace('//', '/')
         print(
             f'Uploading raw string of length {str(len(contents))} to {s3_key}')
         s3.put_object(Body=contents,
@@ -53,6 +55,7 @@ def upload_files(ctx: AuthContext, s3_to_local_file: Dict[str, str], s3_to_conte
     # Upload the ready flags last, once everything else is already uploaded
     for s3_key in s3_ready_flags:
         s3_key = s3_prefix + s3_key
+        s3_key = s3_key.replace('//', '/')
         s3.put_object(Body="",
                       Bucket=deployment['BUCKET'], Key=s3_key)
         # Notify PubSub that this file changed
@@ -193,6 +196,8 @@ class ParserFolderStructure:
                 print(
                     f' > Subject "{subjectFolder}" is valid, with {len(trialNames)} trials')
             for file in filesInSubjectFolder:
+                if file.startswith('/'):
+                    file = file[1:]
                 if filter_out_trials is not '' and filter_out_trials in file:
                     if verbose:
                         print(
