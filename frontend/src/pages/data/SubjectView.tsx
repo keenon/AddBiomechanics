@@ -454,18 +454,18 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     </div>
                 );
             }
-            else if (footBodyNames.length > 2) {
-                footErrorMessage = (
-                    <div className="invalid-feedback">
-                        Currently AddBiomechanics dynamics fitter only supports treating each foot as a single body segment. Please don't include multiple segments from each foot.
-                    </div>
-                );
-            }
+            // else if (footBodyNames.length > 2) {
+            //     footErrorMessage = (
+            //         <div className="invalid-feedback">
+            //             Currently AddBiomechanics dynamics fitter only supports treating each foot as a single body segment. Please don't include multiple segments from each foot.
+            //         </div>
+            //     );
+            // }
 
             formElements.push(<div key="feet" className="mb-3">
                 <label>Specify Two Feet in Custom OpenSim Model:</label>
                 <TagEditor
-                    error={footBodyNames.length != 2}
+                    error={footBodyNames.length < 2}
                     tagSet={subjectState.availableBodyNodes}
                     tags={footBodyNames}
                     readonly={props.readonly}
@@ -485,7 +485,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 />
             </div>);
 
-            if (footBodyNames.length != 2) {
+            if (footBodyNames.length < 2) {
                 formCompleteSoFar = false;
                 formElements.push(<div className="alert alert-dark mt-2" role="alert" key="footExplanation">
                     <h4 className="alert-heading">Why do I need to specify two feet in my Custom OpenSim Model?</h4>
