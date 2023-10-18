@@ -242,6 +242,25 @@ class UserHomeDirectory {
     }
 
     /**
+     * This will reprocess all the subjects within a directory
+     * 
+     * @param path 
+     * @returns 
+     */
+    async reprocessAllSubjects(path: string): Promise<void> {
+        const dir = this.dir;
+        let pathData: PathData = dir.getPath(path, false);
+        if (pathData.promise) {
+            pathData = await pathData.promise;
+        }
+        return Promise.all(pathData.folders.map((folder) => {
+            if (this.getPathType(folder) === 'subject') {
+                return this.getSubjectViewState(folder).reprocess();
+            }
+        })).then(() => {});
+    }
+
+    /**
      * This call will create a stub file to hold a new dataset folder.
      * 
      * @param path The path to the folder to create the new folder in

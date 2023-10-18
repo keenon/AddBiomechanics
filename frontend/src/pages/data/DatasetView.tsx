@@ -115,6 +115,13 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 setFolderName("");
             }}>Create New Folder</button>
         </div>
+        <div className="row mb-4 mt-4">
+            <button className='btn btn-danger' onClick={() => {
+                if (window.confirm("DANGER! This will reprocess all subjects in this dataset. This will delete all existing results for thees subjects. Are you sure?")) {
+                    home.reprocessAllSubjects(path);
+                }
+            }}>Reprocess All Subjects</button>
+        </div>
     </div>
 });
 
