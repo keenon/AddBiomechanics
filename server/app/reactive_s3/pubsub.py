@@ -9,6 +9,7 @@ from typing import Callable, Any, Dict
 import datetime
 import os
 import queue
+from abc import ABC, abstractmethod
 
 received_count = 0
 
@@ -30,13 +31,72 @@ CLIENT_ID = "processing-server-" + str(uuid4())
 # Callback when connection is accidentally lost.
 
 
-class PubSub:
+class PubSubSocket(ABC):
+    def __init__(self):
+        self.deployment = "DEV"
+
+    # This attempts to establish a PubSub connection. Because PubSub is a "nice to have" feature, none of its
+    # methods throw errors. If connecting fails, it will fail quietly and attempt to reconnect.
+    @abstractmethod
+    def connect(self):
+        pass
+
+    # This attempts to publish a PubSub message. Because PubSub is a "nice to have" feature, none of its methods
+    # throw errors. If sending fails, it will queue the message to be sent later.
+    @abstractmethod
+    def publish(self, topic: str, payload: Dict[str, Any] = {}):
+        pass
+
+    # This attempts to establish a PubSub connection. Because PubSub is a "nice to have" feature, none of its
+    # methods throw errors. If subscribing fails, it will attempt to resubscribe later when we reconnect.
+    @abstractmethod
+    def subscribe(self, topic: str, callback: Callable[[str, Any], None]):
+        pass
+
+
+class PubSubMock(PubSubSocket):
+
+    listeners = Dict[str, Callable[[str, Any], None]]
+
+    def __init__(self, deployment: str):
+        print('creating PubSubMock object')
+        self.deployment = deployment
+        self.message_queue = queue.Queue()
+        self.mock_sent_messages_log = []
+        self.connected = False
+        self.listeners = {}
+
+    def connect(self):
+        self.connected = True
+
+        for topic, payload in list(self.message_queue.queue):
+            self.mock_sent_messages_log.append(topic)
+
+        self.message_queue = queue.Queue()
+
+    def publish(self, topic: str, payload: Dict[str, Any] = {}):
+        """
+        Adds a message to the queue to be sent
+        """
+        if self.connected:
+            self.mock_sent_messages_log.append(topic)
+        else:
+            self.message_queue.put((topic, payload))
+
+    def subscribe(self, topic: str, callback: Callable[[str, Any], None]):
+        self.listeners[topic] = callback
+
+        def unsubscribe():
+            del self.listeners[topic]
+
+        return unsubscribe
+
+
+class PubSub(PubSubSocket):
     """
     Here's a PubSub object
     """
-
     resumeListeners = []
-    deployment: str
     lock: threading.Lock
 
     def __init__(self, deployment: str):
@@ -44,7 +104,7 @@ class PubSub:
         self.deployment = deployment
         self.lock = threading.Lock()
 
-        self.connect_mqtt()
+        self.connect()
 
         # Create a queue for messages
         self.message_queue = queue.Queue()
@@ -53,7 +113,7 @@ class PubSub:
         self.worker_thread = threading.Thread(target=self._message_sender, daemon=True)
         self.worker_thread.start()
 
-    def connect_mqtt(self):
+    def connect(self):
         # Spin up resources
         eventLoopGroup = io.EventLoopGroup(1)
         hostResolver = io.DefaultHostResolver(eventLoopGroup)
@@ -94,12 +154,15 @@ class PubSub:
                         print('Topic too long, not sending: ' + full_topic)
                         self.message_queue.task_done()
                         continue
+
+                    # Publish the topic and payload
                     sendFuture, packetId = self.mqttConnection.publish(
-                        topic=('/' + self.deployment + topic),
-                        payload=payload_json,
+                        topic=topic,
+                        payload=payload,
                         qos=mqtt.QoS.AT_MOST_ONCE)  # AT_LEAST_ONCE
                     # Future.result() waits until a result is available
                     sendFuture.result(timeout=5.0)
+
                     # Mark the task as done in the queue
                     self.message_queue.task_done()
                     # Rate limit the sending of messages on the PubSub queue to 20 per second
@@ -132,7 +195,7 @@ class PubSub:
         finally:
             self.lock.release()
 
-    def sendMessage(self, topic: str, payload: Dict[str, Any] = {}):
+    def publish(self, topic: str, payload: Dict[str, Any] = {}):
         """
         Adds a message to the queue to be sent
         """
@@ -163,7 +226,7 @@ class PubSub:
         self.mqttConnection = None
         print('Sleeping for 5 seconds, then attempting to recreate the connection')
         time.sleep(5)
-        self.connect_mqtt()
+        self.connect()
 
     def _onConnectionResumed(self, connection, returnCode=None, sessionPresent=None, **kwargs):
         """

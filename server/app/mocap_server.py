@@ -284,7 +284,7 @@ class SubjectToProcess:
                                 logLine['lines'] = toSend
                                 logLine['timestamp'] = now * 1000
                                 try:
-                                    self.index.pubSub.sendMessage(
+                                    self.index.pubSub.publish(
                                         '/LOG/'+procLogTopic, logLine)
                                 except e:
                                     print(
@@ -296,7 +296,7 @@ class SubjectToProcess:
                                 logLine['lines'] = unflushedLines
                                 logLine['timestamp'] = now * 1000
                                 try:
-                                    self.index.pubSub.sendMessage(
+                                    self.index.pubSub.publish(
                                         '/LOG/'+procLogTopic, logLine)
                                 except e:
                                     print(
@@ -319,7 +319,7 @@ class SubjectToProcess:
                             logLine['line'] = line
                             logLine['timestamp'] = time.time() * 1000
                             try:
-                                self.index.pubSub.sendMessage(
+                                self.index.pubSub.publish(
                                     '/LOG/'+procLogTopic, logLine)
                             except e:
                                 print('Failed to send live log message: ' +
@@ -332,7 +332,7 @@ class SubjectToProcess:
                     logLine['line'] = line
                     logLine['timestamp'] = time.time() * 1000
                     try:
-                        self.index.pubSub.sendMessage(
+                        self.index.pubSub.publish(
                             '/LOG/'+procLogTopic, logLine)
                     except e:
                         print('Failed to send live log message: ' +
@@ -606,7 +606,7 @@ class MocapServer:
     def sendPong(self):
         print('Sending liveness pong as '+self.serverId)
         try:
-            self.index.pubSub.sendMessage(
+            self.index.pubSub.publish(
                 '/PONG/'+self.serverId, {})
         except e:
             print('Failed to send liveness pong: '+str(e))
@@ -661,7 +661,7 @@ class MocapServer:
                 else:
                     # Send a ping, which will get an asynchronous response which will eventually update self.lastSeenPong[k]
                     try:
-                        self.index.pubSub.sendMessage('/PING/'+k, {})
+                        self.index.pubSub.publish('/PING/'+k, {})
                     except e:
                         print('Failed to send ping to ' +
                               k+': '+str(e), flush=True)
