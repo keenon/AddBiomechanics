@@ -161,56 +161,15 @@ class Trial:
         for plate in self.force_plates:
             if len(plate.forces) > 0:
                 assert(len(plate.forces) == len(self.marker_observations))
+            plate.autodetectNoiseThresholdAndClip(
+                percentOfMaxToDetectThumb=0.25,
+                percentOfMaxToCheckThumbRightEdge=0.35
+            )
+            plate.detectAndFixCopMomentConvention()
             self.force_plate_raw_cops.append(plate.centersOfPressure)
             self.force_plate_raw_forces.append(plate.forces)
             self.force_plate_raw_moments.append(plate.moments)
             self.force_plate_thresholds.append(0)
-
-        # Run the autoclipper on the force plates
-        self.autoclip_force_plates()
-
-    def autoclip_force_plates(self):
-        # Ensure that the GRF data has proper zeros
-        trial_len = len(self.marker_observations)
-        force_plate_norms: List[np.ndarray] = [np.zeros(trial_len) for _ in range(len(self.force_plates))]
-        for i in range(len(self.force_plates)):
-            force_norms = force_plate_norms[i]
-            for t in range(trial_len):
-                force_norms[t] = np.linalg.norm(self.force_plate_raw_forces[i][t])
-
-            num_bins = 200
-            hist, bin_edges = np.histogram(force_norms, bins=num_bins)
-            avg_bin_value = trial_len / num_bins
-            hist_max_index = np.argmax(hist)
-            # If the largest bin is in the bottom 25% of the distribution
-            if hist_max_index < num_bins / 4:
-                # Expand out from that bin in both directions until we find a bin that is below the
-                # average bin value.
-                right_bound = hist_max_index
-                for j in range(hist_max_index, num_bins):
-                    if hist[j] < avg_bin_value:
-                        right_bound = j
-                        break
-                # Now we have the boundary of the "big thumb" region. This generally corresponds to the
-                # zero point of the treadmill. If it is exactly at zero, then all is well. But if it is
-                # not, then we've found a cutoff threshold which we should use to zero the GRF data.
-                if right_bound > num_bins / 2:
-                    print('not clipping force plate ' + str(i) + ' because it has no obvious thumb in the histogram')
-                    # We found a right bound, but it's suspiciously far up the distribution. Let's
-                    # ignore this zero.
-                    pass
-                else:
-                    # We found a right bound that is in the bottom half of the distribution. Let's
-                    # use it to zero the GRF data.
-                    print('clip force plate ' + str(i) + ' at ' + str(bin_edges[right_bound]) + ' N')
-                    zero_threshold = bin_edges[right_bound]
-                    self.force_plate_thresholds[i] = zero_threshold
-                    for t in range(trial_len):
-                        if force_norms[t] < zero_threshold:
-                            self.force_plate_raw_forces[i][t] = np.zeros(3)
-                            self.force_plate_raw_cops[i][t] = np.zeros(3)
-                            self.force_plate_raw_moments[i][t] = np.zeros(3)
-                            force_norms[t] = 0.0
 
     def split_segments(self, max_grf_gap_fill_size=1.0, max_segment_frames=3000):
         """
@@ -375,7 +334,7 @@ class TrialSegment:
             self.manually_scaled_ik_poses,
             self.marker_observations)
 
-    def lowpass_filter(self, lowpass_hz: float = 30.0) -> bool:
+    def lowpass_filter(self, skel: nimble.dynamics.Skeleton, lowpass_hz: float = 30.0) -> bool:
         # 1. Setup the lowpass filter
         b, a = butter(2, lowpass_hz, 'low', fs=1 / self.parent.timestep)
 
@@ -385,7 +344,13 @@ class TrialSegment:
             return False
 
         # 2. Lowpass filter the kinematics data.
-        self.lowpass_poses = filtfilt(b, a, self.kinematics_poses, axis=1)
+        # 2.1. First we "unwrap" any joint angles that may have wrapped, because those jumps (even though they
+        # represent equivalent angles) will yield very bad results when naively lowpass filtered
+        self.lowpass_poses = np.copy(self.kinematics_poses)
+        for i in range(1, self.lowpass_poses.shape[0]):
+            self.lowpass_poses[:, i] = skel.unwrapPositionToNearest(self.lowpass_poses[:, i], self.lowpass_poses[:, i - 1])
+        # 2.2. Then actually run the lowpass filter
+        self.lowpass_poses = filtfilt(b, a, self.lowpass_poses, axis=1)
         self.marker_fitter_result.poses = self.lowpass_poses
 
         force_plate_norms: List[np.ndarray] = [np.zeros(trial_len) for _ in range(len(self.force_plates))]

@@ -560,7 +560,7 @@ class Subject:
             return
         # Actually do the lowpass filtering
         for trial_segment in trial_segments:
-            success = trial_segment.lowpass_filter(self.lowpass_hz)
+            success = trial_segment.lowpass_filter(self.kinematics_skeleton, self.lowpass_hz)
             if success:
                 trial_segment.lowpass_ik_error_report = nimble.biomechanics.IKErrorReport(
                     self.kinematics_skeleton,
@@ -1155,16 +1155,19 @@ class Subject:
 
         kinematic_pass = subject_header.addProcessingPass()
         kinematic_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.KINEMATICS)
-        if os.path.exists(osim_results_folder + 'Models/' + KINEMATIC_OSIM_NAME):
-            with open(osim_results_folder + 'Models/' + KINEMATIC_OSIM_NAME, 'r') as f:
-                kinematic_pass.setOpenSimFileText(f.read())
-        else:
-            print('WARNING: No '+ KINEMATIC_OSIM_NAME + ' file found in ' + osim_results_folder + 'Models/' + KINEMATIC_OSIM_NAME + '. '
-                  'This is probably because the kinematics pass did not succeed on a single trial. '
-                  'Leaving that model empty in the B3D file.', flush=True)
 
         lowpass_pass = subject_header.addProcessingPass()
         lowpass_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.LOW_PASS_FILTER)
+
+        if os.path.exists(osim_results_folder + 'Models/' + KINEMATIC_OSIM_NAME):
+            with open(osim_results_folder + 'Models/' + KINEMATIC_OSIM_NAME, 'r') as f:
+                file_contents = f.read()
+                kinematic_pass.setOpenSimFileText(file_contents)
+                lowpass_pass.setOpenSimFileText(file_contents)
+        else:
+            print('WARNING: No '+ KINEMATIC_OSIM_NAME + ' file found in ' + osim_results_folder + 'Models/' + KINEMATIC_OSIM_NAME + '. '
+                                                                                                                                    'This is probably because the kinematics pass did not succeed on a single trial. '
+                                                                                                                                    'Leaving that model empty in the B3D file.', flush=True)
 
         if not self.disableDynamics:
             dynamics_pass = subject_header.addProcessingPass()
