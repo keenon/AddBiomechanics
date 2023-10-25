@@ -526,7 +526,8 @@ class MocapServer:
     serverId: str
     lastUploadedStatusStr: str
     lastUploadedStatusTimestamp: float
-    lastSeenPong: Dict[str, float]
+
+    pubSubIsAlive: bool
 
     def __init__(self, bucket: str, deployment: str, singularity_image_path: str) -> None:
         self.bucket = bucket
@@ -540,13 +541,13 @@ class MocapServer:
         print('Booting as server ID: '+self.serverId)
         self.lastUploadedStatusStr = ''
         self.lastUploadedStatusTimestamp = 0
-        self.lastSeenPong = {}
 
         # Set up index
         self.index = ReactiveS3Index(bucket, deployment)
         self.index.addChangeListener(self.onChange)
         self.index.refreshIndex()
         self.index.registerPubSub()
+        self.pubSubIsAlive = True
 
         # Subscribe to PubSub status checks.
         self.index.pubSub.subscribe("/PUBSUB_STATUS/"+self.serverId[:16], self.onPubSubStatusReceived)
@@ -624,8 +625,11 @@ class MocapServer:
             time.sleep(5)
 
             # If we didn't get a response, then PubSub is down.
-            if not self.index.pubSub.alive:
+            if self.index.pubSub.alive:
+                self.pubSubIsAlive = True
+            else:
                 print('PubSub is down!')
+                self.pubSubIsAlive = False
 
             time.sleep(60)
 
@@ -659,7 +663,7 @@ class MocapServer:
         """
         while True:
             try:
-                if len(self.queue) > 0 and self.index.pubSub.alive:
+                if len(self.queue) > 0 and self.pubSubIsAlive:
                     self.currentlyProcessing = self.queue[0]
                     self.updateStatusFile()
 
