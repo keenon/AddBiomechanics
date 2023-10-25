@@ -555,11 +555,6 @@ class MocapServer:
             target=self.checkPubSubStatusForever, daemon=True)
         pubsubStatusThread.start()
 
-        if len(self.singularity_image_path) == 0:
-            periodicRefreshThread = threading.Thread(
-                target=self.periodicallyRefreshForever, daemon=True)
-            periodicRefreshThread.start()
-
     def onChange(self):
         print('S3 CHANGED!')
 
@@ -633,16 +628,6 @@ class MocapServer:
                 print('PubSub is down!')
 
             time.sleep(60)
-
-    def periodicallyRefreshForever(self):
-        """
-        This periodically refreshes the S3 index in case we missed anything.
-        """
-        while True:
-            # Refresh once per day.
-            time.sleep(24 * 60 * 60)
-            print('Refreshing the index...', flush=True)
-            self.index.refreshIndex()
 
     def getSlurmJobQueueLen(self) -> Tuple[int, int]:
         """
