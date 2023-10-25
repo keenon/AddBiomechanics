@@ -33,7 +33,9 @@ CLIENT_ID = "processing-server-" + str(uuid4())
 
 class PubSubSocket(ABC):
     def __init__(self):
+        print('Creating a PubSub object...')
         self.deployment = "DEV"
+        self.alive = True
 
     # This attempts to establish a PubSub connection. Because PubSub is a "nice to have" feature, none of its
     # methods throw errors. If connecting fails, it will fail quietly and attempt to reconnect.
@@ -59,6 +61,7 @@ class PubSubMock(PubSubSocket):
     listeners = Dict[str, Callable[[str, Any], None]]
 
     def __init__(self, deployment: str):
+        super().__init__()
         self.deployment = deployment
         self.message_queue = queue.Queue()
         self.mock_sent_messages_log = []
@@ -109,7 +112,8 @@ class PubSub(PubSubSocket):
     lock: threading.Lock
 
     def __init__(self, deployment: str):
-        print('creating PubSub object')
+        super().__init__()
+
         self.deployment = deployment
         self.lock = threading.Lock()
 

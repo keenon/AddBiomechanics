@@ -547,14 +547,13 @@ class MocapServer:
         self.index.addChangeListener(self.onChange)
         self.index.refreshIndex()
         self.index.registerPubSub()
-        # Subscribe to pings on the index
-        self.index.pubSub.subscribe(
-            "/PING/"+self.serverId, self.onPingReceived)
-        self.index.pubSub.subscribe("/PONG/#", self.onPongReceived)
 
-        cleanUpThread = threading.Thread(
-            target=self.cleanUpOtherDeadServersForever, daemon=True)
-        cleanUpThread.start()
+        # Subscribe to PubSub status checks.
+        self.index.pubSub.subscribe("/PUBSUB_STATUS/"+self.serverId, self.onPubSubStatusReceived)
+
+        pubsubStatusThread = threading.Thread(
+            target=self.checkPubSubStatusForever, daemon=True)
+        pubsubStatusThread.start()
 
         periodicRefreshThread = threading.Thread(
             target=self.periodicallyRefreshForever, daemon=True)
@@ -592,34 +591,6 @@ class MocapServer:
             target=self.updateStatusFile, daemon=True)
         t.start()
 
-    def onPingReceived(self, topic: str, payload: bytes):
-        """
-        This responds to liveness requests
-        """
-        print('Received liveness ping as '+self.serverId)
-        # Reply with a pong on another thread, to avoid deadlocking the MQTT service (it doesn't like if you send a message from inside
-        # a message callback)
-        t = threading.Thread(
-            target=self.sendPong, daemon=True)
-        t.start()
-
-    def sendPong(self):
-        print('Sending liveness pong as '+self.serverId)
-        try:
-            self.index.pubSub.publish(
-                '/PONG/'+self.serverId, {})
-        except e:
-            print('Failed to send liveness pong: '+str(e))
-
-    def onPongReceived(self, topic: str, payload: bytes):
-        """
-        This observes liveness responses, and notes the time so we can see how long it's been since a response
-        """
-        serverReporting: str = topic.replace(
-            '/PONG/', '').replace('/DEV', '').replace('/PROD', '')
-        print('Got pong from '+serverReporting)
-        self.lastSeenPong[serverReporting] = time.time()
-
     def updateStatusFile(self):
         """
         This writes an updated version of our status file to S3, if anything has changed since our last write
@@ -642,55 +613,34 @@ class MocapServer:
                 'protected/server_status/'+self.serverId, statusStr)
             print('Uploaded updated status file: \n' + statusStr)
 
-    def cleanUpOtherDeadServersForever(self):
-        """
-        This will spin, pinging anyone else whose server status files are still online at intervals, 
-        and cleaning up servers that haven't responded for more than a configured timeout.
-        """
-        pingIntervalSeconds = 30
-        deathIntervalSeconds = 60
+    def onPubSubStatusReceived(self, topic: str, payload: bytes):
+        print(f'Received PubSub status update on server {self.serverId}')
+        self.index.pubSub.alive = True
+
+    def checkPubSubStatusForever(self):
 
         while True:
-            statusFiles: Dict[str, FileMetadata] = self.index.getImmediateChildren(
-                "protected/server_status/")
+            # First, assume that PubSub is down.
+            self.index.pubSub.alive = False
 
-            # Send out pings
-            for k in statusFiles:
-                if k == self.serverId:
-                    pass
-                else:
-                    # Send a ping, which will get an asynchronous response which will eventually update self.lastSeenPong[k]
-                    try:
-                        self.index.pubSub.publish('/PING/'+k, {})
-                    except e:
-                        print('Failed to send ping to ' +
-                              k+': '+str(e), flush=True)
+            # Send a status update message and wait a few seconds.
+            self.index.pubSub.publish('/PUBSUB_STATUS/'+self.serverId, {})
+            time.sleep(5)
 
-            # Check for death
-            for k in statusFiles:
-                if k == self.serverId:
-                    pass
-                else:
-                    if k not in self.lastSeenPong:
-                        self.lastSeenPong[k] = time.time()
-                    timeSincePong = time.time() - self.lastSeenPong[k]
-                    if timeSincePong > deathIntervalSeconds:
-                        print('Detected dead server: '+str(k), flush=True)
-                        self.index.delete('protected/server_status/'+k)
-                        print('Cleaned up status file for: '+str(k), flush=True)
-                    else:
-                        print('Server '+str(k)+' seen within '+str(timeSincePong) +
-                              's < death interval '+str(deathIntervalSeconds)+'s, so still alive', flush=True)
+            # If we didn't get a response, then PubSub is down.
+            if not self.index.pubSub.alive:
+                print('PubSub is down!')
 
-            time.sleep(pingIntervalSeconds)
+            time.sleep(60)
 
     def periodicallyRefreshForever(self):
         """
-        This periodically refreshes the S3 index (every 30 minutes) just in case we missed anything
+        This periodically refreshes the S3 index in case we missed anything.
         """
         while True:
-            time.sleep(30 * 60 * 60)
-            print('Cueing an every ten minutes refresh', flush=True)
+            # Refresh once per day.
+            time.sleep(24 * 60 * 60)
+            print('Refreshing the index...', flush=True)
             self.index.refreshIndex()
 
     def getSlurmJobQueueLen(self) -> Tuple[int, int]:
@@ -723,7 +673,7 @@ class MocapServer:
         """
         while True:
             try:
-                if len(self.queue) > 0:
+                if len(self.queue) > 0 and self.index.pubSub.alive:
                     self.currentlyProcessing = self.queue[0]
                     self.updateStatusFile()
 

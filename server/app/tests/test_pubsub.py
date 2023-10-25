@@ -18,7 +18,7 @@ class TestMessaging(unittest.TestCase):
         api = PubSubMock("DEV")
         counter = {"count": 0}
 
-        def message_callback(message):
+        def message_callback(msg):
             nonlocal counter
             counter["count"] += 1
 
@@ -43,7 +43,7 @@ class TestMessaging(unittest.TestCase):
         api = PubSubMock("DEV")
         counter = {"count": 0}
 
-        def message_callback(message):
+        def message_callback(msg):
             nonlocal counter
             counter["count"] += 1
 
@@ -77,6 +77,33 @@ class TestMessaging(unittest.TestCase):
             "message": 'test',
         })
         assert counter["count"] == 3
+
+
+class TestPubSubStatus(unittest.TestCase):
+    def test_pubsub_status(self):
+        api = PubSubMock("DEV")
+        api.alive = False
+
+        def on_status_received(msg):
+            api.alive = True
+
+        api.subscribe('status', on_status_received)
+        assert api.alive is False
+
+        # This status check should 'succeed'.
+        api.mock_receive_message({
+            "topic": 'status',
+            "message": 'im_alive',
+        })
+        assert api.alive is True
+
+        # This status check should 'fail'.
+        api.alive = False
+        api.mock_receive_message({
+            "topic": 'status2',
+            "message": 'im_dead',
+        })
+        assert api.alive is False
 
 
 if __name__ == '__main__':
