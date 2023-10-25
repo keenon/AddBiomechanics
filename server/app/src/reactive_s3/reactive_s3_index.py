@@ -240,7 +240,7 @@ class ReactiveS3Index:
         self.s3.Object(self.bucketName, bucketPath).put(
             Body=open(localPath, 'rb'))
         if 'pubSub' in self.__dict__ and self.pubSub is not None:
-            self.pubSub.sendMessage(
+            self.pubSub.publish(
                 makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': os.path.getsize(localPath)})
 
     def uploadText(self, bucketPath: str, text: str):
@@ -249,7 +249,7 @@ class ReactiveS3Index:
         """
         self.s3.Object(self.bucketName, bucketPath).put(Body=text)
         if 'pubSub' in self.__dict__ and self.pubSub is not None:
-            self.pubSub.sendMessage(
+            self.pubSub.publish(
                 makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': len(text.encode('utf-8'))})
 
     def uploadJSON(self, bucketPath: str, contents: Dict[str, Any]):
@@ -267,7 +267,7 @@ class ReactiveS3Index:
             return bytearray()
         self.s3.Object(self.bucketName, bucketPath).delete()
         if 'pubSub' in self.__dict__ and self.pubSub is not None:
-            self.pubSub.sendMessage(
+            self.pubSub.publish(
                 makeTopicPubSubSafe("/DELETE/"+bucketPath), {'key': bucketPath})
 
     def download(self, bucketPath: str, localPath: str) -> None:
