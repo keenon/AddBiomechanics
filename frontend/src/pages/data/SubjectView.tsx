@@ -307,8 +307,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
                 <h4 className="alert-heading">Why do I need to tag my subject?</h4>
                 <p>
-                    Data uploaded to AddBiomechanics is periodically shared in large public releases. The data is vastly more useful 
-                    if it is tagged with some characteristics of the subject. When you download large public releases to ask "big N 
+                    Data uploaded to AddBiomechanics is periodically shared in large public releases. The data is vastly more useful
+                    if it is tagged with some characteristics of the subject. When you download large public releases to ask "big N
                     questions" about populations, you will thank yourself (and everyone else) for tagging your data!
                 </p>
                 <hr />
@@ -454,18 +454,18 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     </div>
                 );
             }
-            else if (footBodyNames.length > 2) {
-                footErrorMessage = (
-                    <div className="invalid-feedback">
-                        Currently AddBiomechanics dynamics fitter only supports treating each foot as a single body segment. Please don't include multiple segments from each foot.
-                    </div>
-                );
-            }
+            // else if (footBodyNames.length > 2) {
+            //     footErrorMessage = (
+            //         <div className="invalid-feedback">
+            //             Currently AddBiomechanics dynamics fitter only supports treating each foot as a single body segment. Please don't include multiple segments from each foot.
+            //         </div>
+            //     );
+            // }
 
             formElements.push(<div key="feet" className="mb-3">
                 <label>Specify Two Feet in Custom OpenSim Model:</label>
                 <TagEditor
-                    error={footBodyNames.length != 2}
+                    error={footBodyNames.length < 2}
                     tagSet={subjectState.availableBodyNodes}
                     tags={footBodyNames}
                     readonly={props.readonly}
@@ -485,7 +485,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 />
             </div>);
 
-            if (footBodyNames.length != 2) {
+            if (footBodyNames.length < 2) {
                 formCompleteSoFar = false;
                 formElements.push(<div className="alert alert-dark mt-2" role="alert" key="footExplanation">
                     <h4 className="alert-heading">Why do I need to specify two feet in my Custom OpenSim Model?</h4>
@@ -570,11 +570,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
                 <h4 className="alert-heading">How do I choose which "Quality of Data" to say?</h4>
                 <p>
-                    AddBiomechanics treats different kinds of data differently. By telling us how confident you 
+                    AddBiomechanics treats different kinds of data differently. By telling us how confident you
                     are in the data, we can modulate how much computation to use producing a result.
                 </p>
                 <p>
-                    This tag also helps us to determine what data needs extra quality checks before getting 
+                    This tag also helps us to determine what data needs extra quality checks before getting
                     included in any large public dataset releases.
                 </p>
                 <p>
@@ -582,21 +582,21 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     <ul>
                         <li>
                             <h5>Just experimenting:</h5>
-                            This is data you collected quickly, perhaps without 
-                            super careful marker placement, and maybe while still debugging the protocol for your 
+                            This is data you collected quickly, perhaps without
+                            super careful marker placement, and maybe while still debugging the protocol for your
                             study. We will <b>use fewer optimization iterations</b> to process your data.
-                            We will also treat it with extreme caution when evaluating for inclusion in public 
+                            We will also treat it with extreme caution when evaluating for inclusion in public
                             dataset releases.
                         </li>
                         <li>
                             <h5>Study data:</h5>
-                            This is data you collected carefully. We will <b>use more 
-                            optimization iterations</b> to process your data to get the highest quality results.
+                            This is data you collected carefully. We will <b>use more
+                                optimization iterations</b> to process your data to get the highest quality results.
                         </li>
                         <li>
                             <h5>Found on the internet:</h5>
-                            This is not data you collected yourself. It could be very high 
-                            quality, or it could be bad -- and you're about to find out! AddBiomechanics will be optimistic 
+                            This is not data you collected yourself. It could be very high
+                            quality, or it could be bad -- and you're about to find out! AddBiomechanics will be optimistic
                             and use <b>more optimization iterations</b> to try to get the highest quality results.
                         </li>
                     </ul>
@@ -711,8 +711,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 </p>
                 <h5>IMPORTANT: NEVER INCLUDE PATIENT IDENTIFYING INFORMATION IN YOUR CITATION!</h5>
                 <p>
-                    Definitely do not put something like "Keenon Werling's gait data" in the citation field, unless 
-                    your subject has explicitly given informed consent to be identified and has requested that users 
+                    Definitely do not put something like "Keenon Werling's gait data" in the citation field, unless
+                    your subject has explicitly given informed consent to be identified and has requested that users
                     of the data cite them by name.
                 </p>
             </div>);
@@ -750,13 +750,13 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     let mocapFilesTable = null;
     if (subjectState.trials.length > 0) {
-        mocapFilesTable = <table className="table" style={{width: '100%', overflow: 'hidden', tableLayout: 'fixed'}}>
+        mocapFilesTable = <table className="table" style={{ width: '100%', overflow: 'hidden', tableLayout: 'fixed' }}>
             <thead>
                 <tr>
-                    <th scope="col" style={{width: '100px', maxWidth: '30%'}}>Name</th>
+                    <th scope="col" style={{ width: '100px', maxWidth: '30%' }}>Name</th>
                     <th scope="col">Marker {disableDynamics ? '' : ' and Forces'} Data</th>
                     <th scope="col">Tags</th>
-                    <th scope="col" style={{width: '100px'}}>Delete?</th>
+                    <th scope="col" style={{ width: '100px' }}>Delete?</th>
                 </tr>
             </thead>
             <tbody>
@@ -788,11 +788,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
                         <td style={{
                             minWidth: '200px'
                         }}>
-                            <TagEditor 
-                                tagSet='trial' 
+                            <TagEditor
+                                tagSet='trial'
                                 error={false}
                                 tags={trialTags}
-                                readonly={props.readonly} 
+                                readonly={props.readonly}
                                 onTagsChanged={(newTags) => {
                                     trial.trialJson.setAttribute("trialTags", newTags);
                                 }}
@@ -869,16 +869,16 @@ const SubjectView = observer((props: SubjectViewProps) => {
         <h3>Motion Capture Files:</h3>
         {mocapFilesTable}
         <div className={"dropzone" + (dropZoneActive ? ' dropzone-hover' : '')}
-             onDrop={onDrop as any}
-             onDragOver={(e) => {
+            onDrop={onDrop as any}
+            onDragOver={(e) => {
                 e.preventDefault();
-             }}
-             onDragEnter={() => {
+            }}
+            onDragEnter={() => {
                 setDropZoneActive(true);
-             }}
-             onDragLeave={() => {
+            }}
+            onDragLeave={() => {
                 setDropZoneActive(false);
-             }}>
+            }}>
             <div className="dz-message needsclick">
                 <i className="h3 text-muted dripicons-cloud-upload"></i>
                 <h5>
@@ -904,6 +904,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     e.stopPropagation();
                     return subjectState.reprocess();
                 }}>Reprocess</button>
+                <h3>Processing log contents:</h3>
+                <pre>
+                    {subjectState.logText}
+                </pre>
             </div>;
         }
         else if (resultsExist) {
@@ -928,9 +932,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                 if (window.confirm("Are you sure you want to reprocess the data? That will delete your current results.")) {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    await props.home.dir.delete(subjectState.resultsJsonPath);
-                                    await errorFlagFile.delete();
-                                    await processingFlagFile.delete();
+                                    await subjectState.reprocess();
                                 }
                             }}>Reprocess</button>
                         </p>
@@ -942,9 +944,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
             statusSection = <div>
                 <h3>Status: Processing</h3>
                 <button className="btn btn-primary" onClick={async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    await processingFlagFile.delete();
+                    if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await subjectState.reprocess();
+                    }
                 }}>Force Reprocess</button>
             </div>;
         }
@@ -954,8 +958,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <button className="btn btn-primary" onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    await slurmFlagFile.delete();
-                    await processingFlagFile.delete();
+                    if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await subjectState.reprocess();
+                    }
                 }}>Force Reprocess</button>
             </div>;
         }
@@ -995,7 +1002,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                     }
                                     else if (segmentResults.kinematicsStatus === 'ERROR') {
                                         hasErrors = true;
-                                        kinematicsResults = <span className='text-danger'>Error</span>;
+                                        kinematicsResults = <span className='text-danger'><b>Error</b> {segmentResults.errorMsg}</span>;
                                     }
                                     else if (segmentResults.kinematicsStatus === 'NOT_STARTED') {
                                         kinematicsResults = 'Not run';

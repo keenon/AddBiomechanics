@@ -20,7 +20,7 @@ abstract class PubSubSocket {
      * This attempts to publish a PubSub message. Because PubSub is a "nice to have" feature, none of its methods throw errors.
      * If sending fails, it will queue the message to be sent later.
      */
-    abstract publish(msg: PubSubMessage): void;
+    abstract publish(msg: PubSubMessage): Promise<void>;
     /**
      * This attempts to establish a PubSub connection. Because PubSub is a "nice to have" feature, none of its methods throw errors.
      * If subscribing fails, it will attempt to resubscribe later when we reconnect.
@@ -98,13 +98,14 @@ class PubSubSocketMock extends PubSubSocket {
         this.queuedMessages = [];
     }
 
-    publish(msg: PubSubMessage): void {
+    publish(msg: PubSubMessage): Promise<void> {
         if (!this.connected) {
             this.queuedMessages.push(msg);
         }
         else {
             this.mockSentMessagesLog.push(msg);
         }
+        return Promise.resolve();
     }
 
     mockReceiveMessage(msg: PubSubMessage) {

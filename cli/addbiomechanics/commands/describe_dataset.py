@@ -255,5 +255,8 @@ class DescribeDatasetCommand(AbstractCommand):
         print('Phase durations:')
         for key in phase_durations.keys():
             print('  '+key+': '+str(len(phase_durations[key]))+' instances, avg '+ str(timedelta(seconds=sum(phase_durations[key])/max(len(phase_durations[key]), 1)))+', total '+str(timedelta(seconds=int(sum(phase_durations[key]))))+' ('+str(round(sum(phase_durations[key])/sum(all_trial_durations)*100, 1))+'%)')
+        print('Missing GRFs by trial:')
+        for t, bool_list in enumerate(probably_missing_grf):
+            print('   trial: '+ str(t) + ', missing any GRF: ' + str(any(bool_list)) + ', number of frame(s) with missing GRFs: ' + str(sum(bool_list)) + ', total number of frames: ' + str(len(bool_list)))
 
         return True

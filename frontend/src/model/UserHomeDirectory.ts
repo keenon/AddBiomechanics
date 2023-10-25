@@ -6,9 +6,12 @@ import SubjectViewState from "./SubjectViewState";
 
 type PathType = 'dataset' | 'subject' | 'trial' | 'trial_segment' | 'trials_folder' | '404' | 'loading';
 
+type PathStatus = 'loading' | 'needs_data' | 'ready_to_process' | 'waiting_for_server' | 'slurm' | 'processing' | 'error' | 'done';
+
 type DatasetContents = {
     loading: boolean;
-    contents: {name: string, path: string, type: PathType}[]
+    status: PathStatus;
+    contents: {name: string, path: string, type: PathType, status: PathStatus}[]
 };
 
 type SubjectContents = {
@@ -132,6 +135,88 @@ class UserHomeDirectory {
     };
 
     /**
+     * Gets the status of a given path, whether it's a subject or folder.
+     * 
+     * @param path The path to the folder to check
+     */
+    getPathStatus(path: string): PathStatus {
+        if (path.startsWith('/')) {
+            path = path.substring(1);
+        }
+
+        const pathData: PathData | undefined = this.dir.getCachedPath(path);
+        if (pathData == null || pathData.loading) {
+            return 'loading';
+        }
+
+        const pathType: PathType = this.getPathType(path);
+        if (pathType === 'dataset') {
+            const folderStatus: PathStatus[] = pathData.folders.map((folder) => {
+                // If the folder is the same as the path, or just the path + '/'
+                if (folder.length <= path.length + 1) {
+                    return 'done';
+                }
+                return this.getPathStatus(folder);
+            });
+            if (folderStatus.includes('loading')) {
+                return 'loading';
+            }
+            else if (folderStatus.length === 0) {
+                return 'needs_data';
+            }
+            else if (folderStatus.includes('processing')) {
+                return 'processing';
+            }
+            else if (folderStatus.includes('waiting_for_server')) {
+                return 'waiting_for_server';
+            }
+            else if (folderStatus.includes('slurm')) {
+                return 'slurm';
+            }
+            else if (folderStatus.includes('error')) {
+                return 'error';
+            }
+            else if (folderStatus.includes('ready_to_process')) {
+                return 'ready_to_process';
+            }
+            else {
+                return 'done';
+            }
+        }
+
+        if (pathType === 'subject') {
+            const child_files = pathData.files.map((file) => {
+                return file.key.substring(path.length).replace(/\/$/, '').replace(/^\//, '');
+            });
+            if (child_files.includes('_results.json')) {
+                return 'done';
+            }
+            else if (child_files.includes('ERROR')) {
+                return 'error';
+            }
+            else if (child_files.includes('PROCESSING')) {
+                return 'processing';
+            }
+            else if (child_files.includes('SLURM')) {
+                return 'slurm';
+            }
+            else if (child_files.includes('READY_TO_PROCESS')) {
+                return 'waiting_for_server';
+            }
+            else if (child_files.filter((file) => {
+                return file.indexOf('trials/') > 0;
+            }).length > 0) {
+                return 'needs_data';
+            }
+            else {
+                return 'ready_to_process';
+            }
+        }
+
+        return 'done';
+    };
+
+    /**
      * If this is a dataset, we will return the contents.
      * 
      * @param path The path to the dataset
@@ -144,14 +229,35 @@ class UserHomeDirectory {
 
         return {
             loading: pathData.loading,
+            status: this.getPathStatus(path),
             contents: pathData.folders.map((folder) => {
                 return {
                     name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
                     path: folder,
+                    status: this.getPathStatus(folder),
                     type: this.getPathType(folder),
                 };
             })
         };
+    }
+
+    /**
+     * This will reprocess all the subjects within a directory
+     * 
+     * @param path 
+     * @returns 
+     */
+    async reprocessAllSubjects(path: string): Promise<void> {
+        const dir = this.dir;
+        let pathData: PathData = dir.getPath(path, false);
+        if (pathData.promise) {
+            pathData = await pathData.promise;
+        }
+        return Promise.all(pathData.folders.map((folder) => {
+            if (this.getPathType(folder) === 'subject') {
+                return this.getSubjectViewState(folder).reprocess();
+            }
+        })).then(() => {});
     }
 
     /**

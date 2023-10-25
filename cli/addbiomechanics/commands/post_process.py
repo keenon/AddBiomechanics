@@ -1,4 +1,3 @@
-import scipy.signal
 from addbiomechanics.commands.abtract_command import AbstractCommand
 import argparse
 from addbiomechanics.auth import AuthContext
@@ -6,6 +5,7 @@ import os
 import tempfile
 from typing import List, Dict, Tuple
 import itertools
+
 
 class PostProcessCommand(AbstractCommand):
     def register_subcommand(self, subparsers: argparse._SubParsersAction):
@@ -16,21 +16,38 @@ class PostProcessCommand(AbstractCommand):
                                  'same relative paths.')
         parser.add_argument('input_path', type=str)
         parser.add_argument('output_path', type=str)
+        parser.add_argument('--geometry-folder', type=str, default=None)
         parser.add_argument(
-            '--lowpass-hz',
-            help='The frequency to lowpass filter all the position, velocity, acceleration, and torque values',
+            '--only-dynamics',
+            help='Filter to only trial segments with dynamics',
+            type=bool,
+            default=False)
+        parser.add_argument('--clean-up-noise', help='Smooth the finite-differenced quantities to have a similar frequency profile to the original signals. Also clean up CoP data to only include physically plausible CoPs (near the feet).', type=bool, default=False)
+        parser.add_argument(
+            '--recompute-values',
+            help='Load skeletons and recompute all values, which will fill any new fields in B3D that have been added '
+                 'since the original files were generated',
+            type=bool,
+            default=False)
+        parser.add_argument(
+            '--root-history-len',
+            help='The number of frames to use when recomputing the root position and rotation history, in the root '
+                 'frame. This is ignored unless --recompute-values is specified.',
             type=int,
-            default=None)
+            default=5
+        )
+        parser.add_argument(
+            '--root-history-stride',
+            help='The stride to use when recomputing the root position and rotation history, in the root '
+                 'frame. This is ignored unless --recompute-values is specified.',
+            type=int,
+            default=1
+        )
         parser.add_argument(
             '--sample-rate',
             help='The new sample rate to enforce on all the data, if specified, either by up-sampling or down-sampling',
             type=int,
             default=None)
-        parser.add_argument(
-            '--trim-to-grf',
-            help='Trim each trial to the longest section that has non-zero GRF and .',
-            type=bool,
-            default=False)
 
     def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'post-process':
@@ -48,18 +65,38 @@ class PostProcessCommand(AbstractCommand):
             print("The required library 'numpy' is not installed. Please install it and try this command again.")
             return True
         try:
-            from scipy.signal import butter, filtfilt, resample_poly
+            from scipy.signal import butter, filtfilt, resample_poly, welch
             from scipy.interpolate import interp1d
         except ImportError:
             print("The required library 'scipy' is not installed. Please install it and try this command again.")
             return True
 
+        # Handy little utility for resampling a discrete signal
+        def resample_discrete(signal, old_rate, new_rate):
+            # Compute the ratio of the old and new rates
+            ratio = old_rate / new_rate
+            # Use numpy's round and int functions to get the indices of the nearest values
+            indices = (np.round(np.arange(0, len(signal), ratio))).astype(int)
+            # Limit indices to the valid range
+            indices = np.clip(indices, 0, len(signal) - 1)
+            # Use advanced indexing to get the corresponding values
+            resampled_signal = np.array(signal)[indices]
+            return resampled_signal.tolist()
 
         input_path_raw: str = os.path.abspath(args.input_path)
         output_path_raw: str = os.path.abspath(args.output_path)
-        lowpass_hz: int = args.lowpass_hz
         sample_rate: int = args.sample_rate
-        trim_to_grf: bool = args.trim_to_grf
+        recompute_values: bool = args.recompute_values
+        only_dynamics: bool = args.only_dynamics
+        root_history_len: int = args.root_history_len
+        root_history_stride: int = args.root_history_stride
+        geometry_folder: str = args.geometry_folder
+        clean_up_noise: bool = args.clean_up_noise
+        if geometry_folder is not None:
+            geometry_folder = os.path.abspath(geometry_folder) + '/'
+        else:
+            geometry_folder = os.path.abspath(os.path.join(os.path.dirname(input_path_raw), 'Geometry')) + '/'
+        print('Geometry folder: ' + geometry_folder)
 
         input_output_pairs: List[Tuple[str, str]] = []
 
@@ -71,7 +108,7 @@ class PostProcessCommand(AbstractCommand):
             # Output_path preserves the relative path to the file, but is in the output_path_raw directory instead.
             for dirpath, dirnames, filenames in os.walk(input_path_raw):
                 for filename in filenames:
-                    if filename.endswith('.bin'):
+                    if filename.endswith('.b3d'):
                         input_path = os.path.join(dirpath, filename)
                         # Create the output_path preserving the relative path
                         relative_path = os.path.relpath(input_path, input_path_raw)
@@ -91,488 +128,204 @@ class PostProcessCommand(AbstractCommand):
             # Read all the contents from the current SubjectOnDisk
             subject: nimble.biomechanics.SubjectOnDisk = nimble.biomechanics.SubjectOnDisk(input_path)
 
-            temp = tempfile.NamedTemporaryFile(mode='w+t', delete=False, suffix='.osim')
-            opensim_file_path = temp.name
-            try:
-                temp.write(subject.readRawOsimFileText())
-            finally:
-                temp.close()
-
-            dofs = subject.getNumDofs()
-            trial_timesteps = [subject.getTrialTimestep(trial) for trial in range(subject.getNumTrials())]
-            trial_lengths = [subject.getTrialLength(trial) for trial in range(subject.getNumTrials())]
-            trial_poses: List[np.ndarray] = [np.zeros((dofs, trial_lengths[trial])) for trial in
-                                             range(subject.getNumTrials())]
-            trial_vels: List[np.ndarray] = [np.zeros((dofs, trial_lengths[trial])) for trial in
-                                            range(subject.getNumTrials())]
-            trial_accs: List[np.ndarray] = [np.zeros((dofs, trial_lengths[trial])) for trial in
-                                            range(subject.getNumTrials())]
-            probably_missing_grf: List[List[bool]] = [subject.getProbablyMissingGRF(trial) for trial in
-                                                      range(subject.getNumTrials())]
-            missing_grf_reason: List[List[nimble.biomechanics.MissingGRFReason]] = [
-                subject.getMissingGRFReason(trial) for trial in
-                range(subject.getNumTrials())]
-            dof_positions_observed: List[List[bool]] = [[True for _ in range(dofs)] for _ in range(subject.getNumTrials())]
-            dof_velocity_finite_differenced: List[List[bool]] = [[True for _ in range(dofs)] for _ in range(subject.getNumTrials())]
-            dof_acc_finite_differenced: List[List[bool]] = [[True for _ in range(dofs)] for _ in range(subject.getNumTrials())]
-            trial_taus: List[np.ndarray] = [np.zeros((dofs, trial_lengths[trial])) for trial in
-                                            range(subject.getNumTrials())]
-            trial_com_poses: List[np.ndarray] = [np.zeros((3, trial_lengths[trial])) for trial in
-                                                range(subject.getNumTrials())]
-            trial_com_vels: List[np.ndarray] = [np.zeros((3, trial_lengths[trial])) for trial in
-                                                 range(subject.getNumTrials())]
-            trial_com_accs: List[np.ndarray] = [np.zeros((3, trial_lengths[trial])) for trial in
-                                                range(subject.getNumTrials())]
-            trial_residual_norms: List[List[float]] = [subject.getTrialResidualNorms(trial) for trial in
-                                                       range(subject.getNumTrials())]
-            ground_force_bodies: List[str] = subject.getContactBodies()
-            trial_ground_body_wrenches: List[np.ndarray] = [np.zeros((6 * len(ground_force_bodies), trial_lengths[trial])) for trial in
-                                                            range(subject.getNumTrials())]
-            trial_ground_body_cop_torque_force: List[np.ndarray] = [np.zeros((9 * len(ground_force_bodies), trial_lengths[trial])) for trial in
-                                                            range(subject.getNumTrials())]
-            custom_value_names = subject.getCustomValues()
-            custom_values: List[List[np.ndarray]] = [[np.zeros((len(custom_value_names), trial_lengths[trial])) for _ in range(trial_lengths[trial])] for trial in range(subject.getNumTrials())]
-            marker_observations: List[List[Dict[str, np.ndarray]]] = [[{} for _ in range(trial_lengths[trial])] for trial in range(subject.getNumTrials())]
-            acc_observations: List[List[Dict[str, np.ndarray]]] = [[{} for _ in range(trial_lengths[trial])] for trial in range(subject.getNumTrials())]
-            gyro_observations: List[List[Dict[str, np.ndarray]]] = [[{} for _ in range(trial_lengths[trial])] for trial in range(subject.getNumTrials())]
-            emg_observations: List[List[Dict[str, np.ndarray]]] = [[{} for _ in range(trial_lengths[trial])] for trial in range(subject.getNumTrials())]
-            force_plates: List[List[nimble.biomechanics.ForcePlate]] = [[nimble.biomechanics.ForcePlate() for _ in range(subject.getNumForcePlates(trial))] for trial in range(subject.getNumTrials())]
-            biological_sex: str = subject.getBiologicalSex()
-            height_m: float = subject.getHeightM()
-            mass_kg: float = subject.getMassKg()
-            age_years: int = subject.getAgeYears()
-            trial_names: List[str] = [subject.getTrialName(trial) for trial in range(subject.getNumTrials())]
-            subject_tags: List[str] = subject.getSubjectTags()
-            trial_tags: List[List[str]] = [subject.getTrialTags(trial) for trial in range(subject.getNumTrials())]
-            source_href: str = subject.getHref()
-            notes: str = subject.getNotes()
-
-            force_plate_forces: List[List[List[np.ndarray]]] = [[[] for _ in range(subject.getNumForcePlates(trial))] for trial in range(subject.getNumTrials())]
-            force_plate_cops: List[List[List[np.ndarray]]] = [[[] for _ in range(subject.getNumForcePlates(trial))] for trial in range(subject.getNumTrials())]
-            force_plate_moments: List[List[List[np.ndarray]]] = [[[] for _ in range(subject.getNumForcePlates(trial))] for trial in range(subject.getNumTrials())]
-
-            for trial in range(len(trial_lengths)):
-                for t in range(trial_lengths[trial]):
-                    frame: nimble.biomechanics.Frame = subject.readFrames(trial, t, 1)[0]
-                    trial_poses[trial][:, t] = frame.pos
-                    trial_vels[trial][:, t] = frame.vel
-                    trial_accs[trial][:, t] = frame.acc
-                    trial_taus[trial][:, t] = frame.tau
-                    trial_com_poses[trial][:, t] = frame.comPos
-                    trial_com_vels[trial][:, t] = frame.comVel
-                    trial_com_accs[trial][:, t] = frame.comAcc
-                    trial_ground_body_wrenches[trial][:, t] = frame.groundContactWrenches
-
-                    cops = frame.groundContactCenterOfPressure
-                    torques = frame.groundContactTorque
-                    forces = frame.groundContactForce
-                    for i in range(len(ground_force_bodies)):
-                        trial_ground_body_cop_torque_force[trial][i*9:i*9+3, t] = cops[i*3:i*3+3]
-                        trial_ground_body_cop_torque_force[trial][i*9+3:i*9+6, t] = torques[i*3:i*3+3]
-                        trial_ground_body_cop_torque_force[trial][i*9+6:i*9+9, t] = forces[i*3:i*3+3]
-
-                    for i in range(len(custom_value_names)):
-                        custom_values[trial][t][i] = frame.customValues[i]
-
-                    for i in range(len(force_plates[trial])):
-                        force_plate_forces[trial][i].append(frame.rawForcePlateForces[i])
-                        force_plate_cops[trial][i].append(frame.rawForcePlateCenterOfPressures[i])
-                        force_plate_moments[trial][i].append(frame.rawForcePlateTorques[i])
-
-                    marker_observations[trial][t] = dict(frame.markerObservations)
-                    acc_observations[trial][t] = dict(frame.accObservations)
-                    gyro_observations[trial][t] = dict(frame.gyroObservations)
-                    emg_observations[trial][t] = dict(frame.emgSignals)
-
-                for i in range(len(force_plates[trial])):
-                    force_plates[trial][i].forces = force_plate_forces[trial][i]
-                    force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
-                    force_plates[trial][i].moments = force_plate_moments[trial][i]
-
-            print('Done reading SubjectOnDisk.')
-
-            # Do any post-processing of the data we just read
-
-            if lowpass_hz is not None:
-                print('Low-pass filtering kinematics + kinetics data at {} Hz...'.format(lowpass_hz))
-
-                skel = subject.readSkel(geometryFolder='No_Geometry')
+            drop_trials: List[int] = []
+            if only_dynamics:
+                has_dynamics_pass = False
+                for pass_num in range(subject.getNumProcessingPasses()):
+                    if subject.getProcessingPassType(pass_num) == nimble.biomechanics.ProcessingPassType.DYNAMICS:
+                        has_dynamics_pass = True
+                        break
+                if not has_dynamics_pass:
+                    print('Skipping ' + input_path + ' because it does not have any dynamics processing passes.')
+                    continue
 
                 for trial in range(subject.getNumTrials()):
-                    nyquist = 0.5 / subject.getTrialTimestep(trial)
-                    if lowpass_hz > nyquist:
-                        print('Sample rate on trial '+str(trial)+' of '+str(nyquist * 2)+' is too low to filter at '
-                              +str(lowpass_hz)+'. Highest frequency allowed is '+str(nyquist)+', so we will not '
-                              +'low-pass filter this example')
-                    else:
-                        b, a = butter(2, lowpass_hz, 'low', fs=1 / subject.getTrialTimestep(trial))
-                        trial_poses[trial] = filtfilt(b, a, trial_poses[trial], axis=1)
-                        for t in range(trial_lengths[trial]):
-                            if t > 0:
-                                trial_vels[trial][:, t] = skel.getPositionDifferences(trial_poses[trial][:, t], trial_poses[trial][:, t-1]) / subject.getTrialTimestep(trial)
-                            if t > 0 and t < trial_lengths[trial] - 1:
-                                trial_accs[trial][:, t] = (skel.getPositionDifferences(trial_poses[trial][:, t+1], trial_poses[trial][:, t]) - skel.getPositionDifferences(trial_poses[trial][:, t], trial_poses[trial][:, t-1])) / (subject.getTrialTimestep(trial) * subject.getTrialTimestep(trial))
-                        trial_vels[trial] = filtfilt(b, a, trial_vels[trial], axis=1)
-                        trial_accs[trial] = filtfilt(b, a, trial_accs[trial], axis=1)
-                        trial_taus[trial] = filtfilt(b, a, trial_taus[trial], axis=1)
-                        trial_com_poses[trial] = filtfilt(b, a, trial_com_poses[trial], axis=1)
-                        trial_com_vels[trial] = filtfilt(b, a, trial_com_vels[trial], axis=1)
-                        trial_com_accs[trial] = filtfilt(b, a, trial_com_accs[trial], axis=1)
+                    has_dynamics_pass = False
+                    for pass_num in range(subject.getTrialNumProcessingPasses(trial)):
+                        if subject.getProcessingPassType(pass_num) == nimble.biomechanics.ProcessingPassType.DYNAMICS:
+                            has_dynamics_pass = True
+                            break
+                    if not has_dynamics_pass:
+                        drop_trials.append(trial)
 
-                        contact_body_world_positions = [np.zeros((3, trial_lengths[trial])) for _ in range(len(ground_force_bodies))]
-                        for t in range(trial_lengths[trial]):
-                            skel.setPositions(trial_poses[trial][:, t])
-                            for i in range(len(ground_force_bodies)):
-                                contact_body_world_positions[i][:, t] = skel.getBodyNode(ground_force_bodies[i]).getWorldTransform().translation()
+            print('Reading all frames')
+            subject.loadAllFrames()
 
-                        # First, ensure that the GRF data has proper zeros
-                        force_plate_norms: List[np.ndarray] = [np.zeros(trial_lengths[trial]) for _ in range(len(force_plates[trial]))]
-                        for i in range(len(force_plates[trial])):
-                            force_norms = force_plate_norms[i]
-                            for t in range(trial_lengths[trial]):
-                                force_norms[t] = np.linalg.norm(force_plate_forces[trial][i][t])
-
-                            num_bins = 200
-                            hist, bin_edges = np.histogram(force_norms, bins=num_bins)
-                            avg_bin_value = trial_lengths[trial] / num_bins
-                            hist_max_index = np.argmax(hist)
-                            # If the largest bin is in the bottom 25% of the distribution
-                            if hist_max_index < num_bins / 4:
-                                # Expand out from that bin in both directions until we find a bin that is below the
-                                # average bin value.
-                                right_bound = hist_max_index
-                                for j in range(hist_max_index, num_bins):
-                                    if hist[j] < avg_bin_value:
-                                        right_bound = j
-                                        break
-                                # Now we have the boundary of the "big thumb" region. This generally corresponds to the
-                                # zero point of the treadmill. If it is exactly at zero, then all is well. But if it is
-                                # not, then we've found a cutoff threshold which we should use to zero the GRF data.
-                                if right_bound > num_bins / 2:
-                                    # We found a right bound, but it's suspiciously far up the distribution. Let's
-                                    # ignore this zero.
-                                    pass
-                                else:
-                                    # We found a right bound that is in the bottom half of the distribution. Let's
-                                    # use it to zero the GRF data.
-                                    zero_threshold = bin_edges[right_bound]
-                                    for t in range(trial_lengths[trial]):
-                                        if force_norms[t] < zero_threshold:
-                                            force_plate_forces[trial][i][t] = np.zeros(3)
-                                            force_plate_cops[trial][i][t] = np.zeros(3)
-                                            force_plate_moments[trial][i][t] = np.zeros(3)
-                                            force_norms[t] = 0.0
-
-                        trial_ground_body_cop_torque_force[trial] = np.zeros_like(trial_ground_body_cop_torque_force[trial])
-                        # Next, low-pass filter the GRF data for each non-zero section
-                        for i in range(len(force_plates[trial])):
-                            force_matrix = np.zeros((3, trial_lengths[trial]))
-                            cop_matrix = np.zeros((3, trial_lengths[trial]))
-                            moment_matrix = np.zeros((3, trial_lengths[trial]))
-                            force_norms = force_plate_norms[i]
-                            non_zero_segments: List[Tuple[int,int]] = []
-                            last_nonzero = -1
-                            for t in range(trial_lengths[trial]):
-                                if force_norms[t] > 0.0:
-                                    if last_nonzero < 0:
-                                        last_nonzero = t
-                                else:
-                                    if last_nonzero >= 0:
-                                        non_zero_segments.append((last_nonzero, t-1))
-                                        last_nonzero = -1
-                                force_matrix[:, t] = force_plate_forces[trial][i][t]
-                                cop_matrix[:, t] = force_plate_cops[trial][i][t]
-                                moment_matrix[:, t] = force_plate_moments[trial][i][t]
-                            if last_nonzero >= 0:
-                                non_zero_segments.append((last_nonzero, trial_lengths[trial]-1))
-
-                            # print start and end indices of non-zero sequences
-                            for start, end in non_zero_segments:
-                                # print(f"Filtering force plate {i} on non-zero range [{start}, {end}]")
-                                if end - start < 10:
-                                    # print(" - Skipping non-zero segment because it's too short. Zeroing instead")
-                                    for t in range(start, end):
-                                        force_plate_forces[trial][i][t] = np.zeros(3)
-                                        force_plate_cops[trial][i][t] = np.zeros(3)
-                                        force_plate_moments[trial][i][t] = np.zeros(3)
-                                        force_norms[t] = 0.0
-                                else:
-                                    force_matrix[:, start:end] = filtfilt(b, a, force_matrix[:, start:end], padtype='constant')
-                                    cop_matrix[:, start:end] = filtfilt(b, a, cop_matrix[:, start:end], padtype='constant')
-                                    moment_matrix[:, start:end] = filtfilt(b, a, moment_matrix[:, start:end], padtype='constant')
-
-                                    dist_to_contact_bodies = np.zeros(len(ground_force_bodies))
-
-                                    for t in range(start, end):
-                                        force_plate_forces[trial][i][t] = force_matrix[:, t]
-                                        force_plate_cops[trial][i][t] = cop_matrix[:, t]
-                                        force_plate_moments[trial][i][t] = moment_matrix[:, t]
-                                        for j in range(len(ground_force_bodies)):
-                                            dist_to_contact_bodies[j] += np.linalg.norm(cop_matrix[:, t] - contact_body_world_positions[j][:, t])
-
-                                    closest_body_index = np.argmin(dist_to_contact_bodies)
-                                    # print('Closest body: ', ground_force_bodies[closest_body_index])
-
-                                    for t in range(start, end):
-                                        # TODO: it's technically possible for one foot to be split over two force plates
-                                        # so really, we should be summing the results from each force plate that assigns
-                                        # to a given foot, but that's such a huge PITA that I'm just going to ignore it
-                                        # for now
-                                        trial_ground_body_cop_torque_force[trial][closest_body_index*9:closest_body_index*9+9, t] = np.hstack((cop_matrix[:, t], moment_matrix[:, t], force_matrix[:, t]))
-
-                    # Update the force plates
-                    for i in range(len(force_plates[trial])):
-                        force_plates[trial][i].forces = force_plate_forces[trial][i]
-                        force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
-                        force_plates[trial][i].moments = force_plate_moments[trial][i]
-
-                    # Recompute inverse dynamics
-                    for t in range(trial_lengths[trial]):
-                        skel.setPositions(trial_poses[trial][:, t])
-                        skel.setVelocities(trial_vels[trial][:, t])
-                        skel.setAccelerations(trial_accs[trial][:, t])
-
-                        skel.clearExternalForces()
-
-                        for i in range(len(ground_force_bodies)):
-                            cop = trial_ground_body_cop_torque_force[trial][i*9:i*9+3, t]
-                            moment = trial_ground_body_cop_torque_force[trial][i*9+3:i*9+6, t]
-                            force = trial_ground_body_cop_torque_force[trial][i*9+6:i*9+9, t]
-
-                            local_wrench = np.zeros(6)
-                            local_wrench[0:3] = moment
-                            local_wrench[3:6] = force
-                            global_wrench = nimble.math.dAdInvT(np.eye(3), cop, local_wrench)
-                            body = skel.getBodyNode(ground_force_bodies[i])
-                            wrench_local = nimble.math.dAdT(body.getWorldTransform().rotation(),
-                                                            body.getWorldTransform().translation(), global_wrench)
-                            body.setExtWrench(wrench_local)
-
-                        skel.computeInverseDynamics(withExternalForces=True)
-                        tau = skel.getControlForces()
-                        trial_taus[trial][:, t] = tau
-            if trim_to_grf:
-                for trial in range(subject.getNumTrials()):
-                    legal: np.ndarray = np.zeros(trial_lengths[trial])
-                    force: np.ndarray = np.zeros(trial_lengths[trial])
-                    for t in range(trial_lengths[trial]):
-                        if probably_missing_grf[trial][t]:
-                            continue
-                        legal[t] = 1
-                        for i in range(len(ground_force_bodies)):
-                            force[t] += np.linalg.norm(trial_ground_body_cop_torque_force[trial][i*9+6:i*9+9, t])
-
-                    # By ChatGPT:
-                    def non_zero_sections(arr):
-                        # Create a boolean mask where True corresponds to non-zero elements
-                        mask = arr != 0
-
-                        # Use itertools.groupby to group contiguous True values
-                        non_zero_sections = [list(group) for key, group in itertools.groupby(mask) if key]
-
-                        # Find starting and ending indices of each non-zero section in the original array
-                        indices = []
-                        start_idx = 0
-                        for g in non_zero_sections:
-                            if len(g) > 0:
-                                end_idx = start_idx + len(g) - 1
-                                indices.append((start_idx, end_idx))
-                                start_idx = end_idx + 1
-
-                        # Return all non-zero sections
-                        return indices
-
-                    # def longest_non_zero(arr):
-                    #     # Create a boolean mask where True corresponds to non-zero elements
-                    #     mask = arr != 0
-                    #
-                    #     # Use itertools.groupby to group contiguous True values
-                    #     non_zero_sections = [list(group) for key, group in itertools.groupby(mask) if key]
-                    #
-                    #     if len(non_zero_sections) == 0:
-                    #         return 0, len(arr)-1
-                    #
-                    #     # Compute lengths of non-zero sections
-                    #     lengths = [len(g) for g in non_zero_sections]
-                    #
-                    #     # Get index of the longest section
-                    #     longest_section_idx = np.argmax(lengths)
-                    #
-                    #     # Get the longest section
-                    #     longest_section = non_zero_sections[longest_section_idx]
-                    #
-                    #     # Find starting index of the longest section in the original array
-                    #     start_idx = sum(len(g) for g in non_zero_sections[:longest_section_idx])
-                    #
-                    #     # Find end index
-                    #     end_idx = start_idx + len(longest_section)
-                    #     return start_idx, end_idx
-
-                    sections = non_zero_sections(legal)
-                    sections = [section for section in sections if sum(force[section[0]:section[1]+1]) > 0]
-                    if len(sections) == 0:
-                        continue
-                    longest_section_idx = np.argmax([end_idx - start_idx for start_idx, end_idx in sections])
-
-                    start_idx, end_idx = sections[longest_section_idx]
-                    if start_idx == 0 and end_idx == trial_lengths[trial] - 1:
-                        continue
-                    if start_idx == end_idx:
-                        continue
-                    print('Trimming trial {} to indices {}-{}'.format(trial, start_idx, end_idx))
-
-                    trial_poses[trial] = trial_poses[trial][:, start_idx:end_idx]
-                    trial_vels[trial] = trial_vels[trial][:, start_idx:end_idx]
-                    trial_accs[trial] = trial_accs[trial][:, start_idx:end_idx]
-                    trial_taus[trial] = trial_taus[trial][:, start_idx:end_idx]
-                    trial_com_poses[trial] = trial_com_poses[trial][:, start_idx:end_idx]
-                    trial_com_vels[trial] = trial_com_vels[trial][:, start_idx:end_idx]
-                    trial_com_accs[trial] = trial_com_accs[trial][:, start_idx:end_idx]
-                    trial_ground_body_wrenches[trial] = trial_ground_body_wrenches[trial][:, start_idx:end_idx]
-                    trial_ground_body_cop_torque_force[trial] = trial_ground_body_cop_torque_force[trial][:, start_idx:end_idx]
-                    custom_values[trial] = custom_values[trial][start_idx:end_idx]
-
-                    probably_missing_grf[trial] = probably_missing_grf[trial][start_idx:end_idx]
-                    missing_grf_reason[trial] = missing_grf_reason[trial][start_idx:end_idx]
-
-                    for i in range(len(force_plates[trial])):
-                        force_plate_forces[trial][i] = force_plate_forces[trial][i][start_idx:end_idx]
-                        force_plate_cops[trial][i] = force_plate_cops[trial][i][start_idx:end_idx]
-                        force_plate_moments[trial][i] = force_plate_moments[trial][i][start_idx:end_idx]
-                        force_plates[trial][i].forces = force_plate_forces[trial][i]
-                        force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
-                        force_plates[trial][i].moments = force_plate_moments[trial][i]
-
-                    marker_observations[trial] = marker_observations[trial][start_idx:end_idx]
-                    acc_observations[trial] = acc_observations[trial][start_idx:end_idx]
-                    gyro_observations[trial] = gyro_observations[trial][start_idx:end_idx]
-                    emg_observations[trial] = emg_observations[trial][start_idx:end_idx]
-
-                    trial_lengths[trial] = end_idx - start_idx
-
+            resampled = False
             if sample_rate is not None:
                 print('Re-sampling kinematics + kinetics data at {} Hz...'.format(sample_rate))
                 print('Warning! Re-sampling input source data (markers, IMU, EMG) is not yet supported, so those will '
                       'be zeroed out')
+                resampled = True
 
-                # Handy little utility for resampling a discrete signal
-                def resample_discrete(signal, old_rate, new_rate):
-                    # Compute the ratio of the old and new rates
-                    ratio = old_rate / new_rate
-
-                    # Use numpy's round and int functions to get the indices of the nearest values
-                    indices = (np.round(np.arange(0, len(signal), ratio))).astype(int)
-
-                    # Limit indices to the valid range
-                    indices = np.clip(indices, 0, len(signal) - 1)
-
-                    # Use advanced indexing to get the corresponding values
-                    resampled_signal = np.array(signal)[indices]
-
-                    return resampled_signal.tolist()
-
-
-                for trial in range(len(trial_lengths)):
-                    original_sample_rate = 1.0 / subject.getTrialTimestep(trial)
-                    # Create an array representing the time for the original signal
-                    trial_duration = trial_lengths[trial] * trial_timesteps[trial]
-                    old_times = np.linspace(0, trial_duration, trial_lengths[trial])
-
-                    # Re-sample the kinematics + kinetics data
-                    trial_poses[trial] = resample_poly(trial_poses[trial],
-                                                        sample_rate,
-                                                        original_sample_rate,
-                                                        axis=1,
-                                                        padtype='line')
-
-                    trial_lengths[trial] = trial_poses[trial].shape[1]
-
-                    # Create an array representing the time for the resampled signal
-                    new_times = np.linspace(0, trial_duration, trial_lengths[trial])
-
-                    trial_vels[trial] = resample_poly(trial_vels[trial],
-                                                      sample_rate,
-                                                      original_sample_rate,
-                                                       axis=1,
-                                                       padtype='line')
-                    trial_accs[trial] = resample_poly(trial_accs[trial],
-                                                      sample_rate,
-                                                      original_sample_rate,
-                                                      axis=1,
-                                                      padtype='line')
-                    trial_taus[trial] = resample_poly(trial_taus[trial],
-                                                      sample_rate,
-                                                      original_sample_rate,
-                                                      axis=1,
-                                                      padtype='line')
-                    trial_com_poses[trial] = resample_poly(trial_com_poses[trial],
-                                                           sample_rate,
-                                                           original_sample_rate,
-                                                                              axis=1,
-                                                                              padtype='line')
-                    trial_com_vels[trial] = resample_poly(trial_com_vels[trial],
-                                                          sample_rate,
-                                                          original_sample_rate,
-                                                           axis=1,
-                                                           padtype='line')
-                    trial_com_accs[trial] = resample_poly(trial_com_accs[trial],
-                                                          sample_rate,
-                                                          original_sample_rate,
-                                                          axis=1,
-                                                          padtype='line')
-                    # Update the force plates
-                    for i in range(len(force_plates[trial])):
-                        force_plate_forces[trial][i] = resample_poly(force_plate_forces[trial][i],
-                                                                     sample_rate,
-                                                                     original_sample_rate,
-                                                                     padtype='line')
-                        force_plates[trial][i].forces = force_plate_forces[trial][i]
-                        force_plate_cops[trial][i] = resample_poly(force_plate_cops[trial][i],
-                                                                     sample_rate,
-                                                                     original_sample_rate,
-                                                                     padtype='line')
-                        force_plates[trial][i].centersOfPressure = force_plate_cops[trial][i]
-                        force_plate_moments[trial][i] = resample_poly(force_plate_moments[trial][i],
-                                                                        sample_rate,
-                                                                        original_sample_rate,
-                                                                        padtype='line')
-                        force_plates[trial][i].moments = force_plate_moments[trial][i]
-
-                    # Re-sample the GRF data linearly
-                    new_trial_ground_body_wrenches = np.zeros((trial_ground_body_wrenches[trial].shape[0], len(new_times)))
-                    for row in range(trial_ground_body_wrenches[trial].shape[0]):
-                        # Use scipy's interp1d function to create a function that can interpolate the signal
-                        interpolator = interp1d(old_times, trial_ground_body_wrenches[trial][row, :], kind='linear')
-                        new_trial_ground_body_wrenches[row, :] = interpolator(new_times)
-                    trial_ground_body_wrenches[trial] = new_trial_ground_body_wrenches
-
-                    new_trial_ground_body_cop_torque_force = np.zeros((trial_ground_body_cop_torque_force[trial].shape[0], len(new_times)))
-                    for row in range(trial_ground_body_cop_torque_force[trial].shape[0]):
-                        interpolator = interp1d(old_times, trial_ground_body_cop_torque_force[trial][row, :], kind='linear')
-                        new_trial_ground_body_cop_torque_force[row, :] = interpolator(new_times)
-                    trial_ground_body_cop_torque_force[trial] = new_trial_ground_body_cop_torque_force
-
-                    # Re-sample the discrete values
-                    probably_missing_grf[trial] = resample_discrete(probably_missing_grf[trial],
-                                                                    original_sample_rate,
-                                                                    sample_rate)
-                    missing_grf_reason[trial] = resample_discrete(missing_grf_reason[trial],
-                                                                    original_sample_rate,
-                                                                    sample_rate)
-                    trial_residual_norms[trial] = resample_discrete(trial_residual_norms[trial],
-                                                                      original_sample_rate,
-                                                                      sample_rate)
-
-                    # Clear out unsupported values
-                    custom_value_names = subject.getCustomValues()
-                    custom_values[trial] = [np.zeros((0, trial_lengths[trial])) for _ in range(trial_lengths[trial])]
-                    marker_observations[trial] = [{} for _ in range(trial_lengths[trial])]
-                    acc_observations[trial] = [{} for _ in range(trial_lengths[trial])]
-                    gyro_observations[trial] = [{} for _ in range(trial_lengths[trial])]
-                    emg_observations[trial] = [{} for _ in range(trial_lengths[trial])]
-
+                trial_protos = subject.getHeaderProto().getTrials()
+                for trial in range(subject.getNumTrials()):
                     # Set the timestep
-                    trial_timesteps[trial] = 1.0 / sample_rate
+                    original_sample_rate = int(1.0 / subject.getTrialTimestep(trial))
+                    if original_sample_rate != int(sample_rate):
+                        trial_protos[trial].setTimestep(1.0 / sample_rate)
+                        trial_pass_protos = trial_protos[trial].getPasses()
+                        trial_len = subject.getTrialLength(trial)
+                        for processing_pass in range(subject.getTrialNumProcessingPasses(trial)):
+                            resampling_matrix = trial_pass_protos[processing_pass].getResamplingMatrix()
+                            resampling_matrix = resample_poly(resampling_matrix, sample_rate, original_sample_rate, axis=1)
+                            trial_pass_protos[processing_pass].setResamplingMatrix(resampling_matrix)
+                            trial_len = resampling_matrix.shape[1]
+                        trial_protos[trial].setMarkerObservations([{}] * trial_len)
+
+            if clean_up_noise or recompute_values or resampled:
+                pass_skels: List[nimble.dynamics.Skeleton] = []
+                for processing_pass in range(subject.getNumProcessingPasses()):
+                    print('Reading skeleton for processing pass ' + str(processing_pass) + '...')
+                    skel = subject.readSkel(processing_pass, geometryFolder=geometry_folder)
+                    print('Pass type: ' + str(subject.getProcessingPassType(processing_pass)))
+                    pass_skels.append(skel)
+
+                for i in range(len(pass_skels)):
+                    if pass_skels[i] is None and i > 0:
+                        subject.getHeaderProto().getProcessingPasses()[i].setOpenSimFileText(
+                            subject.getHeaderProto().getProcessingPasses()[i - 1].getOpenSimFileText())
+                        pass_skels[i] = pass_skels[i - 1]
+
+            if clean_up_noise:
+                print('Cleaning up data')
+
+                def find_cutoff_frequency(signal, fs=100) -> float:
+                    frequencies, psd = welch(signal, fs, nperseg=min(1024, len(signal)))
+                    cumulative_power = np.cumsum(psd)
+                    total_power = np.sum(psd)
+                    cutoff_power = 0.99 * total_power
+                    cutoff_frequency_index = np.where(cumulative_power >= cutoff_power)[0][0]
+                    return frequencies[cutoff_frequency_index]
+
+                trial_protos = subject.getHeaderProto().getTrials()
+                new_overall_pass = subject.getHeaderProto().addProcessingPass()
+                new_overall_pass.setProcessingPassType(nimble.biomechanics.ProcessingPassType.LOW_PASS_FILTER)
+                new_overall_pass.setOpenSimFileText(subject.getHeaderProto().getProcessingPasses()[-2].getOpenSimFileText())
+                pass_skels.append(pass_skels[-1])
+
+                for trial in range(subject.getNumTrials()):
+                    if trial in drop_trials:
+                        continue
+                    # Add a lowpass filter pass to the end of the trial
+                    trial_pass_protos = trial_protos[trial].getPasses()
+                    last_pass_proto = trial_pass_protos[-1]
+                    poses = last_pass_proto.getPoses()
+
+                    # Skip short trials, add them to the drop list
+                    if poses.shape[1] <= 12:
+                        drop_trials.append(trial)
+                        continue
+
+                    fs = int(1.0 / trial_protos[trial].getTimestep())
+                    cutoff_frequencies: List[float] = [find_cutoff_frequency(poses[i, :], fs) for i in range(poses.shape[0])]
+                    cutoff = max(max(cutoff_frequencies), 1.0)
+                    print(f"Cutoff Frequency to preserve 99% of signal power: {cutoff} Hz")
+                    nyq = 0.5 * fs
+                    normal_cutoff = cutoff / nyq
+                    if cutoff >= nyq:
+                        print('Warning! Cutoff frequency is at or above Nyquist frequency. This suggests some funny business with the data. Dropping this trial to be on the safe side.')
+                        drop_trials.append(trial)
+                    else:
+                        b, a = butter(3, normal_cutoff, btype='low', analog=False)
+                        new_pass = trial_protos[trial].addPass()
+                        new_pass.copyValuesFrom(last_pass_proto)
+                        new_pass.setType(nimble.biomechanics.ProcessingPassType.LOW_PASS_FILTER)
+                        new_pass.setLowpassFilterOrder(3)
+                        new_pass.setLowpassCutoffFrequency(cutoff)
+                        accs = new_pass.getAccs()
+                        if accs.shape[1] > 1:
+                            accs[:, 0] = accs[:, 1]
+                            accs[:, -1] = accs[:, -2]
+                            new_pass.setAccs(accs)
+                        vels = new_pass.getVels()
+                        if vels.shape[1] > 1:
+                            vels[:, 0] = vels[:, 1]
+                            vels[:, -1] = vels[:, -2]
+                            new_pass.setVels(vels)
+                        if poses.shape[1] > 12:
+                            new_pass.setResamplingMatrix(filtfilt(b, a, new_pass.getResamplingMatrix(), axis=1))
+
+                        # Copy force plate data to Python
+                        raw_force_plates = trial_protos[trial].getForcePlates()
+                        cops = [force_plate.centersOfPressure for force_plate in raw_force_plates]
+                        forces = [force_plate.forces for force_plate in raw_force_plates]
+
+                        print('Fixing COM acceleration for trial ' + str(trial))
+                        skel = pass_skels[-1]
+                        new_poses = new_pass.getPoses()
+                        new_vels = new_pass.getVels()
+                        new_accs = new_pass.getAccs()
+                        for t in range(new_poses.shape[1]):
+                            pass_skels[-1].setPositions(new_poses[:, t])
+                            pass_skels[-1].setVelocities(new_vels[:, t])
+                            pass_skels[-1].setAccelerations(new_accs[:, t])
+                            com_acc = pass_skels[-1].getCOMLinearAcceleration() - pass_skels[-1].getGravity()
+                            total_acc = np.sum(np.row_stack([forces[f][t] for f in range(len(raw_force_plates))]), axis=0) / pass_skels[-1].getMass()
+                            # print('Expected acc: '+str(total_acc))
+                            # print('Got acc: '+str(com_acc))
+                            root_acc_correction = total_acc - com_acc
+                            # print('Correcting root acc: '+str(root_acc_correction))
+                            new_accs[3:6, t] += root_acc_correction
+                        trial_protos[trial].getPasses()[-1].setAccs(new_accs)
+
+
+                        # Check the CoP data to ensure it is physically plausible
+                        print('Cleaning up CoP data for trial ' + str(trial))
+                        foot_bodies = [skel.getBodyNode(name) for name in subject.getGroundForceBodies()]
+                        dist_threshold_m = 0.35  # A bit more than 1 foot
+
+                        for t in range(new_poses.shape[1]):
+                            skel.setPositions(new_poses[:, t])
+                            foot_body_locations = [body.getWorldTransform().translation() for body in foot_bodies]
+                            for f in range(len(raw_force_plates)):
+                                force = forces[f][t]
+                                if np.linalg.norm(force) > 1e-3:
+                                    cop = cops[f][t]
+                                    dist_to_feet = [np.linalg.norm(cop - foot_body_location) for foot_body_location in foot_body_locations]
+                                    if min(dist_to_feet) > dist_threshold_m:
+                                        closest_foot = np.argmin(dist_to_feet)
+                                        # print(f"Warning! CoP for plate {f} is not near a foot at time {t}. Bringing it within {dist_threshold_m}m of the closest foot.")
+                                        # print(f"  Force: {force}")
+                                        # print(f"  CoP: {cop}")
+                                        # print(f"  Dist to feet: {dist_to_feet}")
+                                        cop = foot_body_locations[closest_foot] + dist_threshold_m * (cop - foot_body_locations[closest_foot]) / np.linalg.norm(cop - foot_body_locations[closest_foot])
+                                        cops[f][t] = cop
+                        for f in range(len(raw_force_plates)):
+                            raw_force_plates[f].centersOfPressure = cops[f]
+
+            if recompute_values or resampled or clean_up_noise:
+                print('Recomputing values in the raw B3D')
+
+                subject.getHeaderProto().setNumJoints(pass_skels[0].getNumJoints())
+
+                trial_protos = subject.getHeaderProto().getTrials()
+                for trial in range(subject.getNumTrials()):
+                    timestep = subject.getTrialTimestep(trial)
+                    raw_force_plates = trial_protos[trial].getForcePlates()
+                    # Re-sample the discrete values
+                    trial_protos[trial].setMissingGRFReason(resample_discrete(trial_protos[trial].getMissingGRFReason(),
+                                                                    original_sample_rate,
+                                                                    sample_rate))
+                    trial_pass_protos = trial_protos[trial].getPasses()
+                    print('##########')
+                    print('Trial '+str(trial)+':')
+                    for processing_pass in range(subject.getTrialNumProcessingPasses(trial)):
+                        explicit_vel = np.copy(trial_pass_protos[processing_pass].getVels())
+                        explicit_acc = np.copy(trial_pass_protos[processing_pass].getAccs())
+                        trial_pass_protos[processing_pass].computeValuesFromForcePlates(pass_skels[processing_pass], timestep, trial_pass_protos[processing_pass].getPoses(), subject.getGroundForceBodies(), raw_force_plates, rootHistoryLen=root_history_len, rootHistoryStride=root_history_stride, explicitVels=explicit_vel, explicitAccs=explicit_acc)
+                        assert(np.all(trial_pass_protos[processing_pass].getAccs() == explicit_acc))
+                        assert(np.all(trial_pass_protos[processing_pass].getVels() == explicit_vel))
+                        print('Pass '+str(processing_pass)+' of ' + str(subject.getTrialNumProcessingPasses(trial)) +' type: '+str(subject.getProcessingPassType(processing_pass)))
+                        print('Range on joint accelerations: '+str(np.min(trial_pass_protos[processing_pass].getAccs()))+' to '+str(np.max(trial_pass_protos[processing_pass].getAccs())))
+                        print('Range on joint torques: '+str(np.min(trial_pass_protos[processing_pass].getTaus()))+' to '+str(np.max(trial_pass_protos[processing_pass].getTaus())))
+                        print('Linear Residuals: '+str(np.mean(trial_pass_protos[processing_pass].getLinearResidual())))
+                        print('Angular Residuals: '+str(np.mean(trial_pass_protos[processing_pass].getAngularResidual())))
+
+            if len(drop_trials) > 0:
+                print('Dropping trials: '+str(drop_trials))
+                filtered_trials = [trial for i, trial in enumerate(subject.getHeaderProto().getTrials()) if i not in drop_trials]
+                subject.getHeaderProto().setTrials(filtered_trials)
 
             # os.path.dirname gets the directory portion from the full path
             directory = os.path.dirname(output_path)
@@ -580,41 +333,7 @@ class PostProcessCommand(AbstractCommand):
             os.makedirs(directory, exist_ok=True)
             # Now write the output back out to the new SubjectOnDisk file
             print('Writing SubjectOnDisk to {}...'.format(output_path))
-            nimble.biomechanics.SubjectOnDisk.writeSubject(output_path,
-                                                           openSimFilePath=opensim_file_path,
-                                                           trialTimesteps=trial_timesteps,
-                                                           trialPoses=trial_poses,
-                                                           trialVels=trial_vels,
-                                                           trialAccs=trial_accs,
-                                                           probablyMissingGRF=probably_missing_grf,
-                                                           missingGRFReason=missing_grf_reason,
-                                                           dofPositionsObserved=dof_positions_observed,
-                                                           dofVelocitiesFiniteDifferenced=dof_velocity_finite_differenced,
-                                                           dofAccelerationsFiniteDifferenced=dof_acc_finite_differenced,
-                                                           trialTaus=trial_taus,
-                                                           trialComPoses=trial_com_poses,
-                                                           trialComVels=trial_com_vels,
-                                                           trialComAccs=trial_com_accs,
-                                                           trialResidualNorms=trial_residual_norms,
-                                                           groundForceBodies=ground_force_bodies,
-                                                           trialGroundBodyWrenches=trial_ground_body_wrenches,
-                                                           trialGroundBodyCopTorqueForce=trial_ground_body_cop_torque_force,
-                                                           customValueNames=custom_value_names,
-                                                           customValues=custom_values,
-                                                           markerObservations=marker_observations,
-                                                           accObservations=acc_observations,
-                                                           gyroObservations=gyro_observations,
-                                                           emgObservations=emg_observations,
-                                                           forcePlates=force_plates,
-                                                           biologicalSex=biological_sex,
-                                                           heightM=height_m,
-                                                           massKg=mass_kg,
-                                                           ageYears=age_years,
-                                                           trialNames=trial_names,
-                                                           subjectTags=subject_tags,
-                                                           trialTags=trial_tags,
-                                                           sourceHref=source_href,
-                                                           notes=notes)
+            nimble.biomechanics.SubjectOnDisk.writeB3D(output_path, subject.getHeaderProto())
             print('Done '+str(file_index+1)+'/'+str(len(input_output_pairs)))
 
         print('Post-processing finished!')

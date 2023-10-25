@@ -126,7 +126,7 @@ class Session {
         if (url.startsWith("/")) {
             url = url.substring(1);
         }
-        const parts = url.split("/");
+        const parts = decodeURI(url).split("/");
         const userId = parts[0];
         const path = parts.slice(1).join("/");
         const prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/data/";

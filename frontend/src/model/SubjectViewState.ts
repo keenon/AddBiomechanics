@@ -24,6 +24,8 @@ type SegmentResultsJSON = {
     goldPerMarkerRMSE: number | null;
     hasMarkers: boolean;
     hasForces: boolean;
+    hasError: boolean;
+    errorMsg: string | null;
     hasMarkerWarnings: boolean;
 };
 
@@ -58,6 +60,7 @@ class SubjectViewState {
     resultsJsonPath: string;
     resultsOsimZipPath: string;
     resultsB3dPath: string;
+    logPath: string;
     processingFlagFile: LiveFile; // "PROCESSING"
     readyFlagFile: LiveFile; // "READY_TO_PROCESS"
     errorFlagFile: LiveFile; // "ERROR"
@@ -74,6 +77,10 @@ class SubjectViewState {
     loadedResultsJsonFirstTime: boolean = false;
     loadingResultsJsonPromise: Promise<void> | null = null;
     parsedResultsJson: SubjectResultsJSON = {};
+
+    loadingLogsFirstTime: boolean = false;
+    loadingLogsPromise: Promise<void> | null = null;
+    logText: string = '';
 
     // This counts the number of times our autorun function has been called. This is mostly here for testing purposes.
     reloadCount: number = 0;
@@ -97,6 +104,7 @@ class SubjectViewState {
 
         this.subjectJson = dir.getJsonFile(path + '/_subject.json');
         this.resultsJsonPath = path + '/_results.json';
+        this.logPath = path + '/log.txt';
         this.resultsOsimZipPath = path + '/' + this.name + '.zip';
         this.resultsB3dPath = path + '/' + this.name + '.b3d';
         this.processingFlagFile = dir.getLiveFile(path + "/PROCESSING");
@@ -127,6 +135,7 @@ class SubjectViewState {
             availableBodyNodes: observable,
             trials: observable,
             parsedResultsJson: observable,
+            logText: observable,
             reloadCount: observable,
             uploadedTrialPaths: observable,
             dropOpensimFile: action,
@@ -225,6 +234,21 @@ class SubjectViewState {
                     }
                 })).catch((e) => {
                     console.error("Error downloading _results.json from " + this.path + '/_results.json' + ": ", e);
+                });
+            }
+        }
+
+        // If the log file exists on the server, and we haven't loaded it yet, then load it
+        const logsExist = subjectPathData.files.map((file) => {
+            return file.key;
+        }).includes(this.logPath);
+        if (!this.loadingLogsFirstTime) {
+            if (logsExist) {
+                this.loadingLogsFirstTime = true;
+                this.loadingLogsPromise = this.home.dir.downloadText(this.path + "/log.txt").then(action((resultsText) => {
+                    this.logText = resultsText;
+                })).catch((e) => {
+                    console.error("Error downloading log.txt from " + this.path + '/log.txt' + ": ", e);
                 });
             }
         }
@@ -423,12 +447,20 @@ class SubjectViewState {
 
     reprocess(): Promise<void> {
         return this.errorFlagFile.delete().then(() => {
-            return this.processingFlagFile.delete().then(() => {
-                return this.home.dir.delete(this.resultsJsonPath).then(action(() => {
-                    this.parsedResultsJson = {};
-                    this.loadingResultsJsonPromise = null;
-                    this.loadedResultsJsonFirstTime = false;
-                }));
+            return this.slurmFlagFile.delete().then(() => {
+                return this.processingFlagFile.delete().then(() => {
+                    return this.home.dir.delete(this.resultsJsonPath).then(() => {
+                        return this.home.dir.delete(this.logPath).then(action(() => {
+                            this.parsedResultsJson = {};
+                            this.loadingResultsJsonPromise = null;
+                            this.loadedResultsJsonFirstTime = false;
+
+                            this.logText = '';
+                            this.loadingLogsPromise = null;
+                            this.loadingLogsFirstTime = false;
+                        }));
+                    });
+                });
             });
         });
     }

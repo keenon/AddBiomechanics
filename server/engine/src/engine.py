@@ -70,6 +70,10 @@ def main():
         #         dummy_results.jointCenters = np.zeros((0, num_steps))
         #         segment.marker_fitter_result = dummy_results
 
+        # This will lowpass filter all the input kinematics data
+        print('Running lowpass filter', flush=True)
+        subject.lowpass_filter()
+
         # The dynamics fit will fit the dynamics parameters of the subject, to all the trial segments that have not yet
         # thrown an error during loading or kinematics fitting.
         if not subject.disableDynamics:

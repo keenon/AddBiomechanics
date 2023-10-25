@@ -1032,4 +1032,37 @@ describe("LiveDirectory", () => {
         const fileResult: PathData = api.getPath("dataset1/subject1/_subject.json", false);
         expect(fileResult.files.length).toBe(1);
     });
+
+    test("Calling getCachedPath will cause that path to store in the cached path map, and immediately return", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:test/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:test/data/dataset1/subject1/_subject.json",
+            "protected/us-west-2:test/data/dataset2/",
+            "protected/us-west-2:test/data/root_subject/_subject.json",
+            "protected/us-west-2:test/data/_subject.json",
+        ]);
+
+        const path = api.getPath("dataset1", true);
+        await path.loading;
+
+        const fileResult: PathData = api.getPath("dataset1/subject1/_subject.json", false);
+        expect(fileResult.files.length).toBe(1);
+
+        expect(api.pathCache.size).toBe(2);
+        expect(api.pathCache.has("protected/us-west-2:test/data/dataset1/subject1/_subject.json")).toBe(true);
+        const result = api.pathCache.get("protected/us-west-2:test/data/dataset1/subject1/_subject.json");
+        if (result == null) return;
+
+        api.pathCache.set("protected/us-west-2:test/data/dataset1/subject1/_subject.json", {
+            ...result,
+            folders: ["test"]
+        });
+
+        const cachedPath = api.getCachedPath("dataset1/subject1/_subject.json");
+        expect(cachedPath).toBeDefined();
+        expect(cachedPath?.folders.length).toBe(1);
+        expect(cachedPath?.folders[0]).toStrictEqual("test");
+    });
 });

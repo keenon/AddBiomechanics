@@ -61,4 +61,4 @@ RUN pip3 install -r /engine/requirements.txt
 #########################################################
 # Run with PROD settings
 #########################################################
-CMD python3 /app/mocap_server.py --bucket biomechanics-uploads83039-prod --deployment PROD
+CMD python3 /app/src/mocap_server.py --bucket biomechanics-uploads83039-prod --deployment PROD

@@ -1,4 +1,5 @@
 numpy == 1.24.4
-nimblephysics == 0.10.5
+nimblephysics == 0.10.12
 pandas
 matplotlib
+scipy
