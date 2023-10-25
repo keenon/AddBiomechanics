@@ -555,9 +555,10 @@ class MocapServer:
             target=self.checkPubSubStatusForever, daemon=True)
         pubsubStatusThread.start()
 
-        periodicRefreshThread = threading.Thread(
-            target=self.periodicallyRefreshForever, daemon=True)
-        periodicRefreshThread.start()
+        if len(self.singularity_image_path) == 0:
+            periodicRefreshThread = threading.Thread(
+                target=self.periodicallyRefreshForever, daemon=True)
+            periodicRefreshThread.start()
 
     def onChange(self):
         print('S3 CHANGED!')
