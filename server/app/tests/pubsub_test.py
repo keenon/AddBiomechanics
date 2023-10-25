@@ -1,5 +1,5 @@
 import unittest
-from pubsub import PubSubMock, PubSubSocket
+from src.reactive_s3.pubsub import PubSubMock, PubSubSocket
 
 
 class TestInitialization(unittest.TestCase):
