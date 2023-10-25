@@ -1,7 +1,4 @@
 import unittest
-import os
-import sys
-
 from pubsub import PubSubMock, PubSubSocket
 
 
@@ -13,7 +10,7 @@ class TestInitialization(unittest.TestCase):
     def test_send_before_connect(self):
         api = PubSubMock("DEV")
         api.publish('test', {"message": 'test'})
-        assert len(api.message_queue) == 1
+        assert api.message_queue.qsize() == 1
 
 
 class TestMessaging(unittest.TestCase):
@@ -29,14 +26,14 @@ class TestMessaging(unittest.TestCase):
         assert counter["count"] == 0
 
         # This should be received
-        api.mockReceiveMessage({
+        api.mock_receive_message({
             "topic": 'test',
             "message": 'test',
         })
         assert counter["count"] == 1
 
         # This should not be received
-        api.mockReceiveMessage({
+        api.mock_receive_message({
             "topic": 'test2',
             "message": 'test',
         })
@@ -54,28 +51,28 @@ class TestMessaging(unittest.TestCase):
         assert counter["count"] == 0
 
         # This should be received
-        api.mockReceiveMessage({
+        api.mock_receive_message({
             "topic": 'test/hello',
             "message": 'test',
         })
         assert counter["count"] == 1
 
         # This should be received
-        api.mockReceiveMessage({
+        api.mock_receive_message({
             "topic": 'test/goodbye',
             "message": 'test',
         })
         assert counter["count"] == 2
 
         # This should be received
-        api.mockReceiveMessage({
+        api.mock_receive_message({
             "topic": 'test',
             "message": 'test',
         })
         assert counter["count"] == 3
 
         # This should not be received
-        api.mockReceiveMessage({
+        api.mock_receive_message({
             "topic": 'test2',
             "message": 'test',
         })

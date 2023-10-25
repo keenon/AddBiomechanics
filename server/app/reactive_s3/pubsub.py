@@ -59,7 +59,6 @@ class PubSubMock(PubSubSocket):
     listeners = Dict[str, Callable[[str, Any], None]]
 
     def __init__(self, deployment: str):
-        print('creating PubSubMock object')
         self.deployment = deployment
         self.message_queue = queue.Queue()
         self.mock_sent_messages_log = []
@@ -90,6 +89,16 @@ class PubSubMock(PubSubSocket):
             del self.listeners[topic]
 
         return unsubscribe
+
+    def mock_receive_message(self, msg):
+        for topic, callback in self.listeners.items():
+            if topic.endswith("/#"):
+                if msg['topic'].startswith(topic[:-2]) and (
+                        len(msg['topic'][len(topic) - 2:]) == 0 or msg['topic'][len(topic) - 2:].startswith("/")):
+                    callback(msg)
+            else:
+                if msg['topic'] == topic:
+                    callback(msg)
 
 
 class PubSub(PubSubSocket):
