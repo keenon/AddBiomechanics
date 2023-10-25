@@ -5,12 +5,12 @@ from src.reactive_s3.pubsub import PubSubMock, PubSubSocket
 class TestInitialization(unittest.TestCase):
     def test_mock_constructor(self):
         api = PubSubMock("DEV")
-        assert isinstance(api, PubSubSocket)
+        self.assertTrue(isinstance(api, PubSubSocket))
 
     def test_send_before_connect(self):
         api = PubSubMock("DEV")
         api.publish('test', {"message": 'test'})
-        assert api.message_queue.qsize() == 1
+        self.assertEqual(api.message_queue.qsize(), 1)
 
 
 class TestMessaging(unittest.TestCase):
@@ -23,21 +23,21 @@ class TestMessaging(unittest.TestCase):
             counter["count"] += 1
 
         api.subscribe('test', message_callback)
-        assert counter["count"] == 0
+        self.assertEqual(counter["count"], 0)
 
         # This should be received
         api.mock_receive_message({
             "topic": 'test',
             "message": 'test',
         })
-        assert counter["count"] == 1
+        self.assertEqual(counter["count"], 1)
 
         # This should not be received
         api.mock_receive_message({
             "topic": 'test2',
             "message": 'test',
         })
-        assert counter["count"] == 1
+        self.assertEqual(counter["count"], 1)
 
     def test_wildcard_message_listeners(self):
         api = PubSubMock("DEV")
@@ -48,35 +48,35 @@ class TestMessaging(unittest.TestCase):
             counter["count"] += 1
 
         api.subscribe('test/#', message_callback)
-        assert counter["count"] == 0
+        self.assertEqual(counter["count"], 0)
 
         # This should be received
         api.mock_receive_message({
             "topic": 'test/hello',
             "message": 'test',
         })
-        assert counter["count"] == 1
+        self.assertEqual(counter["count"], 1)
 
         # This should be received
         api.mock_receive_message({
             "topic": 'test/goodbye',
             "message": 'test',
         })
-        assert counter["count"] == 2
+        self.assertEqual(counter["count"], 2)
 
         # This should be received
         api.mock_receive_message({
             "topic": 'test',
             "message": 'test',
         })
-        assert counter["count"] == 3
+        self.assertEqual(counter["count"], 3)
 
         # This should not be received
         api.mock_receive_message({
             "topic": 'test2',
             "message": 'test',
         })
-        assert counter["count"] == 3
+        self.assertEqual(counter["count"], 3)
 
 
 class TestPubSubStatus(unittest.TestCase):
@@ -88,14 +88,14 @@ class TestPubSubStatus(unittest.TestCase):
             api.alive = True
 
         api.subscribe('status', on_status_received)
-        assert api.alive is False
+        self.assertFalse(api.alive)
 
         # This status check should 'succeed'.
         api.mock_receive_message({
             "topic": 'status',
             "message": 'im_alive',
         })
-        assert api.alive is True
+        self.assertTrue(api.alive)
 
         # This status check should 'fail'.
         api.alive = False
@@ -103,7 +103,26 @@ class TestPubSubStatus(unittest.TestCase):
             "topic": 'status2',
             "message": 'im_dead',
         })
-        assert api.alive is False
+        self.assertFalse(api.alive)
+
+
+class TestTopicLength(unittest.TestCase):
+    def test_topic_length(self):
+        api = PubSubMock("DEV")
+        topic_too_long = "a" * (api.max_topic_length + 5)
+
+        def topic_callback(msg):
+            pass
+
+        self.assertRaises(ValueError, api.subscribe, topic_too_long, {})
+        api.subscribe('test', topic_callback)
+
+        api.connect()
+        self.assertRaises(ValueError, api.publish, topic_too_long, {})
+
+        api.publish('test', {})
+        self.assertEqual(len(api.mock_sent_messages_log), 1)
+        self.assertEqual(api.mock_sent_messages_log[0], 'test')
 
 
 if __name__ == '__main__':

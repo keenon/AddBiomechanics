@@ -36,6 +36,12 @@ class PubSubSocket(ABC):
         print('Creating a PubSub object...')
         self.deployment = "DEV"
         self.alive = True
+        # This is the maximum length of a topic supported by PubSub, including the deployment name.
+        self.max_topic_length = 70
+
+    def validate_topic_length(self, topic):
+        if len(topic) > self.max_topic_length:
+            raise ValueError(f'Topic "{topic}" is too long: ')
 
     # This attempts to establish a PubSub connection. Because PubSub is a "nice to have" feature, none of its
     # methods throw errors. If connecting fails, it will fail quietly and attempt to reconnect.
@@ -80,12 +86,14 @@ class PubSubMock(PubSubSocket):
         """
         Adds a message to the queue to be sent
         """
+        self.validate_topic_length(topic)
         if self.connected:
             self.mock_sent_messages_log.append(topic)
         else:
             self.message_queue.put((topic, payload))
 
     def subscribe(self, topic: str, callback: Callable[[str, Any], None]):
+        self.validate_topic_length(topic)
         self.listeners[topic] = callback
 
         def unsubscribe():
@@ -197,6 +205,7 @@ class PubSub(PubSubSocket):
         """
         Subscribe to a topic
         """
+        self.validate_topic_length(topic)
         self.lock.acquire()
         try:
             subscribeFuture, packetId = self.mqttConnection.subscribe(
@@ -212,6 +221,7 @@ class PubSub(PubSubSocket):
         """
         Adds a message to the queue to be sent
         """
+        self.validate_topic_length(topic)
         self.message_queue.put((topic, payload))
 
     def disconnect(self):

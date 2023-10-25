@@ -549,7 +549,7 @@ class MocapServer:
         self.index.registerPubSub()
 
         # Subscribe to PubSub status checks.
-        self.index.pubSub.subscribe("/PUBSUB_STATUS/"+self.serverId, self.onPubSubStatusReceived)
+        self.index.pubSub.subscribe("/PUBSUB_STATUS/"+self.serverId[:16], self.onPubSubStatusReceived)
 
         pubsubStatusThread = threading.Thread(
             target=self.checkPubSubStatusForever, daemon=True)
@@ -620,7 +620,7 @@ class MocapServer:
             self.index.pubSub.alive = False
 
             # Send a status update message and wait a few seconds.
-            self.index.pubSub.publish('/PUBSUB_STATUS/'+self.serverId, {})
+            self.index.pubSub.publish('/PUBSUB_STATUS/'+self.serverId[:16], {})
             time.sleep(5)
 
             # If we didn't get a response, then PubSub is down.
