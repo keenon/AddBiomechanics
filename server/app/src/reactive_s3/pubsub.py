@@ -178,7 +178,7 @@ class PubSub(PubSubSocket):
 
                     # Publish the topic and payload
                     sendFuture, packetId = self.mqttConnection.publish(
-                        topic=topic,
+                        topic=full_topic,
                         payload=payload_json,
                         qos=mqtt.QoS.AT_MOST_ONCE)  # AT_LEAST_ONCE
                     # Future.result() waits until a result is available
