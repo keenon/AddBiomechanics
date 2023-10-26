@@ -621,6 +621,7 @@ class MocapServer:
             self.index.pubSub.alive = False
 
             # Send a status update message and wait a few seconds.
+            print('Sending /PING/'+self.serverId[:16])
             self.index.pubSub.publish('/PING/'+self.serverId[:16], {'test': True})
             time.sleep(5)
 
