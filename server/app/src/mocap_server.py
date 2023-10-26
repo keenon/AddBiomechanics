@@ -550,11 +550,11 @@ class MocapServer:
         self.pubSubIsAlive = True
 
         # Subscribe to PubSub status checks.
-        self.index.pubSub.subscribe("/PUBSUB_STATUS/"+self.serverId[:16], self.onPubSubStatusReceived)
+        self.index.pubSub.subscribe("/PING/"+self.serverId[:16], self.onPubSubStatusReceived)
 
-        pubsubStatusThread = threading.Thread(
+        pubsub_status_thread = threading.Thread(
             target=self.checkPubSubStatusForever, daemon=True)
-        pubsubStatusThread.start()
+        pubsub_status_thread.start()
 
     def onChange(self):
         print('S3 CHANGED!')
@@ -621,7 +621,7 @@ class MocapServer:
             self.index.pubSub.alive = False
 
             # Send a status update message and wait a few seconds.
-            self.index.pubSub.publish('/PUBSUB_STATUS/'+self.serverId[:16], {})
+            self.index.pubSub.publish('/PING/'+self.serverId[:16], {'test': True})
             time.sleep(5)
 
             # If we didn't get a response, then PubSub is down.
