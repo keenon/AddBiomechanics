@@ -217,7 +217,7 @@ class PubSub(PubSubSocket):
         """
         self.validate_topic_length(topic)
         print('Acquiring PubSub_lock: SUBSCRIBE_TO_TOPIC '+topic)
-        traceback.print_tb(limit=25)
+        traceback.print_stack()
         self.lock.acquire()
         try:
             subscribeFuture, packetId = self.mqttConnection.subscribe(
