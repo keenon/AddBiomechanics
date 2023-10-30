@@ -164,7 +164,7 @@ class PubSub(PubSubSocket):
         else:
             print('Got exception trying to reconnect PubSub: ')
             print(connection_result)
-            print('Will try again in 5 seconds...')
+            print('Will try again to reconnect PubSub in 5 seconds...')
             time.sleep(5)
             self.connect()
 
@@ -172,6 +172,7 @@ class PubSub(PubSubSocket):
         while True:
             topic, payload = self.message_queue.get()
             if self.mqttConnection:
+                print('Acquiring PubSub_lock: SEND_A_MESSAGE')
                 self.lock.acquire()
                 try:
                     payloadWithTopic = payload.copy()
@@ -198,14 +199,15 @@ class PubSub(PubSubSocket):
                 except Exception as e:
                     print('PubSub got an error sending message to topic: ' + topic)
                     print(e)
-                    print('Will try again in 5 seconds...')
+                    print('Will try again to send a message to topic ' + topic + ' in 5 seconds...')
                     time.sleep(5)
                 finally:
+                    print('Releasing PubSub_lock: SEND_A_MESSAGE')
                     self.lock.release()
             else:
                 print('PubSub is not connected, cannot send message to topic: ' + topic+', with queue len: ' +
                       str(self.message_queue.qsize()))
-                print('Will try again in 5 seconds...')
+                print('Will try again to send a message to topic '+topic+' in 5 seconds...')
                 time.sleep(5)
 
     def subscribe(self, topic: str, callback: Callable[[str, Any], None]):
@@ -213,6 +215,7 @@ class PubSub(PubSubSocket):
         Subscribe to a topic
         """
         self.validate_topic_length(topic)
+        print('Acquiring PubSub_lock: SUBSCRIBE_TO_TOPIC')
         self.lock.acquire()
         try:
             subscribeFuture, packetId = self.mqttConnection.subscribe(
@@ -222,6 +225,7 @@ class PubSub(PubSubSocket):
             # Future.result() waits until a result is available
             subscribeFuture.result()
         finally:
+            print('Releasing PubSub_lock: SUBSCRIBE_TO_TOPIC')
             self.lock.release()
 
     def publish(self, topic: str, payload: Dict[str, Any] = {}):
@@ -233,6 +237,7 @@ class PubSub(PubSubSocket):
 
     def disconnect(self):
         print('Disconnecting PubSub...')
+        print('Acquiring PubSub_lock: DISCONNECT')
         self.lock.acquire()
         try:
             """
@@ -242,6 +247,7 @@ class PubSub(PubSubSocket):
             # Wait for the async op to complete
             disconnect_future.result()
         finally:
+            print('Releasing PubSub_lock: DISCONNECT')
             self.lock.release()
 
     def addResumeListener(self, listener):
