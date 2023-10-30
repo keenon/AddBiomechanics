@@ -10,6 +10,7 @@ import datetime
 import os
 import queue
 from abc import ABC, abstractmethod
+import traceback
 
 received_count = 0
 
@@ -215,7 +216,8 @@ class PubSub(PubSubSocket):
         Subscribe to a topic
         """
         self.validate_topic_length(topic)
-        print('Acquiring PubSub_lock: SUBSCRIBE_TO_TOPIC')
+        print('Acquiring PubSub_lock: SUBSCRIBE_TO_TOPIC '+topic)
+        traceback.print_tb(limit=25)
         self.lock.acquire()
         try:
             subscribeFuture, packetId = self.mqttConnection.subscribe(
@@ -225,7 +227,7 @@ class PubSub(PubSubSocket):
             # Future.result() waits until a result is available
             subscribeFuture.result()
         finally:
-            print('Releasing PubSub_lock: SUBSCRIBE_TO_TOPIC')
+            print('Releasing PubSub_lock: SUBSCRIBE_TO_TOPIC '+topic)
             self.lock.release()
 
     def publish(self, topic: str, payload: Dict[str, Any] = {}):
