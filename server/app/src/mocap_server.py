@@ -524,6 +524,7 @@ class MocapServer:
 
     # Status reporting quantities
     serverId: str
+    pingId: str
     lastUploadedStatusStr: str
     lastUploadedStatusTimestamp: float
 
@@ -550,7 +551,8 @@ class MocapServer:
         self.pubSubIsAlive = True
 
         # Subscribe to PubSub status checks.
-        self.index.pubSub.subscribe("/PING/"+self.serverId[:16], self.onPubSubStatusReceived)
+        self.pingId = str(self.serverId[:16]).replace('-', '')
+        self.index.pubSub.subscribe("/PING/"+self.pingId, self.onPubSubStatusReceived)
 
         pubsub_status_thread = threading.Thread(
             target=self.checkPubSubStatusForever, daemon=True)
@@ -621,8 +623,8 @@ class MocapServer:
             self.index.pubSub.alive = False
 
             # Send a status update message and wait a few seconds.
-            print('Sending /PING/'+self.serverId[:16])
-            self.index.pubSub.publish('/PING/'+self.serverId[:16], {'test': True})
+            print('Sending /PING/'+self.pingId)
+            self.index.pubSub.publish('/PING/'+self.pingId, {'test': True})
             time.sleep(5)
 
             # If we didn't get a response, then PubSub is down.
