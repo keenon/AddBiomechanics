@@ -5,7 +5,7 @@ import threading
 import time
 from uuid import uuid4
 import json
-from typing import Callable, Any, Dict
+from typing import Callable, Any, Dict, List, Tuple
 import datetime
 import os
 import queue
@@ -119,6 +119,7 @@ class PubSub(PubSubSocket):
     """
     resumeListeners = []
     lock: threading.Lock
+    subscriptions: Dict[str, Callable[[str, Any], None]] = {}
 
     def __init__(self, deployment: str):
         super().__init__()
@@ -162,6 +163,10 @@ class PubSub(PubSubSocket):
         connection_result = connectFuture.result()
         if connection_result is not None and 'session_present' in connection_result and connection_result['session_present']:
             print('Connected to PubSub')
+            current_subscriptions: List[Tuple[str, Callable[[str, Any], None]]] = list(self.subscriptions.items())
+            for topic, callback in current_subscriptions:
+                print('Resubscribing to topic: ' + topic)
+                self.subscribe(topic, callback)
         else:
             print('Got exception trying to reconnect PubSub: ')
             print(connection_result)
@@ -221,7 +226,7 @@ class PubSub(PubSubSocket):
         """
         self.validate_topic_length(topic)
         print('Acquiring PubSub_lock: SUBSCRIBE_TO_TOPIC '+topic)
-        traceback.print_stack()
+        self.subscriptions[topic] = callback
         self.lock.acquire()
         try:
             subscribeFuture, packetId = self.mqttConnection.subscribe(
