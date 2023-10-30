@@ -347,7 +347,7 @@ class TrialSegment:
         # 2.1. First we "unwrap" any joint angles that may have wrapped, because those jumps (even though they
         # represent equivalent angles) will yield very bad results when naively lowpass filtered
         self.lowpass_poses = np.copy(self.kinematics_poses)
-        for i in range(1, self.lowpass_poses.shape[0]):
+        for i in range(1, self.lowpass_poses.shape[1]):
             self.lowpass_poses[:, i] = skel.unwrapPositionToNearest(self.lowpass_poses[:, i], self.lowpass_poses[:, i - 1])
         # 2.2. Then actually run the lowpass filter
         self.lowpass_poses = filtfilt(b, a, self.lowpass_poses, axis=1)
