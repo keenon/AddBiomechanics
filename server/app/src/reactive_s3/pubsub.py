@@ -200,7 +200,11 @@ class PubSub(PubSubSocket):
                 except Exception as e:
                     print('PubSub got an error sending message to topic: ' + topic)
                     print(e)
+                    traceback.print_exc()
                     print('Will try again to send a message to topic ' + topic + ' in 5 seconds...')
+                    # Put the task back in the queue
+                    self.message_queue.put((topic, payload))
+
                     time.sleep(5)
                 finally:
                     print('Releasing PubSub_lock: SEND_A_MESSAGE')
