@@ -6,6 +6,7 @@ import time
 import tempfile
 from typing import Dict, List, Set, Callable, Any
 import threading
+from datetime import datetime
 
 
 class FileMetadata:
@@ -94,20 +95,22 @@ class ReactiveS3Index:
         This updates the index
         """
         self.lock.acquire()
-        print('Doing full index refresh...')
-        self.files.clear()
-        self.children.clear()
-        for object in self.bucket.objects.all():
-            key: str = object.key
-            lastModified: int = object.last_modified.timestamp() * 1000
-            eTag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
-            size: int = object.size
-            file = FileMetadata(key, lastModified, size, eTag)
-            self.updateChildrenOnAddFile(key)
-            self.files[key] = file
-        print('Full index refresh finished!')
-        self.lock.release()
-        self._onRefresh()
+        try:
+            print('Doing full index refresh...')
+            self.files.clear()
+            self.children.clear()
+            for object in self.bucket.objects.all():
+                key: str = object.key
+                lastModified: int = int(object.last_modified.timestamp() * 1000)
+                eTag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
+                size: int = object.size
+                file = FileMetadata(key, lastModified, size, eTag)
+                self.updateChildrenOnAddFile(key)
+                self.files[key] = file
+            print('Full index refresh finished!')
+        finally:
+            self.lock.release()
+            self._onRefresh()
 
     def updateChildrenOnAddFile(self, path: str):
         cursor = -1
@@ -323,34 +326,52 @@ class ReactiveS3Index:
         We received a PubSub message telling us a file was created
         """
         self.lock.acquire()
-        body = json.loads(payload)
-        key: str = body['key']
-        lastModified: int = body['lastModified']
-        size: int = body['size']
-        eTag: str = body['eTag'] if 'eTag' in body else ''
-        file = FileMetadata(key, lastModified, size, eTag)
-        print("onUpdate() file: "+str(file))
-        self.files[key] = file
-        self.updateChildrenOnAddFile(key)
-        self.lock.release()
-        self._onRefresh()
+        try:
+            body = json.loads(payload)
+            key: str = body['key']
+            last_modified_str: str = body['lastModified']
+            last_modified: int
+            try:
+                last_modified = int(last_modified_str)
+            except ValueError:
+                try:
+                    # Removing 'Z' and manually handling it as UTC
+                    last_modified_str_utc = last_modified_str.replace("Z", "+00:00")
+                    dt = datetime.fromisoformat(last_modified_str_utc)
+                    last_modified = int(dt.timestamp() * 1000)
+                except ValueError as e:
+                    print("Error parsing lastModified: "+last_modified_str)
+                    print(e)
+                    print('Defaulting to current time')
+                    last_modified = int(time.time() * 1000)
+            size: int = body['size']
+            e_tag: str = body['eTag'] if 'eTag' in body else ''
+            file = FileMetadata(key, last_modified, size, e_tag)
+            print("onUpdate() file: "+str(file))
+            self.files[key] = file
+            self.updateChildrenOnAddFile(key)
+        finally:
+            self.lock.release()
+            self._onRefresh()
 
     def _onDelete(self, topic: str, payload: bytes) -> None:
         """
         We received a PubSub message telling us a file was deleted
         """
         self.lock.acquire()
-        body = json.loads(payload)
-        key: str = body['key']
-        print("onDelete() key: "+str(key))
-        anyDeleted = False
-        if key in self.files:
-            self.updateChildrenOnRemoveFile(key)
-            del self.files[key]
-            anyDeleted = True
-        self.lock.release()
-        if anyDeleted:
-            self._onRefresh()
+        try:
+            body = json.loads(payload)
+            key: str = body['key']
+            print("onDelete() key: "+str(key))
+            anyDeleted = False
+            if key in self.files:
+                self.updateChildrenOnRemoveFile(key)
+                del self.files[key]
+                anyDeleted = True
+        finally:
+            self.lock.release()
+            if anyDeleted:
+                self._onRefresh()
 
     def _onRefresh(self) -> None:
         """
