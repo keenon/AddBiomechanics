@@ -158,15 +158,15 @@ class PubSub(PubSubSocket):
         connectFuture = self.mqttConnection.connect()
         print('Waiting for connection...')
         # Future.result() waits until a result is available
-        result_exception = connectFuture.result()
-        if result_exception is not None:
+        connection_result = connectFuture.result()
+        if connection_result is not None and 'session_present' in connection_result and connection_result['session_present']:
+            print('Connected to PubSub')
+        else:
             print('Got exception trying to reconnect PubSub: ')
-            print(result_exception)
+            print(connection_result)
             print('Will try again in 5 seconds...')
             time.sleep(5)
             self.connect()
-        else:
-            print('Connected to PubSub')
 
     def _message_sender(self):
         while True:
