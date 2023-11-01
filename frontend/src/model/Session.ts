@@ -117,19 +117,33 @@ class Session {
      */
     parseDataURL(url: string): DataURL
     {
+        let userId = ""
+        let prefix = ""
+        let path = ""
+
         if (url.startsWith("/")) {
             url = url.substring(1);
         }
         if (url.startsWith("data/")) {
             url = url.substring("data/".length);
+        } else if (url.startsWith("data")) {
+            url = url.substring("data".length);
         }
-        if (url.startsWith("/")) {
-            url = url.substring(1);
+
+        // Case in which the url is .../data or .../data/, but no id is provided.
+        if(url === "") {
+            userId = this.userId
+            path = ""
+            prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/data/";
+        } else {
+            if (url.startsWith("/")) {
+                url = url.substring(1);
+            }
+            const parts = decodeURI(url).split("/");
+            userId = parts[0];
+            path = parts.slice(1).join("/");
+            prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/data/";
         }
-        const parts = decodeURI(url).split("/");
-        const userId = parts[0];
-        const path = parts.slice(1).join("/");
-        const prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/data/";
 
         let homeDirectory = this.homeDirectories.get(userId);
         if (homeDirectory == null) {

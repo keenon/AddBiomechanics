@@ -40,17 +40,9 @@ const ProfileDropdown = () => {
               <b>Signed in as:</b> {email}
             </Dropdown.Item>
             <hr className="mt-1 mb-1"></hr>
-            <Dropdown.Item as={Link} to="/profile">
-              <i className={`mdi mdi-account me-1`}></i>
-              <span>Your Profile</span>
-            </Dropdown.Item>
             <Dropdown.Item as={Link} to="/data">
               <i className={`mdi mdi-magnify me-1`}></i>
               <span>Your Data</span>
-            </Dropdown.Item>
-            <Dropdown.Item as={Link} to="/server_status">
-              <i className={`mdi mdi-server me-1`}></i>
-              <span>Processing Server Status</span>
             </Dropdown.Item>
             <hr className="mt-1 mb-1"></hr>
             <Dropdown.Item tag={Link} href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402" target="_blank">
