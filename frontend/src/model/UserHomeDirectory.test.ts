@@ -107,7 +107,7 @@ describe("UserHomeDirectory", () => {
         // Incremental loading of folders
         await api.getPath("/ASB2023", false).promise;
         await api.getPath("/ASB2023/TestProsthetic", false).promise;
-        await api.getPath("/ASB2023/S01", false).promise;
+        await api.getPath("/ASB2023/S01", true).promise;
         await api.getPath("/ASB2023/TestProsthetic/trials", false).promise;
         await api.getPath("/ASB2023/TestProsthetic/trials/walking", false).promise;
         expect(api.getPathStatus('/ASB2023/TestProsthetic/')).toBe('ready_to_process');
@@ -347,5 +347,54 @@ describe("UserHomeDirectory", () => {
 
         const type = api.getPathType('ASB2023/S01');
         expect(type).toBe('subject');
+    });
+
+    test("Subject that needs review", async () => {
+        // Use an isolated S3 mock, because this test has side effects
+        const s3_isolated = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        s3_isolated.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_results.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking/markers.c3d",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/walking/segment_1/preview.bin",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/running",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/running/markers.trc",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/running/grf.mot",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/running/segment_1/preview.bin",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/running/segment_2/preview.bin",
+        ]);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3_isolated, pubsub);
+
+        const api = new UserHomeDirectory(dir);
+        await api.getPath("/ASB2023/S01", true).promise;
+
+        const parentReviewStatus = api.getReviewStatus('/ASB2023/S01/trials');
+        expect(parentReviewStatus.path).toBe('/ASB2023/S01');
+
+        const reviewSubject = api.getFolderReviewStatus('/ASB2023/S01');
+        expect(reviewSubject.loading).toBe(false);
+        expect(reviewSubject.segmentsNeedReview.length).toBe(3);
+        expect(reviewSubject.segmentsReviewed.length).toBe(0);
+
+        await api.getPath("/ASB2023", true).promise;
+        const reviewFolder = api.getFolderReviewStatus('/ASB2023');
+        expect(reviewFolder.loading).toBe(false);
+        expect(reviewFolder.segmentsNeedReview.length).toBe(3);
+        expect(reviewFolder.segmentsReviewed.length).toBe(0);
+
+        const deeperParentReviewStatus = api.getReviewStatus('/ASB2023/S01/trials');
+        expect(deeperParentReviewStatus.path).toBe('/ASB2023');
+
+        await dir.uploadText(deeperParentReviewStatus.segmentsNeedReview[0].reviewFlagPath, "");
+
+        const updatedParentReviewStatus = api.getReviewStatus('/ASB2023/S01/trials');
+        expect(updatedParentReviewStatus.path).toBe('/ASB2023');
+        expect(updatedParentReviewStatus.segmentsNeedReview.length).toBe(2);
+        expect(updatedParentReviewStatus.segmentsReviewed.length).toBe(1);
     });
 });

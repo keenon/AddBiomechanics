@@ -36,7 +36,7 @@ const DataTypeRouter = observer((props: DataViewProps) => {
     homeName = "My Private Data";
   }
   else {
-    homeName = "User "+dataPath.userId+"";
+    homeName = "User " + dataPath.userId + "";
   }
   breadcrumbs.push(
     <BreadcrumbItem
@@ -53,7 +53,7 @@ const DataTypeRouter = observer((props: DataViewProps) => {
   );
 
   const pathParts = path.split('/');
-  if (pathParts.length > 0 && pathParts[pathParts.length-1] === '') {
+  if (pathParts.length > 0 && pathParts[pathParts.length - 1] === '') {
     pathParts.pop();
   }
   let cumulativePath = '';
@@ -100,7 +100,7 @@ const DataTypeRouter = observer((props: DataViewProps) => {
 
   const pathType = home.getPathType(path);
   if (pathType === 'dataset') {
-    body = <DatasetView home={home} path={path} currentLocationUserId={dataPath.userId} />
+    body = <DatasetView home={home} path={path} currentLocationUserId={dataPath.userId} readonly={readonly} />
   }
   else if (pathType === 'subject') {
     body = <SubjectView home={home} path={path} currentLocationUserId={dataPath.userId} readonly={readonly} />
@@ -118,7 +118,7 @@ const DataTypeRouter = observer((props: DataViewProps) => {
     </div>
   }
   else if (pathType === 'trial_segment') {
-    return <TrialSegmentView home={home} path={path} />
+    return <TrialSegmentView home={home} path={path} currentLocationUserId={dataPath.userId} readonly={readonly} />
   }
   else {
     body = <div>Not yet implemented type: {pathType}</div>;

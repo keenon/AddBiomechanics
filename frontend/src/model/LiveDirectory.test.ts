@@ -1065,4 +1065,31 @@ describe("LiveDirectory", () => {
         expect(cachedPath?.folders.length).toBe(1);
         expect(cachedPath?.folders[0]).toStrictEqual("test");
     });
+
+    test("Receiving a PubSub for a different prefix gets ignored", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:test/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:test/data/dataset1/subject1/_subject.json",
+            "protected/us-west-2:test/data/dataset2/",
+            "protected/us-west-2:test/data/root_subject/_subject.json",
+            "protected/us-west-2:test/data/_subject.json",
+        ]);
+
+        await api.getPath("", true);
+
+        pubsub.mockReceiveMessage({
+            topic: "/DEV/UPDATE/protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data",
+            message: JSON.stringify({
+                key: "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/NewSubject/_subject.json",
+                size: 10,
+                dateModified: new Date().toString(),
+            })
+        });
+
+        const result = api.getPath("", true);
+        expect(result.loading).toBe(false);
+        expect(result.folders.length).toBe(3);
+    });
 });

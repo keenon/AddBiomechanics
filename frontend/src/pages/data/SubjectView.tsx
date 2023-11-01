@@ -985,6 +985,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                         <th scope="col">Trial Segment</th>
                         <th scope="col">Marker Status</th>
                         <th scope="col">Forces Status</th>
+                        <th scope="col">Reviewed?</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1020,6 +1021,17 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                         dynamicsResults = 'Not run';
                                     }
 
+                                    let reviewStatus: string | React.ReactFragment = '';
+                                    if (segment.reviewFlagExists) {
+                                        reviewStatus = <span className='badge bg-success'>Reviewed</span>;
+                                    }
+                                    else if (!segment.loading) {
+                                        reviewStatus = <span className='badge bg-warning'>Needs Review</span>;
+                                    }
+                                    else {
+                                        reviewStatus = <span className='badge bg-secondary'>Loading</span>;
+                                    }
+
                                     if (hasErrors) {
                                         return <tr key={segment.path} className='table-danger'>
                                             <td><button className="btn btn-dark" onClick={() => {
@@ -1029,6 +1041,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                             </button></td>
                                             <td>{kinematicsResults}</td>
                                             <td>{dynamicsResults}</td>
+                                            <td>{reviewStatus}</td>
                                         </tr>
                                     }
                                     else {
@@ -1040,6 +1053,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                             </button></td>
                                             <td>{kinematicsResults}</td>
                                             <td>{dynamicsResults}</td>
+                                            <td>{reviewStatus}</td>
                                         </tr>
                                     }
                                 });

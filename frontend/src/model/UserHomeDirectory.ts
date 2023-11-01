@@ -6,7 +6,7 @@ import SubjectViewState from "./SubjectViewState";
 
 type PathType = 'dataset' | 'subject' | 'trial' | 'trial_segment' | 'trials_folder' | '404' | 'loading';
 
-type PathStatus = 'loading' | 'needs_data' | 'ready_to_process' | 'waiting_for_server' | 'slurm' | 'processing' | 'error' | 'done';
+type PathStatus = 'loading' | 'needs_data' | 'ready_to_process' | 'waiting_for_server' | 'slurm' | 'processing' | 'error' | 'needs_review' | 'done';
 
 type DatasetContents = {
     loading: boolean;
@@ -48,11 +48,26 @@ type TrialContents = {
 };
 
 type TrialSegmentContents = {
+    loading: boolean;
     path: string;
+    parentSubjectPath: string;
+    parentDatasetPath: string;
     name: string;
     resultsJsonPath: string;
     previewPath: string;
     dataPath: string;
+    // The path to the review flag file
+    reviewFlagPath: string;
+    reviewFlagExists: boolean;
+    // The review.json file
+    reviewJson: LiveJsonFile;
+};
+
+type FolderReviewStatus = {
+    loading: boolean;
+    path: string;
+    segmentsNeedReview: TrialSegmentContents[];
+    segmentsReviewed: TrialSegmentContents[];
 };
 
 class UserHomeDirectory {
@@ -179,6 +194,9 @@ class UserHomeDirectory {
             else if (folderStatus.includes('ready_to_process')) {
                 return 'ready_to_process';
             }
+            else if (folderStatus.includes('needs_review')) {
+                return 'needs_review';
+            }
             else {
                 return 'done';
             }
@@ -189,6 +207,17 @@ class UserHomeDirectory {
                 return file.key.substring(path.length).replace(/\/$/, '').replace(/^\//, '');
             });
             if (child_files.includes('_results.json')) {
+                const subjectContents = this.getSubjectContents(path);
+                if (subjectContents.loading) {
+                    return 'loading';
+                }
+                for (let trial of subjectContents.trials) {
+                    for (let segment of trial.segments) {
+                        if (!segment.reviewFlagExists) {
+                            return 'needs_review';
+                        }
+                    }
+                }
                 return 'done';
             }
             else if (child_files.includes('ERROR')) {
@@ -419,6 +448,8 @@ class UserHomeDirectory {
     }
 
     getTrialSegmentContents(path: string): TrialSegmentContents {
+        const dir = this.dir;
+
         if (path.endsWith('/')) {
             path = path.substring(0, path.length-1);
         }
@@ -426,20 +457,110 @@ class UserHomeDirectory {
             path = path.substring(1);
         }
 
+        const segment: PathData = dir.getPath(path + '/', false);
+
         const name = path.split('/').slice(-1)[0];
         const resultsJsonPath = path + '/_results.json';
         const previewPath = path + '/preview.bin';
         const dataPath = path + '/data.csv';
 
+        const reviewFlagPath = path + '/REVIEWED';
+        const reviewJsonPath = path + '/review.json';
+
+        const prefix = path.substring(0, path.lastIndexOf('/trials/'));
+        const parentSubjectPath: string = prefix;
+        const parentDatasetPath: string = prefix.substring(0, prefix.lastIndexOf('/'));
+
         return {
+            loading: segment.loading,
             path: path + '/',
             name,
+            parentSubjectPath,
+            parentDatasetPath,
             resultsJsonPath,
             previewPath,
             dataPath,
+            reviewFlagPath,
+            reviewFlagExists: segment.files.map((file) => {
+                return file.key;
+            }).includes(reviewFlagPath),
+            reviewJson: dir.getJsonFile(reviewJsonPath)
         };
+    }
+
+    /**
+     * This finds the highest loaded folder that is a parent of the current path, and returns the review status for that.
+     */
+    getReviewStatus(path: string): FolderReviewStatus {
+        const pathParts = path.split('/');
+        for (let i = 0; i < pathParts.length; i++) {
+            const subPath = pathParts.slice(0, i+1).join('/');
+            if (this.dir.getCachedPath(subPath) != null) {
+                return this.getFolderReviewStatus(subPath);
+            }
+        }
+        return this.getFolderReviewStatus(path);
+    }
+
+    getFolderReviewStatus(path: string): FolderReviewStatus {
+        const type = this.getPathType(path);
+        if (type === 'dataset') {
+            const dataset = this.getDatasetContents(path);
+            let loading = false;
+            let segmentsNeedReview: TrialSegmentContents[] = [];
+            let segmentsReviewed: TrialSegmentContents[] = [];
+            dataset.contents.forEach((content) => {
+                const review = this.getFolderReviewStatus(content.path);
+                if (review.loading) {
+                    loading = true;
+                }
+                segmentsNeedReview = segmentsNeedReview.concat(review.segmentsNeedReview);
+                segmentsReviewed = segmentsReviewed.concat(review.segmentsReviewed);
+            });
+            return {
+                loading,
+                path,
+                segmentsNeedReview,
+                segmentsReviewed
+            };
+        }
+        else if (type === 'subject') {
+            const subject = this.getSubjectContents(path);
+            let loading = false;
+            let segmentsNeedReview: TrialSegmentContents[] = [];
+            let segmentsReviewed: TrialSegmentContents[] = [];
+
+            subject.trials.forEach((trial) => {
+                trial.segments.forEach((segment) => {
+                    if (segment.loading) {
+                        loading = true;
+                    }
+                    if (segment.reviewFlagExists) {
+                        segmentsReviewed.push(segment);
+                    }
+                    else {
+                        segmentsNeedReview.push(segment);
+                    }
+                });
+            });
+
+            return {
+                loading,
+                path,
+                segmentsNeedReview,
+                segmentsReviewed
+            };
+        }
+        else {
+            return {
+                loading: false,
+                path,
+                segmentsNeedReview: [],
+                segmentsReviewed: []
+            };
+        }
     }
 };
 
-export type { PathType, DatasetContents, SubjectContents, TrialContents, TrialSegmentContents };
+export type { PathType, DatasetContents, SubjectContents, TrialContents, TrialSegmentContents, FolderReviewStatus };
 export default UserHomeDirectory;

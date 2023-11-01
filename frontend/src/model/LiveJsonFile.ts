@@ -5,6 +5,7 @@ import { PathData } from "./LiveDirectory";
 /// This is a cacheing layer for mobx-style interaction with JSON files stored in S3. This handles doing the downloading, parsing, 
 /// and re-uploading in the background.
 class LiveJsonFile {
+    neverRefreshed: boolean = true;
     dir: LiveDirectory;
     loading: Promise<void> | null;
     path: string;
@@ -48,14 +49,14 @@ class LiveJsonFile {
                 this.values.clear();
             }
         }));
-
-        this.refreshFile();
     }
 
     /**
      * This will do a refresh of the contents of the file from S3
      */
     refreshFile() {
+        this.neverRefreshed = false;
+
         this.loading = this.dir.downloadText(this.path).then(action((text: string) => {
             try {
                 let savedValues: Map<string, any> = new Map();
@@ -117,6 +118,10 @@ class LiveJsonFile {
      * @returns 
      */
     getAttribute(key: string, defaultValue: any): any {
+        if (this.neverRefreshed) {
+            this.refreshFile();
+        }
+
         let value = this.values.get(key);
         if (value == null) return defaultValue;
         else return value;
