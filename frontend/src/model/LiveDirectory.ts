@@ -350,6 +350,10 @@ class LiveDirectoryImpl extends LiveDirectory {
     }
 
     _onReceivedPubSubUpdate(file: FileMetadata) {
+        if (!file.key.startsWith(this.prefix)) {
+            return;
+        }
+
         // Look for any already loaded PathData objects that contain 
         // this file, which is only the immediate parent, and itself
         const localPath = file.key.substring(this.prefix.length);
@@ -428,6 +432,10 @@ class LiveDirectoryImpl extends LiveDirectory {
     }
 
     _onReceivedPubSubDelete(path: string) {
+        if (!path.startsWith(this.prefix)) {
+            return;
+        }
+
         const localPath = path.substring(this.prefix.length);
         // Look for any already loaded PathData objects that contain 
         // this file, which is only the immediate parent, and itself
