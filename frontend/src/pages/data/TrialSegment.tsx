@@ -104,8 +104,6 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
     const [plotTags, setPlotTags] = useState([] as string[]);
     const [frame, setFrame] = useState(0);
     const [draggingFrameWand, setDraggingFrameWand] = useState(false);
-    const [dragStartFrame, setDragStartFrame] = useState(-1);
-    const [dragMissingGrf, setDragMissingGrf] = useState(false);
     const navigateToNext = useRef((() => { }) as any);
     const chartRef = useRef(null as any);
     const modalRef = useRef(null as any);
@@ -617,29 +615,53 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                     className={color}
                     style={{ height: '100%' }}
                     onMouseOver={() => {
-                        globalCurrentFrame[0] = i;
-                        setFrame(i);
-
-                        if (draggingFrameWand) {
-                            const updatedMissingGrfArray = [...missingGrfArray];
-                            for (let start = Math.min(i, dragStartFrame); start <= Math.max(i, dragStartFrame); start++) {
-                                updatedMissingGrfArray[start] = dragMissingGrf;
-                            }
-                            segmentContents.reviewJson.setAttribute('missing_grf_data', updatedMissingGrfArray);
+                        if (!draggingFrameWand) {
+                            globalCurrentFrame[0] = i;
+                            setFrame(i);
                         }
                     }}
                     onMouseDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        const elem = e.target as HTMLTableElement;
+                        const parent = elem.parentElement;
+                        if (parent == null) {
+                            console.error("Got a null parent element for the <td> element. That doesn't make sense, and should never happen!");
+                            return;
+                        }
+
+                        const boundingRect = parent.getBoundingClientRect();
 
                         setDraggingFrameWand(true);
-                        setDragStartFrame(i);
-                        setDragMissingGrf(!missingGrfArray[i]);
+
+                        const dragStartFrame = i;
+                        const dragMissingGrf = !missingGrfArray[i];
+
+                        const onMouseMove = (e: MouseEvent) => {
+                            let percentage = (e.clientX - boundingRect.left) / boundingRect.width;
+                            if (percentage < 0) {
+                                percentage = 0;
+                            }
+                            if (percentage > 1) {
+                                percentage = 1;
+                            }
+                            let frame = Math.floor(percentage * missingGrfArray.length);
+                            setFrame(frame);
+                            globalCurrentFrame[0] = i;
+
+                            const updatedMissingGrfArray = [...missingGrfArray];
+                            for (let start = Math.min(frame, dragStartFrame); start <= Math.max(frame, dragStartFrame); start++) {
+                                updatedMissingGrfArray[start] = dragMissingGrf;
+                            }
+                            segmentContents.reviewJson.setAttribute('missing_grf_data', updatedMissingGrfArray);
+                        }
 
                         const onMouseUp = () => {
                             setDraggingFrameWand(false);
                             window.removeEventListener('mouseup', onMouseUp);
+                            window.removeEventListener('mousemove', onMouseMove);
                         };
+                        window.addEventListener('mousemove', onMouseMove);
                         window.addEventListener('mouseup', onMouseUp);
                     }}
                     onKeyDown={(e) => {
