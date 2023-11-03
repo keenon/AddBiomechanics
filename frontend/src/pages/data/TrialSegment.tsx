@@ -646,12 +646,13 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                                 percentage = 1;
                             }
                             let frame = Math.floor(percentage * missingGrfArray.length);
+                            globalCurrentFrame[0] = frame;
                             setFrame(frame);
-                            globalCurrentFrame[0] = i;
 
                             const updatedMissingGrfArray = [...missingGrfArray];
-                            for (let start = Math.min(frame, dragStartFrame); start <= Math.max(frame, dragStartFrame); start++) {
-                                updatedMissingGrfArray[start] = dragMissingGrf;
+                            for (let i = Math.min(frame, dragStartFrame); i <= Math.max(frame, dragStartFrame); i++) {
+                                updatedMissingGrfArray[i] = dragMissingGrf;
+                                missingGrfArray[i] = dragMissingGrf;
                             }
                             segmentContents.reviewJson.setAttribute('missing_grf_data', updatedMissingGrfArray);
                         }
