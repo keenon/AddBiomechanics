@@ -19,7 +19,9 @@ class AuthContext:
         self.deployment = deployment
 
     def authenticate(self, username: str = None, password: str = None):
-        self.username, self.password = self.ensure_login(username, password)
+        username, password = self.ensure_login(username, password)
+        self.username = username
+        self.password = password
         id_token = self.get_id_token(
             self.deployment['POOL_CLIENT_ID'], username, password)
         self.user_identity_id = self.get_user_identity_id(
