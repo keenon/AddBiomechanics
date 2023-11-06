@@ -219,5 +219,5 @@ class DownloadCommand(AbstractCommand):
                     s3 = ctx.aws_session.client('s3')
                     # Retry the download operation
                     s3.download_file(ctx.deployment['BUCKET'], key, key)
-            else:
-                raise
+                else:
+                    raise
