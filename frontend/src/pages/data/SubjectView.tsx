@@ -30,7 +30,14 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const errorFlagFile = subjectState.errorFlagFile;
 
     // Check on the value of the key _subject.json attributes unconditionally, to ensure that MobX updates if the attributes change
-    const subjectDataSource: '' | 'published' | 'pilot' | 'study' = subjectJson.getAttribute("dataSource", "");
+    let subjectDataSource: '' | 'public' | 'pilot' | 'study' = subjectJson.getAttribute("dataSource", "");
+    if (subjectDataSource as any === 'published') {
+        // If the user has an old version of _subject.json, update it to the new format
+        subjectDataSource = 'public';
+        if (!props.readonly) {
+            subjectJson.setAttribute("dataSource", 'public');
+        }
+    }
     const subjectConsent: boolean | null = subjectJson.getAttribute("subjectConsent", null);
     const subjectHeightM: number = subjectJson.getAttribute("heightM", "");
     const [subjectHeightComplete, setSubjectHeightComplete] = useState(true);
@@ -98,6 +105,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     subjectJson.onFocusAttribute("heightM");
                 }}
                 onBlur={() => subjectJson.onBlurAttribute("heightM")}
+                disabled={props.readonly}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === 'Tab') {
                         setSubjectHeightComplete(true);
@@ -148,6 +156,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 autoFocus={subjectMassKg <= 0 || !subjectMassComplete}
                 onFocus={() => subjectJson.onFocusAttribute("massKg")}
                 onBlur={() => subjectJson.onBlurAttribute("massKg")}
+                disabled={props.readonly}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === 'Tab') {
                         setSubjectMassComplete(true);
@@ -195,6 +204,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 className={"form-control" + ((subjectSex === '') ? " border-primary border-2" : "")}
                 autoFocus={subjectSex === ''}
                 aria-describedby="sexHelp"
+                disabled={props.readonly}
                 onChange={(e) => {
                     subjectJson.setAttribute("sex", e.target.value);
                 }}
@@ -245,6 +255,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                         setSubjectAgeComplete(true);
                     }
                 }}
+                disabled={props.readonly}
                 onChange={(e) => {
                     if (e.target.value === '') {
                         subjectJson.setAttribute("ageYears", null);
@@ -333,6 +344,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 className={"form-control" + ((subjectModel == '') ? " border-primary border-2" : "")}
                 autoFocus={subjectModel == ''}
                 aria-describedby="modelHelp"
+                disabled={props.readonly}
                 onChange={(e) => {
                     subjectJson.setAttribute("skeletonPreset", e.target.value);
                 }}>
@@ -410,6 +422,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 className={"form-control" + ((disableDynamics == null) ? " border-primary border-2" : "")}
                 autoFocus={disableDynamics == null}
                 aria-describedby="physicsHelp"
+                disabled={props.readonly}
                 onChange={(e) => {
                     subjectJson.setAttribute("disableDynamics", e.target.value === '' ? null : (e.target.value === 'true' ? true : false));
                 }}>
@@ -515,6 +528,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     className={"form-control" + ((runMoco == null) ? " border-primary border-2" : "")}
                     autoFocus={runMoco == null}
                     aria-describedby="mocoHelp"
+                    disabled={props.readonly}
                     onChange={(e) => {
                         subjectJson.setAttribute("runMoco", e.target.value === '' ? null : (e.target.value === 'true' ? true : false));
                     }}>
@@ -553,6 +567,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 value={subjectDataSource}
                 className={"form-control" + ((subjectDataSource == '') ? " border-primary border-2" : "")}
                 autoFocus={subjectDataSource == ''}
+                disabled={props.readonly}
                 aria-describedby="dataHelp"
                 onChange={(e) => {
                     subjectJson.setAttribute("dataSource", e.target.value);
@@ -619,6 +634,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 className={"form-control" + ((subjectConsent == null) ? " border-primary border-2" : "") + ((subjectConsent == false) ? " border-danger border-2" : "")}
                 autoFocus={subjectConsent == null}
                 aria-describedby="consentHelp"
+                disabled={props.readonly}
                 onChange={(e) => {
                     subjectJson.setAttribute("subjectConsent", e.target.value === '' ? null : (e.target.value === 'true' ? true : false));
                 }}>
@@ -680,6 +696,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                         input.blur();
                     }
                 }}
+                disabled={props.readonly}
                 onFocus={() => {
                     subjectJson.onFocusAttribute("citation");
                 }}
@@ -823,7 +840,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     let mocapHelpText = null;
     let submitButton = null;
-    if (!readyFlagExists) {
+    if (!readyFlagExists && !props.readonly) {
         mocapHelpText = <div className="alert alert-dark mt-2" role="alert">
             <h4 className="alert-heading">How do I add motion capture trials?</h4>
             <p>
@@ -865,31 +882,38 @@ const SubjectView = observer((props: SubjectViewProps) => {
         subjectState.dropFilesToUpload(acceptedFiles);
     };
 
+    let uploadTrialsDropZone = null;
+    if (!props.readonly) {
+        uploadTrialsDropZone = (
+            <div className={"dropzone" + (dropZoneActive ? ' dropzone-hover' : '')}
+                onDrop={onDrop as any}
+                onDragOver={(e) => {
+                    e.preventDefault();
+                }}
+                onDragEnter={() => {
+                    setDropZoneActive(true);
+                }}
+                onDragLeave={() => {
+                    setDropZoneActive(false);
+                }}>
+                <div className="dz-message needsclick">
+                    <i className="h3 text-muted dripicons-cloud-upload"></i>
+                    <h5>
+                        Drop C3D or TRC files here to create trials.
+                    </h5>
+                    <span className="text-muted font-13">
+                        (You can drop multiple files at once to create multiple
+                        trials simultaneously)
+                    </span>
+                </div>
+            </div>
+        );
+    }
+
     const trialsUploadSection = <>
         <h3>Motion Capture Files:</h3>
         {mocapFilesTable}
-        <div className={"dropzone" + (dropZoneActive ? ' dropzone-hover' : '')}
-            onDrop={onDrop as any}
-            onDragOver={(e) => {
-                e.preventDefault();
-            }}
-            onDragEnter={() => {
-                setDropZoneActive(true);
-            }}
-            onDragLeave={() => {
-                setDropZoneActive(false);
-            }}>
-            <div className="dz-message needsclick">
-                <i className="h3 text-muted dripicons-cloud-upload"></i>
-                <h5>
-                    Drop C3D or TRC files here to create trials.
-                </h5>
-                <span className="text-muted font-13">
-                    (You can drop multiple files at once to create multiple
-                    trials simultaneously)
-                </span>
-            </div>
-        </div>
+        {uploadTrialsDropZone}
         {submitButton}
         {mocapHelpText}
     </>;
@@ -897,20 +921,45 @@ const SubjectView = observer((props: SubjectViewProps) => {
     let statusSection = null;
     if (readyFlagExists) {
         if (errorFlagExists) {
-            statusSection = <div>
-                <h3>Status: Error</h3>
-                <button className="btn btn-primary" onClick={async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return subjectState.reprocess();
-                }}>Reprocess</button>
-                <h3>Processing log contents:</h3>
-                <pre>
-                    {subjectState.logText}
-                </pre>
-            </div>;
+            if (!props.readonly) {
+                statusSection = <div>
+                    <h3>Status: Error</h3>
+                    <button className="btn btn-primary" onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return subjectState.reprocess();
+                    }}>Reprocess</button>
+                    <h3>Processing log contents:</h3>
+                    <pre>
+                        {subjectState.logText}
+                    </pre>
+                </div>;
+            }
+            else {
+                statusSection = <div>
+                    <h3>Status: Error</h3>
+                    <h3>Processing log contents:</h3>
+                    <pre>
+                        {subjectState.logText}
+                    </pre>
+                </div>;
+            }
         }
         else if (resultsExist) {
+            let reprocessButton = null;
+            if (!props.readonly) {
+                reprocessButton = (
+                    <p>
+                        <button className="btn btn-warning" onClick={async (e) => {
+                            if (window.confirm("Are you sure you want to reprocess the data? That will delete your current results.")) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                await subjectState.reprocess();
+                            }
+                        }}>Reprocess</button>
+                    </p>
+                );
+            }
             statusSection = <>
                 <div className='row mt-2'>
                     <h3>Status: Finished!</h3>
@@ -927,44 +976,50 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                 props.home.dir.downloadFile(subjectState.resultsB3dPath);
                             }}>Download Results, B3D Format</button>
                         </p>
-                        <p>
-                            <button className="btn btn-warning" onClick={async (e) => {
-                                if (window.confirm("Are you sure you want to reprocess the data? That will delete your current results.")) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    await subjectState.reprocess();
-                                }
-                            }}>Reprocess</button>
-                        </p>
+                        {reprocessButton}
                     </div>
                 </div>
             </>;
         }
         else if (processingFlagExists) {
-            statusSection = <div>
-                <h3>Status: Processing</h3>
-                <button className="btn btn-primary" onClick={async (e) => {
-                    if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        await subjectState.reprocess();
-                    }
-                }}>Force Reprocess</button>
-            </div>;
+            if (!props.readonly) {
+                statusSection = <div>
+                    <h3>Status: Processing</h3>
+                    <button className="btn btn-primary" onClick={async (e) => {
+                        if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            await subjectState.reprocess();
+                        }
+                    }}>Force Reprocess</button>
+                </div>;
+            }
+            else {
+                statusSection = <div>
+                    <h3>Status: Processing</h3>
+                </div>;
+            }
         }
         else if (slurmFlagExists) {
-            statusSection = <div>
-                <h3>Status: Queued on <a href="https://www.sherlock.stanford.edu/docs/" target="_blank">Sherlock</a></h3>
-                <button className="btn btn-primary" onClick={async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
+            if (!props.readonly) {
+                statusSection = <div>
+                    <h3>Status: Queued on <a href="https://www.sherlock.stanford.edu/docs/" target="_blank">Sherlock</a></h3>
+                    <button className="btn btn-primary" onClick={async (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        await subjectState.reprocess();
-                    }
-                }}>Force Reprocess</button>
-            </div>;
+                        if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            await subjectState.reprocess();
+                        }
+                    }}>Force Reprocess</button>
+                </div>;
+            }
+            else {
+                statusSection = <div>
+                    <h3>Status: Queued on <a href="https://www.sherlock.stanford.edu/docs/" target="_blank">Sherlock</a></h3>
+                </div>;
+            }
         }
         else {
             statusSection = <div>
