@@ -328,7 +328,7 @@ class UploadCommand(AbstractCommand):
         foot_body_names: List[str] = args.foot_body_names
         skip_confirm: bool = args.yes
         private: bool = args.private
-        only_subject_json: bool = args.only_subject_json
+        only_subject_jsons: bool = args.only_subject_jsons
 
         dir_files: List[str] = []
 
@@ -362,7 +362,7 @@ class UploadCommand(AbstractCommand):
         else:
             prefix += dataset_name + '/'
 
-        if only_subject_json:
+        if only_subject_jsons:
             structure.s3_to_local_file = {k: v for k, v in structure.s3_to_local_file.items() if k.endswith('_subject.json')}
             structure.s3_to_contents = {}
             structure.s3_ready_flags = []
