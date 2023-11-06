@@ -36,9 +36,9 @@ def upload_files(ctx: AuthContext, s3_to_local_file: Dict[str, str], s3_to_conte
 
     # Upload the files
     for s3_key, local_path in s3_to_local_file.items():
+        s3_key = s3_prefix + s3_key
+        s3_key = s3_key.replace('//', '/')
         try:
-            s3_key = s3_prefix + s3_key
-            s3_key = s3_key.replace('//', '/')
             print(f'Uploading {local_path} to {s3_key}')
             s3.upload_file(local_path, deployment['BUCKET'], s3_key)
             # Notify PubSub that this file changed
@@ -50,7 +50,10 @@ def upload_files(ctx: AuthContext, s3_to_local_file: Dict[str, str], s3_to_conte
                 s3 = ctx.aws_session.client('s3')
                 pubsub = ctx.aws_session.client('iot-data')
                 # Retry the upload operation
-                # ... existing upload code ...
+                print(f'Retrying uploading {local_path} to {s3_key}')
+                s3.upload_file(local_path, deployment['BUCKET'], s3_key)
+                # Notify PubSub that this file changed
+                notifyFileChanged(s3_key, size_bytes=os.path.getsize(local_path))
             else:
                 raise
 
@@ -301,6 +304,8 @@ class UploadCommand(AbstractCommand):
                                     help='This skips the manual confirmation step')
         process_parser.add_argument('--private', action='store_true',
                                     help='Add this flag to upload the data to your private folder to be processed, instead of the normal workspace.')
+        process_parser.add_argument('--only-subject-jsons', action='store_true',
+                                    help='Add this flag to only upload the subject.json files, instead of the whole directory.')
         pass
 
     def run(self, ctx: AuthContext, args: argparse.Namespace):
@@ -323,6 +328,7 @@ class UploadCommand(AbstractCommand):
         foot_body_names: List[str] = args.foot_body_names
         skip_confirm: bool = args.yes
         private: bool = args.private
+        only_subject_json: bool = args.only_subject_json
 
         dir_files: List[str] = []
 
@@ -355,6 +361,11 @@ class UploadCommand(AbstractCommand):
                 '/' + subject_name + '/'
         else:
             prefix += dataset_name + '/'
+
+        if only_subject_json:
+            structure.s3_to_local_file = {k: v for k, v in structure.s3_to_local_file.items() if k.endswith('_subject.json')}
+            structure.s3_to_contents = {}
+            structure.s3_ready_flags = []
 
         if skip_confirm or structure.confirm_with_user(prefix):
             print('Uploading...')

@@ -4,6 +4,7 @@ from addbiomechanics.auth import AuthContext
 import os
 from datetime import datetime
 from addbiomechanics.s3_structure import S3Node, retrieve_s3_structure, sizeof_fmt
+from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
 from typing import List, Dict, Tuple, Set
 import json
 import re
@@ -209,4 +210,14 @@ class DownloadCommand(AbstractCommand):
             # Create the directory structure, if it doesn't exist already
             os.makedirs(directory, exist_ok=True)
             # Download the file
-            s3.download_file(ctx.deployment['BUCKET'], key, key)
+            try:
+                s3.download_file(ctx.deployment['BUCKET'], key, key)
+            except (NoCredentialsError, PartialCredentialsError, ClientError) as e:
+                if 'ExpiredToken' in str(e):
+                    print('Session expired. Refreshing AWS session.')
+                    ctx.refresh()
+                    s3 = ctx.aws_session.client('s3')
+                    # Retry the download operation
+                    s3.download_file(ctx.deployment['BUCKET'], key, key)
+            else:
+                raise
