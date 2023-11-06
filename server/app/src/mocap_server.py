@@ -106,6 +106,18 @@ class TrialToProcess:
         else:
             return 0
 
+    def getTrialSize(self):
+        # Return the size of the trial, in bytes.
+        trial_size = 0
+        if self.index.exists(self.c3dFile):
+            trial_size += os.path.getsize(self.c3dFile)
+        if self.index.exists(self.trcFile):
+            trial_size += os.path.getsize(self.trcFile)
+        if self.index.exists(self.grfFile):
+            trial_size += os.path.getsize(self.grfFile)
+
+        return trial_size
+
 
 class SubjectToProcess:
     index: ReactiveS3Index
@@ -703,7 +715,20 @@ class MocapServer:
                             else:
                                 job_name += '_new'
 
-                            sbatch_command = 'sbatch -p owners --job-name ' + job_name + ' --cpus-per-task=16 --mem=64000M --output=processing-%j.out --time=8:00:00 --wrap="' + \
+                            # Allocate Sherlock resources based on the total size of the subject data.
+                            subject_size = 0
+                            for trial_name, trial in self.currentlyProcessing.trials.items():
+                                # Convert to MB
+                                subject_size += trial.getTrialSize() / 1024 / 1024
+
+                            # Use 4GB of RAM per 25MB of subject data, with a minimum of 4GB and a maximum of 64GB in
+                            # 4GB increments.
+                            mem = max(4000, min(64000, int(subject_size / 25 * 4000)))
+
+                            # Use 1 CPU per 4GB of RAM, with a minimum of 1 CPU and a maximum of 16 CPUs.
+                            cpus = max(1, min(16, int(mem / 4000)))
+
+                            sbatch_command = 'sbatch -p owners --job-name ' + job_name + f' --cpus-per-task={cpus} --mem={mem}M --output=processing-%j.out --time=8:00:00 --wrap="' + \
                                 raw_command.replace('"', '\\"')+'"'
                             print('Running command: '+sbatch_command)
                             try:
