@@ -2,6 +2,8 @@ from addbiomechanics.commands.abtract_command import AbstractCommand
 import argparse
 from addbiomechanics.auth import AuthContext
 from typing import Dict, List, Tuple
+from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
+import boto3
 import os
 import json
 import time
@@ -34,12 +36,23 @@ def upload_files(ctx: AuthContext, s3_to_local_file: Dict[str, str], s3_to_conte
 
     # Upload the files
     for s3_key, local_path in s3_to_local_file.items():
-        s3_key = s3_prefix + s3_key
-        s3_key = s3_key.replace('//', '/')
-        print(f'Uploading {local_path} to {s3_key}')
-        s3.upload_file(local_path, deployment['BUCKET'], s3_key)
-        # Notify PubSub that this file changed
-        notifyFileChanged(s3_key, size_bytes=os.path.getsize(local_path))
+        try:
+            s3_key = s3_prefix + s3_key
+            s3_key = s3_key.replace('//', '/')
+            print(f'Uploading {local_path} to {s3_key}')
+            s3.upload_file(local_path, deployment['BUCKET'], s3_key)
+            # Notify PubSub that this file changed
+            notifyFileChanged(s3_key, size_bytes=os.path.getsize(local_path))
+        except (NoCredentialsError, PartialCredentialsError, ClientError) as e:
+            if 'ExpiredToken' in str(e):
+                print('Session expired. Refreshing AWS session.')
+                ctx.refresh()
+                s3 = ctx.aws_session.client('s3')
+                pubsub = ctx.aws_session.client('iot-data')
+                # Retry the upload operation
+                # ... existing upload code ...
+            else:
+                raise
 
     # Upload the raw contents
     for s3_key, contents in s3_to_contents.items():

@@ -12,12 +12,14 @@ class AuthContext:
     user_email: str
     aws_cred: Dict[str, str]
     aws_session: boto3.Session
+    username: str = None
+    password: str = None
 
     def __init__(self, deployment: Dict[str, str]):
         self.deployment = deployment
 
     def authenticate(self, username: str = None, password: str = None):
-        username, password = self.ensure_login(username, password)
+        self.username, self.password = self.ensure_login(username, password)
         id_token = self.get_id_token(
             self.deployment['POOL_CLIENT_ID'], username, password)
         self.user_identity_id = self.get_user_identity_id(
@@ -28,6 +30,9 @@ class AuthContext:
             id_token, self.user_identity_id, self.deployment['REGION'], self.deployment['POOL_ID'])
         self.aws_session = self.get_temp_aws_session(
             self.aws_cred, self.deployment['REGION'])
+
+    def refresh(self):
+        self.authenticate(self.username, self.password)
 
     def ensure_login(self, username: str = None, password: str = None, force_retype: bool = False):
         home_dir = os.path.expanduser("~")
