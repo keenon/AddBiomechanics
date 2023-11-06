@@ -43,19 +43,17 @@ def upload_files(ctx: AuthContext, s3_to_local_file: Dict[str, str], s3_to_conte
             s3.upload_file(local_path, deployment['BUCKET'], s3_key)
             # Notify PubSub that this file changed
             notifyFileChanged(s3_key, size_bytes=os.path.getsize(local_path))
-        except (NoCredentialsError, PartialCredentialsError, ClientError) as e:
-            if 'ExpiredToken' in str(e):
-                print('Session expired. Refreshing AWS session.')
-                ctx.refresh()
-                s3 = ctx.aws_session.client('s3')
-                pubsub = ctx.aws_session.client('iot-data')
-                # Retry the upload operation
-                print(f'Retrying uploading {local_path} to {s3_key}')
-                s3.upload_file(local_path, deployment['BUCKET'], s3_key)
-                # Notify PubSub that this file changed
-                notifyFileChanged(s3_key, size_bytes=os.path.getsize(local_path))
-            else:
-                raise
+        except Exception as e:
+            print('Caught an exception trying to upload. Trying refreshing AWS session and trying again.')
+            print(e)
+            ctx.refresh()
+            s3 = ctx.aws_session.client('s3')
+            pubsub = ctx.aws_session.client('iot-data')
+            # Retry the upload operation
+            print(f'Retrying uploading {local_path} to {s3_key}')
+            s3.upload_file(local_path, deployment['BUCKET'], s3_key)
+            # Notify PubSub that this file changed
+            notifyFileChanged(s3_key, size_bytes=os.path.getsize(local_path))
 
     # Upload the raw contents
     for s3_key, contents in s3_to_contents.items():

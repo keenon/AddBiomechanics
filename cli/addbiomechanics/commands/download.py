@@ -212,12 +212,10 @@ class DownloadCommand(AbstractCommand):
             # Download the file
             try:
                 s3.download_file(ctx.deployment['BUCKET'], key, key)
-            except (NoCredentialsError, PartialCredentialsError, ClientError) as e:
-                if 'ExpiredToken' in str(e):
-                    print('Session expired. Refreshing AWS session.')
-                    ctx.refresh()
-                    s3 = ctx.aws_session.client('s3')
-                    # Retry the download operation
-                    s3.download_file(ctx.deployment['BUCKET'], key, key)
-                else:
-                    raise
+            except Exception as e:
+                print('Caught an exception trying to download. Trying refreshing AWS session and trying again.')
+                print(e)
+                ctx.refresh()
+                s3 = ctx.aws_session.client('s3')
+                # Retry the download operation
+                s3.download_file(ctx.deployment['BUCKET'], key, key)
