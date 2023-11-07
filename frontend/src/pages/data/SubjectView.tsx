@@ -1051,6 +1051,18 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                 return trial.segments.map((segment, index) => {
                                     let hasErrors = false;
 
+                                    if (!('segments' in trialResults) || trialResults.segments.length <= index) {
+                                        return <tr key={segment.path} className='table-danger'>
+                                            <td><button className="btn btn-dark" onClick={() => {
+                                                navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
+                                            }}>
+                                                View (Error) Segment
+                                            </button></td>
+                                            <td><span className='text-danger'>Error</span></td>
+                                            <td><span className='text-danger'>Error</span></td>
+                                            <td><span className='text-danger'>Error</span></td>
+                                        </tr>
+                                    }
                                     const segmentResults = trialResults.segments[index];
                                     let kinematicsResults: string | React.ReactFragment = '';
                                     if (segmentResults.kinematicsStatus === 'FINISHED') {

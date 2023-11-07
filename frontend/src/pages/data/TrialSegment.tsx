@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Table, Button } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
+import { action } from 'mobx';
 import NimbleStandaloneReact from 'nimble-visualizer/dist/NimbleStandaloneReact';
 import Select from 'react-select';
 import {
@@ -16,7 +17,7 @@ import {
     ChartDataset
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import UserHomeDirectory, { TrialSegmentContents } from "../../model/UserHomeDirectory";
+import UserHomeDirectory, { FolderReviewStatus, TrialSegmentContents } from "../../model/UserHomeDirectory";
 import Session from "../../model/Session";
 import LiveJsonFile from "../../model/LiveJsonFile";
 import LiveFile from "../../model/LiveFile";
@@ -113,6 +114,17 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
     const segmentContents: TrialSegmentContents = home.getTrialSegmentContents(path);
     const dir = home.dir;
 
+    // We cache the review state, so we don't slow things down when huge numbers of segments are being reviewed
+    const [reviewState, setReviewState] = useState({
+        loading: true,
+        path: path,
+        segmentsNeedReview: [],
+        segmentsReviewed: []
+    } as FolderReviewStatus);
+    useEffect(() => {
+        setReviewState(home.getReviewStatus(path));
+    }, []);
+
     const [csvMissingGrfArray, setCsvMissingGrfArray] = useState([] as boolean[]);
 
     const missingGrfArray: boolean[] = segmentContents.reviewJson.getAttribute('missing_grf_data', csvMissingGrfArray);
@@ -189,6 +201,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                 csvMissingGrfArray = new Array(dataset.length).fill(true);
             }
 
+            console.log(csvMissingGrfArray);
             setCsvMissingGrfArray(csvMissingGrfArray);
             setPlotCSV(dataset);
         }).catch((e) => { });
@@ -593,14 +606,18 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
         if (segmentContents.reviewFlagExists) {
             reviewButton =
                 <button className="btn btn-secondary" onClick={() => {
-                    dir.delete(segmentContents.reviewFlagPath);
+                    dir.delete(segmentContents.reviewFlagPath).then(() => {
+                        setReviewState(home.getReviewStatus(path));
+                    });
                 }}>Redo Review</button>
                 ;
         }
         else {
             reviewButton =
                 <button className="btn btn-success" onClick={() => {
-                    dir.uploadText(segmentContents.reviewFlagPath, "");
+                    dir.uploadText(segmentContents.reviewFlagPath, "").then(() => {
+                        setReviewState(home.getReviewStatus(path));
+                    });
                 }}>Finish Review</button>;
         }
 
@@ -637,7 +654,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                         const dragStartFrame = i;
                         const dragMissingGrf = !missingGrfArray[i];
 
-                        const onMouseMove = (e: MouseEvent) => {
+                        const onMouseMove = action((e: MouseEvent) => {
                             let percentage = (e.clientX - boundingRect.left) / boundingRect.width;
                             if (percentage < 0) {
                                 percentage = 0;
@@ -646,8 +663,9 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                                 percentage = 1;
                             }
                             let frame = Math.floor(percentage * missingGrfArray.length);
-                            globalCurrentFrame[0] = frame;
-                            setFrame(frame);
+                            if (frame > missingGrfArray.length - 1) {
+                                frame = missingGrfArray.length - 1;
+                            }
 
                             const updatedMissingGrfArray = [...missingGrfArray];
                             for (let i = Math.min(frame, dragStartFrame); i <= Math.max(frame, dragStartFrame); i++) {
@@ -655,7 +673,10 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                                 missingGrfArray[i] = dragMissingGrf;
                             }
                             segmentContents.reviewJson.setAttribute('missing_grf_data', updatedMissingGrfArray);
-                        }
+
+                            globalCurrentFrame[0] = frame;
+                            setFrame(frame);
+                        });
 
                         const onMouseUp = () => {
                             setDraggingFrameWand(false);
@@ -672,7 +693,6 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             );
         }
 
-        const reviewState = home.getReviewStatus(path);
         let linkToNext = null;
         if (reviewState.segmentsNeedReview.length > 0) {
             const nextUrl = Session.getDataURL(props.currentLocationUserId, reviewState.segmentsNeedReview[0].path);

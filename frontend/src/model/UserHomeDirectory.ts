@@ -82,6 +82,8 @@ class UserHomeDirectory {
         this.getSubjectContents = this.getSubjectContents.bind(this);
         this.getTrialContents = this.getTrialContents.bind(this);
         this.getTrialSegmentContents = this.getTrialSegmentContents.bind(this);
+        this.getReviewStatus = this.getReviewStatus.bind(this);
+        this.getFolderReviewStatus = this.getFolderReviewStatus.bind(this);
     }
 
     getPath(path: string, recursive: boolean = false): PathData {
