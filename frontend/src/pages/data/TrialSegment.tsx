@@ -635,6 +635,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                         if (!draggingFrameWand) {
                             globalCurrentFrame[0] = i;
                             setFrame(i);
+                            setPlaying(false);
                         }
                     }}
                     onMouseDown={(e) => {
@@ -676,6 +677,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
 
                             globalCurrentFrame[0] = frame;
                             setFrame(frame);
+                            setPlaying(false);
                         });
 
                         const onMouseUp = () => {
