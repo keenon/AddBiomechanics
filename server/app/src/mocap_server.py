@@ -25,6 +25,7 @@ class TrialToProcess:
 
     trialName: str
     trialPath: str
+    trialSize: float
 
     # Trial files
     c3dFile: str
@@ -43,6 +44,7 @@ class TrialToProcess:
         if not self.trialName.endswith('/'):
             self.trialName += '/'
         self.trialPath = subjectPath + 'trials/' + self.trialName
+        self.trialSize = 0
 
         # Trial files
         self.c3dFile = self.trialPath + 'markers.c3d'
@@ -106,17 +108,16 @@ class TrialToProcess:
         else:
             return 0
 
-    def getTrialSize(self):
-        # Return the size of the trial, in bytes.
-        trial_size = 0
+    def updateTrialSize(self, trialsFolderPath: str):
+        # Set the size of the trial, in bytes.
+        trialPath = trialsFolderPath + self.trialName
+        self.trialSize = 0
         if self.index.exists(self.c3dFile):
-            trial_size += os.path.getsize(self.c3dFile)
+            self.trialSize += os.path.getsize(trialPath+'markers.c3d')
         if self.index.exists(self.trcFile):
-            trial_size += os.path.getsize(self.trcFile)
+            self.trialSize += os.path.getsize(trialPath+'markers.trc')
         if self.index.exists(self.grfFile):
-            trial_size += os.path.getsize(self.grfFile)
-
-        return trial_size
+            self.trialSize += os.path.getsize(trialPath+'grf.mot')
 
 
 class SubjectToProcess:
@@ -258,6 +259,7 @@ class SubjectToProcess:
             os.mkdir(trialsFolderPath)
             for trialName in self.trials:
                 self.trials[trialName].download(trialsFolderPath)
+                self.trials[trialName].updateTrialSize(trialsFolderPath)
 
             print('Done downloading, ready to process', flush=True)
 
@@ -719,7 +721,7 @@ class MocapServer:
                             subject_size = 0
                             for trial_name, trial in self.currentlyProcessing.trials.items():
                                 # Convert to MB
-                                subject_size += trial.getTrialSize() / 1024 / 1024
+                                subject_size += trial.trialSize / 1024 / 1024
 
                             # Use 4GB of RAM per 25MB of subject data, with a minimum of 4GB and a maximum of 64GB in
                             # 4GB increments.
