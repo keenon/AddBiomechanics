@@ -115,4 +115,9 @@ function parseLinks(text:string) {
     });
   }
 
-export { humanFileSize, showToast, copyProfileUrlToClipboard, getIdFromURL, parseLinks };
+function isUUID(uuid:string) {
+  const isMatched = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
+  return isMatched;
+}
+
+export { humanFileSize, showToast, copyProfileUrlToClipboard, getIdFromURL, parseLinks, isUUID };

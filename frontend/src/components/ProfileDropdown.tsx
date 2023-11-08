@@ -32,14 +32,18 @@ const ProfileDropdown = () => {
       <>
         <Dropdown className="d-none d-lg-block">
           <Dropdown.Toggle className="btn btn-light bg-transparent border-transparent rounded-circle dropdown m-0 p-0 mt-1">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg" className="rounded-circle image-menu" height="60"></img>
+            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg" className="rounded-circle image-menu" height="60" alt="Profile"></img>
           </Dropdown.Toggle>
 
           <Dropdown.Menu>
-            <Dropdown.Item as={Link} to="/profile">
+            <Dropdown.Item as={Link} to="/profile/">
               <b>Signed in as:</b> {email}
             </Dropdown.Item>
             <hr className="mt-1 mb-1"></hr>
+            <Dropdown.Item as={Link} to="/profile/">
+              <i className={`mdi mdi-account me-1`}></i>
+              <span>Your Profile</span>
+            </Dropdown.Item>
             <Dropdown.Item as={Link} to="/data">
               <i className={`mdi mdi-magnify me-1`}></i>
               <span>Your Data</span>
