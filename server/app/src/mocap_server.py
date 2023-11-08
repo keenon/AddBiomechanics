@@ -725,10 +725,10 @@ class MocapServer:
 
                             # Use 4GB of RAM per 25MB of subject data, with a minimum of 16GB and a maximum of 64GB in
                             # 4GB increments.
-                            mem = max(16000, min(64000, int(subject_size / 25 * 4000)))
+                            mem = 64000 # max(32000, min(64000, int(subject_size / 25 * 4000)))
 
                             # Use 1 CPU per 4GB of RAM, with a minimum of 4 CPU and a maximum of 16 CPUs.
-                            cpus = max(4, min(16, int(mem / 4000)))
+                            cpus = 16 # max(4, min(16, int(mem / 4000)))
 
                             sbatch_command = 'sbatch -p owners --job-name ' + job_name + f' --cpus-per-task={cpus} --mem={mem}M --output=processing-%j.out --time=8:00:00 --wrap="' + \
                                 raw_command.replace('"', '\\"')+'"'
