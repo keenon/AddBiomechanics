@@ -284,11 +284,11 @@ class UserHomeDirectory {
         if (pathData.promise) {
             pathData = await pathData.promise;
         }
-        return Promise.all(pathData.folders.map((folder) => {
+        for (let folder of pathData.folders) {
             if (this.getPathType(folder) === 'subject') {
-                return this.getSubjectViewState(folder).reprocess();
+                await this.getSubjectViewState(folder).reprocess();
             }
-        })).then(() => {});
+        }
     }
 
     /**
