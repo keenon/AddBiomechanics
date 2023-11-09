@@ -10,10 +10,8 @@ import itertools
 class TransferReviewsCommand(AbstractCommand):
     def register_subcommand(self, subparsers: argparse._SubParsersAction):
         parser = subparsers.add_parser(
-            'transfer-reviews', help='This command will read a SubjectOnDisk binary file, or a folder full of them, '
-                                     'do some processing (e.g. lowpass filter the values and/or standardize the sample '
-                                     'rates), and then write out the result to a new binary file or folder with the '
-                                     'same relative paths.')
+            'transfer-reviews', help='This command will read a recently downloaded set of B3D and JSON files in '
+                                     'standard.')
         parser.add_argument('review_folder', type=str)
 
     def run_local(self, args: argparse.Namespace) -> bool:

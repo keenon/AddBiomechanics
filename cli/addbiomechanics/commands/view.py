@@ -270,11 +270,12 @@ class ViewCommand(AbstractCommand):
                         for k in range(skel.getBodyNode(contact_bodies[i]).getNumShapeNodes()):
                             gui.nativeAPI().setObjectColor('world_' + skel.getName() + "_" + contact_bodies[i] + "_" + str(k),
                                                            [0.5, 0.5, 0.5, 1])
-                # if loaded[0].probablyMissingGRF:
-                #     for b in range(skel.getNumBodyNodes()):
-                #         for k in range(skel.getBodyNode(b).getNumShapeNodes()):
-                #             gui.nativeAPI().setObjectColor('world_' + skel.getName() + "_" + skel.getBodyNode(b).getName() + "_" + str(k),
-                #                                            [1, 0, 0, 1])
+
+                if loaded[0].missingGRFReason != nimble.biomechanics.MissingGRFReason.notMissingGRF:
+                    for b in range(skel.getNumBodyNodes()):
+                        for k in range(skel.getBodyNode(b).getNumShapeNodes()):
+                            gui.nativeAPI().setObjectColor('world_' + skel.getName() + "_" + skel.getBodyNode(b).getName() + "_" + str(k),
+                                                           [1, 0, 0, 1])
 
                 if dof is not None:
                     joint_pos = skel.getJointWorldPositions([graph_joint])

@@ -5,6 +5,7 @@ import os
 import tempfile
 from typing import List, Dict, Tuple
 import itertools
+import json
 
 
 class PostProcessCommand(AbstractCommand):
@@ -17,6 +18,11 @@ class PostProcessCommand(AbstractCommand):
         parser.add_argument('input_path', type=str)
         parser.add_argument('output_path', type=str)
         parser.add_argument('--geometry-folder', type=str, default=None)
+        parser.add_argument(
+            '--only-reviewed',
+            help='Filter to only trial segments with reviews',
+            type=bool,
+            default=False)
         parser.add_argument(
             '--only-dynamics',
             help='Filter to only trial segments with dynamics',
@@ -151,6 +157,40 @@ class PostProcessCommand(AbstractCommand):
             print('Reading all frames')
             subject.loadAllFrames()
 
+            trial_folder_path = os.path.join(os.path.dirname(input_path), 'trials')
+            if os.path.exists(trial_folder_path) and os.path.isdir(trial_folder_path):
+                trial_protos = subject.getHeaderProto().getTrials()
+                for trial_index in range(subject.getNumTrials()):
+                    original_name = trial_protos[trial_index].getOriginalTrialName()
+                    split_index = trial_protos[trial_index].getSplitIndex()
+                    review_path = os.path.join(trial_folder_path, original_name, 'segment_'+str(split_index+1), 'review.json')
+                    missing_grf_reason: List[nimble.biomechanics.MissingGRFReason] = trial_protos[
+                        trial_index].getMissingGRFReason()
+                    user_reviewed = False
+                    if os.path.exists(review_path):
+                        review_json = json.load(open(review_path, 'r'))
+                        missing_flags: List[bool] = review_json['missing_grf_data']
+                        # There was a bug in the old UI which would add extra boolean onto the end of the
+                        # missing_grf_data file. These are harmless, and we should just ignore them.
+                        if len(missing_flags) >= len(missing_grf_reason):
+                            for i in range(len(missing_grf_reason)):
+                                if missing_flags[i]:
+                                    missing_grf_reason[i] = nimble.biomechanics.MissingGRFReason.manualReview
+                                else:
+                                    # TODO: is this a good idea? This data will not have correct torques, angular
+                                    #  residuals, etc.
+                                    # missing_grf_reason[i] = nimble.biomechanics.MissingGRFReason.notMissingGRF
+                                    pass
+                            user_reviewed = True
+                            print('User reviews incorporated from ' + review_path)
+                        else:
+                            print(f'Warning! Review file {review_path} has a smaller number of missing GRF flags ({len(missing_flags)}) than the B3D file ({len(missing_grf_reason)}). Skipping review file.')
+                    if not user_reviewed:
+                        missing_grf_reason = [
+                            nimble.biomechanics.MissingGRFReason.manualReview for _ in range(len(missing_grf_reason))
+                        ]
+                    trial_protos[trial_index].setMissingGRFReason(missing_grf_reason)
+
             resampled = False
             if sample_rate is not None:
                 print('Re-sampling kinematics + kinetics data at {} Hz...'.format(sample_rate))
@@ -164,6 +204,15 @@ class PostProcessCommand(AbstractCommand):
                     original_sample_rate = int(1.0 / subject.getTrialTimestep(trial))
                     if original_sample_rate != int(sample_rate):
                         trial_protos[trial].setTimestep(1.0 / sample_rate)
+
+                        raw_force_plates: List[nimble.biomechanics.ForcePlate] = trial_protos[trial].getForcePlates()
+                        for force_plate in raw_force_plates:
+                            resampling_matrix, ground_heights = force_plate.getResamplingMatrixAndGroundHeights()
+                            resampling_matrix = resample_poly(resampling_matrix, sample_rate, original_sample_rate, axis=1)
+                            ground_heights = resample_discrete(ground_heights, original_sample_rate, sample_rate)
+                            force_plate.setResamplingMatrixAndGroundHeights(resampling_matrix, ground_heights)
+                        trial_protos[trial].setForcePlates(raw_force_plates)
+
                         trial_pass_protos = trial_protos[trial].getPasses()
                         trial_len = subject.getTrialLength(trial)
                         for processing_pass in range(subject.getTrialNumProcessingPasses(trial)):
