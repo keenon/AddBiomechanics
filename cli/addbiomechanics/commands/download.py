@@ -5,38 +5,73 @@ import os
 from datetime import datetime
 from addbiomechanics.s3_structure import S3Node, retrieve_s3_structure, sizeof_fmt
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict, Tuple, Set, Optional
 import json
 import re
+
+
+class SubjectToDownload:
+    path: str
+    contained_files: List[Tuple[str, int, str]]
+    is_reviewed: bool
+    username: str
+
+    def __init__(self, path: str, contained_files: List[Tuple[str, int, str]]):
+        self.path = path
+        self.contained_files = contained_files
+        contained_file_names: Set[str] = set([
+            os.path.basename(file[0]) for file in contained_files
+        ])
+        self.is_reviewed = 'REVIEWED' in contained_file_names
+
+        # The username_pattern is: "us-west-2:" followed by any number of non-forward-slash characters,
+        # ending at the first forward slash.
+        username_pattern = r"us-west-2:[^/]*/"
+
+        # Ensure we capture the username for constructing our ATTRIBUTION.txt file
+        match = re.search(username_pattern, path)
+        if match:
+            self.username = match.group(0)
+        else:
+            self.username = 'Anonymous'
 
 
 class DownloadCommand(AbstractCommand):
     def register_subcommand(self, subparsers: argparse._SubParsersAction):
         download_parser = subparsers.add_parser(
             'download', help='Download a dataset from AddBiomechanics')
-        download_parser.add_argument('pattern', type=str,
-                                     help='The regex to match files to be downloaded.')
-        download_parser.add_argument('--prefix', type=str, default='standardized/',
+        download_parser.add_argument('--pattern',
+                                     type=str,
+                                     default=None,
+                                     help='The regex to match subjects to be downloaded.')
+        download_parser.add_argument('--prefix',
+                                     type=str,
+                                     default='protected/us-west-2:e013a4d2-683d-48b9-bfe5-83a0305caf87', # 'standardized/'
                                      help='The folder prefix to match when listing potential files to download.')
         download_parser.add_argument('--marker-error-cutoff', type=float,
-                                     help='The maximum marker RMSE (in meters) we will tolerate. Files that match the regex '
-                                          'pattern but are from subjects that are above bbove this threshold will not '
-                                          'be downloaded.', default=None)
+                                     help='The maximum marker RMSE (in meters) we will tolerate. Files that match the '
+                                          'regex pattern but are from subjects that are above bbove this threshold will'
+                                          ' not be downloaded.', default=None)
+        download_parser.add_argument('--reviewed-only',
+                                     type=bool,
+                                     default=True,
+                                     help='Only download files from subjects that are fully reviewed.')
 
     def run(self, ctx: AuthContext, args: argparse.Namespace):
         if args.command != 'download':
             return
-        pattern: str = args.pattern
+        pattern: Optional[str] = args.pattern
         prefix: str = args.prefix
         marker_error_cutoff = args.marker_error_cutoff
+        reviewed_only = args.reviewed_only
 
         # Compile the pattern as a regex
-        regex = re.compile(pattern)
+        regex = re.compile(pattern) if pattern is not None else None
 
         s3 = ctx.aws_session.client('s3')
 
         response = s3.list_objects_v2(
-            Bucket=ctx.deployment['BUCKET'], Prefix=prefix)
+            Bucket=ctx.deployment['BUCKET'], Prefix=prefix, MaxKeys=10000)
 
         to_download: List[str] = []
         to_download_e_tags: List[str] = []
@@ -47,6 +82,7 @@ class DownloadCommand(AbstractCommand):
         files: List[Tuple[str, int, str]] = []
         keys: List[str] = []
 
+        print(f'Listing files on S3 at {prefix}...')
         while True:
             if 'Contents' in response:
                 for obj in response['Contents']:
@@ -58,77 +94,83 @@ class DownloadCommand(AbstractCommand):
 
             # Check if there are more objects to retrieve
             if response['IsTruncated']:
+                print(f'Have {len(files)} files so far. Listing next page of files to download at {prefix}...')
                 continuation_token = response['NextContinuationToken']
                 response = s3.list_objects_v2(
-                    Bucket=ctx.deployment['BUCKET'], Prefix=prefix, ContinuationToken=continuation_token)
+                    Bucket=ctx.deployment['BUCKET'], Prefix=prefix, ContinuationToken=continuation_token, MaxKeys=10000)
             else:
+                print(f'Finished listing files to download at {prefix}. Found {len(files)} files.')
                 break
 
-        subjects: Set[str] = set()
+        subject_paths: List[str] = []
         for key, size, e_tag in files:
             if key.endswith("_subject.json"):
-                subject = key.replace("_subject.json", "")
-                subjects.add(subject)
+                subject_paths.append(key.replace("_subject.json", ""))
 
-        # The username_pattern is: "us-west-2:" followed by any number of non-forward-slash characters,
-        # ending at the first forward slash.
-        username_pattern = r"us-west-2:[^/]*/"
-
-        usernames: Set[str] = set()
-
+        subject_file_sets: Dict[str, List[Tuple[str, int, str]]] = {}
         for key, size, e_tag in files:
-            if regex.match(key):
+            for subject_path in subject_paths:
+                if key.startswith(subject_path):
+                    if subject_path not in subject_file_sets:
+                        subject_file_sets[subject_path] = []
+                    subject_file_sets[subject_path].append((key, size, e_tag))
+                    break
+
+        subjects: List[SubjectToDownload] = []
+        for subject_path in subject_paths:
+            subjects.append(SubjectToDownload(subject_path, subject_file_sets[subject_path]))
+
+        print(f'Found {len(subjects)} subjects to download.')
+
+        if reviewed_only:
+            subjects = [subject for subject in subjects if subject.is_reviewed]
+            print(f'After filtering for subjects that have been reviewed, have {len(subjects)} subjects to download.')
+
+        if regex is not None:
+            subjects = [subject for subject in subjects if regex.match(subject.path)]
+            print(f'After filtering for regex "{pattern}" on subject paths, have {len(subjects)} subjects to download.')
+
+        if marker_error_cutoff is not None:
+            skip_files: List[bool] = []
+            for subject in subjects:
+                results_key = subject.path + "_results.json"
+                if results_key in keys:
+                    try:
+                        response = s3.get_object(Bucket=ctx.deployment['BUCKET'], Key=results_key)
+                        file_content = response['Body'].read().decode('utf-8')
+                        results_json = json.loads(file_content)
+                        if 'autoAvgRMSE' in results_json:
+                            error_meters = results_json['autoAvgRMSE']
+                            if error_meters > marker_error_cutoff:
+                                print('!! Skipping ' + key + ' because the marker error is ' +
+                                      str(results_json['autoAvgRMSE']) + ' m')
+                                skip_file = True
+                                break
+                            else:
+                                print('Including ' + key + ' because the marker error is ' +
+                                      str(results_json['autoAvgRMSE']) + ' m')
+                    except Exception as e:
+                        print('!! Skipping ' + key + ' because we could not read the results file.')
+                        skip_file = True
+                skip_files.append(skip_file)
+
+            subjects = [subject for i, subject in enumerate(subjects) if not skip_files[i]]
+            print(f'After filtering for marker error cutoff, have {len(subjects)} subjects to download.')
+
+        usernames: Set[str] = set([subject.username for subject in subjects])
+
+        for subject in subjects:
+            for key, size, e_tag in subject.contained_files:
                 if e_tag in to_download_e_tags:
                     continue
-                if os.path.exists(key):
-                    already_downloaded.append(key)
-                    already_downloaded_size += size
-
-                    # Ensure we capture the username for constructing our ATTRIBUTION.txt file
-                    match = re.search(username_pattern, key)
-                    if match:
-                        username = match.group(0)
-                        if username not in usernames:
-                            usernames.add(username)
-                else:
-                    skip_file = False
-                    if marker_error_cutoff is not None:
-                        for subject in subjects:
-                            if key.startswith(subject):
-                                results_key = subject + "_results.json"
-                                print(results_key)
-                                if results_key in keys:
-                                    try:
-                                        response = s3.get_object(Bucket=ctx.deployment['BUCKET'], Key=results_key)
-                                        file_content = response['Body'].read().decode('utf-8')
-                                        results_json = json.loads(file_content)
-                                        if 'autoAvgRMSE' in results_json:
-                                            error_meters = results_json['autoAvgRMSE']
-                                            if error_meters > marker_error_cutoff:
-                                                print('!! Skipping ' + key + ' because the marker error is ' +
-                                                      str(results_json['autoAvgRMSE']) + ' m')
-                                                skip_file = True
-                                                break
-                                            else:
-                                                print('Including ' + key + ' because the marker error is ' +
-                                                      str(results_json['autoAvgRMSE']) + ' m')
-                                    except Exception as e:
-                                        print('!! Skipping ' + key + ' because we could not read the results file.')
-                                        skip_file = True
-                                break
-                    if skip_file:
-                        continue
-
-                    # Ensure we capture the username for constructing our ATTRIBUTION.txt file
-                    match = re.search(username_pattern, key)
-                    if match:
-                        username = match.group(0)
-                        if username not in usernames:
-                            usernames.add(username)
-
-                    to_download.append(key)
-                    to_download_e_tags.append(e_tag)
-                    to_download_size += size
+                if key.endswith('.b3d') or key.endswith('review.json') or key.endswith('REVIEWED'):
+                    if os.path.exists(key):
+                        already_downloaded.append(key)
+                        already_downloaded_size += size
+                    else:
+                        to_download.append(key)
+                        to_download_e_tags.append(e_tag)
+                        to_download_size += size
 
         print('A total of '+str(len(usernames))+' AddBiomechanics users will be credited in the ATTRIBUTION.txt file.')
         if len(already_downloaded) > 0:

@@ -1,15 +1,15 @@
 import argparse
-from addbiomechanics.auth import AuthContext
-from addbiomechanics.commands.download import DownloadCommand
-from addbiomechanics.commands.ls import LsCommand
-from addbiomechanics.commands.upload import UploadCommand
-from addbiomechanics.commands.analytics import AnalyticsCommand
-from addbiomechanics.commands.transfer_markerset import TransferMarkersetCommand
-from addbiomechanics.commands.view import ViewCommand
-from addbiomechanics.commands.post_process import PostProcessCommand
-from addbiomechanics.commands.export_csv import ExportCSVCommand
-from addbiomechanics.commands.describe_dataset import DescribeDatasetCommand
-from addbiomechanics.commands.transfer_reviews import TransferReviewsCommand
+from auth import AuthContext
+from commands.download import DownloadCommand
+from commands.ls import LsCommand
+from commands.upload import UploadCommand
+from commands.analytics import AnalyticsCommand
+from commands.transfer_markerset import TransferMarkersetCommand
+from commands.view import ViewCommand
+from commands.post_process import PostProcessCommand
+from commands.export_csv import ExportCSVCommand
+from commands.describe_dataset import DescribeDatasetCommand
+from commands.transfer_reviews import TransferReviewsCommand
 
 
 PROD_DEPLOYMENT = {

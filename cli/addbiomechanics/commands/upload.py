@@ -170,7 +170,7 @@ class ParserFolderStructure:
 
             # Load and parse the _subject.json file
             if dont_read_files:
-                if override_osim_file is '' and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
+                if override_osim_file == '' and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
                     if verbose:
                         print(
                             f' > we have dont_read_files=True and {subjectJsonFile} could therefore have skeletonPreset=custom but we do not have a "unscaled_generic.osim" file, failing as invalid')
@@ -198,7 +198,7 @@ class ParserFolderStructure:
                             print(
                                 f' > {subjectJsonFile} does not have a "footBodyNames" field, failing as invalid')
                         return False
-                    if ('skeletonPreset' not in subjectJson or subjectJson['skeletonPreset'] == 'custom') and override_osim_file is '' and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
+                    if ('skeletonPreset' not in subjectJson or subjectJson['skeletonPreset'] == 'custom') and override_osim_file == '' and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
                         if verbose:
                             print(
                                 f' > {subjectJsonFile} has skeletonPreset=custom but does not have a "unscaled_generic.osim" file, failing as invalid')
@@ -212,7 +212,7 @@ class ParserFolderStructure:
             for file in filesInSubjectFolder:
                 if file.startswith('/'):
                     file = file[1:]
-                if filter_out_trials is not '' and filter_out_trials in file:
+                if filter_out_trials != '' and filter_out_trials in file:
                     if verbose:
                         print(
                             ' > Skipping '+file+' because it matches filter "' + filter_out_trials + '"')
@@ -220,7 +220,7 @@ class ParserFolderStructure:
                 if file.endswith(".json") or file.endswith(".mot") or file.endswith(".trc") or file.endswith(".c3d") or file.endswith(".osim"):
                     self.s3_to_local_file[
                         file] = self.common_prefix+file
-                if override_osim_file is not '':
+                if override_osim_file != '':
                     self.s3_to_local_file[
                         subjectFolder+'unscaled_generic.osim'] = override_osim_file
             self.s3_ready_flags.append(subjectFolder+'READY_TO_PROCESS')
