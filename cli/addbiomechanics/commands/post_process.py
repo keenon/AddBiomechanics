@@ -78,11 +78,9 @@ class PostProcessCommand(AbstractCommand):
             return True
 
         # Handy little utility for resampling a discrete signal
-        def resample_discrete(signal, old_rate, new_rate):
-            # Compute the ratio of the old and new rates
-            ratio = old_rate / new_rate
-            # Use numpy's round and int functions to get the indices of the nearest values
-            indices = (np.round(np.arange(0, len(signal), ratio))).astype(int)
+        def resample_discrete(signal, new_length: int):
+            # Get an array of indices for the new signal
+            indices = np.round(np.linspace(0, len(signal) - 1, new_length)).astype(int)
             # Limit indices to the valid range
             indices = np.clip(indices, 0, len(signal) - 1)
             # Use advanced indexing to get the corresponding values
@@ -232,18 +230,25 @@ class PostProcessCommand(AbstractCommand):
                         for force_plate in raw_force_plates:
                             resampling_matrix, ground_heights = force_plate.getResamplingMatrixAndGroundHeights()
                             resampling_matrix = resample_poly(resampling_matrix, sample_rate, original_sample_rate, axis=1)
-                            ground_heights = resample_discrete(ground_heights, original_sample_rate, sample_rate)
+                            ground_heights = resample_discrete(ground_heights, resampling_matrix.shape[1])
                             force_plate.setResamplingMatrixAndGroundHeights(resampling_matrix, ground_heights)
                         trial_protos[trial].setForcePlates(raw_force_plates)
 
-                        # trial_len = subject.getTrialLength(trial)
+                        trial_len = subject.getTrialLength(trial)
                         for processing_pass in range(subject.getTrialNumProcessingPasses(trial)):
                             resampling_matrix = trial_pass_protos[processing_pass].getResamplingMatrix()
                             resampling_matrix = resample_poly(resampling_matrix, sample_rate, original_sample_rate, axis=1)
                             trial_pass_protos[processing_pass].setResamplingMatrix(resampling_matrix)
-                            # trial_len = resampling_matrix.shape[1]
+                            trial_len = resampling_matrix.shape[1]
 
-                        trial_protos[trial].setMarkerObservations(resample_discrete(trial_protos[trial].getMarkerObservations(), original_sample_rate, sample_rate))
+                        resampled_markers = resample_discrete(trial_protos[trial].getMarkerObservations(), trial_len)
+                        print(f'Resampled markers on trial {trial} from {len(trial_protos[trial].getMarkerObservations())} frames to {len(resampled_markers)} frames')
+                        assert(len(resampled_markers) == trial_len)
+                        trial_protos[trial].setMarkerObservations(resampled_markers)
+                        # Re-sample the discrete values
+                        trial_protos[trial].setMissingGRFReason(
+                            resample_discrete(trial_protos[trial].getMissingGRFReason(),
+                                              trial_len))
 
             if clean_up_noise or recompute_values or resampled:
                 pass_skels: List[nimble.dynamics.Skeleton] = []
@@ -376,10 +381,6 @@ class PostProcessCommand(AbstractCommand):
                 for trial in range(subject.getNumTrials()):
                     timestep = subject.getTrialTimestep(trial)
                     raw_force_plates = trial_protos[trial].getForcePlates()
-                    # Re-sample the discrete values
-                    trial_protos[trial].setMissingGRFReason(resample_discrete(trial_protos[trial].getMissingGRFReason(),
-                                                                    original_sample_rate,
-                                                                    sample_rate))
                     trial_pass_protos = trial_protos[trial].getPasses()
                     print('##########')
                     print('Trial '+str(trial)+':')
