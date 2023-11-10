@@ -155,7 +155,7 @@ class PostProcessCommand(AbstractCommand):
                         drop_trials.append(trial)
 
             print('Reading all frames')
-            subject.loadAllFrames()
+            subject.loadAllFrames(doNotStandardizeForcePlateData=True)
 
             trial_folder_path = os.path.join(os.path.dirname(input_path), 'trials')
             if os.path.exists(trial_folder_path) and os.path.isdir(trial_folder_path):
@@ -200,6 +200,29 @@ class PostProcessCommand(AbstractCommand):
 
                 trial_protos = subject.getHeaderProto().getTrials()
                 for trial in range(subject.getNumTrials()):
+                    trial_pass_protos = trial_protos[trial].getPasses()
+
+                    # Overwrite the force plates with the version from the feet
+                    print(f'Overwriting force plates for trial {trial} with the version from the feet')
+                    num_contact_bodies = len(subject.getGroundForceBodies())
+                    cop_torque_force: np.ndarray = trial_pass_protos[-1].getGroundBodyCopTorqueForce()
+                    assert(cop_torque_force.shape[0] == 9 * num_contact_bodies)
+                    new_force_plates: List[nimble.biomechanics.ForcePlate] = []
+                    for i in range(num_contact_bodies):
+                        new_plate: nimble.biomechanics.ForcePlate = nimble.biomechanics.ForcePlate()
+                        raw_cops: List[np.ndarray] = []
+                        raw_torques: List[np.ndarray] = []
+                        raw_forces: List[np.ndarray] = []
+                        for t in range(cop_torque_force.shape[1]):
+                            raw_cops.append(cop_torque_force[9 * i:9 * i + 3, t])
+                            raw_torques.append(cop_torque_force[9 * i + 3:9 * i + 6, t])
+                            raw_forces.append(cop_torque_force[9 * i + 6:9 * i + 9, t])
+                        new_plate.forces = raw_forces
+                        new_plate.moments = raw_torques
+                        new_plate.centersOfPressure = raw_cops
+                        new_force_plates.append(new_plate)
+                    trial_protos[trial].setForcePlates(new_force_plates)
+
                     # Set the timestep
                     original_sample_rate = int(1.0 / subject.getTrialTimestep(trial))
                     if original_sample_rate != int(sample_rate):
@@ -213,14 +236,14 @@ class PostProcessCommand(AbstractCommand):
                             force_plate.setResamplingMatrixAndGroundHeights(resampling_matrix, ground_heights)
                         trial_protos[trial].setForcePlates(raw_force_plates)
 
-                        trial_pass_protos = trial_protos[trial].getPasses()
-                        trial_len = subject.getTrialLength(trial)
+                        # trial_len = subject.getTrialLength(trial)
                         for processing_pass in range(subject.getTrialNumProcessingPasses(trial)):
                             resampling_matrix = trial_pass_protos[processing_pass].getResamplingMatrix()
                             resampling_matrix = resample_poly(resampling_matrix, sample_rate, original_sample_rate, axis=1)
                             trial_pass_protos[processing_pass].setResamplingMatrix(resampling_matrix)
-                            trial_len = resampling_matrix.shape[1]
-                        trial_protos[trial].setMarkerObservations([{}] * trial_len)
+                            # trial_len = resampling_matrix.shape[1]
+
+                        trial_protos[trial].setMarkerObservations(resample_discrete(trial_protos[trial].getMarkerObservations(), original_sample_rate, sample_rate))
 
             if clean_up_noise or recompute_values or resampled:
                 pass_skels: List[nimble.dynamics.Skeleton] = []
@@ -342,6 +365,7 @@ class PostProcessCommand(AbstractCommand):
                                         cops[f][t] = cop
                         for f in range(len(raw_force_plates)):
                             raw_force_plates[f].centersOfPressure = cops[f]
+                        trial_protos[trial].setForcePlates(raw_force_plates)
 
             if recompute_values or resampled or clean_up_noise:
                 print('Recomputing values in the raw B3D')

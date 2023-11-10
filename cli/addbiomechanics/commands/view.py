@@ -246,7 +246,7 @@ class ViewCommand(AbstractCommand):
                     gui.nativeAPI().createLine('force_'+str(f),
                                                [cop,
                                                 cop + force],
-                                               [1,0,0,1])
+                                               [1,0,1,1])
             else:
                 skel.setPositions(loaded[0].processingPasses[0].pos)
                 gui.nativeAPI().renderSkeleton(skel)
@@ -254,7 +254,7 @@ class ViewCommand(AbstractCommand):
                 for i in range(0, subject.getNumForcePlates(trial)):
                     cop = loaded[0].rawForcePlateCenterOfPressures[i]
                     f = loaded[0].rawForcePlateForces[i] * 0.001
-                    color: np.ndarray = np.array([1, 0, 0, 0])
+                    color: np.ndarray = np.array([1, 1, 0, 1])
                     gui.nativeAPI().createLine('raw_grf'+str(i), [cop, cop+f], color)
 
                 for i in range(0, len(contact_bodies)):
