@@ -281,7 +281,11 @@ class Subject:
             # We only want to load folders, not files
             if not os.path.isdir(trials_folder_path + trial_name):
                 continue
-            trial: Trial = Trial.load_trial(trial_name, trials_folder_path + trial_name + '/')
+            trial: Trial = Trial.load_trial(
+                trial_name,
+                trials_folder_path + trial_name + '/',
+                trial_index=len(self.trials)
+            )
             self.trials.append(trial)
 
     def load_folder(self, subject_folder: str, data_folder_path: str):
@@ -645,7 +649,9 @@ class Subject:
                 foot_bodies,
                 [segment.lowpass_force_plates if segment.lowpass_status == ProcessingStatus.FINISHED else segment.force_plates for segment in trial_segments],
                 [int(1.0 / segment.parent.timestep) for segment in trial_segments],
-                [segment.marker_observations for segment in trial_segments])
+                [segment.marker_observations for segment in trial_segments],
+                initializedProbablyMissingGRF=[segment.missing_grf_manual_review for segment in trial_segments]
+            )
         print('Created DynamicsInitialization', flush=True)
 
         dynamics_fitter.estimateFootGroundContacts(dynamics_init,
@@ -1215,7 +1221,7 @@ class Subject:
                 # TODO: Acc, Gyro, EMG, Exo
                 trial_data.setMissingGRFReason(segment.missing_grf_reason)
                 trial_data.setTrialTags(trial.tags)
-                trial_data.setForcePlates(trial.force_plates)
+                trial_data.setForcePlates(segment.force_plates)
 
                 # 3. Create the passes, based on what we saw in the trials
                 if segment.kinematics_status == ProcessingStatus.FINISHED:

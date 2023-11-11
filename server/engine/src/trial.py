@@ -6,7 +6,16 @@ import enum
 import json
 from memory_utils import deep_copy_marker_observations
 from scipy.signal import butter, filtfilt, resample_poly
+import mmap
 
+
+def fast_count_lines(path: str) -> int:
+    with open(path, 'r+b') as file:
+        mm = mmap.mmap(file.fileno(), 0)
+        line_count = 0
+        while mm.readline():
+            line_count += 1
+    return line_count
 
 class ProcessingStatus(enum.Enum):
     NOT_STARTED = 0
@@ -18,6 +27,7 @@ class ProcessingStatus(enum.Enum):
 class Trial:
     def __init__(self):
         # Input data
+        self.trial_index = 0
         self.trial_path = ''
         self.trial_name = ''
         self.tags: List[str] = []
@@ -29,6 +39,7 @@ class Trial:
         self.force_plate_thresholds: List[float] = []
         self.timestamps: List[float] = []
         self.timestep: float = 0.01
+        self.missing_grf_manual_review: List[bool] = []
         self.c3d_file: Optional[nimble.biomechanics.C3D] = None
         # This is optional input data, and can be used by users who have been doing their own manual scaling, but would
         # like to run comparison tests with AddBiomechanics.
@@ -42,6 +53,7 @@ class Trial:
     @staticmethod
     def load_trial(trial_name: str,
                    trial_path: str,
+                   trial_index: int,
                    manually_scaled_opensim: Optional[nimble.biomechanics.OpenSimFile] = None) -> 'Trial':
         """
         Load a trial from a folder. This assumes that the folder either contains `markers.c3d`,
@@ -132,6 +144,38 @@ class Trial:
             if 'tags' in trial_json:
                 trial.tags = trial_json['tags']
 
+        # Load in any manual segment reviews for this trial
+        pre_loaded_review_frames: List[bool] = []
+        segment_index = 1
+        while True:
+            data_path = trial_path + f'segment_{segment_index}/data.csv'
+            reviewed_path = trial_path + f'segment_{segment_index}/REVIEWED'
+            segment_json_path = trial_path + f'segment_{segment_index}/review.json'
+
+            if not os.path.exists(data_path):
+                break
+
+            # Number of rows in data_path - 1 is the length of this segment
+            segment_length = fast_count_lines(data_path) - 1
+
+            if os.path.exists(reviewed_path) and os.path.exists(segment_json_path):
+                with open(segment_json_path, 'r') as f:
+                    segment_json = json.load(f)
+                if 'missing_grf_data' in segment_json:
+                    # Some early versions of the annotator would (harmlessly) tack on extra frames to the end of the
+                    # segment, so we need to make sure we don't read in too many frames.
+                    assert(len(segment_json['missing_grf_data']) == segment_length)
+                    pre_loaded_review_frames += segment_json['missing_grf_data'][0:segment_length]
+                else:
+                    pre_loaded_review_frames += [False] * segment_length
+            else:
+                pre_loaded_review_frames += [False] * segment_length
+
+            segment_index += 1
+        if len(pre_loaded_review_frames) > 0:
+            assert(len(pre_loaded_review_frames) == len(trial.marker_observations))
+            trial.missing_grf_manual_review = pre_loaded_review_frames
+
         # Set an error if there are no marker data frames
         if len(trial.marker_observations) == 0 and not trial.error:
             trial.error = True
@@ -158,14 +202,14 @@ class Trial:
         # Copy the raw force plate data to Python memory, so we don't have to copy back and forth every time we access
         # it.
         self.force_plates = plates
-        for plate in self.force_plates:
+        for i, plate in enumerate(self.force_plates):
             if len(plate.forces) > 0:
                 assert(len(plate.forces) == len(self.marker_observations))
             plate.autodetectNoiseThresholdAndClip(
                 percentOfMaxToDetectThumb=0.25,
                 percentOfMaxToCheckThumbRightEdge=0.35
             )
-            plate.detectAndFixCopMomentConvention()
+            plate.detectAndFixCopMomentConvention(trial=self.trial_index, i=i)
             self.force_plate_raw_cops.append(plate.centersOfPressure)
             self.force_plate_raw_forces.append(plate.forces)
             self.force_plate_raw_moments.append(plate.moments)
@@ -249,7 +293,13 @@ class TrialSegment:
         self.has_error: bool = False
         self.error_msg = ''
         self.original_marker_observations: List[Dict[str, np.ndarray]] = []
+        self.missing_grf_manual_review: List[bool] = self.parent.missing_grf_manual_review[self.start:self.end] if (
+                self.parent.missing_grf_manual_review is not None and len(self.parent.missing_grf_manual_review) >= self.end
+        ) else []
         self.missing_grf_reason: List[nimble.biomechanics.MissingGRFReason] = [nimble.biomechanics.MissingGRFReason.notMissingGRF for _ in range(self.end - self.start)]
+        for i in range(len(self.missing_grf_manual_review)):
+            if self.missing_grf_manual_review[i]:
+                self.missing_grf_reason[i] = nimble.biomechanics.MissingGRFReason.manualReview
         # Make a deep copy of the marker observations, so we can modify them without affecting the parent trial
         for obs in self.parent.marker_observations[self.start:self.end]:
             obs_copy = {}
@@ -350,7 +400,7 @@ class TrialSegment:
         for i in range(1, self.lowpass_poses.shape[1]):
             self.lowpass_poses[:, i] = skel.unwrapPositionToNearest(self.lowpass_poses[:, i], self.lowpass_poses[:, i - 1])
         # 2.2. Then actually run the lowpass filter
-        self.lowpass_poses = filtfilt(b, a, self.lowpass_poses, axis=1)
+        self.lowpass_poses = filtfilt(b, a, self.lowpass_poses, axis=1, padtype='constant')
         self.marker_fitter_result.poses = self.lowpass_poses
 
         force_plate_norms: List[np.ndarray] = [np.zeros(trial_len) for _ in range(len(self.force_plates))]
