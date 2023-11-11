@@ -71,7 +71,7 @@ class PostProcessCommand(AbstractCommand):
             print("The required library 'numpy' is not installed. Please install it and try this command again.")
             return True
         try:
-            from scipy.signal import butter, filtfilt, resample_poly, welch
+            from scipy.signal import butter, filtfilt, resample_poly, resample, welch
             from scipy.interpolate import interp1d
         except ImportError:
             print("The required library 'scipy' is not installed. Please install it and try this command again.")
@@ -229,7 +229,7 @@ class PostProcessCommand(AbstractCommand):
                         raw_force_plates: List[nimble.biomechanics.ForcePlate] = trial_protos[trial].getForcePlates()
                         for force_plate in raw_force_plates:
                             resampling_matrix, ground_heights = force_plate.getResamplingMatrixAndGroundHeights()
-                            resampling_matrix = resample_poly(resampling_matrix, sample_rate, original_sample_rate, axis=1)
+                            resampling_matrix = resample_poly(resampling_matrix, sample_rate, original_sample_rate, axis=1, padtype='line')
                             ground_heights = resample_discrete(ground_heights, resampling_matrix.shape[1])
                             force_plate.setResamplingMatrixAndGroundHeights(resampling_matrix, ground_heights)
                         trial_protos[trial].setForcePlates(raw_force_plates)
@@ -237,7 +237,7 @@ class PostProcessCommand(AbstractCommand):
                         trial_len = subject.getTrialLength(trial)
                         for processing_pass in range(subject.getTrialNumProcessingPasses(trial)):
                             resampling_matrix = trial_pass_protos[processing_pass].getResamplingMatrix()
-                            resampling_matrix = resample_poly(resampling_matrix, sample_rate, original_sample_rate, axis=1)
+                            resampling_matrix = resample_poly(resampling_matrix, sample_rate, original_sample_rate, axis=1, padtype='line')
                             trial_pass_protos[processing_pass].setResamplingMatrix(resampling_matrix)
                             trial_len = resampling_matrix.shape[1]
 
@@ -321,7 +321,7 @@ class PostProcessCommand(AbstractCommand):
                             vels[:, -1] = vels[:, -2]
                             new_pass.setVels(vels)
                         if poses.shape[1] > 12:
-                            new_pass.setResamplingMatrix(filtfilt(b, a, new_pass.getResamplingMatrix(), axis=1))
+                            new_pass.setResamplingMatrix(filtfilt(b, a, new_pass.getResamplingMatrix(), axis=1, padtype='constant'))
 
                         # Copy force plate data to Python
                         raw_force_plates = trial_protos[trial].getForcePlates()
@@ -357,19 +357,28 @@ class PostProcessCommand(AbstractCommand):
                             foot_body_locations = [body.getWorldTransform().translation() for body in foot_bodies]
                             for f in range(len(raw_force_plates)):
                                 force = forces[f][t]
-                                if np.linalg.norm(force) > 1e-3:
-                                    cop = cops[f][t]
-                                    dist_to_feet = [np.linalg.norm(cop - foot_body_location) for foot_body_location in foot_body_locations]
+                                cop = cops[f][t]
+                                dist_to_feet = [np.linalg.norm(cop - foot_body_location) for foot_body_location in
+                                                foot_body_locations]
+                                if np.linalg.norm(force) > 5:
                                     if min(dist_to_feet) > dist_threshold_m:
                                         closest_foot = np.argmin(dist_to_feet)
-                                        # print(f"Warning! CoP for plate {f} is not near a foot at time {t}. Bringing it within {dist_threshold_m}m of the closest foot.")
-                                        # print(f"  Force: {force}")
-                                        # print(f"  CoP: {cop}")
-                                        # print(f"  Dist to feet: {dist_to_feet}")
+                                        print(f"Warning! Trial {trial}, CoP for plate {f} is not near a foot at time {t}. Bringing it within {dist_threshold_m}m of the closest foot.")
+                                        print(f"  Force: {force}")
+                                        print(f"  CoP: {cop}")
+                                        print(f"  Dist to feet: {dist_to_feet}")
                                         cop = foot_body_locations[closest_foot] + dist_threshold_m * (cop - foot_body_locations[closest_foot]) / np.linalg.norm(cop - foot_body_locations[closest_foot])
                                         cops[f][t] = cop
+                                        print(f"  Updated CoP: {cop}")
+                                        dist_to_feet = [np.linalg.norm(cop - foot_body_location) for foot_body_location in foot_body_locations]
+                                        print(f"  Updated Dist to feet: {dist_to_feet}")
+                                else:
+                                    forces[f][t] = np.zeros(3)
+                                    closest_foot = np.argmin(dist_to_feet)
+                                    cops[f][t] = foot_body_locations[closest_foot]
                         for f in range(len(raw_force_plates)):
                             raw_force_plates[f].centersOfPressure = cops[f]
+                            raw_force_plates[f].forces = forces[f]
                         trial_protos[trial].setForcePlates(raw_force_plates)
 
             if recompute_values or resampled or clean_up_noise:
@@ -385,9 +394,25 @@ class PostProcessCommand(AbstractCommand):
                     print('##########')
                     print('Trial '+str(trial)+':')
                     for processing_pass in range(subject.getTrialNumProcessingPasses(trial)):
+                        poses = np.copy(trial_pass_protos[processing_pass].getPoses())
                         explicit_vel = np.copy(trial_pass_protos[processing_pass].getVels())
                         explicit_acc = np.copy(trial_pass_protos[processing_pass].getAccs())
-                        trial_pass_protos[processing_pass].computeValuesFromForcePlates(pass_skels[processing_pass], timestep, trial_pass_protos[processing_pass].getPoses(), subject.getGroundForceBodies(), raw_force_plates, rootHistoryLen=root_history_len, rootHistoryStride=root_history_stride, explicitVels=explicit_vel, explicitAccs=explicit_acc)
+                        # Check for NaNs in explicit_vel and explicit_acc
+                        if np.any(np.isnan(explicit_vel)):
+                            print('Warning! NaNs in explicit_vel for trial ' + str(trial) + ' pass ' + str(processing_pass))
+                            drop_trials.append(trial)
+                            continue
+                        if np.any(np.isnan(explicit_acc)):
+                            print('Warning! NaNs in explicit_acc for trial ' + str(trial) + ' pass ' + str(processing_pass))
+                            drop_trials.append(trial)
+                            continue
+                        assert(poses.shape == explicit_vel.shape)
+                        assert(poses.shape == explicit_acc.shape)
+                        trial_pass_protos[processing_pass].computeValuesFromForcePlates(pass_skels[processing_pass], timestep, poses, subject.getGroundForceBodies(), raw_force_plates, rootHistoryLen=root_history_len, rootHistoryStride=root_history_stride, explicitVels=explicit_vel, explicitAccs=explicit_acc)
+                        if not np.all(trial_pass_protos[processing_pass].getAccs() == explicit_acc):
+                            print('WARNING! Explicit accs do not match computed accs!')
+                            print('Explicit accs: '+str(explicit_acc))
+                            print('Computed accs: '+str(trial_pass_protos[processing_pass].getAccs()))
                         assert(np.all(trial_pass_protos[processing_pass].getAccs() == explicit_acc))
                         assert(np.all(trial_pass_protos[processing_pass].getVels() == explicit_vel))
                         print('Pass '+str(processing_pass)+' of ' + str(subject.getTrialNumProcessingPasses(trial)) +' type: '+str(subject.getProcessingPassType(processing_pass)))

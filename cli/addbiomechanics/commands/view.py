@@ -47,6 +47,8 @@ class ViewCommand(AbstractCommand):
                  'realtime playback.',
             type=float,
             default=1.0)
+        view_parser.add_argument('--loop-frames', type=int, nargs='+', default=[],
+                               help='Specific frames to loop over.')
 
     def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'view':
@@ -58,6 +60,7 @@ class ViewCommand(AbstractCommand):
         playback_speed: float = args.playback_speed
         show_energy: bool = args.show_energy
         show_root_frame: bool = args.show_root_frame
+        loop_frames: List[int] = args.loop_frames
 
         try:
             import nimblephysics as nimble
@@ -197,12 +200,13 @@ class ViewCommand(AbstractCommand):
         ticker: nimble.realtime.Ticker = nimble.realtime.Ticker(
             subject.getTrialTimestep(trial) / playback_speed)
 
-        frame: int = 0
+        loop_counter: int = 0
 
         running_energy_deriv: float = 0.0
 
         def onTick(now):
-            nonlocal frame
+            nonlocal loop_counter
+            nonlocal loop_frames
             nonlocal skel
             nonlocal subject
             nonlocal dof
@@ -212,6 +216,11 @@ class ViewCommand(AbstractCommand):
             nonlocal dof_taus
             nonlocal timesteps
             nonlocal running_energy_deriv
+
+            if len(loop_frames) == 0:
+                frame = loop_counter
+            else:
+                frame = loop_frames[loop_counter]
 
             loaded: List[nimble.biomechanics.Frame] = subject.readFrames(trial, frame, 1, contactThreshold=20)
 
@@ -251,25 +260,29 @@ class ViewCommand(AbstractCommand):
                 skel.setPositions(loaded[0].processingPasses[0].pos)
                 gui.nativeAPI().renderSkeleton(skel)
                 # Render assigned force plates
-                for i in range(0, subject.getNumForcePlates(trial)):
-                    cop = loaded[0].rawForcePlateCenterOfPressures[i]
-                    f = loaded[0].rawForcePlateForces[i] * 0.001
-                    color: np.ndarray = np.array([1, 1, 0, 1])
-                    gui.nativeAPI().createLine('raw_grf'+str(i), [cop, cop+f], color)
+                # for i in range(0, subject.getNumForcePlates(trial)):
+                #     cop = loaded[0].rawForcePlateCenterOfPressures[i]
+                #     f = loaded[0].rawForcePlateForces[i] * 0.001
+                #     color: np.ndarray = np.array([1, 1, 0, 1])
+                #     gui.nativeAPI().createLine('raw_grf'+str(i), [cop, cop+f], color)
 
                 for i in range(0, len(contact_bodies)):
                     cop = loaded[0].processingPasses[-1].groundContactCenterOfPressure[i*3:(i+1)*3]
                     f = loaded[0].processingPasses[-1].groundContactForce[i*3:(i+1)*3] * 0.001
-                    color: np.ndarray = np.array([0, 0, 0, 1])
-                    color[i] = 1.0
-                    gui.nativeAPI().createLine('grf'+str(i), [cop, cop+f], color)
-                    if loaded[0].processingPasses[0].contact[i]:
-                        for k in range(skel.getBodyNode(contact_bodies[i]).getNumShapeNodes()):
-                            gui.nativeAPI().setObjectColor('world_'+skel.getName()+"_"+contact_bodies[i]+"_"+str(k), color)
+                    if np.linalg.norm(f) > 0:
+                        body_pos = skel.getBodyNode(contact_bodies[i]).getWorldTransform().translation()
+                        color: np.ndarray = np.array([0, 0, 0, 1])
+                        color[i] = 1.0
+                        gui.nativeAPI().createLine('grf'+str(i), [body_pos, cop, cop+f], color)
                     else:
-                        for k in range(skel.getBodyNode(contact_bodies[i]).getNumShapeNodes()):
-                            gui.nativeAPI().setObjectColor('world_' + skel.getName() + "_" + contact_bodies[i] + "_" + str(k),
-                                                           [0.5, 0.5, 0.5, 1])
+                        gui.nativeAPI().deleteObject('grf'+str(i))
+                    # if loaded[0].processingPasses[0].contact[i]:
+                    #     for k in range(skel.getBodyNode(contact_bodies[i]).getNumShapeNodes()):
+                    #         gui.nativeAPI().setObjectColor('world_'+skel.getName()+"_"+contact_bodies[i]+"_"+str(k), color)
+                    # else:
+                    #     for k in range(skel.getBodyNode(contact_bodies[i]).getNumShapeNodes()):
+                    #         gui.nativeAPI().setObjectColor('world_' + skel.getName() + "_" + contact_bodies[i] + "_" + str(k),
+                    #                                        [0.5, 0.5, 0.5, 1])
 
                 if loaded[0].missingGRFReason != nimble.biomechanics.MissingGRFReason.notMissingGRF:
                     for b in range(skel.getNumBodyNodes()):
@@ -430,9 +443,12 @@ class ViewCommand(AbstractCommand):
                     #     joint_force =  body_force - reprojected_force
                     #     V = body.getSpatialVelocity(offset, relativeTo=Frame::World(), inCoordinatesOf)
 
-            frame += 1
-            if frame >= num_frames:
-                frame = 0
+            loop_counter += 1
+            loop_number = num_frames
+            if len(loop_frames) > 0:
+                loop_number = len(loop_frames)
+            if loop_counter >= loop_number:
+                loop_counter = 0
 
         ticker.registerTickListener(onTick)
         ticker.start()
