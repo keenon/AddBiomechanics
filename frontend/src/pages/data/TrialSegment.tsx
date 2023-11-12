@@ -705,12 +705,12 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             linkToNext = <button className="btn btn-primary" style={{ width: '100%' }} onClick={navigateToNext.current}>Review Next Segment</button>
         }
         else {
-            const nextUrl = Session.getDataURL(props.currentLocationUserId, segmentContents.parentDatasetPath);
+            const nextUrl = Session.getDataURL(props.currentLocationUserId, segmentContents.parentSubjectPath);
             navigateToNext.current = () => {
                 setPreviewUrl("");
                 navigate(nextUrl);
             }
-            linkToNext = <button className="btn btn-primary" style={{ width: '100%' }} onClick={navigateToNext.current}>Back To Dataset</button>
+            linkToNext = <button className="btn btn-primary" style={{ width: '100%' }} onClick={navigateToNext.current}>Back To Subject</button>
         }
 
         const urlToReviewRoot = Session.getDataURL(props.currentLocationUserId, reviewState.path);

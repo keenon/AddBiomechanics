@@ -1032,6 +1032,27 @@ const SubjectView = observer((props: SubjectViewProps) => {
     if (resultsExist) {
         const trialNames: string[] = subjectState.trials.map((trial) => trial.name);
 
+        let reviewControls = null;
+        if (!props.readonly) {
+            reviewControls = <div>
+                <h3>Bulk Review Actions:</h3>
+                <div>
+                    <button className="btn btn-success mt-2" onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await subjectState.markAllTrialsReviewed();
+                    }}>Mark All Reviewed</button>
+                </div>
+                <div>
+                    <button className="btn btn-warning mt-2 mb-2" onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await subjectState.markAllTrialsUnreviewed();
+                    }}>Mark All Unreviewed</button>
+                </div>
+            </div>;
+        }
+
         resultsSection = <div>
             <h3>Results:</h3>
             <table className="table">
@@ -1136,6 +1157,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     }
                 </tbody>
             </table>
+            {reviewControls}
         </div>
     }
 
