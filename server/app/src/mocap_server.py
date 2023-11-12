@@ -69,6 +69,7 @@ class TrialToProcess:
         all_children: Dict[str, FileMetadata] = self.index.getChildren(self.trialPath)
         for child in all_children:
             if child.endswith('.json') or child.endswith('REVIEWED'):
+                os.makedirs(os.path.dirname(file_system_trial_path+child), exist_ok=True)
                 self.index.download(self.trialPath+child, file_system_trial_path+child)
 
     def upload(self, trialsFolderPath: str):
