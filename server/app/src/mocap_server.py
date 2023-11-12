@@ -55,17 +55,21 @@ class TrialToProcess:
         self.plotCSVFile = self.trialPath + 'plot.csv'
 
     def download(self, trialsFolderPath: str):
-        trialPath = trialsFolderPath + self.trialName
-        os.mkdir(trialPath)
+        file_system_trial_path = trialsFolderPath + self.trialName
+        os.mkdir(file_system_trial_path)
 
         if self.index.exists(self.c3dFile):
-            self.index.download(self.c3dFile, trialPath+'markers.c3d')
+            self.index.download(self.c3dFile, file_system_trial_path+'markers.c3d')
         if self.index.exists(self.trcFile):
-            self.index.download(self.trcFile, trialPath+'markers.trc')
+            self.index.download(self.trcFile, file_system_trial_path+'markers.trc')
         if self.index.exists(self.grfFile):
-            self.index.download(self.grfFile, trialPath+'grf.mot')
+            self.index.download(self.grfFile, file_system_trial_path+'grf.mot')
         if self.index.exists(self.goldIKFile):
-            self.index.download(self.goldIKFile, trialPath+'manual_ik.mot')
+            self.index.download(self.goldIKFile, file_system_trial_path+'manual_ik.mot')
+        all_children: Dict[str, FileMetadata] = self.index.getChildren(self.trialPath)
+        for child in all_children:
+            if child.endswith('.json') or child.endswith('REVIEWED'):
+                self.index.download(self.trialPath+child, file_system_trial_path+child)
 
     def upload(self, trialsFolderPath: str):
         trialPath = trialsFolderPath + self.trialName
