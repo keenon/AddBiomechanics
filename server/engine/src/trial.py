@@ -172,8 +172,7 @@ class Trial:
                 pre_loaded_review_frames += [False] * segment_length
 
             segment_index += 1
-        if len(pre_loaded_review_frames) > 0:
-            assert(len(pre_loaded_review_frames) == len(trial.marker_observations))
+        if len(pre_loaded_review_frames) == len(trial.marker_observations):
             trial.missing_grf_manual_review = pre_loaded_review_frames
 
         # Set an error if there are no marker data frames
