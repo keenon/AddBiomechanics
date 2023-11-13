@@ -286,7 +286,13 @@ class UserHomeDirectory {
         }
         for (let folder of pathData.folders) {
             if (this.getPathType(folder) === 'subject') {
-                await this.getSubjectViewState(folder).reprocess();
+                const status = this.getPathStatus(folder);
+                if (status !== 'waiting_for_server' && status !== 'slurm' && status !== 'processing') {
+                    await this.getSubjectViewState(folder).reprocess();
+                }
+                else {
+                    console.log("Not reprocessing " + folder + " because it is " + status);
+                }
             }
         }
     }
