@@ -705,7 +705,7 @@ class MocapServer:
                               self.currentlyProcessing.subjectPath)
                         # We always leave a few slots open for new jobs, since they're more important than reprocessing
                         if (reprocessing_job and slurm_reprocessing_jobs < 10) or \
-                                (not reprocessing_job and slurm_total_jobs < 50):
+                                (not reprocessing_job and slurm_total_jobs < 150):
                             # Mark the subject as having been queued in SLURM, so that we don't try to process it again
                             self.currentlyProcessing.markAsQueuedOnSlurm()
                             print('Queueing subject for processing on SLURM: ' +
