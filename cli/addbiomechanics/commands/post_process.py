@@ -54,6 +54,13 @@ class PostProcessCommand(AbstractCommand):
             help='The new sample rate to enforce on all the data, if specified, either by up-sampling or down-sampling',
             type=int,
             default=None)
+        parser.add_argument(
+            '--allowed-contact-bodies',
+            nargs='+',
+            help='The only contact bodies which are allowed non-zero contact forces in included trials. If specified '
+                 'we will mark frames with forces on other bodies as missing GRF.',
+            type=str,
+            default=[])
 
     def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'post-process':
@@ -87,6 +94,8 @@ class PostProcessCommand(AbstractCommand):
             resampled_signal = np.array(signal)[indices]
             return resampled_signal.tolist()
 
+        dropped_trials_log = open('dropped_trials.txt', 'w')
+
         input_path_raw: str = os.path.abspath(args.input_path)
         output_path_raw: str = os.path.abspath(args.output_path)
         sample_rate: int = args.sample_rate
@@ -96,6 +105,7 @@ class PostProcessCommand(AbstractCommand):
         root_history_stride: int = args.root_history_stride
         geometry_folder: str = args.geometry_folder
         clean_up_noise: bool = args.clean_up_noise
+        allowed_contact_bodies: List[str] = args.allowed_contact_bodies
         if geometry_folder is not None:
             geometry_folder = os.path.abspath(geometry_folder) + '/'
         else:
@@ -150,7 +160,16 @@ class PostProcessCommand(AbstractCommand):
                             has_dynamics_pass = True
                             break
                     if not has_dynamics_pass:
+                        dropped_trials_log.write(f'{input_path} trial {trial} has no dynamics pass\n')
+                        dropped_trials_log.flush()
                         drop_trials.append(trial)
+                    else:
+                        missing_grf_reason: List[nimble.biomechanics.MissingGRFReason] = subject.getHeaderProto().getTrials()[trial].getMissingGRFReason()
+                        num_steps_not_missing_grf = len([reason for reason in missing_grf_reason if reason == nimble.biomechanics.MissingGRFReason.notMissingGRF])
+                        if num_steps_not_missing_grf == 0:
+                            dropped_trials_log.write(f'{input_path} trial {trial} has no steps with non-missing GRF, even though it has a dynamics pass\n')
+                            dropped_trials_log.flush()
+                            drop_trials.append(trial)
 
             print('Reading all frames')
             subject.loadAllFrames(doNotStandardizeForcePlateData=True)
@@ -161,6 +180,7 @@ class PostProcessCommand(AbstractCommand):
                 for trial_index in range(subject.getNumTrials()):
                     original_name = trial_protos[trial_index].getOriginalTrialName()
                     split_index = trial_protos[trial_index].getSplitIndex()
+                    review_flag_path = os.path.join(trial_folder_path, original_name, 'segment_'+str(split_index+1), 'REVIEWED')
                     review_path = os.path.join(trial_folder_path, original_name, 'segment_'+str(split_index+1), 'review.json')
                     missing_grf_reason: List[nimble.biomechanics.MissingGRFReason] = trial_protos[
                         trial_index].getMissingGRFReason()
@@ -183,11 +203,44 @@ class PostProcessCommand(AbstractCommand):
                             print('User reviews incorporated from ' + review_path)
                         else:
                             print(f'Warning! Review file {review_path} has a smaller number of missing GRF flags ({len(missing_flags)}) than the B3D file ({len(missing_grf_reason)}). Skipping review file.')
+                    elif os.path.exists(review_flag_path):
+                        user_reviewed = True
                     if not user_reviewed:
                         missing_grf_reason = [
                             nimble.biomechanics.MissingGRFReason.manualReview for _ in range(len(missing_grf_reason))
                         ]
                     trial_protos[trial_index].setMissingGRFReason(missing_grf_reason)
+
+            allowed_contact_bodies = sorted(allowed_contact_bodies)
+            if len(allowed_contact_bodies) > 0:
+                subject_bodies: List[str] = subject.getGroundForceBodies()
+                subject_bodies = sorted(subject_bodies)
+                # If the lists are order-independent identical, then we can skip this filtering step
+                if len(subject_bodies) != len(allowed_contact_bodies) or \
+                        any([subject_bodies[i] != allowed_contact_bodies[i] for i in range(len(subject_bodies))]):
+
+                    print('Filtering out contact forces on bodies other than ' + str(allowed_contact_bodies))
+                    banned_indices: List[int] = []
+                    for i in range(len(subject_bodies)):
+                        if subject_bodies[i] not in allowed_contact_bodies:
+                            banned_indices.append(i)
+
+                    trial_protos = subject.getHeaderProto().getTrials()
+                    for trial_index in range(subject.getNumTrials()):
+                        filtered_timesteps = 0
+                        missing_grf_reason: List[nimble.biomechanics.MissingGRFReason] = trial_protos[trial_index].getMissingGRFReason()
+                        first_pass_proto = trial_protos[trial_index].getPasses()[0]
+                        grf: np.ndarray = first_pass_proto.getGroundBodyCopTorqueForce()
+                        for t in range(grf.shape[1]):
+                            for i in banned_indices:
+                                if np.linalg.norm(grf[9*i+6:9*i+9, t]) > 5:
+                                    filtered_timesteps += 1
+                                    missing_grf_reason[t] = nimble.biomechanics.MissingGRFReason.unmeasuredExternalForceDetected
+                                    break
+                        trial_protos[trial_index].setMissingGRFReason(missing_grf_reason)
+
+                        print(f'Contact forces filtered {filtered_timesteps} timesteps on trial {subject.getTrialName(trial_index)}')
+
 
             resampled = False
             if sample_rate is not None:
@@ -199,6 +252,12 @@ class PostProcessCommand(AbstractCommand):
                 trial_protos = subject.getHeaderProto().getTrials()
                 for trial in range(subject.getNumTrials()):
                     trial_pass_protos = trial_protos[trial].getPasses()
+                    if len(trial_pass_protos) == 0:
+                        print(f'Warning! Dropping trial {trial} because it has no processing passes')
+                        dropped_trials_log.write(f'ERROR {input_path} trial {trial} has no processing passes\n')
+                        dropped_trials_log.flush()
+                        drop_trials.append(trial)
+                        continue
 
                     # Overwrite the force plates with the version from the feet
                     print(f'Overwriting force plates for trial {trial} with the version from the feet')
@@ -292,6 +351,8 @@ class PostProcessCommand(AbstractCommand):
                     # Skip short trials, add them to the drop list
                     if poses.shape[1] <= 12:
                         drop_trials.append(trial)
+                        dropped_trials_log.write(f'{input_path} trial {trial} shorter than 12 frames\n')
+                        dropped_trials_log.flush()
                         continue
 
                     fs = int(1.0 / trial_protos[trial].getTimestep())
@@ -302,6 +363,8 @@ class PostProcessCommand(AbstractCommand):
                     normal_cutoff = cutoff / nyq
                     if cutoff >= nyq:
                         print('Warning! Cutoff frequency is at or above Nyquist frequency. This suggests some funny business with the data. Dropping this trial to be on the safe side.')
+                        dropped_trials_log.write(f'ERROR {input_path} trial {trial} cutoff frequency above Nyquist frequency\n')
+                        dropped_trials_log.flush()
                         drop_trials.append(trial)
                     else:
                         b, a = butter(3, normal_cutoff, btype='low', analog=False)
@@ -352,7 +415,12 @@ class PostProcessCommand(AbstractCommand):
                         foot_bodies = [skel.getBodyNode(name) for name in subject.getGroundForceBodies()]
                         dist_threshold_m = 0.35  # A bit more than 1 foot
 
+                        num_timesteps_cop_wrong = 0
+                        cutoff_threshold_to_drop_trial = 10
+                        missing_grf_reason = trial_protos[trial].getMissingGRFReason()
                         for t in range(new_poses.shape[1]):
+                            if missing_grf_reason[t] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
+                                continue
                             skel.setPositions(new_poses[:, t])
                             foot_body_locations = [body.getWorldTransform().translation() for body in foot_bodies]
                             for f in range(len(raw_force_plates)):
@@ -363,19 +431,30 @@ class PostProcessCommand(AbstractCommand):
                                 if np.linalg.norm(force) > 5:
                                     if min(dist_to_feet) > dist_threshold_m:
                                         closest_foot = np.argmin(dist_to_feet)
-                                        print(f"Warning! Trial {trial}, CoP for plate {f} is not near a foot at time {t}. Bringing it within {dist_threshold_m}m of the closest foot.")
-                                        print(f"  Force: {force}")
-                                        print(f"  CoP: {cop}")
-                                        print(f"  Dist to feet: {dist_to_feet}")
+                                        num_timesteps_cop_wrong += 1
+                                        if num_timesteps_cop_wrong < cutoff_threshold_to_drop_trial:
+                                            print(f"Warning! Trial {trial}, CoP for plate {f} is not near a foot at time {t}. Bringing it within {dist_threshold_m}m of the closest foot.")
+                                            print(f"  Force: {force}")
+                                            print(f"  CoP: {cop}")
+                                            print(f"  Dist to feet: {dist_to_feet}")
                                         cop = foot_body_locations[closest_foot] + dist_threshold_m * (cop - foot_body_locations[closest_foot]) / np.linalg.norm(cop - foot_body_locations[closest_foot])
                                         cops[f][t] = cop
-                                        print(f"  Updated CoP: {cop}")
-                                        dist_to_feet = [np.linalg.norm(cop - foot_body_location) for foot_body_location in foot_body_locations]
-                                        print(f"  Updated Dist to feet: {dist_to_feet}")
+                                        if num_timesteps_cop_wrong < cutoff_threshold_to_drop_trial:
+                                            print(f"  Updated CoP: {cop}")
+                                            dist_to_feet = [np.linalg.norm(cop - foot_body_location) for foot_body_location in foot_body_locations]
+                                            print(f"  Updated Dist to feet: {dist_to_feet}")
                                 else:
                                     forces[f][t] = np.zeros(3)
                                     closest_foot = np.argmin(dist_to_feet)
                                     cops[f][t] = foot_body_locations[closest_foot]
+
+                        if num_timesteps_cop_wrong >= cutoff_threshold_to_drop_trial:
+                            print(f"Warning! Trial {trial} has {num_timesteps_cop_wrong} timesteps with CoP not near a foot. Dropping trial.")
+                            dropped_trials_log.write(f'ERROR {input_path} trial {trial} has {num_timesteps_cop_wrong} timesteps with CoP not near a foot\n')
+                            dropped_trials_log.flush()
+                            drop_trials.append(trial)
+                            continue
+
                         for f in range(len(raw_force_plates)):
                             raw_force_plates[f].centersOfPressure = cops[f]
                             raw_force_plates[f].forces = forces[f]
@@ -400,10 +479,14 @@ class PostProcessCommand(AbstractCommand):
                         # Check for NaNs in explicit_vel and explicit_acc
                         if np.any(np.isnan(explicit_vel)):
                             print('Warning! NaNs in explicit_vel for trial ' + str(trial) + ' pass ' + str(processing_pass))
+                            dropped_trials_log.write(f'ERROR {input_path} trial {trial} has NaNs in the explicit_vel array\n')
+                            dropped_trials_log.flush()
                             drop_trials.append(trial)
                             continue
                         if np.any(np.isnan(explicit_acc)):
                             print('Warning! NaNs in explicit_acc for trial ' + str(trial) + ' pass ' + str(processing_pass))
+                            dropped_trials_log.write(f'ERROR {input_path} trial {trial} has NaNs in the explicit_acc array\n')
+                            dropped_trials_log.flush()
                             drop_trials.append(trial)
                             continue
                         assert(poses.shape == explicit_vel.shape)
@@ -435,6 +518,7 @@ class PostProcessCommand(AbstractCommand):
             nimble.biomechanics.SubjectOnDisk.writeB3D(output_path, subject.getHeaderProto())
             print('Done '+str(file_index+1)+'/'+str(len(input_output_pairs)))
 
+        dropped_trials_log.close()
         print('Post-processing finished!')
 
         return True

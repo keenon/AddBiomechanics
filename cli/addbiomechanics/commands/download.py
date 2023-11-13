@@ -19,10 +19,13 @@ class SubjectToDownload:
     def __init__(self, path: str, contained_files: List[Tuple[str, int, str]]):
         self.path = path
         self.contained_files = contained_files
-        contained_file_names: Set[str] = set([
+        contained_file_names: List[str] = [
             os.path.basename(file[0]) for file in contained_files
-        ])
+        ]
         self.is_reviewed = 'REVIEWED' in contained_file_names
+
+        print('Creating SubjectToDownload for ' + path + ' with ' + str(len(contained_files)) + ' files. Is reviewed: ' + str(self.is_reviewed))
+        print('Num REVIEWED flags: ' + str(len([file for file in contained_file_names if file == 'REVIEWED'])))
 
         # The username_pattern is: "us-west-2:" followed by any number of non-forward-slash characters,
         # ending at the first forward slash.
@@ -72,12 +75,6 @@ class DownloadCommand(AbstractCommand):
 
         response = s3.list_objects_v2(
             Bucket=ctx.deployment['BUCKET'], Prefix=prefix, MaxKeys=10000)
-
-        to_download: List[str] = []
-        to_download_e_tags: List[str] = []
-        to_download_size: int = 0
-        already_downloaded: List[str] = []
-        already_downloaded_size: int = 0
 
         files: List[Tuple[str, int, str]] = []
         keys: List[str] = []
@@ -158,10 +155,16 @@ class DownloadCommand(AbstractCommand):
             print(f'After filtering for marker error cutoff, have {len(subjects)} subjects to download.')
 
         usernames: Set[str] = set([subject.username for subject in subjects])
+        to_download: List[str] = []
+        to_download_e_tags: List[str] = []
+        to_download_sizes: List[int] = []
+        to_download_size: int = 0
+        already_downloaded: List[str] = []
+        already_downloaded_size: int = 0
 
         for subject in subjects:
             for key, size, e_tag in subject.contained_files:
-                if e_tag in to_download_e_tags:
+                if size > 0 and e_tag in to_download_e_tags:
                     continue
                 if key.endswith('.b3d') or key.endswith('review.json') or key.endswith('REVIEWED'):
                     if os.path.exists(key):
@@ -170,6 +173,7 @@ class DownloadCommand(AbstractCommand):
                     else:
                         to_download.append(key)
                         to_download_e_tags.append(e_tag)
+                        to_download_sizes.append(size)
                         to_download_size += size
 
         print('A total of '+str(len(usernames))+' AddBiomechanics users will be credited in the ATTRIBUTION.txt file.')
@@ -203,6 +207,8 @@ class DownloadCommand(AbstractCommand):
                 else:
                     print('Downloading only the first '+str(num)+' results')
                 to_download = to_download[:num]
+                to_download_e_tags = to_download_e_tags[:num]
+                to_download_sizes = to_download_sizes[:num]
             except ValueError:
                 pass
 
@@ -242,8 +248,8 @@ class DownloadCommand(AbstractCommand):
         with open('DATA_LICENSE.txt' if ctx.deployment['NAME'] == 'PROD' else 'DATA_LICENSE_DEV_SERVER.txt', 'w') as f:
             f.write(data_credits)
 
-        for key in to_download:
-            print('Downloading '+key)
+        for i, key in enumerate(to_download):
+            print(f'Downloading {i+1}/{len(to_download)}: {key}')
             if os.path.exists(key):
                 print('File already exists, skipping')
                 continue
@@ -252,12 +258,16 @@ class DownloadCommand(AbstractCommand):
             # Create the directory structure, if it doesn't exist already
             os.makedirs(directory, exist_ok=True)
             # Download the file
-            try:
-                s3.download_file(ctx.deployment['BUCKET'], key, key)
-            except Exception as e:
-                print('Caught an exception trying to download. Trying refreshing AWS session and trying again.')
-                print(e)
-                ctx.refresh()
-                s3 = ctx.aws_session.client('s3')
-                # Retry the download operation
-                s3.download_file(ctx.deployment['BUCKET'], key, key)
+            if to_download_sizes[i] == 0:
+                # Create an empty file
+                open(key, 'a').close()
+            else:
+                try:
+                    s3.download_file(ctx.deployment['BUCKET'], key, key)
+                except Exception as e:
+                    print('Caught an exception trying to download. Trying refreshing AWS session and trying again.')
+                    print(e)
+                    ctx.refresh()
+                    s3 = ctx.aws_session.client('s3')
+                    # Retry the download operation
+                    s3.download_file(ctx.deployment['BUCKET'], key, key)
