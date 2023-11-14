@@ -6,10 +6,12 @@ type PathType = 'profile' | '404' | 'loading';
 class UserProfile {
     dir: LiveDirectory;
     profileJson: LiveJsonFile;
+    searchJson: Map<string, LiveJsonFile>;
 
     constructor(dir: LiveDirectory) {
         this.dir = dir;
         this.profileJson = this.dir.getJsonFile('profile.json');
+        this.searchJson = new Map()
     }
 
     getAttribute(key: string, defaultValue: string) : string {
@@ -41,7 +43,6 @@ class UserProfile {
     }
 
     getPathType(path: string): PathType {
-
         if (path.startsWith('/')) {
             path = path.substring(1);
         }
@@ -60,9 +61,20 @@ class UserProfile {
         } else {
             return 'profile';
         }
-
-
     };
+
+    getUserDatasetMetadata() : Map<string, LiveJsonFile> {
+      const child_folders = this.dir.getPath("data/", false).folders.map((folder) => {
+          return folder.substring("data/".length).replace(/\/$/, '').replace(/^\//, '');
+      });
+
+      child_folders.forEach((child_folder) => {
+        // Save the live json file.
+        this.searchJson.set(child_folder, this.dir.getJsonFile("data/" + child_folder + "/" + "_search.json"))
+      });
+
+      return this.searchJson;
+    }
 };
 
 export default UserProfile;

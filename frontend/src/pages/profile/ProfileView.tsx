@@ -17,6 +17,7 @@ import { parsePath } from "../files/pathHelper";
 import { url } from "inspector";
 import UserProfile from "../../model/UserProfile"
 import Session from "../../model/Session"
+import SearchResult from "../search/SearchResult";
 
 type InputFieldProps = {
   userProfile: UserProfile;
@@ -82,22 +83,26 @@ const ProfileView = observer((props: ProfileViewProps) => {
   let lab: string = props.userProfile.getAttribute("lab", "");
   let fullName: string = props.userProfile.getProfileFullName();
 
-  // Search for this user's public datasets.
-//   const result = props.cursor.datasetIndex.datasetsByUserId(urlId);
+  // Get user's datasets and add to profile.
+  const datasetsInfo = props.userProfile.getUserDatasetMetadata();
   let body = null;
-//   if (urlId != null) {
-//     if (props.session.loadingLoginState) {
-//       body = <Spinner animation="border" />;
-//     }
-//     else {
-//       body = <>
-//         {
-//           result.map((dataset, i) => {
-//             return <div></div>
-//           })}
-//       </>
-//     }
-//   }
+  body = <>
+    {Array.from(datasetsInfo.entries()).map(([key, dataset], index) => (
+      <SearchResult
+        key={key}
+        folderName={key}
+        datasetInfo={dataset}
+        numSubjects={0}
+        numTrials={0}
+        userName={fullName}
+        userId={props.userId}
+        searchText=''
+        index={index}
+        fullWidth={false}
+      />
+    ))}
+  </>;
+
 
   function generate_info_row(valueField: any, label: string, icon: string, show: boolean = true, link: string = "") {
     if (show)

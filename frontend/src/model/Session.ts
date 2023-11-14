@@ -193,8 +193,8 @@ class Session {
         const parts = decodeURI(url).split("/");
         userId = parts[0];
         path = parts.slice(1).join("/");
-        prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/";
 
+        prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/data/";
         const liveDirectoryImpl = new LiveDirectoryImpl(prefix, this.s3, this.pubsub)
         let homeDirectory = this.homeDirectories.get(userId);
         if (homeDirectory == null) {
@@ -202,9 +202,11 @@ class Session {
             this.homeDirectories.set(userId, homeDirectory);
         }
 
+        prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/";
+        const liveDirectoryImplProfile = new LiveDirectoryImpl(prefix, this.s3, this.pubsub)
         let userProfile = this.userProfiles.get(userId);
         if (userProfile == null) {
-            userProfile = new UserProfile(liveDirectoryImpl);
+            userProfile = new UserProfile(liveDirectoryImplProfile);
             this.userProfiles.set(userId, userProfile);
         }
 
