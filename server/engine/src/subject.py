@@ -695,7 +695,7 @@ class Subject:
             total_frames_count = 0
             for trialMissingGRF in dynamics_init.probablyMissingGRF:
                 good_frames_count += sum(
-                    [0 if missing else 1 for missing in trialMissingGRF])
+                    [1 if missing == nimble.biomechanics.MissingGRFStatus.no else 0 for missing in trialMissingGRF])
                 total_frames_count += len(trialMissingGRF)
             bad_frames_count = total_frames_count - good_frames_count
             print('Detected missing/bad GRF data on ' + str(bad_frames_count) + '/' + str(
@@ -840,10 +840,10 @@ class Subject:
             num_steps_with_grf = 0
             num_steps_missing_grf = 0
             for missing in dynamics_init.probablyMissingGRF[i]:
-                if missing:
-                    num_steps_missing_grf += 1
-                else:
+                if missing == nimble.biomechanics.MissingGRFStatus.no:
                     num_steps_with_grf += 1
+                else:
+                    num_steps_missing_grf += 1
             trial_segments[i].total_timesteps_with_grf = num_steps_with_grf
             trial_segments[i].total_timesteps_missing_grf = num_steps_missing_grf
             if num_steps_with_grf > 0:
