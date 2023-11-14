@@ -69,6 +69,10 @@ const ProfileDropdown = () => {
               <i className={`mdi mdi-share-all me-1`}></i>
               <span>Data Sharing Mission</span>
             </Dropdown.Item>
+            <Dropdown.Item tag={Link} href="https://github.com/keenon/AddBiomechanics/issues/" target="_blank">
+              <i className={`mdi mdi-bug me-1`}></i>
+              <span>Bug Report</span>
+            </Dropdown.Item>
             <hr className="mt-1 mb-1"></hr>
             <Dropdown.Item as={Link} to="/logout">
               <i className={`mdi mdi-logout me-1`}></i>
