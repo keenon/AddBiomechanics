@@ -289,6 +289,11 @@ class ViewCommand(AbstractCommand):
                         for k in range(skel.getBodyNode(b).getNumShapeNodes()):
                             gui.nativeAPI().setObjectColor('world_' + skel.getName() + "_" + skel.getBodyNode(b).getName() + "_" + str(k),
                                                            [1, 0, 0, 1])
+                else:
+                    for b in range(skel.getNumBodyNodes()):
+                        for k in range(skel.getBodyNode(b).getNumShapeNodes()):
+                            gui.nativeAPI().setObjectColor('world_' + skel.getName() + "_" + skel.getBodyNode(b).getName() + "_" + str(k),
+                                                           [0.7, 0.7, 0.7, 1])
 
                 if dof is not None:
                     joint_pos = skel.getJointWorldPositions([graph_joint])

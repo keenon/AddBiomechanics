@@ -74,7 +74,7 @@ class DownloadCommand(AbstractCommand):
         s3 = ctx.aws_session.client('s3')
 
         response = s3.list_objects_v2(
-            Bucket=ctx.deployment['BUCKET'], Prefix=prefix, MaxKeys=10000)
+            Bucket=ctx.deployment['BUCKET'], Prefix=prefix)
 
         files: List[Tuple[str, int, str]] = []
         keys: List[str] = []
