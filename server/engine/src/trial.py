@@ -401,7 +401,7 @@ class TrialSegment:
         # represent equivalent angles) will yield very bad results when naively lowpass filtered
         self.lowpass_poses = np.copy(self.kinematics_poses)
         upper_bound: np.ndarray = skel.getPositionUpperLimits()
-        lower_bound: np.ndarray = skel.getPositionUpperLimits()
+        lower_bound: np.ndarray = skel.getPositionLowerLimits()
         for i in range(1, self.lowpass_poses.shape[1]):
             unwrapped_pose = skel.unwrapPositionToNearest(self.lowpass_poses[:, i], self.lowpass_poses[:, i - 1])
             if np.any(unwrapped_pose < lower_bound) or np.any(unwrapped_pose > upper_bound):
