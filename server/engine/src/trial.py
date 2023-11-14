@@ -295,7 +295,7 @@ class TrialSegment:
         ) else []
         self.has_markers: bool = False
         self.has_forces: bool = False
-        self.has_error: bool = False
+        self.error: bool = False
         self.error_msg = ''
         self.original_marker_observations: List[Dict[str, np.ndarray]] = []
         self.missing_grf_manual_review: List[nimble.biomechanics.MissingGRFStatus] = self.parent.missing_grf_manual_review[self.start:self.end]
@@ -365,14 +365,14 @@ class TrialSegment:
 
         # Set an error if there are no marker data frames
         if len(self.marker_observations) == 0:
-            self.has_error = True
+            self.error = True
             self.error_msg = 'No marker data frames found'
 
         # Set an error if there are any NaNs in the marker data
         for t in range(len(self.marker_observations)):
             for marker in self.marker_observations[t]:
                 if np.any(np.isnan(self.marker_observations[t][marker])):
-                    self.has_error = True
+                    self.error = True
                     self.error_msg = 'Trial segment has NaNs in marker data.'
                 elif np.any(np.abs(self.marker_observations[t][marker]) > 1e6):
                     self.error = True
@@ -516,7 +516,7 @@ class TrialSegment:
             # Details for helping report malformed uploads
             'hasMarkers': self.has_markers,
             'hasForces': self.has_forces,
-            'hasError': self.has_error,
+            'hasError': self.error,
             'errorMsg': self.error_msg,
             'hasMarkerWarnings': has_marker_warnings
         }

@@ -372,7 +372,7 @@ class Subject:
                     for obs in trial_segment.marker_observations:
                         for key in obs:
                             marker_set.add(key)
-                    trial_segment.has_error = True
+                    trial_segment.error = True
                     trial_segment.error_msg = (f'There are fewer than 8 markers that show up in the OpenSim model and '
                                                f'in trial {trial.trial_name} segment {str(j+1)}/'
                                                f'{str(len(trial.segments))}. The markers in this trial are: '
@@ -403,17 +403,17 @@ class Subject:
                     for t in range(len(trial_segment.marker_observations)):
                         for marker in trial_segment.marker_observations[t]:
                             if np.any(np.isnan(trial_segment.marker_observations[t][marker])):
-                                trial_segment.has_error = True
+                                trial_segment.error = True
                                 trial_segment.error_msg = 'Trial had NaNs in the data after running MarkerFixer.'
                                 print(trial_segment.error_msg, flush=True)
                                 break
                             if np.any(np.abs(trial_segment.marker_observations[t][marker]) > 1e+6):
-                                trial_segment.has_error = True
+                                trial_segment.error = True
                                 trial_segment.error_msg = ('Trial had suspiciously large marker values after running '
                                                            'MarkerFixer.')
                                 print(trial_segment.error_msg, flush=True)
                                 break
-                        if trial_segment.has_error:
+                        if trial_segment.error:
                             break
 
         print('All trial markers have been cleaned up!', flush=True)
@@ -422,12 +422,12 @@ class Subject:
         for trial in self.trials:
             if not trial.error:
                 for segment in trial.segments:
-                    if segment.has_markers and not segment.has_error:
+                    if segment.has_markers and not segment.error:
                         trial_segments.append(segment)
                         segment.kinematics_status = ProcessingStatus.IN_PROGRESS
                     else:
                         segment.kinematics_status = ProcessingStatus.ERROR
-                        if segment.has_error:
+                        if segment.error:
                             print('Skipping kinematics fit of segment starting at ' + str(segment.start) + ' of trial ' + str(trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
             else:
                 # If the whole trial is an error condition, then bail on all the segments as well
@@ -552,10 +552,10 @@ class Subject:
             if not trial.error:
                 for segment in trial.segments:
                     if (segment.has_markers and
-                            segment.kinematics_status == ProcessingStatus.FINISHED and not segment.has_error):
+                            segment.kinematics_status == ProcessingStatus.FINISHED and not segment.error):
                         trial_segments.append(segment)
                         segment.lowpass_status = ProcessingStatus.IN_PROGRESS
-                    elif segment.has_error:
+                    elif segment.error:
                         print('Skipping lowpass filtering of segment starting at ' + str(segment.start) + ' of trial ' + str(
                             trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
         # If there are no segments left that aren't in error, quit
@@ -585,10 +585,10 @@ class Subject:
             if not trial.error:
                 for segment in trial.segments:
                     if (segment.has_markers and segment.has_forces
-                            and segment.kinematics_status == ProcessingStatus.FINISHED and not segment.has_error):
+                            and segment.kinematics_status == ProcessingStatus.FINISHED and not segment.error):
                         trial_segments.append(segment)
                         segment.dynamics_status = ProcessingStatus.IN_PROGRESS
-                    elif segment.has_error:
+                    elif segment.error:
                         print('Skipping dynamics fit of segment starting at ' + str(segment.start) + ' of trial ' + str(
                             trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
         # If there are no segments left that aren't in error, quit
