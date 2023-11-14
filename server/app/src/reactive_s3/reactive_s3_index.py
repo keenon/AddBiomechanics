@@ -29,11 +29,20 @@ class FileMetadata:
 
 
 def makeTopicPubSubSafe(path: str) -> str:
+
+    # Check if the path contains a user ID by searching for the ":" character.
+    # If it does, then keep the topic up to the user ID and discard the rest.
+    if path.find(":") != -1:
+        segments = path.split(":")
+        path = segments[0] + ":" + segments[1].split("/")[0]
+
     MAX_TOPIC_LEN = 80
-    if (len(path) > MAX_TOPIC_LEN):
+    if len(path) > MAX_TOPIC_LEN:
         segments = path.split("/")
-        if (len(segments[0]) > MAX_TOPIC_LEN):
+
+        if len(segments[0]) > MAX_TOPIC_LEN:
             return segments[0][0:MAX_TOPIC_LEN]
+
         reconstructed = ''
         segmentCursor = 0
         while segmentCursor < len(segments):
