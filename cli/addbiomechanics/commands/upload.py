@@ -304,6 +304,8 @@ class UploadCommand(AbstractCommand):
                                     help='Add this flag to upload the data to your private folder to be processed, instead of the normal workspace.')
         process_parser.add_argument('--only-subject-jsons', action='store_true',
                                     help='Add this flag to only upload the subject.json files, instead of the whole directory.')
+        process_parser.add_argument('--only-subject-osim', action='store_true',
+                                    help='Add this flag to only upload the unscaled_generic.osim files, instead of the whole directory.')
         pass
 
     def run(self, ctx: AuthContext, args: argparse.Namespace):
@@ -327,6 +329,11 @@ class UploadCommand(AbstractCommand):
         skip_confirm: bool = args.yes
         private: bool = args.private
         only_subject_jsons: bool = args.only_subject_jsons
+        only_subject_osim: bool = args.only_subject_osim
+
+        if only_subject_jsons and only_subject_osim:
+            print('Cannot specify both --only-subject-jsons and --only-subject-osim, since that would upload nothing!')
+            exit(1)
 
         dir_files: List[str] = []
 
@@ -362,6 +369,11 @@ class UploadCommand(AbstractCommand):
 
         if only_subject_jsons:
             structure.s3_to_local_file = {k: v for k, v in structure.s3_to_local_file.items() if k.endswith('_subject.json')}
+            structure.s3_to_contents = {}
+            structure.s3_ready_flags = []
+
+        if only_subject_osim:
+            structure.s3_to_local_file = {k: v for k, v in structure.s3_to_local_file.items() if k.endswith('unscaled_generic.osim')}
             structure.s3_to_contents = {}
             structure.s3_ready_flags = []
 
