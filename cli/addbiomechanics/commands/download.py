@@ -56,8 +56,7 @@ class DownloadCommand(AbstractCommand):
                                           'regex pattern but are from subjects that are above bbove this threshold will'
                                           ' not be downloaded.', default=None)
         download_parser.add_argument('--reviewed-only',
-                                     type=bool,
-                                     default=True,
+                                     action='store_true',
                                      help='Only download files from subjects that are fully reviewed.')
 
     def run(self, ctx: AuthContext, args: argparse.Namespace):
