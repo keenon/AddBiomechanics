@@ -976,6 +976,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                 props.home.dir.downloadFile(subjectState.resultsB3dPath);
                             }}>Download Results, B3D Format</button>
                         </p>
+                        <p>
+                            <button className="btn btn-secondary" onClick={async (e) => {
+                                props.home.dir.downloadFile(subjectState.logPath);
+                            }}>Download Processing Logs</button>
+                        </p>
                         {reprocessButton}
                     </div>
                 </div>
