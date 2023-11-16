@@ -187,22 +187,26 @@ class PostProcessCommand(AbstractCommand):
                     user_reviewed = False
                     if os.path.exists(review_path):
                         review_json = json.load(open(review_path, 'r'))
-                        missing_flags: List[bool] = review_json['missing_grf_data']
-                        # There was a bug in the old UI which would add extra boolean onto the end of the
-                        # missing_grf_data file. These are harmless, and we should just ignore them.
-                        if len(missing_flags) >= len(missing_grf_reason):
-                            for i in range(len(missing_grf_reason)):
-                                if missing_flags[i]:
-                                    missing_grf_reason[i] = nimble.biomechanics.MissingGRFReason.manualReview
-                                else:
-                                    # TODO: is this a good idea? This data will not have correct torques, angular
-                                    #  residuals, etc.
-                                    # missing_grf_reason[i] = nimble.biomechanics.MissingGRFReason.notMissingGRF
-                                    pass
-                            user_reviewed = True
-                            print('User reviews incorporated from ' + review_path)
+                        if 'missing_grf_data' not in review_json:
+                            print(
+                                f'Warning! Review file {review_path} missing the key "missing_grf_data". Skipping review file.')
                         else:
-                            print(f'Warning! Review file {review_path} has a smaller number of missing GRF flags ({len(missing_flags)}) than the B3D file ({len(missing_grf_reason)}). Skipping review file.')
+                            missing_flags: List[bool] = review_json['missing_grf_data']
+                            # There was a bug in the old UI which would add extra boolean onto the end of the
+                            # missing_grf_data file. These are harmless, and we should just ignore them.
+                            if len(missing_flags) >= len(missing_grf_reason):
+                                for i in range(len(missing_grf_reason)):
+                                    if missing_flags[i]:
+                                        missing_grf_reason[i] = nimble.biomechanics.MissingGRFReason.manualReview
+                                    else:
+                                        # TODO: is this a good idea? This data will not have correct torques, angular
+                                        #  residuals, etc.
+                                        # missing_grf_reason[i] = nimble.biomechanics.MissingGRFReason.notMissingGRF
+                                        pass
+                                user_reviewed = True
+                                print('User reviews incorporated from ' + review_path)
+                            else:
+                                print(f'Warning! Review file {review_path} has a smaller number of missing GRF flags ({len(missing_flags)}) than the B3D file ({len(missing_grf_reason)}). Skipping review file.')
                     elif os.path.exists(review_flag_path):
                         user_reviewed = True
                     if not user_reviewed:
