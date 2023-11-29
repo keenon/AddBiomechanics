@@ -7,7 +7,6 @@ import DatasetView from "./DatasetView";
 import SubjectView from "./SubjectView";
 import Session from "../../model/Session";
 import { Breadcrumb, BreadcrumbItem } from "react-bootstrap";
-import { isUUID } from "../../utils"
 
 type DataTypeRouterProps = {
   session: Session;

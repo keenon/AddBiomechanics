@@ -1,6 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { Table, Button, OverlayTrigger, Tooltip } from "react-bootstrap";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { observer } from "mobx-react-lite";
 import UserHomeDirectory, { DatasetContents } from "../../model/UserHomeDirectory";
@@ -15,8 +13,6 @@ type DatasetViewProps = {
 };
 
 const DatasetView = observer((props: DatasetViewProps) => {
-    const location = useLocation();
-    const navigate = useNavigate();
     const [folderName, setFolderName] = useState("");
     const [subjectName, setSubjectName] = useState("");
 

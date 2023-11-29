@@ -1,20 +1,14 @@
-import { useState, useEffect, useReducer } from "react";
-import { useLocation, useNavigate, Link } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Row,
   Col,
-  Card,
-  OverlayTrigger,
-  Tooltip
+  Card
 } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
 import './ProfileView.scss';
-import { Auth } from "aws-amplify";
 import 'react-toastify/dist/ReactToastify.css';
-import { showToast, copyProfileUrlToClipboard, getIdFromURL } from "../../utils";
-import { Spinner } from "react-bootstrap";
-import { parsePath } from "../files/pathHelper";
-import { url } from "inspector";
+import { showToast, copyProfileUrlToClipboard } from "../../utils";
 import UserProfile from "../../model/UserProfile"
 import Session from "../../model/Session"
 import SearchResult from "../search/SearchResult";
@@ -71,7 +65,6 @@ type ProfileViewProps = {
 };
 
 const ProfileView = observer((props: ProfileViewProps) => {
-  const location = useLocation();
   const navigate = useNavigate();
 
   //const validUser = props.cursor.s3Index.isUserValid(urlId);
