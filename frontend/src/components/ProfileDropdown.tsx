@@ -37,7 +37,7 @@ const ProfileDropdown = () => {
 
           <Dropdown.Menu>
             <Dropdown.Item as={Link} to="/profile/">
-              <b>Signed in as:</b> {email}
+              <b>Logged in as:</b> {email}
             </Dropdown.Item>
             <hr className="mt-1 mb-1"></hr>
             <Dropdown.Item as={Link} to="/profile/">

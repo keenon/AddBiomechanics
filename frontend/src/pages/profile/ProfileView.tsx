@@ -32,7 +32,7 @@ const InputField = observer((props: InputFieldProps) => {
   let valueField: string = props.userProfile.getAttribute(props.attributeName, "");
   return (
     <form className="row g-3 mb-15">
-      <div className="col-md-4">
+      <div className="col-md-12">
         <label>
           <i className={"mdi me-1 vertical-middle " + props.icon}></i>
           {props.label}:
@@ -167,7 +167,13 @@ const ProfileView = observer((props: ProfileViewProps) => {
                               {/* {generate_input_field(affiliation, "Affiliation", "Insert your affiliation.", "Your affiliation...", "affiliation", "mdi-school-outline")} */}
                               <InputField userProfile={props.userProfile} label="Lab" tooltip="Insert your lab." placeholder="Your lab..." attributeName="lab" icon="mdi-test-tube" />
                               {/* {generate_input_field(lab, "Lab", "Insert your lab.", "Your lab...", "lab", "mdi-test-tube")} */}
-                              <button type="button" className="btn btn-primary" onClick={() => { setEditing(false); showToast("Profile updated.", "info"); }}>Finish</button>
+
+                              <div className="col-md-12">
+                                <button type="button" className="btn btn-primary w-100" onClick={() => { navigate("/forgot-password") }}>Change Password</button>
+                              </div>
+                              <div className="col-md-12">
+                                <button type="button" className="btn btn-primary mt-2 w-100" onClick={() => { setEditing(false); showToast("Profile updated.", "info"); }}>Finish</button>
+                              </div>
                             </div>
                           </div>
                         );

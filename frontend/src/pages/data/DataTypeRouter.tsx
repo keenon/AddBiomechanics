@@ -134,9 +134,6 @@ const DataTypeRouter = observer((props: DataTypeRouterProps) => {
     loginStatus = (
       <div className="row mt-2">
         <div className="col">
-          Logged in as {props.session.userEmail}. <Link to="/logout">Logout</Link>
-          <br />
-          <Link to="/forgot-password">Change Password</Link>
         </div>
       </div>
     );
