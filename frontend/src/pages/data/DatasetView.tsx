@@ -196,13 +196,13 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 className={"form-control" + ((datasetNotes == null) ? " border-primary border-2" : "")}
                 aria-describedby="citeHelp"
                 onFocus={() => {
-                    searchJson.onFocusAttribute("info");
+                    searchJson.onFocusAttribute("notes");
                 }}
                 onBlur={() => {
-                    searchJson.onBlurAttribute("info");
+                    searchJson.onBlurAttribute("notes");
                 }}
                 onChange={(e) => {
-                    searchJson.setAttribute("info", e.target.value);
+                    searchJson.setAttribute("notes", e.target.value);
                 }}
                 readOnly={props.readonly}>
             </textarea>
