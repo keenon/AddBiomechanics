@@ -1,3 +1,5 @@
+import time
+
 from addbiomechanics.commands.abtract_command import AbstractCommand
 import argparse
 from addbiomechanics.auth import AuthContext
@@ -455,8 +457,11 @@ class ViewCommand(AbstractCommand):
             if loop_counter >= loop_number:
                 loop_counter = 0
 
-        ticker.registerTickListener(onTick)
-        ticker.start()
+        # ticker.registerTickListener(onTick)
+        # ticker.start()
+        while True:
+            onTick(time.time())
+            time.sleep(0.01)
 
         print(subject.getHref())
         print(subject.getTrialName(trial))
