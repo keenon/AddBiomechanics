@@ -367,9 +367,9 @@ class PostProcessCommand(AbstractCommand):
                     normal_cutoff = cutoff / nyq
                     if cutoff >= nyq:
                         print('Warning! Cutoff frequency is at or above Nyquist frequency. This suggests some funny business with the data. Dropping this trial to be on the safe side.')
-                        dropped_trials_log.write(f'ERROR {input_path} trial {trial} cutoff frequency above Nyquist frequency\n')
-                        dropped_trials_log.flush()
-                        drop_trials.append(trial)
+                        # dropped_trials_log.write(f'ERROR {input_path} trial {trial} cutoff frequency above Nyquist frequency\n')
+                        # dropped_trials_log.flush()
+                        # drop_trials.append(trial)
                     else:
                         b, a = butter(3, normal_cutoff, btype='low', analog=False)
                         new_pass = trial_protos[trial].addPass()
