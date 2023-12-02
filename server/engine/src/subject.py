@@ -654,8 +654,9 @@ class Subject:
             )
         print('Created DynamicsInitialization', flush=True)
 
-        dynamics_fitter.estimateFootGroundContacts(dynamics_init,
-                                                   ignoreFootNotOverForcePlate=self.ignoreFootNotOverForcePlate)
+        radius: float = 0.05
+        min_time: float = 0.5
+        dynamics_fitter.estimateFootGroundContactsWithStillness(dynamics_init, radius=radius, minTime=min_time)
         print("Initial mass: " +
               str(self.skeleton.getMass()) + " kg", flush=True)
         print("What we'd expect average ~GRF to be (Mass * 9.8): " +
@@ -853,7 +854,7 @@ class Subject:
             else:
                 trial_segments[i].linear_residuals = 0.0
                 trial_segments[i].angular_residuals = 0.0
-            trial_segments[i].ground_height = dynamics_init.groundHeight[i]
+            # trial_segments[i].ground_height = dynamics_init.groundHeight[i]
             trial_segments[i].foot_body_wrenches = dynamics_init.grfTrials[i]
             trial_segments[i].missing_grf_reason = dynamics_init.missingGRFReason[i]
 
@@ -1089,7 +1090,9 @@ class Subject:
                         grf_fpath,
                         segment.timestamps,
                         [self.skeleton.getBodyNode(name) for name in self.footBodyNames],
-                        segment.ground_height,
+                        self.skeleton,
+                        segment.dynamics_poses,
+                        segment.force_plates,
                         segment.foot_body_wrenches)
                     nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsProcessedForcesXMLFile(
                         segment_name,
