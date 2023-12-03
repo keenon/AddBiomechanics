@@ -58,6 +58,8 @@ class TrialToProcess:
         file_system_trial_path = trialsFolderPath + self.trialName
         os.mkdir(file_system_trial_path)
 
+        all_children: Dict[str, FileMetadata] = self.index.getChildren(self.trialPath)
+
         if self.index.exists(self.c3dFile):
             self.index.download(self.c3dFile, file_system_trial_path+'markers.c3d')
         if self.index.exists(self.trcFile):
@@ -66,7 +68,6 @@ class TrialToProcess:
             self.index.download(self.grfFile, file_system_trial_path+'grf.mot')
         if self.index.exists(self.goldIKFile):
             self.index.download(self.goldIKFile, file_system_trial_path+'manual_ik.mot')
-        all_children: Dict[str, FileMetadata] = self.index.getChildren(self.trialPath)
         for child in all_children:
             if child.endswith('.json') or child.endswith('REVIEWED'):
                 os.makedirs(os.path.dirname(file_system_trial_path+child), exist_ok=True)
@@ -790,7 +791,7 @@ if __name__ == "__main__":
 
         # 1. Set up the connection to S3 and PubSub
         index = ReactiveS3Index(args.bucket, args.deployment)
-        index.refreshIndex()
+        index.load_only_folder(subjectPath)
         subject = SubjectToProcess(index, subjectPath)
 
         # 2. Process the subject, and then exit

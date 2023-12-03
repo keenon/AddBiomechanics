@@ -657,6 +657,17 @@ class Subject:
         radius: float = 0.05
         min_time: float = 0.5
         dynamics_fitter.estimateFootGroundContactsWithStillness(dynamics_init, radius=radius, minTime=min_time)
+
+        # Double check that manual review status is preserved
+        for trial in range(len(dynamics_init.probablyMissingGRF)):
+            for t in range(len(dynamics_init.probablyMissingGRF[trial])):
+                manual_status: nimble.biomechanics.MissingGRFStatus = trial_segments[trial].missing_grf_manual_review[t]
+                status: nimble.biomechanics.MissingGRFStatus = dynamics_init.probablyMissingGRF[trial][t]
+                if manual_status == nimble.biomechanics.MissingGRFStatus.no:
+                    assert(status == nimble.biomechanics.MissingGRFStatus.no)
+                elif manual_status == nimble.biomechanics.MissingGRFStatus.yes:
+                    assert(status == nimble.biomechanics.MissingGRFStatus.yes)
+
         print("Initial mass: " +
               str(self.skeleton.getMass()) + " kg", flush=True)
         print("What we'd expect average ~GRF to be (Mass * 9.8): " +

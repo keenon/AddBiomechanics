@@ -79,7 +79,12 @@ class ReactiveS3Index:
         self.bucket = self.s3.Bucket(self.bucketName)
         self.disable_pubsub = disable_pubsub
         if not disable_pubsub:
-            self.pubSub = PubSub(deployment)
+            try:
+                self.pubSub = PubSub(deployment)
+            except Exception as e:
+                print(e)
+                print('PubSub disabled')
+                self.disable_pubsub = True
         self.files = {}
         self.children = {}
         self.changeListeners = []
@@ -98,6 +103,28 @@ class ReactiveS3Index:
         # I think this is actually getting really expensive, because the connection gets interrupted A LOT and the full refresh requires a lot of downloading.
         #
         # self.pubSub.addResumeListener(self.refreshIndex)
+
+    def load_only_folder(self, folder: str) -> None:
+        """
+        This updates the index
+        """
+        self.lock.acquire()
+        try:
+            print('Doing full index refresh...')
+            self.files.clear()
+            self.children.clear()
+            for object in self.bucket.objects.filter(Prefix=folder):
+                key: str = object.key
+                lastModified: int = int(object.last_modified.timestamp() * 1000)
+                eTag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
+                size: int = object.size
+                file = FileMetadata(key, lastModified, size, eTag)
+                self.updateChildrenOnAddFile(key)
+                self.files[key] = file
+            print('Full index refresh finished!')
+        finally:
+            self.lock.release()
+            self._onRefresh()
 
     def refreshIndex(self) -> None:
         """
