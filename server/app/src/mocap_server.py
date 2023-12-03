@@ -12,6 +12,7 @@ import boto3
 import threading
 import argparse
 from typing import Tuple
+import traceback
 
 
 def absPath(path: str):
@@ -306,7 +307,7 @@ class SubjectToProcess:
                                 try:
                                     self.index.pubSub.publish(
                                         '/LOG/'+procLogTopic, logLine)
-                                except e:
+                                except Exception as e:
                                     print(
                                         'Failed to send live log message: '+str(e), flush=True)
                                 unflushedLines = unflushedLines[20:]
@@ -318,7 +319,7 @@ class SubjectToProcess:
                                 try:
                                     self.index.pubSub.publish(
                                         '/LOG/'+procLogTopic, logLine)
-                                except e:
+                                except Exception as e:
                                     print(
                                         'Failed to send live log message: '+str(e), flush=True)
                                 unflushedLines = []
@@ -330,7 +331,7 @@ class SubjectToProcess:
                         try:
                             exitCode = proc.wait(timeout=3)
                             break
-                        except e:
+                        except Exception as e:
                             line = 'Process has not exited!! Waiting another 3 seconds for the process to exit.'
                             logFile.write(line)
                             print('>>> '+line)
@@ -341,7 +342,7 @@ class SubjectToProcess:
                             try:
                                 self.index.pubSub.publish(
                                     '/LOG/'+procLogTopic, logLine)
-                            except e:
+                            except Exception as e:
                                 print('Failed to send live log message: ' +
                                       str(e), flush=True)
                     line = 'exit: '+str(exitCode)
@@ -354,7 +355,7 @@ class SubjectToProcess:
                     try:
                         self.index.pubSub.publish(
                             '/LOG/'+procLogTopic, logLine)
-                    except e:
+                    except Exception as e:
                         print('Failed to send live log message: ' +
                               str(e), flush=True)
                     print('Process return code: '+str(exitCode), flush=True)
@@ -440,6 +441,7 @@ class SubjectToProcess:
             print('Finished processing, returning from process() method.', flush=True)
         except Exception as e:
             print('Caught exception in process(): {}'.format(e))
+            traceback.print_exc()
 
             # TODO: We should probably re-upload a copy of the whole setup that led to the error
             # Let's upload a unique copy of the log to S3, so that we have it in case the user re-processes

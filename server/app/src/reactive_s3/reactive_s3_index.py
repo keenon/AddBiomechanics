@@ -110,7 +110,7 @@ class ReactiveS3Index:
         """
         self.lock.acquire()
         try:
-            print('Doing full index refresh...')
+            print('Loading folder '+folder)
             self.files.clear()
             self.children.clear()
             for object in self.bucket.objects.filter(Prefix=folder):
@@ -121,7 +121,7 @@ class ReactiveS3Index:
                 file = FileMetadata(key, lastModified, size, eTag)
                 self.updateChildrenOnAddFile(key)
                 self.files[key] = file
-            print('Full index refresh finished!')
+            print('Folder load finished!')
         finally:
             self.lock.release()
             self._onRefresh()
