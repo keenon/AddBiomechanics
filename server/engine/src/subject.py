@@ -840,8 +840,7 @@ class Subject:
                             dynamics_init, segment)
 
         else:
-            print('WARNING: Unable to minimize residual moments below the desired threshold. Skipping '
-                  'body mass optimization and final bilevel optimization problem.', flush=True)
+            print('WARNING: Our timeSyncAndInitializePipeline() call failed.', flush=True)
 
         # 8.4. Apply results to skeleton and check physical consistency.
         dynamics_fitter.applyInitToSkeleton(self.skeleton, dynamics_init)
@@ -891,10 +890,10 @@ class Subject:
             num_steps_with_grf = 0
             num_steps_missing_grf = 0
             for missing in dynamics_init.probablyMissingGRF[i]:
-                if missing == nimble.biomechanics.MissingGRFStatus.no:
-                    num_steps_with_grf += 1
-                else:
+                if missing == nimble.biomechanics.MissingGRFStatus.yes:
                     num_steps_missing_grf += 1
+                else:
+                    num_steps_with_grf += 1
             trial_segments[i].total_timesteps_with_grf = num_steps_with_grf
             trial_segments[i].total_timesteps_missing_grf = num_steps_missing_grf
             if num_steps_with_grf > 0:
