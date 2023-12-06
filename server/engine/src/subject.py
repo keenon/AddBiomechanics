@@ -655,7 +655,7 @@ class Subject:
         print('Created DynamicsInitialization', flush=True)
 
         radius: float = 0.05
-        min_time: float = 0.5
+        min_time: float = 0.15
         dynamics_fitter.estimateFootGroundContactsWithStillness(dynamics_init, radius=radius, minTime=min_time)
 
         # Double check that manual review status is preserved
