@@ -27,6 +27,7 @@ export const SEND_UPLOAD_PROGRESS_EVENT = 'sendUploadProgress';
 export const SEND_DOWNLOAD_PROGRESS_EVENT = 'sendDownloadProgress';
 
 export type AxiosHttpHandlerOptions = HttpHandlerOptions & {
+  abortController?: AbortController;
   progressCallback?: (progress: {
     loaded: number,
     total: number
@@ -86,6 +87,22 @@ export class AxiosHttpHandler implements HttpHandler {
       // console.log("SEND_DOWNLOAD_PROGRESS_EVENT: ", event);
     };
 
+    // Make it possible to cancel API requests
+    const abortController = options?.abortController;
+    let clearAbortListeners: (() => void)[] = [];
+    if (abortController != null) {
+      axiosRequest.cancelToken = new axios.CancelToken(cancel => {
+        const abortListener = () => {
+          console.log("Cancelling in progress Axios request!");
+          cancel('API request aborted');
+        };
+        abortController.signal.addEventListener('abort', abortListener);
+        clearAbortListeners.push(() => {
+          abortController.signal.removeEventListener('abort', abortListener);
+        });
+      });
+    }
+
     // From gamma release, aws-sdk now expects all response type to be of blob or streams
     axiosRequest.responseType = 'blob';
 
@@ -109,7 +126,8 @@ export class AxiosHttpHandler implements HttpHandler {
           // Error
           if (
             error.message !==
-            AWSS3ProviderUploadErrorStrings.UPLOAD_PAUSED_MESSAGE
+            AWSS3ProviderUploadErrorStrings.UPLOAD_PAUSED_MESSAGE &&
+            error.message !== 'API request aborted'
           ) {
             console.error(error);
             // logger.error(error.message);
@@ -132,7 +150,11 @@ export class AxiosHttpHandler implements HttpHandler {
         }),
       requestTimeout(requestTimeoutInMs),
     ];
-    return Promise.race(raceOfPromises);
+    return Promise.race(raceOfPromises).finally(() => {
+      clearAbortListeners.forEach(clearAbortListener => {
+        clearAbortListener();
+      });
+    });;
   }
 }
 

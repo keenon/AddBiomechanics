@@ -220,6 +220,59 @@ describe("LiveDirectory", () => {
         expect(new Set(cachedRootNode.files.map(f => f.key))).toStrictEqual(new Set(cachedRootNode2.files.map(f => f.key).filter(k => k != "ASB2023")));
     });
 
+    test("Fault in and then cancel before it finishes", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/1",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials/1",
+        ]);
+        s3.mockLoadBeforeHalt = 1;
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+
+        const abortController: AbortController = new AbortController();
+
+        const faultInPromise: Promise<void> = dir.faultInPath("", abortController);
+        const errorThrown = [false];
+        faultInPromise.catch(() => {
+            console.log("Caught error in faultInPath Promise");
+            errorThrown[0] = true;
+        });
+
+        let rootNode = dir.getPath("", false);
+        const promise = rootNode.promise;
+        if (promise != null) {
+            rootNode = await promise;
+        }
+        expect(rootNode.recursive).toBe(false);
+        expect(rootNode.loading).toBe(false);
+        expect(rootNode.folders).toStrictEqual(["ASB2023/"]);
+
+        const childNode = dir.getCachedPath("ASB2023/");
+        expect(childNode).toBeDefined();
+        expect(childNode?.loading).toBe(true);
+
+        abortController.abort();
+
+        try {
+            await faultInPromise;
+        }
+        catch (e) {
+            console.log("Caught error in await");
+        }
+
+        expect(errorThrown[0]).toBe(true);
+        const updatedChildNode = dir.getCachedPath("ASB2023/");
+        expect(updatedChildNode).toBeUndefined();
+    });
+
     test("Loading recursively with real paths prevents nested loads from hitting the network", async () => {
         const s3 = new S3APIMock();
         const pubsub = new PubSubSocketMock("DEV");

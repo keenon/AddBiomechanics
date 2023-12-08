@@ -57,12 +57,18 @@ abstract class LiveDirectory {
     abstract deleteByPrefix(path: string): Promise<void>;
 };
 
+type FaultIn = {
+    abortController: AbortController;
+    promise: Promise<void>;
+    finished: boolean;
+};
+
 class LiveDirectoryImpl extends LiveDirectory {
     s3: S3API;
     pubsub: PubSubSocket;
     pathCache: ObservableMap<string, PathData>;
     pathChangeListeners: Map<string, ((newData: PathData) => void)[]>;
-    faultingIn: Map<string, Promise<void>>;
+    faultingIn: Map<string, FaultIn>;
 
     constructor(prefix: string, s3: S3API, pubsub: PubSubSocket) {
         super(prefix);
@@ -117,16 +123,30 @@ class LiveDirectoryImpl extends LiveDirectory {
      * @param originalPath the path on this directory to load in recursively
      * @returns 
      */
-    faultInPath(originalPath: string): Promise<void> {
-        let promise = this.faultingIn.get(originalPath);
-        if (promise == null) {
-            promise = new Promise<void>((resolve, reject) => {
-                const pathData: PathData = this.getPath(originalPath, false);
+    faultInPath(originalPath: string, abortController?: AbortController): Promise<void> {
+        const faultIn: FaultIn | undefined = this.faultingIn.get(originalPath);
+        if (faultIn == null) {
+            let removeKeys: string[] = [];
+            this.faultingIn.forEach((faultIn, path) => {
+                if (!faultIn.finished && path !== originalPath) {
+                    faultIn.abortController.abort();
+                    removeKeys.push(path);
+                }
+            });
+            removeKeys.forEach((key) => {
+                this.faultingIn.delete(key);
+            });
+
+            if (abortController == null) {
+                abortController = new AbortController();
+            }
+            let promise = new Promise<void>((resolve, reject) => {
+                const pathData: PathData = this.getPath(originalPath, false, abortController);
 
                 const loadRecursive = (folderData: PathData) => {
                     // Load each child recursively
                     Promise.all(folderData.folders.map((folder) => {
-                        const folderPathData = this.getPath(folder, true);
+                        const folderPathData = this.getPath(folder, true, abortController);
                         if (folderPathData.promise != null) {
                             return folderPathData.promise;
                         }
@@ -164,20 +184,35 @@ class LiveDirectoryImpl extends LiveDirectory {
                     loadRecursive(pathData);
                 }
                 else if (pathData.promise != null) {
-                    pathData.promise.then(loadRecursive);
+                    pathData.promise.then((loadedPathData) => {
+                        loadRecursive(loadedPathData);
+                    });
                 }
                 else {
-                    console.error("PathData was loading, but promise was null. This should never happen.");
                     // load recursively anyways, to attempt to recover smoothly from the error
                     loadRecursive(pathData);
                 }
             });
-            this.faultingIn.set(originalPath, promise);
+
+            const faultIn = {
+                abortController,
+                promise,
+                finished: false
+            };
+            faultIn.promise = promise.then(() => {
+                faultIn.finished = true;
+                this.faultingIn.set(originalPath, faultIn);
+            }).catch((e) => {
+                throw e;
+            });
+            this.faultingIn.set(originalPath, faultIn);
+
+            return faultIn.promise;
         }
-        return promise;
+        return faultIn.promise;
     }
 
-    getPath(originalPath: string, recursive: boolean = false): PathData {
+    getPath(originalPath: string, recursive: boolean = false, abortController?: AbortController): PathData {
         let prefix = this.prefix;
         if (!prefix.endsWith('/')) {
             prefix += '/';
@@ -198,7 +233,7 @@ class LiveDirectoryImpl extends LiveDirectory {
 
         // If we reach this point, the path has not yet been loaded
         // Kick off a load for the PathData, and keep around a promise for that load completing
-        const promise: Promise<PathData> = this.s3.loadPathData(path, recursive).then(action(({folders, files}) => {
+        const promise: Promise<PathData> = this.s3.loadPathData(path, recursive, abortController).then(action(({folders, files}) => {
             // This is a folder, we have to issue another load to get the children
             if (!recursive && !path.endsWith('/') && folders.length == 1 && folders[0] == path + '/') {
                 const withSlash: PathData = this.getPath(originalPath + '/', recursive);
@@ -249,6 +284,10 @@ class LiveDirectoryImpl extends LiveDirectory {
                 this._setCachedPath(path, result);
                 return result;
             }
+        })).catch(action((e) => {
+            // If the load fails, we want to remove the cached path, so that we can try again later
+            this.pathCache.delete(path);
+            throw e;
         }));
         if (cached == null) {
             // Create a stub that is loading, and leave a non-null promise in it that will resolve when the load completes

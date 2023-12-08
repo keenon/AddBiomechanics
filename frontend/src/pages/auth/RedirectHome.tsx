@@ -15,15 +15,17 @@ const RedirectHome = observer((props: RequiresAuthProps) => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    if (!props.session.loadingLoginState) {
-        if (!props.session.loggedIn) {
-            console.log("User is not logged in. Navigating to /login");
-            navigate("/login", { replace: true, state: { from: location } });
+    useEffect(() => {
+        if (!props.session.loadingLoginState) {
+            if (!props.session.loggedIn) {
+                console.log("User is not logged in. Navigating to /login");
+                navigate("/login", { replace: true, state: { from: location } });
+            }
+            else {
+                navigate(props.session.getHomeDirectoryURL(), { replace: true, state: { from: location } });
+            }
         }
-        else {
-            navigate(props.session.getHomeDirectoryURL(), { replace: true, state: { from: location } });
-        }
-    }
+    }, [props.session.loadingLoginState, props.session.loggedIn]);
 
     return <div>Loading...</div>;
 });

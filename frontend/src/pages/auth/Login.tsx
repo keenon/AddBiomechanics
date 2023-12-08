@@ -55,7 +55,7 @@ const Login = (props: LoginProps) => {
   }
 
   if (props.session.loggedIn) {
-    console.log("User is already logged in. Navigating to " + from);
+    console.log("User is logged in. Navigating to " + from);
     navigate(from, { replace: true });
   }
 
@@ -81,6 +81,7 @@ const Login = (props: LoginProps) => {
           // when they get to the protected page and click the back button, they
           // won't end up back on the login page, which is also really nice for the
           // user experience.
+          console.log("Navigating to " + from);
           navigate(from, { replace: true });
         });
       })

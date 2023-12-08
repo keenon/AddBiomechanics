@@ -86,7 +86,7 @@ ReactDOM.render(
           />
         }
       ></Route>
-      <Route path="/logout" element={<Logout />}></Route>
+      <Route path="/logout" element={<Logout session={session} />}></Route>
       <Route path="/sign-up" element={<SignUp />}></Route>
       <Route path="/forgot-password" element={<ForgotPassword />}></Route>
       <Route path="/reset-password" element={<ResetPassword />}></Route>

@@ -94,7 +94,9 @@ const DataTypeRouter = observer((props: DataViewProps) => {
   // }
 
   // Force a load of the current location
-  home.dir.faultInPath(path);
+  home.dir.faultInPath(path).catch((err) => {
+    // Ignore the errors, it's caused by a cancellation
+  });
 
   let body = <div>Loading...</div>;
 

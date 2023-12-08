@@ -70,9 +70,16 @@ type FolderReviewStatus = {
     segmentsReviewed: TrialSegmentContents[];
 };
 
+type PathMetadata = {
+    type: PathType;
+    status: PathStatus;
+    reviewStatus: FolderReviewStatus;
+};
+
 class UserHomeDirectory {
     dir: LiveDirectory;
     subjectViewStates: Map<string, SubjectViewState> = new Map();
+    pathMetadata: Map<string, PathMetadata> = new Map();
 
     // 'protected/' + s3.region + ':' + userId + '/data/'
     constructor(dir: LiveDirectory) {
@@ -118,7 +125,7 @@ class UserHomeDirectory {
             return folder.substring(path.length).replace(/\/$/, '').replace(/^\//, '');
         });
 
-        if (child_files.length === 0) {
+        if (child_files.length === 0 && child_folders.length === 0) {
             return '404';
         }
 
