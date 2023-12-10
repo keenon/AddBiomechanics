@@ -91,6 +91,20 @@ class UserHomeDirectory {
         this.getTrialSegmentContents = this.getTrialSegmentContents.bind(this);
         this.getReviewStatus = this.getReviewStatus.bind(this);
         this.getFolderReviewStatus = this.getFolderReviewStatus.bind(this);
+
+        this.dir.addChangeListener(action((paths) => {
+            paths.forEach((path) => {
+                let pathParts = path.split('/');
+                for (let i = pathParts.length - 1; i >= 0; i--) {
+                    const subPath = pathParts.slice(0, i+1).join('/');
+                    this.updateMetadata(subPath);
+                }
+            });
+        }));
+
+        makeObservable(this, {
+            pathMetadata: observable,
+        });
     }
 
     getPath(path: string, recursive: boolean = false): PathData {
@@ -108,12 +122,60 @@ class UserHomeDirectory {
         return dir.getPath(path, recursive);
     }
 
+    updateMetadata(path: string): void {
+        if (path.startsWith('/')) {
+            path = path.substring(1);
+        }
+        if (path.endsWith('/')) {
+            path = path.substring(0, path.length-1);
+        }
+
+        const cachedData = this.dir.getCachedPath(path, true);
+
+        if (!cachedData?.loading && cachedData?.recursive) {
+            for (let folder of cachedData?.folders ?? []) {
+                this.updateMetadata(folder);
+            }
+        }
+
+        const type: PathType = this.computePathType(path);
+        const newData = {
+            type,
+            status: this.computePathStatus(path, type),
+            reviewStatus: this.getFolderReviewStatus(path, type)
+        };
+        action(() => {
+            this.pathMetadata.set(path, newData);
+        })();
+    }
+
     getPathType(path: string): PathType {
         if (path.startsWith('/')) {
             path = path.substring(1);
         }
+        if (path.endsWith('/')) {
+            path = path.substring(0, path.length-1);
+        }
 
-        const pathData: PathData | undefined = this.dir.getCachedPath(path);
+        const metadata = this.pathMetadata.get(path);
+        if (metadata != null) {
+            return metadata.type;
+        }
+        else {
+            return 'loading';
+        }
+    }
+
+    computePathType(path: string): PathType {
+        if (path.startsWith('/')) {
+            path = path.substring(1);
+        }
+        if (path.endsWith('/')) {
+            path = path.substring(0, path.length-1);
+        }
+
+        const pathData: PathData | undefined = this.dir.getCachedPath(path, true);
+        // console.log("Computing path type for " + path, pathData);
         if (pathData == null || pathData.loading) {
             return 'loading';
         }
@@ -167,13 +229,36 @@ class UserHomeDirectory {
         if (path.startsWith('/')) {
             path = path.substring(1);
         }
+        if (path.endsWith('/')) {
+            path = path.substring(0, path.length-1);
+        }
 
-        const pathData: PathData | undefined = this.dir.getCachedPath(path);
+        const metadata = this.pathMetadata.get(path);
+        if (metadata != null) {
+            return metadata.status;
+        }
+        else {
+            return 'loading';
+        }
+    }
+
+    /**
+     * Gets the status of a given path, whether it's a subject or folder.
+     * 
+     * @param path The path to the folder to check
+     */
+    computePathStatus(path: string, pathType: PathType): PathStatus {
+        if (path.startsWith('/')) {
+            path = path.substring(1);
+        }
+
+        const pathData: PathData | undefined = this.dir.getCachedPath(path, true);
         if (pathData == null || pathData.loading) {
             return 'loading';
         }
 
-        const pathType: PathType = this.getPathType(path);
+        // console.log("Computing path status for \"" + path + "\"");
+
         if (pathType === 'dataset') {
             const folderStatus: PathStatus[] = pathData.folders.map((folder) => {
                 // If the folder is the same as the path, or just the path + '/'
@@ -332,27 +417,28 @@ class UserHomeDirectory {
     createTrial(subjectPath: string, trialName: string, markerFile?: File, grfFile?: File): Promise<void> {
         const dir = this.dir;
 
+        let promises: Promise<void>[] = [];
         // Create the trial object as a JSON file, which will upload quickly and cause the UI to update.
-        const promise = dir.uploadText(subjectPath + (subjectPath.length > 0 ? '/' : '') + 'trials/' + trialName + '/_trial.json', '{}');
+        promises.push(dir.uploadText(subjectPath + (subjectPath.length > 0 ? '/' : '') + 'trials/' + trialName + '/_trial.json', '{}'));
 
         // Upload files. These uploads will proceed asynchronously, but we don't need to wait for them.
         const prefixPath = subjectPath + (subjectPath.length > 0 ? '/' : '') + 'trials/' + trialName;
         if (markerFile != null) {
             if (markerFile.name.endsWith('.c3d')) {
-                dir.getLiveFile(prefixPath + '/markers.c3d').uploadFile(markerFile);
+                promises.push(dir.getLiveFile(prefixPath + '/markers.c3d').uploadFile(markerFile));
             }
             else if (markerFile.name.endsWith('.trc')) {
-                dir.getLiveFile(prefixPath + '/markers.trc').uploadFile(markerFile);
+                promises.push(dir.getLiveFile(prefixPath + '/markers.trc').uploadFile(markerFile));
             }
         }
         if (grfFile != null) {
             if (grfFile.name.endsWith('.mot')) {
-                dir.getLiveFile(prefixPath + '/grf.mot').uploadFile(grfFile);
+                promises.push(dir.getLiveFile(prefixPath + '/grf.mot').uploadFile(grfFile));
             }
         }
 
         // Return the promise for the _trial.json file, which will resolve when its upload is complete.
-        return promise;
+        return Promise.all(promises).then(() => {});
     }
 
     /**
@@ -510,22 +596,21 @@ class UserHomeDirectory {
         const pathParts = path.split('/');
         for (let i = 0; i < pathParts.length; i++) {
             const subPath = pathParts.slice(0, i+1).join('/');
-            if (this.dir.getCachedPath(subPath) != null) {
-                return this.getFolderReviewStatus(subPath);
+            if (this.dir.getCachedPath(subPath, true) != null) {
+                return this.getFolderReviewStatus(subPath, this.getPathType(subPath));
             }
         }
-        return this.getFolderReviewStatus(path);
+        return this.getFolderReviewStatus(path, this.getPathType(path));
     }
 
-    getFolderReviewStatus(path: string): FolderReviewStatus {
-        const type = this.getPathType(path);
+    getFolderReviewStatus(path: string, type: PathType): FolderReviewStatus {
         if (type === 'dataset') {
             const dataset = this.getDatasetContents(path);
             let loading = false;
             let segmentsNeedReview: TrialSegmentContents[] = [];
             let segmentsReviewed: TrialSegmentContents[] = [];
             dataset.contents.forEach((content) => {
-                const review = this.getFolderReviewStatus(content.path);
+                const review = this.getFolderReviewStatus(content.path, this.getPathType(content.path));
                 if (review.loading) {
                     loading = true;
                 }

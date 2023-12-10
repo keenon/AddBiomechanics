@@ -181,13 +181,13 @@ describe("UserHomeDirectory", () => {
         const isolated_s3 = new S3APIMock();
         const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
         const api = new UserHomeDirectory(dir);
-        await api.getPath("ASB2023/", false);
+        await api.getPath("ASB2023/", false).promise;
         expect(api.getPath("ASB2023/", false).folders.length).toBe(0);
         await api.createDataset("ASB2023/", "TestFolder");
         expect(api.getPath("ASB2023/", false).loading).toBe(false);
         expect(api.getPath("ASB2023/", false).folders.length).toBe(1);
         expect(api.getPath("ASB2023/", false).folders).toContain("ASB2023/TestFolder/");
-        await api.getPath("ASB2023/TestFolder/", false);
+        await api.getPath("ASB2023/TestFolder/", false).promise;
         expect(api.getPathType('ASB2023/TestFolder/')).toBe('dataset');
     });
 
@@ -321,7 +321,7 @@ describe("UserHomeDirectory", () => {
         isolated_s3.setFilePathsExist(filePaths);
         const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
         const api = new UserHomeDirectory(dir);
-        await dir.faultInPath("");
+        await dir.faultInPath("").promise;
 
         await api.createSubject("", "TestSubject");
 
@@ -343,7 +343,7 @@ describe("UserHomeDirectory", () => {
         isolated_s3.setFilePathsExist(filePaths);
         const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
         const api = new UserHomeDirectory(dir);
-        await dir.faultInPath("ASB2023/S01");
+        await dir.faultInPath("ASB2023/S01").promise;
 
         const type = api.getPathType('ASB2023/S01');
         expect(type).toBe('subject');
@@ -376,13 +376,13 @@ describe("UserHomeDirectory", () => {
         const parentReviewStatus = api.getReviewStatus('/ASB2023/S01/trials');
         expect(parentReviewStatus.path).toBe('/ASB2023/S01');
 
-        const reviewSubject = api.getFolderReviewStatus('/ASB2023/S01');
+        const reviewSubject = api.getFolderReviewStatus('/ASB2023/S01', 'subject');
         expect(reviewSubject.loading).toBe(false);
         expect(reviewSubject.segmentsNeedReview.length).toBe(3);
         expect(reviewSubject.segmentsReviewed.length).toBe(0);
 
         await api.getPath("/ASB2023", true).promise;
-        const reviewFolder = api.getFolderReviewStatus('/ASB2023');
+        const reviewFolder = api.getFolderReviewStatus('/ASB2023', 'dataset');
         expect(reviewFolder.loading).toBe(false);
         expect(reviewFolder.segmentsNeedReview.length).toBe(3);
         expect(reviewFolder.segmentsReviewed.length).toBe(0);
