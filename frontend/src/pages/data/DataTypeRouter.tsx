@@ -1,8 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import UserHomeDirectory from "../../model/UserHomeDirectory";
 import { observer } from "mobx-react-lite";
-import { PathData } from "../../model/LiveDirectory";
 import { Link } from "react-router-dom";
 import TrialSegmentView from "./TrialSegment";
 import DatasetView from "./DatasetView";
@@ -10,11 +8,11 @@ import SubjectView from "./SubjectView";
 import Session from "../../model/Session";
 import { Breadcrumb, BreadcrumbItem } from "react-bootstrap";
 
-type DataViewProps = {
+type DataTypeRouterProps = {
   session: Session;
 };
 
-const DataTypeRouter = observer((props: DataViewProps) => {
+const DataTypeRouter = observer((props: DataTypeRouterProps) => {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -22,6 +20,12 @@ const DataTypeRouter = observer((props: DataViewProps) => {
   const home = dataPath.homeDirectory;
   const path = dataPath.path;
   const readonly = dataPath.userId !== props.session.userId;
+
+  useEffect(() => {
+    if ((dataPath.userId === "" || dataPath.userId === "data") && props.session.userId !== "") {
+      navigate(`/data/${props.session.userId}/`);
+    }
+  }, [dataPath.userId, props.session.userId, navigate, home.getPathType(path)]);
 
   //////////////////////////////////////////////////////////////
   // Set up the breadcrumbs
@@ -131,9 +135,6 @@ const DataTypeRouter = observer((props: DataViewProps) => {
     loginStatus = (
       <div className="row mt-2">
         <div className="col">
-          Logged in as {props.session.userEmail}. <Link to="/logout">Logout</Link>
-          <br />
-          <Link to="/forgot-password">Change Password</Link>
         </div>
       </div>
     );

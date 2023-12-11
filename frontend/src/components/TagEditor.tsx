@@ -340,6 +340,8 @@ const TagEditor = (props: TagEditorProps) => {
         formatOptionLabel={formatOptionLabel}
         // @ts-ignore
         isOptionDisabled={(option) => option.isNonSelectable}
+        menuPortalTarget={document.body}
+        menuPosition={'fixed'}
       />
     </div>
   );

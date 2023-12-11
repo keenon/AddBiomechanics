@@ -1,5 +1,6 @@
 import UserHomeDirectory from "./UserHomeDirectory";
-import { LiveDirectoryImpl, PathData } from "./LiveDirectory";
+import UserProfile from "./UserProfile";
+import { LiveDirectoryImpl } from "./LiveDirectory";
 import { S3API } from "./S3API";
 import { PubSubSocket } from "./PubSubSocket";
 import { makeObservable, action, observable } from 'mobx';
@@ -11,6 +12,15 @@ type DataURL = {
     readonly: boolean;
 }
 
+type ProfileURL = {
+    homeDirectory: UserHomeDirectory;
+    path: string;
+    userProfile: UserProfile;
+    userId: string;
+    readonly: boolean;
+}
+
+
 // This class manages the lifecycle of a user's session. It is responsible for handling login, 
 // identifying the user, managing the home directory's of users who are visited, and logging out.
 class Session {
@@ -19,6 +29,7 @@ class Session {
     pubsub: PubSubSocket;
     region: string;
     homeDirectories: Map<string, UserHomeDirectory>;
+    userProfiles: Map<string, UserProfile>;
 
     loadingLoginState: boolean;
     loggedIn: boolean;
@@ -30,6 +41,7 @@ class Session {
         this.pubsub = pubsub;
         this.region = region;
         this.homeDirectories = new Map();
+        this.userProfiles = new Map();
 
         // We default to loading whether or not we've loggen in
         this.loadingLoginState = true;
@@ -40,6 +52,7 @@ class Session {
         this.setLoggedIn = this.setLoggedIn.bind(this);
         this.setNotLoggedIn = this.setNotLoggedIn.bind(this);
         this.parseDataURL = this.parseDataURL.bind(this);
+        this.parseProfileURL = this.parseProfileURL.bind(this);
 
         makeObservable(this, {
             loadingLoginState: observable,
@@ -126,24 +139,15 @@ class Session {
         }
         if (url.startsWith("data/")) {
             url = url.substring("data/".length);
-        } else if (url.startsWith("data")) {
-            url = url.substring("data".length);
         }
 
-        // Case in which the url is .../data or .../data/, but no id is provided.
-        if(url === "") {
-            userId = this.userId
-            path = ""
-            prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/data/";
-        } else {
-            if (url.startsWith("/")) {
-                url = url.substring(1);
-            }
-            const parts = decodeURI(url).split("/");
-            userId = parts[0];
-            path = parts.slice(1).join("/");
-            prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/data/";
+        if (url.startsWith("/")) {
+            url = url.substring(1);
         }
+        const parts = decodeURI(url).split("/");
+        userId = parts[0];
+        path = parts.slice(1).join("/");
+        prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/data/";
 
         let homeDirectory = this.homeDirectories.get(userId);
         if (homeDirectory == null) {
@@ -156,6 +160,62 @@ class Session {
         return {
             homeDirectory,
             path,
+            userId,
+            readonly,
+        }
+    }
+    /**
+     * This interprets a URL and returns the Profile data.
+     *
+     * It handles cacheing the profile objects, and will create them if they don't exist.
+     *
+     * @param url The URL to get the path for
+     *
+     * Example URLs:
+     * /profile/35e1c7ca-cc58-457e-bfc5-f6161cc7278b
+     */
+    parseProfileURL(url: string): ProfileURL
+    {
+        let userId = ""
+        let prefix = ""
+        let path = ""
+
+        if (url.startsWith("/")) {
+            url = url.substring(1);
+        }
+        if (url.startsWith("profile/")) {
+            url = url.substring("profile/".length);
+        }
+
+        if (url.startsWith("/")) {
+            url = url.substring(1);
+        }
+        const parts = decodeURI(url).split("/");
+        userId = parts[0];
+        path = parts.slice(1).join("/");
+
+        prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/data/";
+        const liveDirectoryImpl = new LiveDirectoryImpl(prefix, this.s3, this.pubsub)
+        let homeDirectory = this.homeDirectories.get(userId);
+        if (homeDirectory == null) {
+            homeDirectory = new UserHomeDirectory(liveDirectoryImpl);
+            this.homeDirectories.set(userId, homeDirectory);
+        }
+
+        prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/";
+        const liveDirectoryImplProfile = new LiveDirectoryImpl(prefix, this.s3, this.pubsub)
+        let userProfile = this.userProfiles.get(userId);
+        if (userProfile == null) {
+            userProfile = new UserProfile(liveDirectoryImplProfile);
+            this.userProfiles.set(userId, userProfile);
+        }
+
+        const readonly = !(this.loggedIn && (this.userId === userId || userId === 'private'));
+
+        return {
+            homeDirectory,
+            path,
+            userProfile,
             userId,
             readonly,
         }
