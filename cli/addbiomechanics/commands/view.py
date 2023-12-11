@@ -124,6 +124,8 @@ class ViewCommand(AbstractCommand):
         gui = NimbleGUI(world)
         gui.serve(8080)
 
+        gui.nativeAPI().createText('missing_reason', '', [100, 50], [200, 50])
+
         if graph_dof is not None:
             dof = skel.getDof(graph_dof)
             if dof is None:
@@ -234,6 +236,7 @@ class ViewCommand(AbstractCommand):
                 missing_grf = loaded[0].missingGRFReason != nimble.biomechanics.MissingGRFReason.notMissingGRF
 
                 gui.nativeAPI().renderSkeleton(skel, overrideColor=[1,0,0,1] if missing_grf else [0.7,0.7,0.7,1])
+                gui.nativeAPI().setTextContents('missing_reason', str(loaded[0].missingGRFReason))
 
                 joint_centers = loaded[0].processingPasses[-1].jointCentersInRootFrame
                 num_joints = int(len(joint_centers) / 3)
@@ -296,6 +299,8 @@ class ViewCommand(AbstractCommand):
                         for k in range(skel.getBodyNode(b).getNumShapeNodes()):
                             gui.nativeAPI().setObjectColor('world_' + skel.getName() + "_" + skel.getBodyNode(b).getName() + "_" + str(k),
                                                            [0.7, 0.7, 0.7, 1])
+
+                gui.nativeAPI().setTextContents('missing_reason', str(loaded[0].missingGRFReason))
 
                 if dof is not None:
                     joint_pos = skel.getJointWorldPositions([graph_joint])
