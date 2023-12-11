@@ -10,6 +10,7 @@ type PathData = {
     path: string;
     folders: string[];
     files: FileMetadata[];
+    children: Map<string, PathData>;
     recursive: boolean;
     readonly?: boolean;
 };
@@ -169,9 +170,10 @@ class LiveDirectoryImpl extends LiveDirectory {
                         let rootPathData: PathData = {...rootPathDataOrNull};
                         if (!rootPathData.recursive) {
                             rootPathData.recursive = true;
-                            rootPathData.files = [...folderPathDatas.flatMap((folderPathData) => {
-                                return folderPathData.files;
-                            }), ...rootPathData.files];
+                            for (let folderPathData of folderPathDatas) {
+                                let childName = folderPathData.path.substring(originalPath.length);
+                                rootPathData.children.set(childName, folderPathData);
+                            }
                             const normalizedPath = this.normalizePath(originalPath);
                             this._setCachedPath(normalizedPath, rootPathData);
                         }
@@ -219,6 +221,9 @@ class LiveDirectoryImpl extends LiveDirectory {
     }
 
     getPath(originalPath: string, recursive: boolean = false, abortController?: AbortController): PathData {
+        if (originalPath.startsWith('/')) {
+            originalPath = originalPath.substring(1);
+        }
         let prefix = this.prefix;
         if (!prefix.endsWith('/')) {
             prefix += '/';
@@ -240,6 +245,15 @@ class LiveDirectoryImpl extends LiveDirectory {
         // If we reach this point, the path has not yet been loaded
         // Kick off a load for the PathData, and keep around a promise for that load completing
         const onLoadedData = (folders: string[], files: FileMetadata[]) => {
+            let result: PathData = {
+                loading: false,
+                promise: null,
+                path: originalPath,
+                folders: [],
+                files: [],
+                children: new Map(),
+                recursive: recursive,
+            };
             files = files.map((file) => {
                     return {
                         // Trim the prefix, and leading slashes
@@ -248,29 +262,61 @@ class LiveDirectoryImpl extends LiveDirectory {
                         size: file.size,
                     };
                 });
-            if (recursive) {
-                // If we loaded this recursively, then we need to infer the folder paths from the file paths
-                const originalPathWithSlash = originalPath + (originalPath.endsWith('/') ? '' : '/');
-                folders = [...new Set(files.filter((file) => {
-                    return file.key.substring(originalPathWithSlash.length).includes('/');
-                }).map((file) => {
-                    return file.key.substring(0, file.key.indexOf('/', originalPathWithSlash.length) + 1);
-                }))];
-            }
-            else {
+            if (!recursive) {
                 // Remove the prefix from the folder paths
-                folders = folders.map((folder) => {
+                result.files = files;
+                result.folders = folders.map((folder) => {
                     return folder.substring(prefix.length).replace(/^\//, '');
                 });
             }
-            const result: PathData = {
-                loading: false,
-                promise: null,
-                path: originalPath,
-                folders,
-                files,
-                recursive: recursive,
-            };
+            // else {
+            //     const originalPathWithSlash = originalPath + (originalPath.endsWith('/') ? '' : '/');
+            //     folders = [...new Set(files.filter((file) => {
+            //         return file.key.substring(originalPathWithSlash.length).includes('/');
+            //     }).map((file) => {
+            //         return file.key.substring(0, file.key.indexOf('/', originalPathWithSlash.length) + 1);
+            //     }))];
+            // }
+            // If we loaded recursively, we need to fill in the child PathData entries
+            if (recursive) {
+                const originalPathWithSlash = originalPath + (originalPath.endsWith('/') ? '' : '/');
+                for (let i = 0; i < files.length; i++) {
+                    const pathParts = files[i].key.substring(originalPath.length > 0 ? originalPathWithSlash.length : 0).split('/');
+
+                    // Traverse the path, creating any missing PathData entries
+                    let cursor: PathData = result;
+                    for (let j = 0; j < pathParts.length - 1; j++) {
+                        let child: PathData | undefined = cursor.children.get(pathParts[j]);
+                        if (child == null) {
+                            let childPath = originalPathWithSlash + pathParts.slice(0, j + 1).join('/') + '/';
+                            child = {
+                                loading: false,
+                                promise: null,
+                                path: childPath,
+                                folders: [],
+                                files: [],
+                                children: new Map(),
+                                recursive: true,
+                            };
+                            cursor.children.set(pathParts[j], child);
+                            cursor.folders.push(childPath);
+                        }
+                        cursor = child;
+                    }
+
+                    // Now we have a cursor at the right place, we can add the file
+                    cursor.files.push(files[i]);
+                }
+
+                // const recursivelyPrint = (pathData: PathData, indent: string) => {
+                //     console.log(indent + pathData.path + " (" + pathData.files.length + " files, " + pathData.folders.length + " folders)");
+                //     for (let child of pathData.children.values()) {
+                //         recursivelyPrint(child, indent + "  ");
+                //     }
+                // };
+                // recursivelyPrint(result, "");
+            }
+
             this._setCachedPath(path, result);
             return result;
         };
@@ -303,6 +349,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                 path: originalPath,
                 folders: [],
                 files: [],
+                children: new Map(),
                 recursive: recursive,
             };
             // In the mean time, return the stub saying that we're loading the data
@@ -350,6 +397,9 @@ class LiveDirectoryImpl extends LiveDirectory {
         if (originalPath.startsWith('/')) {
             originalPath = originalPath.substring(1);
         }
+        if (originalPath.endsWith('/')) {
+            originalPath = originalPath.substring(0, originalPath.length - 1);
+        }
         const normalizedPath = this.normalizePath(originalPath);
 
         const cached = this.pathCache.get(normalizedPath);
@@ -368,34 +418,32 @@ class LiveDirectoryImpl extends LiveDirectory {
             const normalizedParentPath = this.normalizePath(parentPath);
             const cachedParentPath: PathData | undefined = this.pathCache.get(normalizedParentPath);
             if (cachedParentPath != null && cachedParentPath.recursive) {
-                // We've already loaded the parent path recursively, so we can infer the contents of this path
-                // without having to load it.
-
-                /////////// THIS IS THE SUPER SLOW PART TO OPTIMIZE OUT!!!!!!!
-                let allFiles = cachedParentPath.files.filter((file) => {
-                    return file.key.startsWith(originalPath);
-                });
-                ///////////////////////////////////////////////////////////////
-
-                const originalPathWithSlash = originalPath + (originalPath.endsWith('/') ? '' : '/');
-                let folders: string[] = [...new Set(allFiles.filter((file) => {
-                    return file.key.substring(originalPathWithSlash.length).includes('/');
-                }).map((file) => {
-                    return file.key.substring(0, file.key.indexOf('/', originalPathWithSlash.length + 1) + 1);
-                }))];
-                const result: PathData = {
-                    loading: false,
-                    promise: null,
-                    path: originalPath,
-                    folders: folders,
-                    files: allFiles,
-                    recursive: true,
-                };
-                if (!doNotSaveIfNotExists) {
-                    // Do not call the change listeners when we save this, because we're just inferring the contents to be the same as the parent
-                    this._setCachedPath(normalizedPath, result, true);
+                const remainingPathParts = pathParts.slice(i);
+                let cursor = cachedParentPath;
+                for (let j = 0; j < remainingPathParts.length; j++) {
+                    const child = cursor.children.get(remainingPathParts[j]);
+                    if (child == null) {
+                        if (j === remainingPathParts.length - 1) {
+                            const fileMatch = cursor.files.filter((file) => {
+                                return file.key.endsWith(remainingPathParts[j]);
+                            });
+                            if (fileMatch.length === 1) {
+                                return {
+                                    loading: false,
+                                    promise: null,
+                                    path: normalizedPath,
+                                    folders: [],
+                                    files: fileMatch,
+                                    children: new Map(),
+                                    recursive: false,
+                                };
+                            }
+                        }
+                        return undefined;
+                    }
+                    cursor = child;
                 }
-                return result;
+                return cursor;
             }
         }
 
@@ -441,7 +489,7 @@ class LiveDirectoryImpl extends LiveDirectory {
         const localPathParts: string[] = localPath.split('/');
         let promises: Promise<void>[] = [];
         // For every level of hierarchy depth, we want to check if that path has already been 
-        // loaded (either with a trailing slash or without) and then send appropriate updates.
+        // loaded (always without the trailing slash) and then send appropriate updates.
         for (let i = localPathParts.length; i >= 0; i--) {
             let localSubPath = localPathParts.slice(0, i).join('/');
             if (!this.prefix.endsWith('/') && i > 0) {
@@ -468,15 +516,39 @@ class LiveDirectoryImpl extends LiveDirectory {
 
                 if (!updatedCacheData.loading) {
                     if (updatedCacheData.recursive || i >= localPathParts.length - 1) {
-                        if (!updatedCacheData.files.map(f => f.key).includes(localPath)) {
-                            updatedCacheData.files.push(file);
+                        const remainingPathParts = localPath.substring(updatedCacheData.path.length).split('/');
+                        let cursor = updatedCacheData;
+                        for (let j = 0; j < remainingPathParts.length - 1; j++) {
+                            let child = cursor.children.get(remainingPathParts[j]);
+                            if (child == null) {
+                                let childPath = updatedCacheData.path + remainingPathParts.slice(0, j + 1).join('/') + '/';
+                                child = {
+                                    loading: false,
+                                    promise: null,
+                                    path: childPath,
+                                    folders: [],
+                                    files: [],
+                                    children: new Map(),
+                                    recursive: true,
+                                };
+                                cursor.children.set(remainingPathParts[j], child);
+                                if (!cursor.folders.includes(childPath)) {
+                                    cursor.folders.push(childPath);
+                                }
+                                anyChanged = true;
+                            }
+                            cursor = child;
+                        }
+
+                        if (!cursor.files.map(f => f.key).includes(localPath)) {
+                            cursor.files.push(file);
                             anyChanged = true;
                         }
                         else {
                             // If the file is already in the list, then we need to update its lastModified and size
-                            const existingFileIndex = updatedCacheData.files.map(f => f.key).indexOf(localPath);
+                            const existingFileIndex = cursor.files.map(f => f.key).indexOf(localPath);
                             if (existingFileIndex !== -1) {
-                                updatedCacheData.files[existingFileIndex] = {
+                                cursor.files[existingFileIndex] = {
                                     ...updatedCacheData.files[existingFileIndex],
                                     lastModified: file.lastModified,
                                     size: file.size
@@ -503,6 +575,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                         path: file.key,
                         folders: [],
                         files: [file],
+                        children: new Map(),
                         recursive: false,
                     });
                 }
@@ -538,29 +611,97 @@ class LiveDirectoryImpl extends LiveDirectory {
             const cachedData: PathData | undefined = this.pathCache.get(pathToCheck);
             if (cachedData) {
                 if (!cachedData.loading) {
-                    const files = cachedData.files.filter(f => f.key !== localPath);
-                    let folders = cachedData.folders;
                     if (cachedData.recursive) {
+                        // console.log("Deleting file " + localPath + " from " + cachedData.path + " recursively");
                         // If we loaded recursively, we can regenerate the list of folders from 
                         // the files after we delete a file, to ensure that we propagate deletions 
                         // of empty folders.
-                        const localPathNoLeadingSlash = localPathParts.slice(0, i).join('/');
-                        folders = [...new Set(files.filter((file) => {
-                            return file.key.substring(localPathNoLeadingSlash.length).includes('/');
-                        }).map((file) => {
-                            return file.key.substring(0, file.key.indexOf('/', localPathNoLeadingSlash.length + 1));
-                        }).filter((folder) => folder.length > 0 ))];
+                        const remainingPathParts = localPath.substring(cachedData.path.length).split('/');
+                        if (remainingPathParts[0] === '') remainingPathParts.shift();
+                        let cursor = cachedData;
+                        let foldersToDelete: string[] = [];
+                        for (let j = 0; j < remainingPathParts.length; j++) {
+                            const newFiles = cursor.files.filter((file) => {
+                                return file.key !== localPath;
+                            });
+                            if (cursor.files.length > 0 && newFiles.length === 0) {
+                                foldersToDelete.push(cursor.path);
+                                break;
+                            }
+                            else {
+                                cursor.files = newFiles;
+                                let child = cursor.children.get(remainingPathParts[j]);
+                                if (child == null) {
+                                    break;
+                                }
+                                cursor = child;
+                            }
+                        }
+                        if (cursor != null) {
+                            cursor.files = cursor.files.filter((file) => {
+                                return file.key !== localPath;
+                            });
+                        }
+
+                        // Go through and delete any empty folders
+                        while (foldersToDelete.length > 0) {
+                            const folderToDelete = foldersToDelete.pop();
+                            if (folderToDelete != null) {
+                                let folderName = folderToDelete.substring(cachedData.path.length);
+                                if (folderName.endsWith('/')) folderName = folderName.substring(0, folderName.length - 1);
+                                const folderPathParts = folderName.split('/');
+                                if (folderPathParts[0] === '') folderPathParts.shift();
+
+                                let cursor: PathData | undefined = cachedData;
+                                // console.log(folderPathParts);
+                                for (let j = 0; j < folderPathParts.length - 1; j++) {
+                                    let child: PathData | undefined = cursor!.children.get(folderPathParts[j]);
+                                    if (child == null) {
+                                        // console.log("Couldn't find folder " + folderPathParts[j] + " in " + cursor.path);
+                                        cursor = undefined;
+                                        break;
+                                    }
+                                    cursor = child;
+                                }
+                                if (cursor != null) {
+                                    // console.log("Deleting folder " + folderToDelete + " from " + cursor.path);
+                                    cursor.children.delete(folderPathParts[folderPathParts.length - 1]);
+                                    cursor.folders = cursor.folders.filter((folder) => {
+                                        return folder !== folderToDelete;
+                                    });
+                                    if (cursor.files.length === 0 && cursor.folders.length === 0) {
+                                        // console.log("Now empty, deleting folder " + cursor.path);
+                                        if (cursor.path !== folderToDelete) {
+                                            foldersToDelete.push(cursor.path);
+                                        }
+                                    }
+                                    else {
+                                        // console.log("Not empty, not deleting folder " + cursor.path + " (" + cursor.files.map(f => f.key) + " files, " + cursor.folders.length + " folders)");
+                                    }
+                                }
+                            }
+                        }
+
+                        // const localPathNoLeadingSlash = localPathParts.slice(0, i).join('/');
+                        // folders = [...new Set(files.filter((file) => {
+                        //     return file.key.substring(localPathNoLeadingSlash.length).includes('/');
+                        // }).map((file) => {
+                        //     return file.key.substring(0, file.key.indexOf('/', localPathNoLeadingSlash.length + 1));
+                        // }).filter((folder) => folder.length > 0 ))];
+                    }
+                    else {
+                        cachedData.files = cachedData.files.filter((file) => {
+                            return file.key !== localPath;
+                        });
                     }
                     const updatedData = {
-                        ...cachedData,
-                        files,
-                        folders
+                        ...cachedData
                     };
                     this._setCachedPath(pathToCheck, updatedData);
 
                     // This means that a folder has been completely deleted, so we should check if its parent was _not_
                     // loaded recursively, and if so, we should delete it from the parent's list of folders.
-                    if (files.length === 0 && folders.length === 0) {
+                    if (updatedData.files.length === 0 && updatedData.folders.length === 0) {
                         let parentPath = pathToCheck;
                         if (parentPath.endsWith('/')) parentPath = parentPath.substring(0, parentPath.length - 1);
                         parentPath = parentPath.substring(0, parentPath.lastIndexOf('/') + 1);
@@ -591,6 +732,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                         path: pathToCheck,
                         folders: [],
                         files: [],
+                        children: new Map(),
                         recursive: false,
                     });
                 }
@@ -684,6 +826,25 @@ class LiveDirectoryImpl extends LiveDirectory {
         });
     }
 
+    recursivelyGetAllCachedFiles(path: string): FileMetadata[] {
+        if (path.endsWith('/')) {
+            path = path.substring(0, path.length - 1);
+        }
+        if (path.startsWith('/')) {
+            path = path.substring(1);
+        }
+        let files: FileMetadata[] = [];
+        const cachedData = this.getCachedPath(path);
+        if (cachedData != null) {
+            files = [...cachedData.files];
+            for (let child of cachedData.children.values()) {
+                files = files.concat(this.recursivelyGetAllCachedFiles(child.path));
+            }
+        }
+        return files;
+    }
+
+
     async deleteByPrefix(path: string): Promise<void>
     {
         if (path.endsWith('/')) {
@@ -696,7 +857,8 @@ class LiveDirectoryImpl extends LiveDirectory {
         if (data.promise != null) {
             data = await data.promise;
         }
-        const files = data.files;
+        const files = this.recursivelyGetAllCachedFiles(path);
+        // console.log("Deleting " + files.length + " files: ", files);
         return Promise.all(files.map((file) => {
             return this.delete(file.key);
         })) as any as Promise<void>;

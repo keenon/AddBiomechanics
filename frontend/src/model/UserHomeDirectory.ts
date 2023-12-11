@@ -70,16 +70,12 @@ type FolderReviewStatus = {
     segmentsReviewed: TrialSegmentContents[];
 };
 
-type PathMetadata = {
-    type: PathType;
-    status: PathStatus;
-    reviewStatus: FolderReviewStatus;
-};
-
 class UserHomeDirectory {
     dir: LiveDirectory;
     subjectViewStates: Map<string, SubjectViewState> = new Map();
-    pathMetadata: Map<string, PathMetadata> = new Map();
+    pathTypeCache: Map<string, PathType> = new Map();
+    pathStatusCache: Map<string, PathStatus> = new Map();
+    pathReviewCache: Map<string, FolderReviewStatus> = new Map();
 
     // 'protected/' + s3.region + ':' + userId + '/data/'
     constructor(dir: LiveDirectory) {
@@ -97,13 +93,17 @@ class UserHomeDirectory {
                 let pathParts = path.split('/');
                 for (let i = pathParts.length - 1; i >= 0; i--) {
                     const subPath = pathParts.slice(0, i+1).join('/');
-                    this.updateMetadata(subPath);
+                    this.pathTypeCache.delete(subPath);
+                    this.pathStatusCache.delete(subPath);
+                    this.pathReviewCache.delete(subPath);
                 }
             });
         }));
 
         makeObservable(this, {
-            pathMetadata: observable,
+            pathTypeCache: observable,
+            pathStatusCache: observable,
+            pathReviewCache: observable
         });
     }
 
@@ -116,37 +116,11 @@ class UserHomeDirectory {
                 path,
                 folders: [],
                 files: [],
+                children: new Map(),
                 recursive,
             };
         }
         return dir.getPath(path, recursive);
-    }
-
-    updateMetadata(path: string): void {
-        if (path.startsWith('/')) {
-            path = path.substring(1);
-        }
-        if (path.endsWith('/')) {
-            path = path.substring(0, path.length-1);
-        }
-
-        const cachedData = this.dir.getCachedPath(path, true);
-
-        if (!cachedData?.loading && cachedData?.recursive) {
-            for (let folder of cachedData?.folders ?? []) {
-                this.updateMetadata(folder);
-            }
-        }
-
-        const type: PathType = this.computePathType(path);
-        const newData = {
-            type,
-            status: this.computePathStatus(path, type),
-            reviewStatus: this.getFolderReviewStatus(path, type)
-        };
-        action(() => {
-            this.pathMetadata.set(path, newData);
-        })();
     }
 
     getPathType(path: string): PathType {
@@ -157,13 +131,14 @@ class UserHomeDirectory {
             path = path.substring(0, path.length-1);
         }
 
-        const metadata = this.pathMetadata.get(path);
-        if (metadata != null) {
-            return metadata.type;
+        let type = this.pathTypeCache.get(path);
+        if (type == null) {
+            type = this.computePathType(path);
+            action(() => {
+                this.pathTypeCache.set(path, type!);
+            });
         }
-        else {
-            return 'loading';
-        }
+        return type;
     }
 
     computePathType(path: string): PathType {
@@ -233,13 +208,14 @@ class UserHomeDirectory {
             path = path.substring(0, path.length-1);
         }
 
-        const metadata = this.pathMetadata.get(path);
-        if (metadata != null) {
-            return metadata.status;
+        let status = this.pathStatusCache.get(path);
+        if (status == null) {
+            status = this.computePathStatus(path);
+            action(() => {
+                this.pathStatusCache.set(path, status!);
+            });
         }
-        else {
-            return 'loading';
-        }
+        return status;
     }
 
     /**
@@ -247,7 +223,7 @@ class UserHomeDirectory {
      * 
      * @param path The path to the folder to check
      */
-    computePathStatus(path: string, pathType: PathType): PathStatus {
+    computePathStatus(path: string): PathStatus {
         if (path.startsWith('/')) {
             path = path.substring(1);
         }
@@ -257,7 +233,7 @@ class UserHomeDirectory {
             return 'loading';
         }
 
-        // console.log("Computing path status for \"" + path + "\"");
+        const pathType: PathType = this.getPathType(path);
 
         if (pathType === 'dataset') {
             const folderStatus: PathStatus[] = pathData.folders.map((folder) => {
@@ -353,7 +329,7 @@ class UserHomeDirectory {
         return {
             loading: pathData.loading,
             status: this.getPathStatus(path),
-            contents: pathData.folders.map((folder) => {
+            contents: pathData.folders.filter(folder => folder !== path).map((folder) => {
                 return {
                     name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
                     path: folder,
