@@ -407,7 +407,8 @@ describe("LiveDirectory", () => {
 
         const path = api.getPath("ASB2023/", false);
         await path.promise;
-        expect(counter.count).toBe(2);
+        // Once for loading: true, again for loading: false
+        expect(counter.count).toBe(3);
 
         disposer();
     });
@@ -439,7 +440,8 @@ describe("LiveDirectory", () => {
 
         const path = api.getPath("ASB2023/", true);
         await path.promise;
-        expect(counter.count).toBe(2);
+        // Changes once for loading: true, again for loading: false
+        expect(counter.count).toBe(3);
 
         disposer();
     });
@@ -464,7 +466,8 @@ describe("LiveDirectory", () => {
 
         await api.getPath("ASB2023/", false).promise;
 
-        expect(counter.count).toBe(1);
+        // Changes once for loading=true, again for fully loaded
+        expect(counter.count).toBe(2);
     });
 
     test("Uploading data sends PubSub messages", async () => {

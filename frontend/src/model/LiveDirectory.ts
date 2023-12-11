@@ -341,8 +341,8 @@ class LiveDirectoryImpl extends LiveDirectory {
         };
 
         let firstLoadPath = path;
-        // If we're not loading recursively then we know this is a folder and can skip the first load without the slash for efficiency
-        if (!recursive) {
+        // If we're not loading recursively and this is the root path, then we want to load the root path with a trailing slash
+        if (!recursive && originalPath.length === 0) {
             firstLoadPath = path + '/';
         }
         const promise: Promise<PathData> = this.s3.loadPathData(firstLoadPath, recursive, abortController).then(action(({folders, files}) => {
@@ -371,6 +371,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                 children: new Map(),
                 recursive: recursive,
             };
+            this._setCachedPath(path, stub);
             // In the mean time, return the stub saying that we're loading the data
             return stub;
         }
@@ -412,7 +413,7 @@ class LiveDirectoryImpl extends LiveDirectory {
         }
     }
 
-    getCachedPath(originalPath: string, doNotSaveIfNotExists?: boolean): PathData | undefined {
+    getCachedPath(originalPath: string): PathData | undefined {
         if (originalPath.startsWith('/')) {
             originalPath = originalPath.substring(1);
         }
@@ -599,6 +600,11 @@ class LiveDirectoryImpl extends LiveDirectory {
         if (promises.length > 0) {
             return Promise.all(promises).then(() => {});
         }
+
+        this.changeListeners.forEach((listener) => {
+            listener([localPath]);
+        });
+
         return Promise.resolve();
     }
 

@@ -300,7 +300,7 @@ describe("UserHomeDirectory", () => {
         ]);
         const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
         const api = new UserHomeDirectory(dir);
-        await api.getPath("ASB2023/", false);
+        await api.getPath("ASB2023/", true);
 
         const counter = { count: 0 };
         autorun(() => {
