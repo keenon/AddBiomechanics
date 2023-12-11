@@ -98,8 +98,9 @@ class LiveFile {
      * This will do a refresh of the contents of the file from S3
      */
     refreshFile(): Promise<void> {
-        const pathData = this.dir.getPath(this.path, false);
-        if (pathData.loading && pathData.promise != null) {
+        const pathData = this.dir.getCachedPath(this.path, false);
+        const loading = pathData?.loading ?? true;
+        if (loading && pathData?.promise != null) {
             this.loading = pathData.promise.then(action((resultDate: PathData) => {
                 this.exists = resultDate.files.map((file) => file.key).includes(this.path);
                 if (this.exists) {
@@ -111,9 +112,10 @@ class LiveFile {
             return this.loading;
         }
         else {
-            this.exists = pathData.files.map((file) => file.key).includes(this.path);
+            const files = pathData?.files ?? [];
+            this.exists = files.map((file) => file.key).includes(this.path);
             if (this.exists) {
-                this.metadata = pathData.files.filter((file) => file.key === this.path)[0];
+                this.metadata = files.filter((file) => file.key === this.path)[0];
             }
             this.loading = null;
             return Promise.resolve();

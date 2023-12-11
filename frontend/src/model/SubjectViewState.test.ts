@@ -58,7 +58,7 @@ describe("SubjectViewState", () => {
         await home.getPath("ASB2023/S01", false).promise;
         await home.getPath("ASB2023/S01/trials", false).promise;
 
-        expect(subject.reloadCount).toBe(4);
+        expect(subject.reloadCount).toBe(2);
     });
 
     test("Autorun reloadState on deletes", async () => {

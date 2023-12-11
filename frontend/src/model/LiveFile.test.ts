@@ -17,6 +17,7 @@ describe("LiveFile", () => {
         ]);
 
         const file = new LiveFile(api, "ASB2023/S01/PROCESSING");
+        api.getPath("ASB2023/S01/PROCESSING", false);
         await file.refreshFile();
         expect(file.exists).toBe(true);
     });
@@ -34,6 +35,7 @@ describe("LiveFile", () => {
         ]);
 
         const file = new LiveFile(api, "/ASB2023/S01/PROCESSING");
+        api.getPath("ASB2023/S01/PROCESSING", false);
         await file.refreshFile();
         expect(file.exists).toBe(true);
     });
@@ -45,6 +47,7 @@ describe("LiveFile", () => {
         const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
 
         const file = new LiveFile(api, "ASB2023/S01/PROCESSING");
+        api.getPath("ASB2023/S01/PROCESSING", false);
         await file.uploadFlag();
         expect(file.exists).toBe(true);
         expect(pubsub.mockSentMessagesLog.length).toBe(1); // we should have updated PubSub with the changes
@@ -66,6 +69,7 @@ describe("LiveFile", () => {
         ]);
 
         const file = new LiveFile(api, "ASB2023/S01/PROCESSING");
+        api.getPath("ASB2023/S01/PROCESSING", false);
         await file.refreshFile();
         expect(file.exists).toBe(true);
         await file.delete();
@@ -81,6 +85,7 @@ describe("LiveFile", () => {
         const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
 
         const file = new LiveFile(api, "ASB2023/S01/PROCESSING");
+        api.getPath("ASB2023/S01/PROCESSING", false);
         await file.refreshFile();
         expect(file.exists).toBe(false);
 
@@ -112,11 +117,12 @@ describe("LiveFile", () => {
             type: 'text/plain',
         });
 
+        await api.getPath("", true).promise;
+
         const liveFile = new LiveFile(api, "ASB2023/S01/PROCESSING");
         const promise = liveFile.uploadFile(file);
         expect(liveFile.exists).toBe(false);
         expect(liveFile.metadata).toBeNull();
-        expect(liveFile.loading).not.toBeNull();
 
         s3.resolveMockFileUploads();
 

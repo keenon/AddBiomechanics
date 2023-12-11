@@ -10,6 +10,8 @@ import { Spinner } from "react-bootstrap";
 
 import logoutIcon from "./logout-icon.svg";
 
+import Session from "../../model/Session";
+
 /* bottom link */
 const BottomLink = () => {
   const { t } = useTranslation();
@@ -28,7 +30,11 @@ const BottomLink = () => {
   );
 };
 
-const Logout = () => {
+type LogoutProps = {
+  session: Session;
+};
+
+const Logout = (props: LogoutProps) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
 

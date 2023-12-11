@@ -17,6 +17,31 @@ test('List files success', async () => {
     expect(files.length).toBe(1);
 });
 
+test('List files cancel', async () => {
+    const api: S3APIMock = new S3APIMock();
+    api.mockLoadBeforeHalt = 0;
+    api.setFiles([{
+        key: 'test',
+        lastModified: new Date(),
+        size: 0,
+    }]);
+    const abortController = new AbortController();
+    const promise = api.loadPathData('', true, abortController);
+    let caught = [false];
+    promise.catch(() => {
+        console.log("Caught error in loadPathData Promise");
+        caught[0] = true;
+    });
+    abortController.abort();
+    try {
+        await promise;
+    }
+    catch (e) {
+        console.log("Caught error in await");
+    }
+    expect(caught[0]).toBe(true);
+});
+
 test('List files prefix recursively', async () => {
     const api: S3APIMock = new S3APIMock();
     api.setFiles([{

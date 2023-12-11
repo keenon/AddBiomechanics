@@ -281,7 +281,11 @@ class Subject:
             # We only want to load folders, not files
             if not os.path.isdir(trials_folder_path + trial_name):
                 continue
-            trial: Trial = Trial.load_trial(trial_name, trials_folder_path + trial_name + '/')
+            trial: Trial = Trial.load_trial(
+                trial_name,
+                trials_folder_path + trial_name + '/',
+                trial_index=len(self.trials)
+            )
             self.trials.append(trial)
 
     def load_folder(self, subject_folder: str, data_folder_path: str):
@@ -368,7 +372,7 @@ class Subject:
                     for obs in trial_segment.marker_observations:
                         for key in obs:
                             marker_set.add(key)
-                    trial_segment.has_error = True
+                    trial_segment.error = True
                     trial_segment.error_msg = (f'There are fewer than 8 markers that show up in the OpenSim model and '
                                                f'in trial {trial.trial_name} segment {str(j+1)}/'
                                                f'{str(len(trial.segments))}. The markers in this trial are: '
@@ -399,17 +403,17 @@ class Subject:
                     for t in range(len(trial_segment.marker_observations)):
                         for marker in trial_segment.marker_observations[t]:
                             if np.any(np.isnan(trial_segment.marker_observations[t][marker])):
-                                trial_segment.has_error = True
+                                trial_segment.error = True
                                 trial_segment.error_msg = 'Trial had NaNs in the data after running MarkerFixer.'
                                 print(trial_segment.error_msg, flush=True)
                                 break
                             if np.any(np.abs(trial_segment.marker_observations[t][marker]) > 1e+6):
-                                trial_segment.has_error = True
+                                trial_segment.error = True
                                 trial_segment.error_msg = ('Trial had suspiciously large marker values after running '
                                                            'MarkerFixer.')
                                 print(trial_segment.error_msg, flush=True)
                                 break
-                        if trial_segment.has_error:
+                        if trial_segment.error:
                             break
 
         print('All trial markers have been cleaned up!', flush=True)
@@ -418,12 +422,12 @@ class Subject:
         for trial in self.trials:
             if not trial.error:
                 for segment in trial.segments:
-                    if segment.has_markers and not segment.has_error:
+                    if segment.has_markers and not segment.error:
                         trial_segments.append(segment)
                         segment.kinematics_status = ProcessingStatus.IN_PROGRESS
                     else:
                         segment.kinematics_status = ProcessingStatus.ERROR
-                        if segment.has_error:
+                        if segment.error:
                             print('Skipping kinematics fit of segment starting at ' + str(segment.start) + ' of trial ' + str(trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
             else:
                 # If the whole trial is an error condition, then bail on all the segments as well
@@ -548,10 +552,10 @@ class Subject:
             if not trial.error:
                 for segment in trial.segments:
                     if (segment.has_markers and
-                            segment.kinematics_status == ProcessingStatus.FINISHED and not segment.has_error):
+                            segment.kinematics_status == ProcessingStatus.FINISHED and not segment.error):
                         trial_segments.append(segment)
                         segment.lowpass_status = ProcessingStatus.IN_PROGRESS
-                    elif segment.has_error:
+                    elif segment.error:
                         print('Skipping lowpass filtering of segment starting at ' + str(segment.start) + ' of trial ' + str(
                             trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
         # If there are no segments left that aren't in error, quit
@@ -581,10 +585,10 @@ class Subject:
             if not trial.error:
                 for segment in trial.segments:
                     if (segment.has_markers and segment.has_forces
-                            and segment.kinematics_status == ProcessingStatus.FINISHED and not segment.has_error):
+                            and segment.kinematics_status == ProcessingStatus.FINISHED and not segment.error):
                         trial_segments.append(segment)
                         segment.dynamics_status = ProcessingStatus.IN_PROGRESS
-                    elif segment.has_error:
+                    elif segment.error:
                         print('Skipping dynamics fit of segment starting at ' + str(segment.start) + ' of trial ' + str(
                             trial.trial_name) + ' due to error: ' + str(segment.error_msg), flush=True)
         # If there are no segments left that aren't in error, quit
@@ -645,11 +649,30 @@ class Subject:
                 foot_bodies,
                 [segment.lowpass_force_plates if segment.lowpass_status == ProcessingStatus.FINISHED else segment.force_plates for segment in trial_segments],
                 [int(1.0 / segment.parent.timestep) for segment in trial_segments],
-                [segment.marker_observations for segment in trial_segments])
+                [segment.marker_observations for segment in trial_segments],
+                initializedProbablyMissingGRF=[segment.missing_grf_manual_review for segment in trial_segments]
+            )
         print('Created DynamicsInitialization', flush=True)
 
-        dynamics_fitter.estimateFootGroundContacts(dynamics_init,
-                                                   ignoreFootNotOverForcePlate=self.ignoreFootNotOverForcePlate)
+        radius: float = 0.05
+        min_time: float = 0.15
+        dynamics_fitter.estimateFootGroundContactsWithStillness(dynamics_init, radius=radius, minTime=min_time)
+
+        # Double check that manual review status is preserved
+        probably_missing = dynamics_init.probablyMissingGRF
+        missing_grf_reason = dynamics_init.missingGRFReason
+        for trial in range(len(probably_missing)):
+            for t in range(len(probably_missing[trial])):
+                manual_status: nimble.biomechanics.MissingGRFStatus = trial_segments[trial].missing_grf_manual_review[t]
+                status: nimble.biomechanics.MissingGRFStatus = probably_missing[trial][t]
+                reason: nimble.biomechanics.MissingGRFReason = missing_grf_reason[trial][t]
+                if manual_status == nimble.biomechanics.MissingGRFStatus.no:
+                    assert(status == nimble.biomechanics.MissingGRFStatus.no)
+                    assert(reason == nimble.biomechanics.MissingGRFReason.notMissingGRF)
+                elif manual_status == nimble.biomechanics.MissingGRFStatus.yes:
+                    assert(status == nimble.biomechanics.MissingGRFStatus.yes)
+                    assert(reason == nimble.biomechanics.MissingGRFReason.manualReview)
+
         print("Initial mass: " +
               str(self.skeleton.getMass()) + " kg", flush=True)
         print("What we'd expect average ~GRF to be (Mass * 9.8): " +
@@ -683,13 +706,28 @@ class Subject:
             tuneLinkMasses=False
         )
 
+        # Double check that manual review status is preserved
+        probably_missing = dynamics_init.probablyMissingGRF
+        missing_grf_reason = dynamics_init.missingGRFReason
+        for trial in range(len(dynamics_init.probablyMissingGRF)):
+            for t in range(len(dynamics_init.probablyMissingGRF[trial])):
+                manual_status: nimble.biomechanics.MissingGRFStatus = trial_segments[trial].missing_grf_manual_review[t]
+                status: nimble.biomechanics.MissingGRFStatus = probably_missing[trial][t]
+                reason: nimble.biomechanics.MissingGRFReason = missing_grf_reason[trial][t]
+                if manual_status == nimble.biomechanics.MissingGRFStatus.no:
+                    assert(status == nimble.biomechanics.MissingGRFStatus.no)
+                    assert(reason == nimble.biomechanics.MissingGRFReason.notMissingGRF)
+                elif manual_status == nimble.biomechanics.MissingGRFStatus.yes:
+                    assert(status == nimble.biomechanics.MissingGRFStatus.yes)
+                    assert(reason != nimble.biomechanics.MissingGRFReason.notMissingGRF)
+
         # 8.3. If initialization succeeded, we will proceed with the full "kitchen sink" optimization.
         if initialize_success:
             good_frames_count = 0
             total_frames_count = 0
             for trialMissingGRF in dynamics_init.probablyMissingGRF:
                 good_frames_count += sum(
-                    [0 if missing else 1 for missing in trialMissingGRF])
+                    [1 if missing == nimble.biomechanics.MissingGRFStatus.no else 0 for missing in trialMissingGRF])
                 total_frames_count += len(trialMissingGRF)
             bad_frames_count = total_frames_count - good_frames_count
             print('Detected missing/bad GRF data on ' + str(bad_frames_count) + '/' + str(
@@ -802,14 +840,28 @@ class Subject:
                             dynamics_init, segment)
 
         else:
-            print('WARNING: Unable to minimize residual moments below the desired threshold. Skipping '
-                  'body mass optimization and final bilevel optimization problem.', flush=True)
+            print('WARNING: Our timeSyncAndInitializePipeline() call failed.', flush=True)
 
         # 8.4. Apply results to skeleton and check physical consistency.
         dynamics_fitter.applyInitToSkeleton(self.skeleton, dynamics_init)
         dynamics_fitter.computePerfectGRFs(dynamics_init)
         dynamics_fitter.checkPhysicalConsistency(
             dynamics_init, maxAcceptableErrors=1e-3, maxTimestepsToTest=25)
+
+        # Double check that manual review status is preserved
+        probably_missing = dynamics_init.probablyMissingGRF
+        missing_grf_reason = dynamics_init.missingGRFReason
+        for trial in range(len(dynamics_init.probablyMissingGRF)):
+            for t in range(len(dynamics_init.probablyMissingGRF[trial])):
+                manual_status: nimble.biomechanics.MissingGRFStatus = trial_segments[trial].missing_grf_manual_review[t]
+                status: nimble.biomechanics.MissingGRFStatus = probably_missing[trial][t]
+                reason: nimble.biomechanics.MissingGRFReason = missing_grf_reason[trial][t]
+                if manual_status == nimble.biomechanics.MissingGRFStatus.no:
+                    assert(status == nimble.biomechanics.MissingGRFStatus.no)
+                    assert(reason == nimble.biomechanics.MissingGRFReason.notMissingGRF)
+                elif manual_status == nimble.biomechanics.MissingGRFStatus.yes:
+                    assert(status == nimble.biomechanics.MissingGRFStatus.yes)
+                    assert(reason != nimble.biomechanics.MissingGRFReason.notMissingGRF)
 
         # 8.5. Report the dynamics fitting results.
         print("Avg Marker RMSE: " +
@@ -829,12 +881,16 @@ class Subject:
         self.dynamics_markers = {key: (self.dynamics_skeleton.getBodyNode(body.getName()), offset) for key, (body, offset) in self.fitMarkers.items()}
 
         # 8.6. Store the dynamics fitting results in the shared data structures.
+        grf_trials = dynamics_init.grfTrials
+        pose_trials = dynamics_init.poseTrials
+        force_plate_trials = dynamics_init.forcePlateTrials
+
         for i in range(len(trial_segments)):
             trial_segments[i].dynamics_taus = dynamics_fitter.computeInverseDynamics(dynamics_init, i)
             num_steps_with_grf = 0
             num_steps_missing_grf = 0
             for missing in dynamics_init.probablyMissingGRF[i]:
-                if missing:
+                if missing == nimble.biomechanics.MissingGRFStatus.yes:
                     num_steps_missing_grf += 1
                 else:
                     num_steps_with_grf += 1
@@ -847,13 +903,13 @@ class Subject:
             else:
                 trial_segments[i].linear_residuals = 0.0
                 trial_segments[i].angular_residuals = 0.0
-            trial_segments[i].ground_height = dynamics_init.groundHeight[i]
-            trial_segments[i].foot_body_wrenches = dynamics_init.grfTrials[i]
-            trial_segments[i].missing_grf_reason = dynamics_init.missingGRFReason[i]
+            # trial_segments[i].ground_height = dynamics_init.groundHeight[i]
+            trial_segments[i].foot_body_wrenches = grf_trials[i]
+            trial_segments[i].missing_grf_reason = missing_grf_reason[i]
 
             bad_dynamics_frames: Dict[str, List[int]] = {}
             num_bad_dynamics_frames = 0
-            for iframe, reason in enumerate(dynamics_init.missingGRFReason[i]):
+            for iframe, reason in enumerate(missing_grf_reason[i]):
                 if reason.name not in bad_dynamics_frames:
                     bad_dynamics_frames[reason.name] = []
                 bad_dynamics_frames[reason.name].append(iframe)
@@ -861,8 +917,8 @@ class Subject:
                     num_bad_dynamics_frames += 1
 
             trial_segments[i].bad_dynamics_frames = bad_dynamics_frames
-            trial_segments[i].dynamics_poses = dynamics_init.poseTrials[i]
-            trial_segments[i].output_force_plates = dynamics_init.forcePlateTrials[i]
+            trial_segments[i].dynamics_poses = pose_trials[i]
+            trial_segments[i].output_force_plates = force_plate_trials[i]
             trial_segments[i].dynamics_status = ProcessingStatus.FINISHED
             trial_segments[i].dynamics_ik_error_report = nimble.biomechanics.IKErrorReport(
                 self.dynamics_skeleton,
@@ -1083,7 +1139,9 @@ class Subject:
                         grf_fpath,
                         segment.timestamps,
                         [self.skeleton.getBodyNode(name) for name in self.footBodyNames],
-                        segment.ground_height,
+                        self.skeleton,
+                        segment.dynamics_poses,
+                        segment.force_plates,
                         segment.foot_body_wrenches)
                     nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsProcessedForcesXMLFile(
                         segment_name,
@@ -1215,7 +1273,7 @@ class Subject:
                 # TODO: Acc, Gyro, EMG, Exo
                 trial_data.setMissingGRFReason(segment.missing_grf_reason)
                 trial_data.setTrialTags(trial.tags)
-                trial_data.setForcePlates(trial.force_plates)
+                trial_data.setForcePlates(segment.force_plates)
 
                 # 3. Create the passes, based on what we saw in the trials
                 if segment.kinematics_status == ProcessingStatus.FINISHED:

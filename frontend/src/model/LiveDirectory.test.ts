@@ -1,4 +1,4 @@
-import { LiveDirectory, LiveDirectoryImpl, PathData } from "./LiveDirectory";
+import { FaultIn, LiveDirectory, LiveDirectoryImpl, PathData } from "./LiveDirectory";
 import { S3APIMock } from "./S3API";
 import { PubSubSocketMock } from "./PubSubSocket";
 import { autorun, spy, trace, observable, action } from "mobx";
@@ -130,8 +130,16 @@ describe("LiveDirectory", () => {
             return;
         }
         expect(result.folders.length).toBe(2);
-        expect(result.files.length).toBe(9);
-        expect(result.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
+        expect(result.files.length).toBe(3);
+        expect(result.files.map(f => f.key)).toContain("ASB2023/S01");
+        expect(result.files.map(f => f.key)).toContain("ASB2023/TestProsthetic");
+
+        const childPath = api.getPath("ASB2023/S01", true);
+        expect(childPath.loading).toBe(false);
+        expect(childPath.path).toBe("ASB2023/S01/");
+        expect(childPath.folders.length).toBe(1);
+        expect(childPath.files.length).toBe(2);
+        expect(childPath.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
     });
 
     test("Loading the folder, then loading recursively", async () => {
@@ -175,9 +183,9 @@ describe("LiveDirectory", () => {
             fail("Promise returned null");
             return;
         }
-        expect(result2.files.length).toBe(9);
+        expect(result2.files.length).toBe(3);
         expect(result2.folders.length).toBe(2);
-        expect(result2.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
+        expect(result2.files.map(f => f.key)).toContain("ASB2023/S01");
     });
 
     test("Faulting in the root folder does the correct sequence of loads", async () => {
@@ -196,13 +204,14 @@ describe("LiveDirectory", () => {
             "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials/1",
         ]);
 
-        await api.faultInPath("ASB2023");
+        await api.faultInPath("ASB2023").promise;
         // We want to separately load the child folders, to give a nice user experience of folders coming in rapidly when they load the page
-        expect(s3.networkCallCount).toBe(4);
+        // Each subject gets a non-recursive load, and then a recursive load if it is a subject
+        expect(s3.networkCallCount).toBe(8);
 
         // Redundant calls should do nothing
-        await api.faultInPath("ASB2023");
-        expect(s3.networkCallCount).toBe(4);
+        await api.faultInPath("ASB2023").promise;
+        expect(s3.networkCallCount).toBe(8);
 
         // We want the root node to be recursive, after the progressive faulting in of all its children, so that subsequent 
         // file creations get registered correctly.
@@ -220,7 +229,64 @@ describe("LiveDirectory", () => {
         expect(new Set(cachedRootNode.files.map(f => f.key))).toStrictEqual(new Set(cachedRootNode2.files.map(f => f.key).filter(k => k != "ASB2023")));
     });
 
-    test("Loading recursively with real paths prevents nested loads from hitting the network", async () => {
+    test("Fault in and then cancel before it finishes", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/1",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials/1",
+        ]);
+        s3.mockLoadBeforeHalt = 1;
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+
+        const abortController: AbortController = new AbortController();
+
+        const faultIn: FaultIn = dir.faultInPath("", abortController);
+        const errorThrown = [false];
+        faultIn.promise.catch(() => {
+            console.log("Caught error in faultInPath Promise");
+            errorThrown[0] = true;
+        });
+
+        await faultIn.firstLoadPromise;
+
+        let rootNode = dir.getPath("", false);
+        const promise = rootNode.promise;
+        if (promise != null) {
+            rootNode = await promise;
+        }
+        expect(rootNode.recursive).toBe(false);
+        expect(rootNode.loading).toBe(false);
+        expect(rootNode.folders).toStrictEqual(["ASB2023/"]);
+
+        // No timing guarantees for this test
+
+        // const childNode = dir.getCachedPath("ASB2023/");
+        // expect(childNode).toBeDefined();
+        // expect(childNode?.loading).toBe(true);
+
+        abortController.abort();
+
+        try {
+            await faultIn.promise;
+        }
+        catch (e) {
+            console.log("Caught error in await");
+        }
+
+        expect(errorThrown[0]).toBe(true);
+        const updatedChildNode = dir.getCachedPath("ASB2023/");
+        expect(updatedChildNode).toBeUndefined();
+    });
+
+    test("Loading recursively prevents nested loads from hitting the network, with real paths", async () => {
         const s3 = new S3APIMock();
         const pubsub = new PubSubSocketMock("DEV");
         const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
@@ -246,16 +312,15 @@ describe("LiveDirectory", () => {
         }
         expect(s3.networkCallCount).toBe(1);
         expect(result.folders.length).toBe(2);
-        expect(result.files.length).toBe(9);
-        expect(result.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
+        expect(result.files.length).toBe(3);
+        expect(result.files.map(f => f.key)).toContain("ASB2023/S01");
 
         const childPath = api.getPath("ASB2023/S01/", false);
         expect(s3.networkCallCount).toBe(1);
         expect(childPath.loading).toBe(false);
-        expect(childPath.files.length).toBe(3);
+        expect(childPath.files.length).toBe(2);
         expect(childPath.files.map(f => f.key)).toContain('ASB2023/S01/_subject.json');
         expect(childPath.files.map(f => f.key)).toContain('ASB2023/S01/trials');
-        expect(childPath.files.map(f => f.key)).toContain('ASB2023/S01/trials/1');
         expect(childPath.folders.length).toBe(1);
         expect(childPath.folders).toContain('ASB2023/S01/trials/');
     });
@@ -342,7 +407,7 @@ describe("LiveDirectory", () => {
 
         const path = api.getPath("ASB2023/", false);
         await path.promise;
-        // We should have executed the autorun twice more, once for the initial value with loading:true, and then again for loading:false
+        // Once for loading: true, again for loading: false
         expect(counter.count).toBe(3);
 
         disposer();
@@ -375,7 +440,7 @@ describe("LiveDirectory", () => {
 
         const path = api.getPath("ASB2023/", true);
         await path.promise;
-        // We should have executed the autorun twice more, once for the initial value with loading:true, and then again for loading:false
+        // Changes once for loading: true, again for loading: false
         expect(counter.count).toBe(3);
 
         disposer();
@@ -399,8 +464,9 @@ describe("LiveDirectory", () => {
         });
         expect(counter.count).toBe(0);
 
-        await api.getPath("ASB2023/", false);
+        await api.getPath("ASB2023/", false).promise;
 
+        // Changes once for loading=true, again for fully loaded
         expect(counter.count).toBe(2);
     });
 
@@ -527,7 +593,7 @@ describe("LiveDirectory", () => {
             return;
         }
         expect(result.folders.length).toBe(2);
-        expect(result.files.length).toBe(8);
+        expect(result.files.length).toBe(3);
 
         pubsub.mockReceiveMessage({
             topic: "/DEV/UPDATE/protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data",
@@ -540,8 +606,8 @@ describe("LiveDirectory", () => {
 
         const newPath = api.getPath("ASB2023", true);
         expect(newPath.loading).toBe(false);
-        expect(newPath.files.length).toBe(9);
-        expect(newPath.files.map(f => f.key)).toContain("ASB2023/S01/_subject.json");
+        expect(newPath.files.length).toBe(3);
+        expect(newPath.files.map(f => f.key)).toContain("ASB2023/S01");
     });
 
     test("Receiving a PubSub update that is in a new folder path causes new folders to be created in a subfolder", async () => {
@@ -827,8 +893,8 @@ describe("LiveDirectory", () => {
         expect(trialsPathUpdated).toBeDefined();
         if (trialsPathUpdated != null) {
             expect(trialsPathUpdated.folders.length).toBe(2);
-            expect(trialsPathUpdated.folders).toContain("Tiziana2019_Standard/Subject32/trials/Trial1");
-            expect(trialsPathUpdated.folders).toContain("Tiziana2019_Standard/Subject32/trials/Trial9");
+            expect(trialsPathUpdated.folders).toContain("Tiziana2019_Standard/Subject32/trials/Trial1/");
+            expect(trialsPathUpdated.folders).toContain("Tiziana2019_Standard/Subject32/trials/Trial9/");
         }
     });
 
@@ -1033,7 +1099,7 @@ describe("LiveDirectory", () => {
         expect(fileResult.files.length).toBe(1);
     });
 
-    test("Calling getCachedPath will cause that path to store in the cached path map, and immediately return", async () => {
+    test("Receiving a PubSub for a different prefix gets ignored", async () => {
         const s3 = new S3APIMock();
         const pubsub = new PubSubSocketMock("DEV");
         const api = new LiveDirectoryImpl("protected/us-west-2:test/data/", s3, pubsub);
@@ -1044,25 +1110,19 @@ describe("LiveDirectory", () => {
             "protected/us-west-2:test/data/_subject.json",
         ]);
 
-        const path = api.getPath("dataset1", true);
-        await path.loading;
+        await api.getPath("", true);
 
-        const fileResult: PathData = api.getPath("dataset1/subject1/_subject.json", false);
-        expect(fileResult.files.length).toBe(1);
-
-        expect(api.pathCache.size).toBe(2);
-        expect(api.pathCache.has("protected/us-west-2:test/data/dataset1/subject1/_subject.json")).toBe(true);
-        const result = api.pathCache.get("protected/us-west-2:test/data/dataset1/subject1/_subject.json");
-        if (result == null) return;
-
-        api.pathCache.set("protected/us-west-2:test/data/dataset1/subject1/_subject.json", {
-            ...result,
-            folders: ["test"]
+        pubsub.mockReceiveMessage({
+            topic: "/DEV/UPDATE/protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data",
+            message: JSON.stringify({
+                key: "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/NewSubject/_subject.json",
+                size: 10,
+                dateModified: new Date().toString(),
+            })
         });
 
-        const cachedPath = api.getCachedPath("dataset1/subject1/_subject.json");
-        expect(cachedPath).toBeDefined();
-        expect(cachedPath?.folders.length).toBe(1);
-        expect(cachedPath?.folders[0]).toStrictEqual("test");
+        const result = api.getPath("", true);
+        expect(result.loading).toBe(false);
+        expect(result.folders.length).toBe(3);
     });
 });

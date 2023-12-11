@@ -9,6 +9,8 @@ from addbiomechanics.commands.view import ViewCommand
 from addbiomechanics.commands.post_process import PostProcessCommand
 from addbiomechanics.commands.export_csv import ExportCSVCommand
 from addbiomechanics.commands.describe_dataset import DescribeDatasetCommand
+from addbiomechanics.commands.transfer_reviews import TransferReviewsCommand
+from addbiomechanics.commands.create_b3d import CreateB3DCommand
 
 
 PROD_DEPLOYMENT = {
@@ -43,7 +45,9 @@ def main():
                       TransferMarkersetCommand(),
                       PostProcessCommand(),
                       ExportCSVCommand(),
-                      DescribeDatasetCommand()]
+                      DescribeDatasetCommand(),
+                      TransferReviewsCommand(),
+                      CreateB3DCommand()]
 
     commands = [LsCommand(),
                 DownloadCommand(),

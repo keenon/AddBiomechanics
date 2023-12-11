@@ -1,7 +1,9 @@
 #!/bin/bash
 set -e
 
-TEST_NAME="katie_test"
+#TEST_NAME="sprinter"
+TEST_NAME="AB24_split3_tiny"
+#TEST_NAME="falisse2017_small"
 
 CURR_DIR=`pwd`
 echo $CURR_DIR

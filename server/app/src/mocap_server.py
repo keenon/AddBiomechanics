@@ -12,6 +12,7 @@ import boto3
 import threading
 import argparse
 from typing import Tuple
+import traceback
 
 
 def absPath(path: str):
@@ -25,6 +26,7 @@ class TrialToProcess:
 
     trialName: str
     trialPath: str
+    trialSize: float
 
     # Trial files
     c3dFile: str
@@ -43,6 +45,7 @@ class TrialToProcess:
         if not self.trialName.endswith('/'):
             self.trialName += '/'
         self.trialPath = subjectPath + 'trials/' + self.trialName
+        self.trialSize = 0
 
         # Trial files
         self.c3dFile = self.trialPath + 'markers.c3d'
@@ -53,17 +56,23 @@ class TrialToProcess:
         self.plotCSVFile = self.trialPath + 'plot.csv'
 
     def download(self, trialsFolderPath: str):
-        trialPath = trialsFolderPath + self.trialName
-        os.mkdir(trialPath)
+        file_system_trial_path = trialsFolderPath + self.trialName
+        os.mkdir(file_system_trial_path)
+
+        all_children: Dict[str, FileMetadata] = self.index.getChildren(self.trialPath)
 
         if self.index.exists(self.c3dFile):
-            self.index.download(self.c3dFile, trialPath+'markers.c3d')
+            self.index.download(self.c3dFile, file_system_trial_path+'markers.c3d')
         if self.index.exists(self.trcFile):
-            self.index.download(self.trcFile, trialPath+'markers.trc')
+            self.index.download(self.trcFile, file_system_trial_path+'markers.trc')
         if self.index.exists(self.grfFile):
-            self.index.download(self.grfFile, trialPath+'grf.mot')
+            self.index.download(self.grfFile, file_system_trial_path+'grf.mot')
         if self.index.exists(self.goldIKFile):
-            self.index.download(self.goldIKFile, trialPath+'manual_ik.mot')
+            self.index.download(self.goldIKFile, file_system_trial_path+'manual_ik.mot')
+        for child in all_children:
+            if child.endswith('.json') or child.endswith('REVIEWED'):
+                os.makedirs(os.path.dirname(file_system_trial_path+child), exist_ok=True)
+                self.index.download(self.trialPath+child, file_system_trial_path+child)
 
     def upload(self, trialsFolderPath: str):
         trialPath = trialsFolderPath + self.trialName
@@ -105,6 +114,17 @@ class TrialToProcess:
             return uploadedTimestamp
         else:
             return 0
+
+    def updateTrialSize(self, trialsFolderPath: str):
+        # Set the size of the trial, in bytes.
+        trialPath = trialsFolderPath + self.trialName
+        self.trialSize = 0
+        if self.index.exists(self.c3dFile):
+            self.trialSize += os.path.getsize(trialPath+'markers.c3d')
+        if self.index.exists(self.trcFile):
+            self.trialSize += os.path.getsize(trialPath+'markers.trc')
+        if self.index.exists(self.grfFile):
+            self.trialSize += os.path.getsize(trialPath+'grf.mot')
 
 
 class SubjectToProcess:
@@ -246,6 +266,7 @@ class SubjectToProcess:
             os.mkdir(trialsFolderPath)
             for trialName in self.trials:
                 self.trials[trialName].download(trialsFolderPath)
+                self.trials[trialName].updateTrialSize(trialsFolderPath)
 
             print('Done downloading, ready to process', flush=True)
 
@@ -286,7 +307,7 @@ class SubjectToProcess:
                                 try:
                                     self.index.pubSub.publish(
                                         '/LOG/'+procLogTopic, logLine)
-                                except e:
+                                except Exception as e:
                                     print(
                                         'Failed to send live log message: '+str(e), flush=True)
                                 unflushedLines = unflushedLines[20:]
@@ -298,7 +319,7 @@ class SubjectToProcess:
                                 try:
                                     self.index.pubSub.publish(
                                         '/LOG/'+procLogTopic, logLine)
-                                except e:
+                                except Exception as e:
                                     print(
                                         'Failed to send live log message: '+str(e), flush=True)
                                 unflushedLines = []
@@ -310,7 +331,7 @@ class SubjectToProcess:
                         try:
                             exitCode = proc.wait(timeout=3)
                             break
-                        except e:
+                        except Exception as e:
                             line = 'Process has not exited!! Waiting another 3 seconds for the process to exit.'
                             logFile.write(line)
                             print('>>> '+line)
@@ -321,7 +342,7 @@ class SubjectToProcess:
                             try:
                                 self.index.pubSub.publish(
                                     '/LOG/'+procLogTopic, logLine)
-                            except e:
+                            except Exception as e:
                                 print('Failed to send live log message: ' +
                                       str(e), flush=True)
                     line = 'exit: '+str(exitCode)
@@ -334,7 +355,7 @@ class SubjectToProcess:
                     try:
                         self.index.pubSub.publish(
                             '/LOG/'+procLogTopic, logLine)
-                    except e:
+                    except Exception as e:
                         print('Failed to send live log message: ' +
                               str(e), flush=True)
                     print('Process return code: '+str(exitCode), flush=True)
@@ -420,6 +441,7 @@ class SubjectToProcess:
             print('Finished processing, returning from process() method.', flush=True)
         except Exception as e:
             print('Caught exception in process(): {}'.format(e))
+            traceback.print_exc()
 
             # TODO: We should probably re-upload a copy of the whole setup that led to the error
             # Let's upload a unique copy of the log to S3, so that we have it in case the user re-processes
@@ -686,7 +708,7 @@ class MocapServer:
                               self.currentlyProcessing.subjectPath)
                         # We always leave a few slots open for new jobs, since they're more important than reprocessing
                         if (reprocessing_job and slurm_reprocessing_jobs < 10) or \
-                                (not reprocessing_job and slurm_total_jobs < 50):
+                                (not reprocessing_job and slurm_total_jobs < 150):
                             # Mark the subject as having been queued in SLURM, so that we don't try to process it again
                             self.currentlyProcessing.markAsQueuedOnSlurm()
                             print('Queueing subject for processing on SLURM: ' +
@@ -703,7 +725,20 @@ class MocapServer:
                             else:
                                 job_name += '_new'
 
-                            sbatch_command = 'sbatch -p owners --job-name ' + job_name + ' --cpus-per-task=16 --mem=64000M --output=processing-%j.out --time=8:00:00 --wrap="' + \
+                            # Allocate Sherlock resources based on the total size of the subject data.
+                            subject_size = 0
+                            for trial_name, trial in self.currentlyProcessing.trials.items():
+                                # Convert to MB
+                                subject_size += trial.trialSize / 1024 / 1024
+
+                            # Use 4GB of RAM per 25MB of subject data, with a minimum of 16GB and a maximum of 64GB in
+                            # 4GB increments.
+                            mem = 64000 # max(32000, min(64000, int(subject_size / 25 * 4000)))
+
+                            # Use 1 CPU per 4GB of RAM, with a minimum of 4 CPU and a maximum of 16 CPUs.
+                            cpus = 16 # max(4, min(16, int(mem / 4000)))
+
+                            sbatch_command = 'sbatch -p owners --job-name ' + job_name + f' --cpus-per-task={cpus} --mem={mem}M --output=processing-%j.out --time=8:00:00 --wrap="' + \
                                 raw_command.replace('"', '\\"')+'"'
                             print('Running command: '+sbatch_command)
                             try:
@@ -758,7 +793,7 @@ if __name__ == "__main__":
 
         # 1. Set up the connection to S3 and PubSub
         index = ReactiveS3Index(args.bucket, args.deployment)
-        index.refreshIndex()
+        index.load_only_folder(subjectPath)
         subject = SubjectToProcess(index, subjectPath)
 
         # 2. Process the subject, and then exit

@@ -464,6 +464,35 @@ class SubjectViewState {
             });
         });
     }
+
+    async markAllTrialsReviewed(): Promise<void> {
+        for (let trial of this.trials) {
+            for (let segment of trial.segments) {
+                if (!segment.reviewFlagExists) {
+                    await this.home.dir.uploadText(segment.reviewFlagPath, "");
+                    action(() => {
+                        segment.reviewFlagExists = true;
+                    })();
+                }
+            }
+        }
+        return;
+    }
+
+    async markAllTrialsUnreviewed(): Promise<void> {
+        for (let trial of this.trials) {
+            for (let segment of trial.segments) {
+                if (segment.reviewFlagExists) {
+                    await this.home.dir.delete(segment.reviewFlagPath);
+                    action(() => {
+                        segment.reviewFlagExists = false;
+                    })();
+                }
+            }
+        }
+
+        return;
+    }
 };
 
 export type { SubjectResultsJSON, TrialResultsJSON, SegmentResultsJSON };

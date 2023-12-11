@@ -2,6 +2,8 @@ from addbiomechanics.commands.abtract_command import AbstractCommand
 import argparse
 from addbiomechanics.auth import AuthContext
 from typing import Dict, List, Tuple
+from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
+import boto3
 import os
 import json
 import time
@@ -36,10 +38,22 @@ def upload_files(ctx: AuthContext, s3_to_local_file: Dict[str, str], s3_to_conte
     for s3_key, local_path in s3_to_local_file.items():
         s3_key = s3_prefix + s3_key
         s3_key = s3_key.replace('//', '/')
-        print(f'Uploading {local_path} to {s3_key}')
-        s3.upload_file(local_path, deployment['BUCKET'], s3_key)
-        # Notify PubSub that this file changed
-        notifyFileChanged(s3_key, size_bytes=os.path.getsize(local_path))
+        try:
+            print(f'Uploading {local_path} to {s3_key}')
+            s3.upload_file(local_path, deployment['BUCKET'], s3_key)
+            # Notify PubSub that this file changed
+            notifyFileChanged(s3_key, size_bytes=os.path.getsize(local_path))
+        except Exception as e:
+            print('Caught an exception trying to upload. Trying refreshing AWS session and trying again.')
+            print(e)
+            ctx.refresh()
+            s3 = ctx.aws_session.client('s3')
+            pubsub = ctx.aws_session.client('iot-data')
+            # Retry the upload operation
+            print(f'Retrying uploading {local_path} to {s3_key}')
+            s3.upload_file(local_path, deployment['BUCKET'], s3_key)
+            # Notify PubSub that this file changed
+            notifyFileChanged(s3_key, size_bytes=os.path.getsize(local_path))
 
     # Upload the raw contents
     for s3_key, contents in s3_to_contents.items():
@@ -156,7 +170,7 @@ class ParserFolderStructure:
 
             # Load and parse the _subject.json file
             if dont_read_files:
-                if override_osim_file is '' and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
+                if override_osim_file == '' and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
                     if verbose:
                         print(
                             f' > we have dont_read_files=True and {subjectJsonFile} could therefore have skeletonPreset=custom but we do not have a "unscaled_generic.osim" file, failing as invalid')
@@ -184,7 +198,7 @@ class ParserFolderStructure:
                             print(
                                 f' > {subjectJsonFile} does not have a "footBodyNames" field, failing as invalid')
                         return False
-                    if ('skeletonPreset' not in subjectJson or subjectJson['skeletonPreset'] == 'custom') and override_osim_file is '' and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
+                    if ('skeletonPreset' not in subjectJson or subjectJson['skeletonPreset'] == 'custom') and override_osim_file == '' and subjectFolder+'unscaled_generic.osim' not in self.input_file_list:
                         if verbose:
                             print(
                                 f' > {subjectJsonFile} has skeletonPreset=custom but does not have a "unscaled_generic.osim" file, failing as invalid')
@@ -198,7 +212,7 @@ class ParserFolderStructure:
             for file in filesInSubjectFolder:
                 if file.startswith('/'):
                     file = file[1:]
-                if filter_out_trials is not '' and filter_out_trials in file:
+                if filter_out_trials != '' and filter_out_trials in file:
                     if verbose:
                         print(
                             ' > Skipping '+file+' because it matches filter "' + filter_out_trials + '"')
@@ -206,7 +220,7 @@ class ParserFolderStructure:
                 if file.endswith(".json") or file.endswith(".mot") or file.endswith(".trc") or file.endswith(".c3d") or file.endswith(".osim"):
                     self.s3_to_local_file[
                         file] = self.common_prefix+file
-                if override_osim_file is not '':
+                if override_osim_file != '':
                     self.s3_to_local_file[
                         subjectFolder+'unscaled_generic.osim'] = override_osim_file
             self.s3_ready_flags.append(subjectFolder+'READY_TO_PROCESS')
@@ -288,6 +302,10 @@ class UploadCommand(AbstractCommand):
                                     help='This skips the manual confirmation step')
         process_parser.add_argument('--private', action='store_true',
                                     help='Add this flag to upload the data to your private folder to be processed, instead of the normal workspace.')
+        process_parser.add_argument('--only-subject-jsons', action='store_true',
+                                    help='Add this flag to only upload the subject.json files, instead of the whole directory.')
+        process_parser.add_argument('--only-subject-osim', action='store_true',
+                                    help='Add this flag to only upload the unscaled_generic.osim files, instead of the whole directory.')
         pass
 
     def run(self, ctx: AuthContext, args: argparse.Namespace):
@@ -310,6 +328,12 @@ class UploadCommand(AbstractCommand):
         foot_body_names: List[str] = args.foot_body_names
         skip_confirm: bool = args.yes
         private: bool = args.private
+        only_subject_jsons: bool = args.only_subject_jsons
+        only_subject_osim: bool = args.only_subject_osim
+
+        if only_subject_jsons and only_subject_osim:
+            print('Cannot specify both --only-subject-jsons and --only-subject-osim, since that would upload nothing!')
+            exit(1)
 
         dir_files: List[str] = []
 
@@ -342,6 +366,16 @@ class UploadCommand(AbstractCommand):
                 '/' + subject_name + '/'
         else:
             prefix += dataset_name + '/'
+
+        if only_subject_jsons:
+            structure.s3_to_local_file = {k: v for k, v in structure.s3_to_local_file.items() if k.endswith('_subject.json')}
+            structure.s3_to_contents = {}
+            structure.s3_ready_flags = []
+
+        if only_subject_osim:
+            structure.s3_to_local_file = {k: v for k, v in structure.s3_to_local_file.items() if k.endswith('unscaled_generic.osim')}
+            structure.s3_to_contents = {}
+            structure.s3_ready_flags = []
 
         if skip_confirm or structure.confirm_with_user(prefix):
             print('Uploading...')

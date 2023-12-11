@@ -15,7 +15,7 @@ type FileMetadata = {
 abstract class S3API {
     region: string = 'us-west-2';
 
-    abstract loadPathData(path: string, recursive: boolean): Promise<{files: FileMetadata[], folders: string[]}>;
+    abstract loadPathData(path: string, recursive: boolean, abortController?: AbortController): Promise<{files: FileMetadata[], folders: string[]}>;
 
     abstract getSignedURL(path: string, expiresIn: number): Promise<string>;
     abstract downloadText(path: string): Promise<string>;
@@ -39,6 +39,11 @@ class S3APIMock extends S3API {
     networkCallCount: number = 0;
     mockFileUploadPartialProgress: boolean = false;
     mockFileUploadResolves: (() => void)[] = [];
+
+    // This allows us to set the mock to have the first N loads succeed, then hang the next one
+    mockLoadBeforeHalt: number = -1;
+    // If `mockLoadBeforeHalt` hits zero during a load, that load will stall, and a callback will be appended to this list to allow you to continue it
+    mockLoadContinues: (() => void)[] = []
 
     constructor() {
         super();
@@ -85,7 +90,7 @@ class S3APIMock extends S3API {
         this.networkOutage = outage;
     }
 
-    loadPathData(path: string, recursive: boolean): Promise<{files: FileMetadata[], folders: string[]}> {
+    loadPathData(path: string, recursive: boolean, abortController?: AbortController): Promise<{files: FileMetadata[], folders: string[]}> {
         this.networkCallCount ++;
         return new Promise((resolve, reject) => {
             if (this.networkOutage) {
@@ -93,24 +98,54 @@ class S3APIMock extends S3API {
                 return;
             }
 
-            if (!recursive) {
-                const allFiles = this.files.filter(f => f.key.startsWith(path));
-                // These will be returned as folder names
-                const filesWithSlashAfterPath = allFiles.filter(f => f.key.substring(path.length).indexOf("/") !== -1);
-                const folderNames = [...new Set(filesWithSlashAfterPath.map(f => path + f.key.substring(path.length).split("/")[0]))].map(f => f+"/");
-                // These will be returned directly
-                const filesWithoutSlashAfterPath = allFiles.filter(f => f.key.substring(path.length).indexOf("/") === -1);
-                // Return the resolution
-                resolve({
-                    files: filesWithoutSlashAfterPath,
-                    folders: folderNames
+            let removeCancelListeners: (() => void)[] = [];
+            const cancelListener = () => {
+                removeCancelListeners.forEach(l => l());
+                console.log("Mocking a cancelled load");
+                reject("Cancelled");
+            };
+            if (abortController) {
+                abortController.signal.addEventListener("abort", cancelListener);
+                removeCancelListeners.push(() => {
+                    abortController.signal.removeEventListener("abort", cancelListener);
                 });
             }
+
+            const finishLoad = () => {
+                if (!recursive) {
+                    const allFiles = this.files.filter(f => f.key.startsWith(path));
+                    // These will be returned as folder names
+                    const filesWithSlashAfterPath = allFiles.filter(f => f.key.substring(path.length).indexOf("/") !== -1);
+                    const folderNames = [...new Set(filesWithSlashAfterPath.map(f => path + f.key.substring(path.length).split("/")[0]))].map(f => f+"/");
+                    // These will be returned directly
+                    const filesWithoutSlashAfterPath = allFiles.filter(f => f.key.substring(path.length).indexOf("/") === -1);
+                    // Return the resolution
+                    removeCancelListeners.forEach(l => l());
+                    resolve({
+                        files: filesWithoutSlashAfterPath,
+                        folders: folderNames
+                    });
+                }
+                else {
+                    removeCancelListeners.forEach(l => l());
+                    resolve({
+                        files: this.files.filter(f => f.key.startsWith(path)),
+                        folders: []
+                    });
+                }
+            };
+
+            if (this.mockLoadBeforeHalt >= 0) {
+                if (this.mockLoadBeforeHalt === 0) {
+                    this.mockLoadContinues.push(finishLoad);
+                }
+                else {
+                    this.mockLoadBeforeHalt --;
+                    finishLoad();
+                }
+            }
             else {
-                resolve({
-                    files: this.files.filter(f => f.key.startsWith(path)),
-                    folders: []
-                });
+                finishLoad();
             }
         });
     }
@@ -314,7 +349,7 @@ class S3APIImpl extends S3API {
         this.uploadText = this.uploadText.bind(this);
     }
 
-    async listAsync(path: string, recursive: boolean, continuationToken?: string, filesSoFar?: FileMetadata[], foldersSoFar?: string[]): Promise<{ files: FileMetadata[], folders: string[] }> {
+    async listAsync(path: string, recursive: boolean, continuationToken?: string, filesSoFar?: FileMetadata[], foldersSoFar?: string[], abortController?: AbortController): Promise<{ files: FileMetadata[], folders: string[] }> {
         const listObjectsCommand = new ListObjectsV2Command({
             Bucket: this.bucketName,
             Prefix: path,
@@ -324,7 +359,7 @@ class S3APIImpl extends S3API {
         });
 
         const client = await this.s3client;
-        const output: ListObjectsV2CommandOutput = await client.send(listObjectsCommand);
+        const output: ListObjectsV2CommandOutput = await client.send(listObjectsCommand, { abortController: abortController } as any);
 
         let files: FileMetadata[] = filesSoFar ? [...filesSoFar] : [];
         if (output.CommonPrefixes == null && output.Contents == null && output.IsTruncated == null && output.KeyCount == null) {
@@ -357,6 +392,7 @@ class S3APIImpl extends S3API {
             }
 
             if (output.NextContinuationToken != null) {
+                console.log("Continuing listAsync for "+path+" with token "+output.NextContinuationToken);
                 return this.listAsync(path, recursive, output.NextContinuationToken, files, folders);
             }
 
@@ -367,8 +403,8 @@ class S3APIImpl extends S3API {
         }
     };
 
-    loadPathData(path: string, recursive: boolean): Promise<{files: FileMetadata[], folders: string[]}> {
-        return this.listAsync(path, recursive).then((results) => {
+    loadPathData(path: string, recursive: boolean, abortController?: AbortController): Promise<{files: FileMetadata[], folders: string[]}> {
+        return this.listAsync(path, recursive, undefined, undefined, undefined, abortController).then((results) => {
             return results;
         });
     };

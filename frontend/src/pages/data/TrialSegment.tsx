@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Table, Button } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
+import { action } from 'mobx';
 import NimbleStandaloneReact from 'nimble-visualizer/dist/NimbleStandaloneReact';
 import Select from 'react-select';
 import {
@@ -16,8 +17,10 @@ import {
     ChartDataset
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import UserHomeDirectory, { TrialSegmentContents } from "../../model/UserHomeDirectory";
+import UserHomeDirectory, { FolderReviewStatus, TrialSegmentContents } from "../../model/UserHomeDirectory";
 import Session from "../../model/Session";
+import LiveJsonFile from "../../model/LiveJsonFile";
+import LiveFile from "../../model/LiveFile";
 
 type ProcessingResultsJSON = {
     autoAvgMax: number;
@@ -87,6 +90,8 @@ ChartJS.register(
 type TrialSegmentViewProps = {
     home: UserHomeDirectory;
     path: string;
+    currentLocationUserId: string;
+    readonly: boolean;
 };
 
 const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
@@ -99,6 +104,8 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
     const [plotCSV, setPlotCSV] = useState([] as Map<string, number | boolean>[]);
     const [plotTags, setPlotTags] = useState([] as string[]);
     const [frame, setFrame] = useState(0);
+    const [draggingFrameWand, setDraggingFrameWand] = useState(false);
+    const navigateToNext = useRef((() => { }) as any);
     const chartRef = useRef(null as any);
     const modalRef = useRef(null as any);
 
@@ -107,9 +114,40 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
     const segmentContents: TrialSegmentContents = home.getTrialSegmentContents(path);
     const dir = home.dir;
 
+    // We cache the review state, so we don't slow things down when huge numbers of segments are being reviewed
+    const [reviewState, setReviewState] = useState({
+        loading: true,
+        path: path,
+        segmentsNeedReview: [],
+        segmentsReviewed: []
+    } as FolderReviewStatus);
+    useEffect(() => {
+        setReviewState(home.getReviewStatus(path));
+    }, []);
+
+    const [csvMissingGrfArray, setCsvMissingGrfArray] = useState([] as boolean[]);
+
+    const missingGrfArray: boolean[] = segmentContents.reviewJson.getAttribute('missing_grf_data', csvMissingGrfArray);
+
+    // useEffect(() => {
+    //     const enterListerener = (e: KeyboardEvent) => {
+    //         e.preventDefault();
+    //         e.stopPropagation();
+
+    //         if (e.key === 'Enter') {
+    //             if (navigateToNext.current != null) {
+    //                 navigateToNext.current();
+    //             }
+    //         }
+    //     };
+    //     window.addEventListener('keypress', enterListerener);
+    //     return () => {
+    //         window.removeEventListener('keypress', enterListerener);
+    //     };
+    // });
+
     useEffect(() => {
         dir.getSignedURL(segmentContents.previewPath, 3600).then((url: string) => {
-            console.log("Got preview URL: " + url);
             setPreviewUrl(url);
         }).catch((e) => {
             console.error(e);
@@ -117,7 +155,6 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
 
         // Load the results JSON
         dir.downloadText(segmentContents.resultsJsonPath).then((text: string) => {
-            console.log("Got results JSON: " + text);
             setResultsJson(JSON.parse(text));
 
             // Scroll to the top
@@ -130,16 +167,16 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
         dir.downloadText(segmentContents.dataPath).then((text: string) => {
             const lines = text.split('\n');
             let headers = lines[0].split(',');
-            console.log(headers);
             let dataset: Map<string, number | boolean>[] = [];
+            let csvMissingGrfArray: boolean[] = [];
             for (let i = 1; i < lines.length; i++) {
                 let values = lines[i].split(',');
                 let valuesMap: Map<string, number | boolean> = new Map();
                 for (let j = 0; j < values.length; j++) {
-                    if (values[j].trim() === 'true') {
+                    if (values[j].toLocaleLowerCase().trim() === 'true') {
                         valuesMap.set(headers[j], true);
                     }
-                    else if (values[j].trim() === 'false') {
+                    else if (values[j].toLocaleLowerCase().trim() === 'false') {
                         valuesMap.set(headers[j], false);
                     }
                     else {
@@ -153,15 +190,22 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                             valuesMap.set(headers[j], asNumber);
                         }
                     }
+                    if (headers[j] === 'missing_grf_data') {
+                        csvMissingGrfArray.push(valuesMap.get(headers[j]) as boolean);
+                    }
                 }
                 dataset.push(valuesMap);
             }
 
-            console.log(dataset);
+            if (csvMissingGrfArray.length === 0) {
+                csvMissingGrfArray = new Array(dataset.length).fill(true);
+            }
 
+            console.log(csvMissingGrfArray);
+            setCsvMissingGrfArray(csvMissingGrfArray);
             setPlotCSV(dataset);
         }).catch((e) => { });
-    }, []);
+    }, [path]);
 
     let body = null;
     let percentImprovementRMSE = ((resultsJson.goldAvgRMSE - resultsJson.autoAvgRMSE) / resultsJson.goldAvgRMSE) * 100;
@@ -352,15 +396,13 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             let label = plotTags[j];
             let data: any[] = [];
             for (let i = 0; i < plotCSV.length; i++) {
-                /*
                 if (plotCSV[i].get('missing_grf_data') && (label.indexOf('tau') !== -1 || label.indexOf('force') !== -1 || label.indexOf('moment') !== -1)) {
                     data.push(null);
                 }
                 else {
                     data.push(plotCSV[i].get(label) as number);
                 }
-                */
-                data.push(plotCSV[i].get(label) as number);
+                // data.push(plotCSV[i].get(label) as number);
             }
             let yAxisID = "";
             if (label.indexOf("tau") !== -1) {
@@ -537,27 +579,188 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             <NimbleStandaloneReact
                 style={{ height: '100%' }}
                 loadUrl={previewUrl}
-                frame={frame}
+                frame={globalCurrentFrame[0]}
                 playing={playing}
-                onPlayPause={(newPlaying) => setPlaying(newPlaying)}
+                onPlayPause={(newPlaying) => {
+                    setPlaying(newPlaying)
+                }}
                 onFrameChange={(newFrame) => {
                     globalCurrentFrame[0] = newFrame;
                     if (chartRef.current != null) {
                         chartRef.current.update();
                     }
-                    // setFrame(newFrame);
+                    if (frame !== newFrame) {
+                        setFrame(newFrame);
+                    }
                 }}
+                backgroundColor={
+                    missingGrfArray[globalCurrentFrame[0]] ? '#ffd4db' : '#ffffff'
+                }
             />
+    }
+
+    let remainingSectionHeight = '50vh';
+    let reviewBar = null;
+    if (!props.readonly) {
+        let reviewButton = null;
+        if (segmentContents.reviewFlagExists) {
+            reviewButton =
+                <button className="btn btn-secondary" onClick={() => {
+                    dir.delete(segmentContents.reviewFlagPath).then(() => {
+                        setReviewState(home.getReviewStatus(path));
+                    });
+                }}>Redo Review</button>
+                ;
+        }
+        else {
+            reviewButton =
+                <button className="btn btn-success" onClick={() => {
+                    dir.uploadText(segmentContents.reviewFlagPath, "").then(() => {
+                        setReviewState(home.getReviewStatus(path));
+                    });
+                }}>Finish Review</button>;
+        }
+
+        let reviewFrames = [];
+        for (let i = 0; i < missingGrfArray.length; i++) {
+            let color = missingGrfArray[i] ? 'bg-danger' : 'bg-secondary';
+            if (i === frame) {
+                color = 'bg-success';
+            }
+            reviewFrames.push(
+                <td key={i}
+                    className={color}
+                    style={{ height: '100%' }}
+                    onMouseOver={() => {
+                        if (!draggingFrameWand) {
+                            globalCurrentFrame[0] = i;
+                            setFrame(i);
+                            setPlaying(false);
+                        }
+                    }}
+                    onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const elem = e.target as HTMLTableElement;
+                        const parent = elem.parentElement;
+                        if (parent == null) {
+                            console.error("Got a null parent element for the <td> element. That doesn't make sense, and should never happen!");
+                            return;
+                        }
+
+                        const boundingRect = parent.getBoundingClientRect();
+
+                        setDraggingFrameWand(true);
+
+                        const dragStartFrame = i;
+                        const dragMissingGrf = !missingGrfArray[i];
+
+                        const onMouseMove = action((e: MouseEvent) => {
+                            let percentage = (e.clientX - boundingRect.left) / boundingRect.width;
+                            if (percentage < 0) {
+                                percentage = 0;
+                            }
+                            if (percentage > 1) {
+                                percentage = 1;
+                            }
+                            let frame = Math.floor(percentage * missingGrfArray.length);
+                            if (frame > missingGrfArray.length - 1) {
+                                frame = missingGrfArray.length - 1;
+                            }
+
+                            const updatedMissingGrfArray = [...missingGrfArray];
+                            for (let i = Math.min(frame, dragStartFrame); i <= Math.max(frame, dragStartFrame); i++) {
+                                updatedMissingGrfArray[i] = dragMissingGrf;
+                                missingGrfArray[i] = dragMissingGrf;
+                            }
+                            segmentContents.reviewJson.setAttribute('missing_grf_data', updatedMissingGrfArray);
+
+                            globalCurrentFrame[0] = frame;
+                            setFrame(frame);
+                            setPlaying(false);
+                        });
+
+                        const onMouseUp = () => {
+                            setDraggingFrameWand(false);
+                            window.removeEventListener('mouseup', onMouseUp);
+                            window.removeEventListener('mousemove', onMouseMove);
+                        };
+                        window.addEventListener('mousemove', onMouseMove);
+                        window.addEventListener('mouseup', onMouseUp);
+                    }}
+                    onKeyDown={(e) => {
+                        e.preventDefault();
+                    }}
+                ></td>
+            );
+        }
+
+        let linkToNext = null;
+        if (reviewState.segmentsNeedReview.length > 0) {
+            const nextUrl = Session.getDataURL(props.currentLocationUserId, reviewState.segmentsNeedReview[0].path);
+            navigateToNext.current = () => {
+                setPreviewUrl("");
+                navigate(nextUrl);
+            }
+            linkToNext = <button className="btn btn-primary" style={{ width: '100%' }} onClick={navigateToNext.current}>Review Next Segment</button>
+        }
+        else {
+            const nextUrl = Session.getDataURL(props.currentLocationUserId, segmentContents.parentSubjectPath);
+            navigateToNext.current = () => {
+                setPreviewUrl("");
+                navigate(nextUrl);
+            }
+            linkToNext = <button className="btn btn-primary" style={{ width: '100%' }} onClick={navigateToNext.current}>Back To Subject</button>
+        }
+
+        const urlToReviewRoot = Session.getDataURL(props.currentLocationUserId, reviewState.path);
+        const linkToReviewRoot = <Link to={urlToReviewRoot}>{reviewState.path}</Link>;
+
+        if (!segmentContents.reviewFlagExists) {
+            reviewBar = <div style={{ height: '80px', width: '100vw', padding: 0, margin: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'row' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <table style={{ tableLayout: 'fixed', width: 'calc(100% - 20px)', height: 'calc(100% - 10px)' }}>
+                            <tr>
+                                {reviewFrames}
+                            </tr>
+                        </table>
+                    </div>
+                    <div style={{ flex: '0 0 150px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {reviewButton}
+                    </div>
+                </div>
+                <div style={{ flex: '0 0 30px', textAlign: 'center' }}>
+                    Reviewed {reviewState.segmentsReviewed.length} of {reviewState.segmentsNeedReview.length + reviewState.segmentsReviewed.length} loaded trial segments under "{linkToReviewRoot}".
+                </div>
+            </div>;
+        }
+        else {
+            reviewBar = <div style={{ height: '80px', width: '100vw', padding: 0, margin: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'row' }}>
+                    <div style={{ flex: '0 0 150px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {reviewButton}
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{linkToNext}</div>;
+                </div>
+                <div style={{ flex: '0 0 30px', textAlign: 'center' }}>
+                    Reviewed {reviewState.segmentsReviewed.length} of {reviewState.segmentsNeedReview.length + reviewState.segmentsReviewed.length} loaded trial segments under "{linkToReviewRoot}".
+                </div>
+            </div>;
+        }
+
+        remainingSectionHeight = 'calc(50vh - 40px)';
     }
 
     body = (
         <div>
-            <div style={{ height: '50vh', width: '100vw', padding: 0, margin: 0, overflow: 'hidden' }}>
+            <div style={{ height: remainingSectionHeight, width: '100vw', padding: 0, margin: 0, overflow: 'hidden' }}>
                 {viewer}
             </div>
-            <div style={{ height: '50vh', width: '100vw', padding: 0, margin: 0, overflow: 'hidden' }}>
+            <div style={{ height: remainingSectionHeight, width: '100vw', padding: 0, margin: 0, overflow: 'hidden' }}>
                 {plot}
             </div>
+            {reviewBar}
         </div>
     );
 
