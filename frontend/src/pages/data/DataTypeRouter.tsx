@@ -6,7 +6,7 @@ import TrialSegmentView from "./TrialSegment";
 import DatasetView from "./DatasetView";
 import SubjectView from "./SubjectView";
 import Session from "../../model/Session";
-import { Breadcrumb, BreadcrumbItem } from "react-bootstrap";
+import { Breadcrumb, BreadcrumbItem, Spinner } from "react-bootstrap";
 
 type DataTypeRouterProps = {
   session: Session;
@@ -105,7 +105,10 @@ const DataTypeRouter = observer((props: DataTypeRouterProps) => {
   let body = <div>Loading...</div>;
 
   const pathType = home.getPathType(path);
-  if (pathType === 'dataset') {
+  if (pathType === 'loading') {
+    body = <Spinner animation="border" role="status" />
+  }
+  else if (pathType === 'dataset') {
     body = <DatasetView home={home} path={path} currentLocationUserId={dataPath.userId} readonly={readonly} />
   }
   else if (pathType === 'subject') {
@@ -125,6 +128,11 @@ const DataTypeRouter = observer((props: DataTypeRouterProps) => {
   }
   else if (pathType === 'trial_segment') {
     return <TrialSegmentView home={home} path={path} currentLocationUserId={dataPath.userId} readonly={readonly} />
+  }
+  else if (pathType === '404') {
+    body = <div>
+      File not found. <Link to={"/data/" + encodeURIComponent(dataPath.userId) + "/"}>Back home</Link>.
+    </div>;
   }
   else {
     body = <div>Not yet implemented type: {pathType}</div>;

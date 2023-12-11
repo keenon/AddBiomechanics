@@ -4,6 +4,7 @@ import { observer } from "mobx-react-lite";
 import Session from "../../model/Session";
 import ProfileView from "../../pages/profile/ProfileView"
 import { isUUID } from "../../utils"
+import { Spinner } from "react-bootstrap";
 
 type ProfileRouterProps = {
   session: Session;
@@ -17,17 +18,19 @@ const ProfileRouter = observer((props: ProfileRouterProps) => {
 
   useEffect(() => {
     if ((profilePath.userId === "" || profilePath.userId === "profile") && props.session.userId !== "") {
-      navigate(`/profile/${props.session.userId}/`);
+      navigate(`/profile/${props.session.userId}/`, { replace: true });
     }
-  }, [profilePath.userId, props.session.userId, navigate, profilePath.userProfile.getPathType('')]);
+  }, [profilePath.userId, props.session.userId, profilePath.userProfile.getPathType('')]);
 
   let body = <div>Loading...</div>;
 
   const pathType = profilePath.userProfile.getPathType('');
   if (pathType === 'profile') {
-    body = <ProfileView userProfile={profilePath.userProfile} session={props.session} userId={profilePath.userId}/>;
+    body = <ProfileView userProfile={profilePath.userProfile} session={props.session} userId={profilePath.userId} />;
   } else {
-    body = <div>Not yet implemented type: {pathType}</div>;
+    body = <div>
+      <Spinner animation="border" role="status" />
+    </div>;
   }
 
   return (
