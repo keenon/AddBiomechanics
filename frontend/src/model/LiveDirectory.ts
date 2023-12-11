@@ -151,6 +151,7 @@ class LiveDirectoryImpl extends LiveDirectory {
             let promise = new Promise<void>((resolve, reject) => {
                 const loadRecursive = async (folderData: PathData) => {
                     try {
+                        let allFoldersFullyRecursive: boolean = true;
                         const folderPathDatas: PathData[] = [];
                         // Load each child recursively
                         for (let folder of folderData.folders) {
@@ -158,30 +159,41 @@ class LiveDirectoryImpl extends LiveDirectory {
                                 reject("Aborted");
                                 return;
                             }
-                            const folderPathData = this.getPath(folder, true, abortController);
-                            if (folderPathData.promise != null) {
-                                folderPathDatas.push(await folderPathData.promise);
+                            let folderShallowData = this.getPath(folder, false, abortController);
+                            if (folderShallowData.promise != null) {
+                                folderShallowData = await folderShallowData.promise;
+                            }
+                            if (folderShallowData.files.filter(f => f.key.endsWith("_subject.json")).length > 0) {
+                                const folderPathData = this.getPath(folder, true, abortController);
+                                if (folderPathData.promise != null) {
+                                    folderPathDatas.push(await folderPathData.promise);
+                                }
+                                else {
+                                    folderPathDatas.push(folderPathData);
+                                }
                             }
                             else {
-                                folderPathDatas.push(folderPathData);
+                                allFoldersFullyRecursive = false;
                             }
                         }
-                        // Finally, convert the root node to be a recursive node, and include all 
-                        // the files we've loaded from the children
-                        let rootPathDataOrNull: PathData | undefined = this.getCachedPath(originalPath);
-                        if (rootPathDataOrNull == null) {
-                            reject("Root path data was null, this should never happen.");
-                            return;
-                        }
-                        let rootPathData: PathData = {...rootPathDataOrNull};
-                        if (!rootPathData.recursive) {
-                            rootPathData.recursive = true;
-                            for (let folderPathData of folderPathDatas) {
-                                let childName = folderPathData.path.substring(originalPath.length);
-                                rootPathData.children.set(childName, folderPathData);
+                        if (allFoldersFullyRecursive) {
+                            // Finally, convert the root node to be a recursive node, and include all 
+                            // the files we've loaded from the children
+                            let rootPathDataOrNull: PathData | undefined = this.getCachedPath(originalPath);
+                            if (rootPathDataOrNull == null) {
+                                reject("Root path data was null, this should never happen.");
+                                return;
                             }
-                            const normalizedPath = this.normalizePath(originalPath);
-                            this._setCachedPath(normalizedPath, rootPathData);
+                            let rootPathData: PathData = {...rootPathDataOrNull};
+                            if (!rootPathData.recursive) {
+                                rootPathData.recursive = true;
+                                for (let folderPathData of folderPathDatas) {
+                                    let childName = folderPathData.path.substring(originalPath.length);
+                                    rootPathData.children.set(childName, folderPathData);
+                                }
+                                const normalizedPath = this.normalizePath(originalPath);
+                                this._setCachedPath(normalizedPath, rootPathData);
+                            }
                         }
                         resolve();
                     }

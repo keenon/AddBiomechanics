@@ -6,7 +6,7 @@ import SubjectViewState from "./SubjectViewState";
 
 type PathType = 'dataset' | 'subject' | 'trial' | 'trial_segment' | 'trials_folder' | '404' | 'loading';
 
-type PathStatus = 'loading' | 'needs_data' | 'ready_to_process' | 'waiting_for_server' | 'slurm' | 'processing' | 'error' | 'needs_review' | 'done';
+type PathStatus = 'loading' | 'dataset' | 'needs_data' | 'ready_to_process' | 'waiting_for_server' | 'slurm' | 'processing' | 'error' | 'needs_review' | 'done';
 
 type DatasetContents = {
     loading: boolean;
@@ -242,6 +242,8 @@ class UserHomeDirectory {
         const pathType: PathType = this.getPathType(path);
 
         if (pathType === 'dataset') {
+            return 'dataset';
+            /*
             const folderStatus: PathStatus[] = pathData.folders.map((folder) => {
                 // If the folder is the same as the path, or just the path + '/'
                 if (folder.length <= path.length + 1) {
@@ -276,6 +278,7 @@ class UserHomeDirectory {
             else {
                 return 'done';
             }
+            */
         }
 
         if (pathType === 'subject') {
