@@ -206,11 +206,12 @@ describe("LiveDirectory", () => {
 
         await api.faultInPath("ASB2023").promise;
         // We want to separately load the child folders, to give a nice user experience of folders coming in rapidly when they load the page
-        expect(s3.networkCallCount).toBe(4);
+        // Each subject gets a non-recursive load, and then a recursive load if it is a subject
+        expect(s3.networkCallCount).toBe(8);
 
         // Redundant calls should do nothing
         await api.faultInPath("ASB2023").promise;
-        expect(s3.networkCallCount).toBe(4);
+        expect(s3.networkCallCount).toBe(8);
 
         // We want the root node to be recursive, after the progressive faulting in of all its children, so that subsequent 
         // file creations get registered correctly.

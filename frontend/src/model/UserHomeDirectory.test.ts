@@ -331,7 +331,7 @@ describe("UserHomeDirectory", () => {
         expect(dataset.contents.map(f => f.name)).toContain('TestSubject');
         expect(dataset.contents.filter(f => f.name === 'ASB2023').length).toBe(1);
         expect(dataset.contents.filter(f => f.name === 'ASB2023')[0].type).toBe('dataset');
-        expect(dataset.contents.filter(f => f.name === 'ASB2023')[0].status).toBe('ready_to_process');
+        expect(dataset.contents.filter(f => f.name === 'ASB2023')[0].status).toBe('dataset');
         expect(dataset.contents.filter(f => f.name === 'TestSubject').length).toBe(1);
         expect(dataset.contents.filter(f => f.name === 'TestSubject')[0].type).toBe('subject');
         expect(dataset.contents.filter(f => f.name === 'TestSubject')[0].status).toBe('ready_to_process');
