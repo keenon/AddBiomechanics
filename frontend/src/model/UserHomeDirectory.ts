@@ -76,6 +76,8 @@ class UserHomeDirectory {
     pathTypeCache: Map<string, PathType> = new Map();
     pathStatusCache: Map<string, PathStatus> = new Map();
     pathReviewCache: Map<string, FolderReviewStatus> = new Map();
+    datasetContentsCache: Map<string, DatasetContents> = new Map();
+    subjectContentsCache: Map<string, SubjectContents> = new Map();
 
     // 'protected/' + s3.region + ':' + userId + '/data/'
     constructor(dir: LiveDirectory) {
@@ -96,6 +98,8 @@ class UserHomeDirectory {
                     this.pathTypeCache.delete(subPath);
                     this.pathStatusCache.delete(subPath);
                     this.pathReviewCache.delete(subPath);
+                    this.datasetContentsCache.delete(subPath);
+                    this.subjectContentsCache.delete(subPath);
                 }
             });
         }));
@@ -103,7 +107,9 @@ class UserHomeDirectory {
         makeObservable(this, {
             pathTypeCache: observable,
             pathStatusCache: observable,
-            pathReviewCache: observable
+            pathReviewCache: observable,
+            datasetContentsCache: observable,
+            subjectContentsCache: observable,
         });
     }
 
@@ -326,18 +332,25 @@ class UserHomeDirectory {
             path = path.substring(1);
         }
 
-        return {
-            loading: pathData.loading,
-            status: this.getPathStatus(path),
-            contents: pathData.folders.filter(folder => folder !== path).map((folder) => {
-                return {
-                    name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
-                    path: folder,
-                    status: this.getPathStatus(folder),
-                    type: this.getPathType(folder),
-                };
-            })
-        };
+        let dataset = this.datasetContentsCache.get(path);
+        if (dataset == null) {
+            dataset = {
+                loading: pathData.loading,
+                status: this.getPathStatus(path),
+                contents: pathData.folders.filter(folder => folder !== path).map((folder) => {
+                    return {
+                        name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
+                        path: folder,
+                        status: this.getPathStatus(folder),
+                        type: this.getPathType(folder),
+                    };
+                })
+            }
+            action(() => {
+                this.datasetContentsCache.set(path, dataset!);
+            });
+        }
+        return dataset;
     }
 
     /**
@@ -458,32 +471,40 @@ class UserHomeDirectory {
         if (path.endsWith('/')) {
             path = path.substring(0, path.length-1);
         }
-        let name = '';
-        if (path.includes('/')) {
-            name = path.split('/').slice(-1)[0];
+
+        let subject = this.subjectContentsCache.get(path);
+        if (subject == null) {
+            let name = '';
+            if (path.includes('/')) {
+                name = path.split('/').slice(-1)[0];
+            }
+            const subjectJson = dir.getJsonFile(path + '/_subject.json');
+            const resultsJsonPath: string = path + '/_results.json';
+            const processingFlagFile: LiveFile = dir.getLiveFile(path + "/PROCESSING");
+            const readyFlagFile: LiveFile = dir.getLiveFile(path + "/READY_TO_PROCESS");
+            const errorFlagFile: LiveFile = dir.getLiveFile(path + "/ERROR");
+
+            const subjectPathData: PathData = dir.getPath(path, false);
+            const trialsPathData: PathData = dir.getPath(path+'/trials/', false);
+
+            subject = {
+                name,
+                loading: trialsPathData.loading || subjectPathData.loading,
+                subjectJson,
+                resultsJsonPath,
+                resultsExist: subjectPathData.files.map((file) => {
+                    return file.key;
+                }).includes(resultsJsonPath),
+                processingFlagFile,
+                readyFlagFile,
+                errorFlagFile,
+                trials: trialsPathData.folders.map((folder) => this.getTrialContents(folder))
+            };
+            action(() => {
+                this.subjectContentsCache.set(path, subject!);
+            });
         }
-        const subjectJson = dir.getJsonFile(path + '/_subject.json');
-        const resultsJsonPath: string = path + '/_results.json';
-        const processingFlagFile: LiveFile = dir.getLiveFile(path + "/PROCESSING");
-        const readyFlagFile: LiveFile = dir.getLiveFile(path + "/READY_TO_PROCESS");
-        const errorFlagFile: LiveFile = dir.getLiveFile(path + "/ERROR");
-
-        const subjectPathData: PathData = dir.getPath(path, false);
-        const trialsPathData: PathData = dir.getPath(path+'/trials/', false);
-
-        return {
-            name,
-            loading: trialsPathData.loading || subjectPathData.loading,
-            subjectJson,
-            resultsJsonPath,
-            resultsExist: subjectPathData.files.map((file) => {
-                return file.key;
-            }).includes(resultsJsonPath),
-            processingFlagFile,
-            readyFlagFile,
-            errorFlagFile,
-            trials: trialsPathData.folders.map((folder) => this.getTrialContents(folder))
-        };
+        return subject;
     }
 
     getTrialContents(path: string): TrialContents {
