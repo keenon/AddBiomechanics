@@ -330,7 +330,7 @@ class UserHomeDirectory {
      * @param path The path to the dataset
      */
     getDatasetContents(path: string): DatasetContents {
-        const pathData: PathData = this.dir.getPath(path, false);
+        const pathData: PathData | undefined = this.dir.getCachedPath(path, false);
         if (path.startsWith('/')) {
             path = path.substring(1);
         }
@@ -338,20 +338,22 @@ class UserHomeDirectory {
         let dataset = this.datasetContentsCache.get(path);
         if (dataset == null) {
             dataset = {
-                loading: pathData.loading,
+                loading: pathData?.loading ?? true,
                 status: this.getPathStatus(path),
-                contents: pathData.folders.filter(folder => folder !== path).map((folder) => {
+                contents: pathData?.folders.filter(folder => folder !== path).map((folder) => {
                     return {
                         name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
                         path: folder,
                         status: this.getPathStatus(folder),
                         type: this.getPathType(folder),
                     };
-                })
+                }) ?? []
             }
-            action(() => {
-                this.datasetContentsCache.set(path, dataset!);
-            });
+            if (pathData != null) {
+                action(() => {
+                    this.datasetContentsCache.set(path, dataset!);
+                });
+            }
         }
         return dataset;
     }
@@ -483,29 +485,32 @@ class UserHomeDirectory {
             }
             const subjectJson = dir.getJsonFile(path + '/_subject.json');
             const resultsJsonPath: string = path + '/_results.json';
+
+            const subjectPathData: PathData | undefined = dir.getCachedPath(path, false);
+            const trialsPathData: PathData | undefined = dir.getCachedPath(path+'/trials/', false);
+
             const processingFlagFile: LiveFile = dir.getLiveFile(path + "/PROCESSING");
             const readyFlagFile: LiveFile = dir.getLiveFile(path + "/READY_TO_PROCESS");
             const errorFlagFile: LiveFile = dir.getLiveFile(path + "/ERROR");
 
-            const subjectPathData: PathData = dir.getPath(path, false);
-            const trialsPathData: PathData = dir.getPath(path+'/trials/', false);
-
             subject = {
                 name,
-                loading: trialsPathData.loading || subjectPathData.loading,
+                loading: (trialsPathData?.loading ?? true) || (subjectPathData?.loading ?? true),
                 subjectJson,
                 resultsJsonPath,
-                resultsExist: subjectPathData.files.map((file) => {
+                resultsExist: subjectPathData?.files.map((file) => {
                     return file.key;
-                }).includes(resultsJsonPath),
+                }).includes(resultsJsonPath) ?? false,
                 processingFlagFile,
                 readyFlagFile,
                 errorFlagFile,
-                trials: trialsPathData.folders.map((folder) => this.getTrialContents(folder))
+                trials: trialsPathData?.folders.map((folder) => this.getTrialContents(folder)) ?? []
             };
-            action(() => {
-                this.subjectContentsCache.set(path, subject!);
-            });
+            if (subjectPathData != null && trialsPathData != null) {
+                action(() => {
+                    this.subjectContentsCache.set(path, subject!);
+                });
+            }
         }
         return subject;
     }
@@ -520,7 +525,7 @@ class UserHomeDirectory {
         }
 
         const name = path.split('/').slice(-1)[0];
-        const trial: PathData = dir.getPath(path + '/', false);
+        const trial: PathData | undefined = dir.getCachedPath(path + '/', false);
         const trialJson = dir.getJsonFile(path + '/_trial.json');
 
         const c3dFilePath = path + '/markers.c3d';
@@ -528,23 +533,23 @@ class UserHomeDirectory {
         const grfMotFilePath = path + '/grf.mot';
 
         return {
-            loading: trial.loading,
+            loading: trial?.loading ?? true,
             path: path + '/',
             name,
             c3dFilePath,
-            c3dFileExists: trial.files.map((file) => {
+            c3dFileExists: trial?.files.map((file) => {
                 return file.key;
-            }).includes(c3dFilePath),
+            }).includes(c3dFilePath) ?? false,
             trcFilePath,
-            trcFileExists: trial.files.map((file) => {
+            trcFileExists: trial?.files.map((file) => {
                 return file.key;
-            }).includes(trcFilePath),
+            }).includes(trcFilePath) ?? false,
             grfMotFilePath,
-            grfMotFileExists: trial.files.map((file) => {
+            grfMotFileExists: trial?.files.map((file) => {
                 return file.key;
-            }).includes(grfMotFilePath),
+            }).includes(grfMotFilePath) ?? false,
             trialJson,
-            segments: trial.folders.map((folder) => this.getTrialSegmentContents(folder))
+            segments: trial?.folders.map((folder) => this.getTrialSegmentContents(folder)) ?? []
         };
     }
 
@@ -558,7 +563,7 @@ class UserHomeDirectory {
             path = path.substring(1);
         }
 
-        const segment: PathData = dir.getPath(path + '/', false);
+        const segment: PathData | undefined = dir.getCachedPath(path + '/', false);
 
         const name = path.split('/').slice(-1)[0];
         const resultsJsonPath = path + '/_results.json';
@@ -573,7 +578,7 @@ class UserHomeDirectory {
         const parentDatasetPath: string = prefix.substring(0, prefix.lastIndexOf('/'));
 
         return {
-            loading: segment.loading,
+            loading: segment?.loading ?? true,
             path: path + '/',
             name,
             parentSubjectPath,
@@ -582,9 +587,9 @@ class UserHomeDirectory {
             previewPath,
             dataPath,
             reviewFlagPath,
-            reviewFlagExists: segment.files.map((file) => {
+            reviewFlagExists: segment?.files.map((file) => {
                 return file.key;
-            }).includes(reviewFlagPath),
+            }).includes(reviewFlagPath) ?? false,
             reviewJson: dir.getJsonFile(reviewJsonPath)
         };
     }

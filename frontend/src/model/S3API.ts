@@ -392,6 +392,7 @@ class S3APIImpl extends S3API {
             }
 
             if (output.NextContinuationToken != null) {
+                console.log("Continuing listAsync for "+path+" with token "+output.NextContinuationToken);
                 return this.listAsync(path, recursive, output.NextContinuationToken, files, folders);
             }
 
