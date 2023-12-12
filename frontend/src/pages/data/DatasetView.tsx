@@ -261,6 +261,8 @@ const DatasetView = observer((props: DatasetViewProps) => {
         </div>
         */}
 
+        {citationDetails}
+
     </div>
 });
 

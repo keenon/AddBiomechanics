@@ -23,7 +23,7 @@ const DataTypeRouter = observer((props: DataTypeRouterProps) => {
 
   useEffect(() => {
     if ((dataPath.userId === "" || dataPath.userId === "data") && props.session.userId !== "") {
-      navigate(`/data/${props.session.userId}/`);
+      navigate(`/data/${props.session.userId}/`, { replace: true });
     }
   }, [dataPath.userId, props.session.userId, navigate, home.getPathType(path)]);
 
