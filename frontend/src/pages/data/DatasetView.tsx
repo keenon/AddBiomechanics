@@ -4,6 +4,7 @@ import { observer } from "mobx-react-lite";
 import UserHomeDirectory, { DatasetContents } from "../../model/UserHomeDirectory";
 import Session from "../../model/Session";
 import LiveJsonFile from "../../model/LiveJsonFile";
+import { Spinner } from "react-bootstrap";
 
 type DatasetViewProps = {
     home: UserHomeDirectory;
@@ -21,19 +22,141 @@ const DatasetView = observer((props: DatasetViewProps) => {
     const dir = home.dir;
     const datasetContents: DatasetContents = home.getDatasetContents(path);
 
-    const searchJson: LiveJsonFile = dir.getJsonFile(path + "_search.json")
+    const showCitationData = false;
+    let citationDetails: React.ReactNode = null;
+    if (showCitationData) {
+        const searchJson: LiveJsonFile = dir.getJsonFile(path + "_search.json")
 
-    const datasetTitle: string = searchJson.getAttribute("title", "")
-    const datasetNotes: string = searchJson.getAttribute("notes", "")
-    const datasetCitation: string = searchJson.getAttribute("citation", "")
-    const datasetFunding: string = searchJson.getAttribute("funding", "")
-    const datasetAcknowledgements: string = searchJson.getAttribute("acknowledgements", "")
+        const datasetTitle: string = searchJson.getAttribute("title", "")
+        const datasetNotes: string = searchJson.getAttribute("notes", "")
+        const datasetCitation: string = searchJson.getAttribute("citation", "")
+        const datasetFunding: string = searchJson.getAttribute("funding", "")
+        const datasetAcknowledgements: string = searchJson.getAttribute("acknowledgements", "")
+        citationDetails = <>
+            <h3>Dataset Citation Details:</h3>
+            <div key="datasetTitle" className="mb-3">
+                <label>
+                    Title:
+                </label>
+                <textarea
+                    id="title"
+                    value={datasetTitle == null ? "" : datasetTitle}
+                    className={"form-control" + ((datasetTitle == null) ? " border-primary border-2" : "")}
+                    aria-describedby="citeHelp"
+                    onFocus={() => {
+                        searchJson.onFocusAttribute("title");
+                    }}
+                    onBlur={() => {
+                        searchJson.onBlurAttribute("title");
+                    }}
+                    onChange={(e) => {
+                        searchJson.setAttribute("title", e.target.value);
+                    }}
+                    readOnly={props.readonly}>
+                </textarea>
+                <div id="citeHelp" className="form-text">What title do you want for your dataset?</div>
+            </div>
+
+            <div key="notes" className="mb-3">
+                <label>
+                    Dataset Info:
+                </label>
+                <textarea
+                    id="info"
+                    value={datasetNotes == null ? "" : datasetNotes}
+                    className={"form-control" + ((datasetNotes == null) ? " border-primary border-2" : "")}
+                    aria-describedby="citeHelp"
+                    onFocus={() => {
+                        searchJson.onFocusAttribute("notes");
+                    }}
+                    onBlur={() => {
+                        searchJson.onBlurAttribute("notes");
+                    }}
+                    onChange={(e) => {
+                        searchJson.setAttribute("notes", e.target.value);
+                    }}
+                    readOnly={props.readonly}>
+                </textarea>
+                <div id="citeHelp" className="form-text">Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!</div>
+            </div>
+
+            <div key="citation" className="mb-3">
+                <label>
+                    Desired Citation:
+                </label>
+                <textarea
+                    id="citation"
+                    value={datasetCitation == null ? "" : datasetCitation}
+                    className={"form-control" + ((datasetCitation == null) ? " border-primary border-2" : "")}
+                    aria-describedby="citeHelp"
+                    onFocus={() => {
+                        searchJson.onFocusAttribute("citation");
+                    }}
+                    onBlur={() => {
+                        searchJson.onBlurAttribute("citation");
+                    }}
+                    onChange={(e) => {
+                        searchJson.setAttribute("citation", e.target.value);
+                    }}
+                    readOnly={props.readonly}>
+                </textarea>
+                <div id="citeHelp" className="form-text">How do you want this data to be cited?</div>
+            </div>
+
+            <div key="funding" className="mb-3">
+                <label>
+                    Funding:
+                </label>
+                <textarea
+                    id="funding"
+                    value={datasetFunding == null ? "" : datasetFunding}
+                    className={"form-control" + ((datasetFunding == null) ? " border-primary border-2" : "")}
+                    aria-describedby="citeHelp"
+                    onFocus={() => {
+                        searchJson.onFocusAttribute("funding");
+                    }}
+                    onBlur={() => {
+                        searchJson.onBlurAttribute("funding");
+                    }}
+                    onChange={(e) => {
+                        searchJson.setAttribute("funding", e.target.value);
+                    }}
+                    readOnly={props.readonly}>
+                </textarea>
+                <div id="citeHelp" className="form-text">Funding supporting this project.</div>
+            </div>
+
+            <div key="acknowledgements" className="mb-3">
+                <label>
+                    Acknowledgements:
+                </label>
+                <textarea
+                    id="acknowledgements"
+                    value={datasetAcknowledgements == null ? "" : datasetAcknowledgements}
+                    className={"form-control" + ((datasetAcknowledgements == null) ? " border-primary border-2" : "")}
+                    aria-describedby="citeHelp"
+                    onFocus={() => {
+                        searchJson.onFocusAttribute("acknowledgements");
+                    }}
+                    onBlur={() => {
+                        searchJson.onBlurAttribute("acknowledgements");
+                    }}
+                    onChange={(e) => {
+                        searchJson.setAttribute("acknowledgements", e.target.value);
+                    }}
+                    readOnly={props.readonly}>
+                </textarea>
+                <div id="citeHelp" className="form-text">Acknowledgements you would like to add.</div>
+            </div>
+        </>;
+    }
 
     if (datasetContents.loading) {
-        return <div>Loading...</div>;
+        return <div>
+            <Spinner animation="border" />
+        </div>;
     }
     return <div>
-        <h3>{datasetTitle}</h3>
         <table className="table">
             <thead>
                 <tr>
@@ -128,6 +251,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 setFolderName("");
             }}>Create New Folder</button>
         </div>
+        {/*
         <div className="row mb-4 mt-4">
             <button className='btn btn-danger' onClick={() => {
                 if (window.confirm("DANGER! This will reprocess all subjects in this dataset. This will delete all existing results for thees subjects. Are you sure?")) {
@@ -135,177 +259,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 }
             }}>Reprocess All Subjects</button>
         </div>
-
-
-
-
-
-
-
-          <div key="datasetTitle" className="mb-3">
-            <label>
-             Title:
-{/*               <OverlayTrigger */}
-{/*                 placement="right" */}
-{/*                 delay={{ show: 50, hide: 400 }} */}
-{/*                 overlay={(props) => ( */}
-{/*                   <Tooltip id="button-tooltip" {...props}> */}
-{/*                     What title do you want for your dataset? */}
-{/*                   </Tooltip> */}
-{/*                 )}> */}
-{/*                 <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i> */}
-{/*               </OverlayTrigger> */}
-            </label>
-            <textarea
-                id="title"
-                value={datasetTitle == null ? "" : datasetTitle}
-                className={"form-control" + ((datasetTitle == null) ? " border-primary border-2" : "")}
-                aria-describedby="citeHelp"
-                onFocus={() => {
-                    searchJson.onFocusAttribute("title");
-                }}
-                onBlur={() => {
-                    searchJson.onBlurAttribute("title");
-                }}
-                onChange={(e) => {
-                    searchJson.setAttribute("title", e.target.value);
-                }}
-                readOnly={props.readonly}>
-            </textarea>
-            <div id="citeHelp" className="form-text">What title do you want for your dataset?</div>
-          </div>
-
-          <div key="notes" className="mb-3">
-            <label>
-              Dataset Info:
-{/*               <OverlayTrigger */}
-{/*                 placement="right" */}
-{/*                 delay={{ show: 50, hide: 400 }} */}
-{/*                 overlay={(props) => ( */}
-{/*                   <Tooltip id="button-tooltip" {...props}> */}
-{/*                     Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects! */}
-{/*                   </Tooltip> */}
-{/*                 )}> */}
-{/*                 <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i> */}
-{/*               </OverlayTrigger> */}
-            </label>
-            <textarea
-                id="info"
-                value={datasetNotes == null ? "" : datasetNotes}
-                className={"form-control" + ((datasetNotes == null) ? " border-primary border-2" : "")}
-                aria-describedby="citeHelp"
-                onFocus={() => {
-                    searchJson.onFocusAttribute("notes");
-                }}
-                onBlur={() => {
-                    searchJson.onBlurAttribute("notes");
-                }}
-                onChange={(e) => {
-                    searchJson.setAttribute("notes", e.target.value);
-                }}
-                readOnly={props.readonly}>
-            </textarea>
-            <div id="citeHelp" className="form-text">Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!</div>
-          </div>
-
-          <div key="citation" className="mb-3">
-            <label>
-              Desired Citation:
-{/*               <OverlayTrigger */}
-{/*                 placement="right" */}
-{/*                 delay={{ show: 50, hide: 400 }} */}
-{/*                 overlay={(props) => ( */}
-{/*                   <Tooltip id="button-tooltip" {...props}> */}
-{/*                     How do you want this data to be cited? */}
-{/*                   </Tooltip> */}
-{/*                 )}> */}
-{/*                 <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i> */}
-{/*               </OverlayTrigger> */}
-            </label>
-            <textarea
-                id="citation"
-                value={datasetCitation == null ? "" : datasetCitation}
-                className={"form-control" + ((datasetCitation == null) ? " border-primary border-2" : "")}
-                aria-describedby="citeHelp"
-                onFocus={() => {
-                    searchJson.onFocusAttribute("citation");
-                }}
-                onBlur={() => {
-                    searchJson.onBlurAttribute("citation");
-                }}
-                onChange={(e) => {
-                    searchJson.setAttribute("citation", e.target.value);
-                }}
-                readOnly={props.readonly}>
-            </textarea>
-            <div id="citeHelp" className="form-text">How do you want this data to be cited?</div>
-          </div>
-
-          <div key="funding" className="mb-3">
-            <label>
-              Funding:
-{/*               <OverlayTrigger */}
-{/*                 placement="right" */}
-{/*                 delay={{ show: 50, hide: 400 }} */}
-{/*                 overlay={(props) => ( */}
-{/*                   <Tooltip id="button-tooltip" {...props}> */}
-{/*                     Funding supporting this project. */}
-{/*                   </Tooltip> */}
-{/*                 )}> */}
-{/*                 <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i> */}
-{/*               </OverlayTrigger> */}
-            </label>
-            <textarea
-                id="funding"
-                value={datasetFunding == null ? "" : datasetFunding}
-                className={"form-control" + ((datasetFunding == null) ? " border-primary border-2" : "")}
-                aria-describedby="citeHelp"
-                onFocus={() => {
-                    searchJson.onFocusAttribute("funding");
-                }}
-                onBlur={() => {
-                    searchJson.onBlurAttribute("funding");
-                }}
-                onChange={(e) => {
-                    searchJson.setAttribute("funding", e.target.value);
-                }}
-                readOnly={props.readonly}>
-            </textarea>
-            <div id="citeHelp" className="form-text">Funding supporting this project.</div>
-          </div>
-
-          <div key="acknowledgements" className="mb-3">
-            <label>
-              Acknowledgements:
-{/*               <OverlayTrigger */}
-{/*                 placement="right" */}
-{/*                 delay={{ show: 50, hide: 400 }} */}
-{/*                 overlay={(props) => ( */}
-{/*                   <Tooltip id="button-tooltip" {...props}> */}
-{/*                     Acknowledgements you would like to add. */}
-{/*                   </Tooltip> */}
-{/*                 )}> */}
-{/*                 <i className="mdi mdi-help-circle-outline text-muted vertical-middle" style={{ marginLeft: '5px' }}></i> */}
-{/*               </OverlayTrigger> */}
-            </label>
-            <textarea
-                id="acknowledgements"
-                value={datasetAcknowledgements == null ? "" : datasetAcknowledgements}
-                className={"form-control" + ((datasetAcknowledgements == null) ? " border-primary border-2" : "")}
-                aria-describedby="citeHelp"
-                onFocus={() => {
-                    searchJson.onFocusAttribute("acknowledgements");
-                }}
-                onBlur={() => {
-                    searchJson.onBlurAttribute("acknowledgements");
-                }}
-                onChange={(e) => {
-                    searchJson.setAttribute("acknowledgements", e.target.value);
-                }}
-                readOnly={props.readonly}>
-            </textarea>
-            <div id="citeHelp" className="form-text">Acknowledgements you would like to add.</div>
-          </div>
+        */}
 
     </div>
 });
