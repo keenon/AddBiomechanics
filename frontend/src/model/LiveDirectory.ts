@@ -422,6 +422,13 @@ class LiveDirectoryImpl extends LiveDirectory {
         }
         const normalizedPath = this.normalizePath(originalPath);
 
+        // If there's no key in the cache yet for this, then mobx won't know to update 
+        // when it does get added, so we can add an empty stub to work around this.
+        if (!this.pathCache.has(normalizedPath)) {
+            action(() => {
+                this.pathCache.set(normalizedPath, null as any);
+            })();
+        }
         const cached = this.pathCache.get(normalizedPath);
         if (cached != null) {
             return cached;
@@ -503,6 +510,8 @@ class LiveDirectoryImpl extends LiveDirectory {
         if (!file.key.startsWith(this.prefix)) {
             return Promise.resolve();
         }
+        // Make a local copy of the file object
+        file = {...file};
 
         // Look for any already loaded PathData objects that contain 
         // this file, which is only the immediate parent, and itself
@@ -524,11 +533,10 @@ class LiveDirectoryImpl extends LiveDirectory {
             }
             // 1. Check if this file has already been loaded, and if so update it
             const cachedData: PathData | undefined = this.pathCache.get(pathToCheck);
-            if (cachedData) {
+            if (cachedData != null) {
                 // Check if we're missing the folder for this new path, and if so create it
                 let anyChanged: boolean = false;
                 let updatedCacheData: PathData = {...cachedData};
-
                 if (!updatedCacheData.loading) {
                     const remainingPathParts = localPath.substring(updatedCacheData.path.length).split('/');
                     if (remainingPathParts[0] === '') remainingPathParts.shift();
@@ -551,7 +559,12 @@ class LiveDirectoryImpl extends LiveDirectory {
                                 recursive: true,
                             };
                             cursor.children.set(remainingPathParts[j], child);
-                            cursor.folders.push(childPath);
+                            // It's possible that if we did not load this path recursively, that we
+                            // might have a folder in the list of folders that doesn't yet exist in the list of children, so it's
+                            // important to check that we don't add it twice.
+                            if (!cursor.folders.includes(childPath)) {
+                                cursor.folders.push(childPath);
+                            }
                             anyChanged = true;
                         }
                         cursor = child;
@@ -566,7 +579,7 @@ class LiveDirectoryImpl extends LiveDirectory {
                         const existingFileIndex = cursor.files.map(f => f.key).indexOf(localPath);
                         if (existingFileIndex !== -1) {
                             cursor.files[existingFileIndex] = {
-                                ...updatedCacheData.files[existingFileIndex],
+                                ...cursor.files[existingFileIndex],
                                 lastModified: file.lastModified,
                                 size: file.size
                             };

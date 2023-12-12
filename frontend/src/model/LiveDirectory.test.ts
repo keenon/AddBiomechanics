@@ -441,6 +441,40 @@ describe("LiveDirectory", () => {
         const path = api.getPath("ASB2023/", true);
         await path.promise;
         // Changes once for loading: true, again for loading: false
+        expect(counter.count).toBe(4);
+
+        disposer();
+    });
+
+    test("Autorun getPath on uploads", async () => {
+        const counter: {count: number} = {count: 0};
+
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/trials/1",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/TestProsthetic/trials/1",
+        ]);
+
+        const disposer = autorun((reaction) => {
+            api.getPath("ASB2023/", false);
+            // Count how many times this autorun has been called
+            counter.count++;
+        });
+        expect(counter.count).toBe(1);
+
+        await api.getPath("ASB2023/", false);
+
+        await api.uploadText("ASB2023/text.txt", "");
+        // Once for loading: true, again for loading: false
         expect(counter.count).toBe(3);
 
         disposer();
@@ -512,6 +546,48 @@ describe("LiveDirectory", () => {
         expect(data.files.length).toBe(0);
         expect(data.folders.length).toBe(0);
 
+        pubsub.mockReceiveMessage({
+            topic: "/DEV/UPDATE/protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data",
+            message: JSON.stringify({
+                key: "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+                size: 10,
+                dateModified: new Date().toString(),
+            })
+        });
+
+        expect(api.pathCache.size).toBe(1);
+        const updatedData = api.getCachedPath("ASB2023/S01/");
+        if (updatedData) {
+            expect(updatedData.files.length).toBe(1);
+        }
+        else {
+            // This will always fail
+            expect(updatedData).toBeDefined();
+        }
+    });
+
+    test("Receiving two PubSub messages in a row, second one is idempotent", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        pubsub.connect();
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        expect(api.pathCache.size).toBe(0);
+        // We expect the LiveDirectory to have registered 2 PubSub listeners when it was created, one for deletes, and one for updates
+        expect(pubsub.listeners.size).toBe(2);
+
+        const data = await api.getPath("ASB2023/S01/", false);
+        expect(api.pathCache.size).toBe(1);
+        expect(data.files.length).toBe(0);
+        expect(data.folders.length).toBe(0);
+
+        pubsub.mockReceiveMessage({
+            topic: "/DEV/UPDATE/protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data",
+            message: JSON.stringify({
+                key: "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S01/_subject.json",
+                size: 10,
+                dateModified: new Date().toString(),
+            })
+        });
         pubsub.mockReceiveMessage({
             topic: "/DEV/UPDATE/protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data",
             message: JSON.stringify({

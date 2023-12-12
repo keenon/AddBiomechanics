@@ -176,7 +176,7 @@ class SubjectViewState {
      * This function recomputes the state from the current state of the UserHomeDirectory.
      */
     reloadState() {
-        const subjectPathData: PathData = this.home.dir.getPath(this.path, false);
+        const subjectPathData: PathData = this.home.dir.getPath(this.path, true);
         const trialsPathData: PathData = this.home.dir.getPath(this.path+'/trials/', true);
         // Do nothing, just touch all the entries outside the action() call to get MobX to re-render when this changes
         this.uploadedTrialPaths.forEach((name, path) => {});
@@ -440,9 +440,9 @@ class SubjectViewState {
     };
 
     submitForProcessing(): Promise<void> {
-        return this.readyFlagFile.uploadFlag().then(() => {
+        return this.readyFlagFile.uploadFlag().then(action(() => {
             this.wizardCollapsed = true;
-        });
+        }));
     }
 
     reprocess(): Promise<void> {

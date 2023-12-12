@@ -337,6 +337,27 @@ describe("UserHomeDirectory", () => {
         expect(dataset.contents.filter(f => f.name === 'TestSubject')[0].status).toBe('ready_to_process');
     });
 
+    test("Create subject triggers autorun", async () => {
+        // This test has side effects, so we isolate it
+        const isolated_s3 = new S3APIMock();
+        isolated_s3.setFilePathsExist(filePaths);
+        const dir = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", isolated_s3, pubsub);
+        const api = new UserHomeDirectory(dir);
+        await dir.faultInPath("").promise;
+
+        const counter = { count: 0 };
+        const disposer = autorun(() => {
+            const dataset = api.getDatasetContents('');
+            counter.count++;
+        });
+
+        await api.createSubject("", "TestSubject");
+
+        expect(counter.count).toBeGreaterThan(1);
+
+        disposer();
+    });
+
     test("Fault in subject gets correct type", async () => {
         // This test has side effects, so we isolate it
         const isolated_s3 = new S3APIMock();
