@@ -5,6 +5,7 @@ import Session from "../../model/Session";
 import ProfileView from "../../pages/profile/ProfileView"
 import { isUUID } from "../../utils"
 import { Spinner } from "react-bootstrap";
+import HorizontalLayout from "../layouts/Horizontal";
 
 type ProfileRouterProps = {
   session: Session;
@@ -34,9 +35,11 @@ const ProfileRouter = observer((props: ProfileRouterProps) => {
   }
 
   return (
-    <div className='container'>
-      {body}
-    </div>
+    <HorizontalLayout>
+      <div className='container'>
+        {body}
+      </div>
+    </HorizontalLayout>
   );
 });
 

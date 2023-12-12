@@ -7,6 +7,7 @@ import DatasetView from "./DatasetView";
 import SubjectView from "./SubjectView";
 import Session from "../../model/Session";
 import { Breadcrumb, BreadcrumbItem, Spinner } from "react-bootstrap";
+import HorizontalLayout from "../layouts/Horizontal";
 
 type DataTypeRouterProps = {
   session: Session;
@@ -167,11 +168,13 @@ const DataTypeRouter = observer((props: DataTypeRouterProps) => {
   }
 
   return (
-    <div className='container'>
-      {loginStatus}
-      <Breadcrumb className="m-0 mb-0">{breadcrumbs}</Breadcrumb>
-      {body}
-    </div>
+    <HorizontalLayout>
+      <div className='container'>
+        {loginStatus}
+        <Breadcrumb className="m-0 mb-0">{breadcrumbs}</Breadcrumb>
+        {body}
+      </div>
+    </HorizontalLayout>
   );
 });
 

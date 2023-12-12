@@ -1,6 +1,5 @@
 import React, { Suspense, useState } from "react";
 import { Container } from "react-bootstrap";
-import { Outlet } from "react-router";
 import Topbar from "./Topbar";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
@@ -42,7 +41,7 @@ const HorizontalLayout = ({ children }: HorizontalLayoutProps) => {
             <Navbar isMenuOpened={isMenuOpened} />
 
             <Container fluid>
-              <Outlet />
+              {children}
             </Container>
           </div>
 

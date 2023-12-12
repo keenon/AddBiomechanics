@@ -21,7 +21,6 @@ import UserHomeDirectory from "./model/UserHomeDirectory";
 import Session from "./model/Session";
 import { configure } from "mobx"
 import RedirectHome from "./pages/auth/RedirectHome";
-import HorizontalLayout from "./pages/layouts/Horizontal";
 
 configure({
   enforceActions: 'always'
@@ -76,10 +75,8 @@ ReactDOM.render(
   <BrowserRouter>
     <Routes>
       <Route index element={<RedirectHome session={session} />}></Route>
-      <Route element={<HorizontalLayout />}>
-        <Route path="/data/*" element={<DataTypeRouter session={session} />} />
-        <Route path="/profile/*" element={<ProfileRouter session={session} />} />
-      </Route>
+      <Route path="/data/*" element={<DataTypeRouter session={session} />} />
+      <Route path="/profile/*" element={<ProfileRouter session={session} />} />
       <Route
         path="/login"
         element={
