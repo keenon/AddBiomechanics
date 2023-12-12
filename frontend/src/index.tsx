@@ -9,6 +9,7 @@ import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import ConfirmUser from "./pages/auth/ConfirmUser";
 import DataTypeRouter from "./pages/data/DataTypeRouter";
+import ProfileRouter from "./pages/profile/ProfileRouter";
 import RequiresAuth from "./pages/auth/RequiresAuth";
 import Amplify, { API, Auth } from "aws-amplify";
 import awsExports from "./aws-exports";
@@ -20,6 +21,7 @@ import UserHomeDirectory from "./model/UserHomeDirectory";
 import Session from "./model/Session";
 import { configure } from "mobx"
 import RedirectHome from "./pages/auth/RedirectHome";
+import HorizontalLayout from "./pages/layouts/Horizontal";
 
 configure({
   enforceActions: 'always'
@@ -74,7 +76,10 @@ ReactDOM.render(
   <BrowserRouter>
     <Routes>
       <Route index element={<RedirectHome session={session} />}></Route>
-      <Route path="/data/*" element={<DataTypeRouter session={session} />} />
+      <Route element={<HorizontalLayout />}>
+        <Route path="/data/*" element={<DataTypeRouter session={session} />} />
+        <Route path="/profile/*" element={<ProfileRouter session={session} />} />
+      </Route>
       <Route
         path="/login"
         element={

@@ -32,25 +32,21 @@ const ProfileDropdown = () => {
       <>
         <Dropdown className="d-none d-lg-block">
           <Dropdown.Toggle className="btn btn-light bg-transparent border-transparent rounded-circle dropdown m-0 p-0 mt-1">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg" className="rounded-circle image-menu" height="60"></img>
+            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg" className="rounded-circle image-menu" height="60" alt="Profile"></img>
           </Dropdown.Toggle>
 
           <Dropdown.Menu>
-            <Dropdown.Item as={Link} to="/profile">
-              <b>Signed in as:</b> {email}
+            <Dropdown.Item as={Link} to="/profile/">
+              <b>Logged in as:</b> {email}
             </Dropdown.Item>
             <hr className="mt-1 mb-1"></hr>
-            <Dropdown.Item as={Link} to="/profile">
+            <Dropdown.Item as={Link} to="/profile/">
               <i className={`mdi mdi-account me-1`}></i>
               <span>Your Profile</span>
             </Dropdown.Item>
             <Dropdown.Item as={Link} to="/data">
               <i className={`mdi mdi-magnify me-1`}></i>
               <span>Your Data</span>
-            </Dropdown.Item>
-            <Dropdown.Item as={Link} to="/server_status">
-              <i className={`mdi mdi-server me-1`}></i>
-              <span>Processing Server Status</span>
             </Dropdown.Item>
             <hr className="mt-1 mb-1"></hr>
             <Dropdown.Item tag={Link} href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402" target="_blank">
@@ -61,6 +57,10 @@ const ProfileDropdown = () => {
               <i className={`mdi mdi-help me-1`}></i>
               <span>Help</span>
             </Dropdown.Item>
+            <Dropdown.Item tag={Link} href="https://addbiomechanics.org/faq.html" target="_blank">
+              <i className={`mdi mdi-frequently-asked-questions me-1`}></i>
+              <span>FAQ</span>
+            </Dropdown.Item>
             <Dropdown.Item tag={Link} href="https://addbiomechanics.org/tos.html" target="_blank">
               <i className={`mdi mdi-file-document-edit me-1`}></i>
               <span>Terms of Service</span>
@@ -68,6 +68,10 @@ const ProfileDropdown = () => {
             <Dropdown.Item tag={Link} href="https://addbiomechanics.org/data_sharing_mission.html" target="_blank">
               <i className={`mdi mdi-share-all me-1`}></i>
               <span>Data Sharing Mission</span>
+            </Dropdown.Item>
+            <Dropdown.Item tag={Link} href="https://github.com/keenon/AddBiomechanics/issues/" target="_blank">
+              <i className={`mdi mdi-bug me-1`}></i>
+              <span>Bug Report</span>
             </Dropdown.Item>
             <hr className="mt-1 mb-1"></hr>
             <Dropdown.Item as={Link} to="/logout">
