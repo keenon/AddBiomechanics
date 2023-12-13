@@ -655,7 +655,7 @@ class Subject:
         print('Created DynamicsInitialization', flush=True)
 
         radius: float = 0.05
-        min_time: float = 0.15
+        min_time: float = 0.25
         dynamics_fitter.estimateFootGroundContactsWithStillness(dynamics_init, radius=radius, minTime=min_time)
 
         # Double check that manual review status is preserved
@@ -699,11 +699,11 @@ class Subject:
             iterationsPerShift=20,
             maxTrialsToSolveMassOver=self.maxTrialsToSolveMassOver,
             avgPositionChangeThreshold=0.20,
-            avgAngularChangeThreshold=0.20,
+            avgAngularChangeThreshold=0.35,
             reoptimizeTrackingMarkers=True,
             reoptimizeAnatomicalMarkers=self.dynamicsMarkerOffsets,
             detectUnmeasuredTorque=detect_unmeasured_torque,
-            tuneLinkMasses=False
+            tuneLinkMasses=False,
         )
 
         # Double check that manual review status is preserved
