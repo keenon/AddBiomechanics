@@ -22,6 +22,9 @@ class ViewCommand(AbstractCommand):
             help='The path to the Geometry folder to use when loading OpenSim skeletons',
             type=str,
             default=None)
+        view_parser.add_argument('--show-markers',
+                                 help='Show the markers',
+                                 action='store_true')
         view_parser.add_argument(
             '--graph-dof',
             help='The name of a DOF to highlight and to graph',
@@ -62,6 +65,7 @@ class ViewCommand(AbstractCommand):
         playback_speed: float = args.playback_speed
         show_energy: bool = args.show_energy
         show_root_frame: bool = args.show_root_frame
+        show_markers: bool = args.show_markers
         loop_frames: List[int] = args.loop_frames
 
         try:
@@ -110,7 +114,9 @@ class ViewCommand(AbstractCommand):
         print('Contact bodies: '+str(contact_bodies))
 
         num_frames = subject.getTrialLength(trial)
-        skel = subject.readSkel(0, geometry)
+        osim: nimble.biomechanics.OpenSimFile = subject.readOpenSimFile(0, geometry)
+        skel = osim.skeleton
+        marker_map = osim.markersMap
 
         print('DOFs:')
         for i in range(skel.getNumDofs()):
@@ -212,6 +218,7 @@ class ViewCommand(AbstractCommand):
             nonlocal loop_counter
             nonlocal loop_frames
             nonlocal skel
+            nonlocal marker_map
             nonlocal subject
             nonlocal dof
             nonlocal dof_poses
@@ -220,6 +227,7 @@ class ViewCommand(AbstractCommand):
             nonlocal dof_taus
             nonlocal timesteps
             nonlocal running_energy_deriv
+            nonlocal show_markers
 
             if len(loop_frames) == 0:
                 frame = loop_counter
@@ -270,6 +278,19 @@ class ViewCommand(AbstractCommand):
                     f = loaded[0].rawForcePlateForces[i] * 0.001
                     color: np.ndarray = np.array([1, 1, 0, 1])
                     gui.nativeAPI().createLine('raw_grf'+str(i), [cop, cop+f], color)
+
+                if show_markers:
+                    virtual_markers = skel.getMarkerMapWorldPositions(marker_map)
+
+                    markers = loaded[0].markerObservations
+                    for marker_name, marker_pos in markers:
+                        if marker_name in virtual_markers:
+                            virtual_pos = virtual_markers[marker_name]
+                            gui.nativeAPI().createLine(marker_name+"_err", [virtual_pos, marker_pos], [1,0,0,1])
+                        else:
+                            gui.nativeAPI().deleteObject(marker_name+"_err")
+                        gui.nativeAPI().createBox(marker_name, [0.01, 0.01, 0.01], marker_pos, np.zeros(3), [0.7,0.7,0.7,1])
+                        gui.nativeAPI().setObjectTooltip(marker_name, marker_name)
 
                 for i in range(0, len(contact_bodies)):
                     cop = loaded[0].processingPasses[-1].groundContactCenterOfPressure[i*3:(i+1)*3]
