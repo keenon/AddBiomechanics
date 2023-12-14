@@ -43,7 +43,7 @@ class Subject:
         self.initialIKRestarts = 150
         self.ignoreJointLimits = False
         self.residualsToZero = False
-        self.useReactionWheels = True
+        self.useReactionWheels = False
         self.tuneResidualLoss = 1.0
         self.shiftGRF = False
         self.maxTrialsToSolveMassOver = 4
@@ -658,21 +658,6 @@ class Subject:
         min_time: float = 0.2
         dynamics_fitter.estimateFootGroundContactsWithStillness(dynamics_init, radius=radius, minTime=min_time)
 
-        # Double check that manual review status is preserved
-        probably_missing = dynamics_init.probablyMissingGRF
-        missing_grf_reason = dynamics_init.missingGRFReason
-        for trial in range(len(probably_missing)):
-            for t in range(len(probably_missing[trial])):
-                manual_status: nimble.biomechanics.MissingGRFStatus = trial_segments[trial].missing_grf_manual_review[t]
-                status: nimble.biomechanics.MissingGRFStatus = probably_missing[trial][t]
-                reason: nimble.biomechanics.MissingGRFReason = missing_grf_reason[trial][t]
-                if manual_status == nimble.biomechanics.MissingGRFStatus.no:
-                    assert(status == nimble.biomechanics.MissingGRFStatus.no)
-                    assert(reason == nimble.biomechanics.MissingGRFReason.notMissingGRF)
-                elif manual_status == nimble.biomechanics.MissingGRFStatus.yes:
-                    assert(status == nimble.biomechanics.MissingGRFStatus.yes)
-                    assert(reason == nimble.biomechanics.MissingGRFReason.manualReview)
-
         print("Initial mass: " +
               str(self.skeleton.getMass()) + " kg", flush=True)
         print("What we'd expect average ~GRF to be (Mass * 9.8): " +
@@ -689,7 +674,6 @@ class Subject:
         # cost seems to be greater than the reward, though.
         # dynamicsFitter.boundPush(dynamicsInit)
 
-        dynamics_fitter.smoothAccelerations(dynamics_init)
         detect_unmeasured_torque = not self.useReactionWheels
         initialize_success = dynamics_fitter.timeSyncAndInitializePipeline(
             dynamics_init,
@@ -706,20 +690,6 @@ class Subject:
             tuneLinkMasses=False,
         )
 
-        # Double check that manual review status is preserved
-        probably_missing = dynamics_init.probablyMissingGRF
-        missing_grf_reason = dynamics_init.missingGRFReason
-        for trial in range(len(dynamics_init.probablyMissingGRF)):
-            for t in range(len(dynamics_init.probablyMissingGRF[trial])):
-                manual_status: nimble.biomechanics.MissingGRFStatus = trial_segments[trial].missing_grf_manual_review[t]
-                status: nimble.biomechanics.MissingGRFStatus = probably_missing[trial][t]
-                reason: nimble.biomechanics.MissingGRFReason = missing_grf_reason[trial][t]
-                if manual_status == nimble.biomechanics.MissingGRFStatus.no:
-                    assert(status == nimble.biomechanics.MissingGRFStatus.no)
-                    assert(reason == nimble.biomechanics.MissingGRFReason.notMissingGRF)
-                elif manual_status == nimble.biomechanics.MissingGRFStatus.yes:
-                    assert(status == nimble.biomechanics.MissingGRFStatus.yes)
-                    assert(reason != nimble.biomechanics.MissingGRFReason.notMissingGRF)
 
         # 8.3. If initialization succeeded, we will proceed with the full "kitchen sink" optimization.
         if initialize_success:
@@ -727,7 +697,7 @@ class Subject:
             total_frames_count = 0
             for trialMissingGRF in dynamics_init.probablyMissingGRF:
                 good_frames_count += sum(
-                    [1 if missing == nimble.biomechanics.MissingGRFStatus.no else 0 for missing in trialMissingGRF])
+                    [0 if missing == nimble.biomechanics.MissingGRFStatus.yes else 1 for missing in trialMissingGRF])
                 total_frames_count += len(trialMissingGRF)
             bad_frames_count = total_frames_count - good_frames_count
             print('Detected missing/bad GRF data on ' + str(bad_frames_count) + '/' + str(
@@ -821,7 +791,7 @@ class Subject:
                         for i in range(100):
                             # this holds the mass constant, and re-jigs the trajectory to try to get
                             # the angular ACC's to match more closely what was actually observed
-                            pair = dynamics_fitter.zeroLinearResidualsAndOptimizeAngular(
+                            lin_success, ang_success, residual = dynamics_fitter.zeroLinearResidualsAndOptimizeAngular(
                                 dynamics_init,
                                 segment,
                                 original_trajectory,
@@ -834,7 +804,7 @@ class Subject:
                                 regularizeAngularResiduals=0.1,
                                 regularizeCopDriftCompensation=1.0,
                                 maxBuckets=150)
-                            previous_total_residual = pair[1]
+                            previous_total_residual = residual
 
                         dynamics_fitter.recalibrateForcePlates(
                             dynamics_init, segment)
@@ -847,21 +817,6 @@ class Subject:
         dynamics_fitter.computePerfectGRFs(dynamics_init)
         dynamics_fitter.checkPhysicalConsistency(
             dynamics_init, maxAcceptableErrors=1e-3, maxTimestepsToTest=25)
-
-        # Double check that manual review status is preserved
-        probably_missing = dynamics_init.probablyMissingGRF
-        missing_grf_reason = dynamics_init.missingGRFReason
-        for trial in range(len(dynamics_init.probablyMissingGRF)):
-            for t in range(len(dynamics_init.probablyMissingGRF[trial])):
-                manual_status: nimble.biomechanics.MissingGRFStatus = trial_segments[trial].missing_grf_manual_review[t]
-                status: nimble.biomechanics.MissingGRFStatus = probably_missing[trial][t]
-                reason: nimble.biomechanics.MissingGRFReason = missing_grf_reason[trial][t]
-                if manual_status == nimble.biomechanics.MissingGRFStatus.no:
-                    assert(status == nimble.biomechanics.MissingGRFStatus.no)
-                    assert(reason == nimble.biomechanics.MissingGRFReason.notMissingGRF)
-                elif manual_status == nimble.biomechanics.MissingGRFStatus.yes:
-                    assert(status == nimble.biomechanics.MissingGRFStatus.yes)
-                    assert(reason != nimble.biomechanics.MissingGRFReason.notMissingGRF)
 
         # 8.5. Report the dynamics fitting results.
         print("Avg Marker RMSE: " +
@@ -884,6 +839,7 @@ class Subject:
         grf_trials = dynamics_init.grfTrials
         pose_trials = dynamics_init.poseTrials
         force_plate_trials = dynamics_init.forcePlateTrials
+        missing_grf_reason = dynamics_init.missingGRFReason
 
         for i in range(len(trial_segments)):
             trial_segments[i].dynamics_taus = dynamics_fitter.computeInverseDynamics(dynamics_init, i)

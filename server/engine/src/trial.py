@@ -301,7 +301,7 @@ class TrialSegment:
         self.missing_grf_manual_review: List[nimble.biomechanics.MissingGRFStatus] = self.parent.missing_grf_manual_review[self.start:self.end]
         self.missing_grf_reason: List[nimble.biomechanics.MissingGRFReason] = [nimble.biomechanics.MissingGRFReason.notMissingGRF for _ in range(self.end - self.start)]
         for i in range(len(self.missing_grf_manual_review)):
-            if self.missing_grf_manual_review[i]:
+            if self.missing_grf_manual_review[i] == nimble.biomechanics.MissingGRFStatus.yes:
                 self.missing_grf_reason[i] = nimble.biomechanics.MissingGRFReason.manualReview
         # Make a deep copy of the marker observations, so we can modify them without affecting the parent trial
         for obs in self.parent.marker_observations[self.start:self.end]:
@@ -567,13 +567,16 @@ class TrialSegment:
         # Lowpass the data for the CSV
         b, a = butter(2, lowpass_hz, 'low', fs=1 / self.parent.timestep)
         if poses.shape[1] > 10:
-            poses = filtfilt(b, a, poses, axis=1)
+            poses = filtfilt(b, a, poses, axis=1, padtype='constant')
         if vels.shape[1] > 10:
-            vels = filtfilt(b, a, vels, axis=1)
+            vels = filtfilt(b, a, vels, axis=1, padtype='constant')
         if accs.shape[1] > 10:
-            accs = filtfilt(b, a, accs, axis=1)
+            accs = filtfilt(b, a, accs, axis=1, padtype='constant')
         if taus.shape[1] > 10:
-            taus = filtfilt(b, a, taus, axis=1)
+            for i in range(taus.shape[1]):
+                if self.missing_grf_reason[i] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
+                    taus[:, i] = np.zeros_like(taus[:, i])
+            taus = filtfilt(b, a, taus, axis=1, padtype='constant')
 
         # Write the CSV file
         with open(csv_file_path, 'w') as f:
