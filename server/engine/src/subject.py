@@ -43,7 +43,7 @@ class Subject:
         self.initialIKRestarts = 150
         self.ignoreJointLimits = False
         self.residualsToZero = False
-        self.useReactionWheels = False
+        self.useReactionWheels = True
         self.tuneResidualLoss = 1.0
         self.shiftGRF = False
         self.maxTrialsToSolveMassOver = 4
