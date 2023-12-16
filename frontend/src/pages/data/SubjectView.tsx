@@ -1130,7 +1130,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                             <td><button className="btn btn-dark" onClick={() => {
                                                 navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
                                             }}>
-                                                View Error Results "{trial.name}" {segmentResults.start}s to {segmentResults.end}s
+                                                View Error Results "{trial.name}" {segmentResults.start.toFixed(2)}s to {segmentResults.end.toFixed(2)}s
                                             </button></td>
                                             <td>{kinematicsResults}</td>
                                             <td>{dynamicsResults}</td>
@@ -1142,7 +1142,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                             <td><button className="btn btn-primary" onClick={() => {
                                                 navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
                                             }}>
-                                                View "{trial.name}" {segmentResults.start}s to {segmentResults.end}s
+                                                View "{trial.name}" {segmentResults.start.toFixed(2)}s to {segmentResults.end.toFixed(2)}s
                                             </button></td>
                                             <td>{kinematicsResults}</td>
                                             <td>{dynamicsResults}</td>

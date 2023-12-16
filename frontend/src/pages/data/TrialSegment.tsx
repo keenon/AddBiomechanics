@@ -717,7 +717,10 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
         const linkToReviewRoot = <Link to={urlToReviewRoot}>{reviewState.path}</Link>;
 
         if (!segmentContents.reviewFlagExists) {
-            reviewBar = <div style={{ height: '80px', width: '100vw', padding: 0, margin: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            reviewBar = <div style={{ height: '110px', width: '100vw', padding: 0, margin: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: '0 0 30px', textAlign: 'center' }}>
+                    <b>How to Review Your Data:</b> Paint any frames with <span style={{ color: "red" }}>missing GRF (steps off of force plates) as red</span>, <br /> all frames with complete GRF as grey (even if they have bad IK solutions), and then click "Finish Review."
+                </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'row' }}>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <table style={{ tableLayout: 'fixed', width: 'calc(100% - 20px)', height: 'calc(100% - 10px)' }}>
@@ -736,7 +739,10 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             </div>;
         }
         else {
-            reviewBar = <div style={{ height: '80px', width: '100vw', padding: 0, margin: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            reviewBar = <div style={{ height: '110px', width: '100vw', padding: 0, margin: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: '0 0 30px', textAlign: 'center' }}>
+                    <b>Review Instructions:</b> Click through to the next section, or click "Redo Review" to edit the review.
+                </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'row' }}>
                     <div style={{ flex: '0 0 150px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {reviewButton}
@@ -749,7 +755,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             </div>;
         }
 
-        remainingSectionHeight = 'calc(50vh - 40px)';
+        remainingSectionHeight = 'calc(50vh - 55px)';
     }
 
     body = (
