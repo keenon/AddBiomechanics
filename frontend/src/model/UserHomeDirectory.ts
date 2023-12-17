@@ -154,6 +154,9 @@ class UserHomeDirectory {
         if (path.endsWith('/')) {
             path = path.substring(0, path.length-1);
         }
+        if (path === '') {
+            return 'dataset';
+        }
 
         const pathData: PathData | undefined = this.dir.getCachedPath(path, true);
         // console.log("Computing path type for " + path, pathData);

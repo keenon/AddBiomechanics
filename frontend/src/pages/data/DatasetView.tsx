@@ -156,7 +156,8 @@ const DatasetView = observer((props: DatasetViewProps) => {
             <Spinner animation="border" />
         </div>;
     }
-    return <div>
+
+    let dataTable = (
         <table className="table">
             <thead>
                 <tr>
@@ -222,7 +223,17 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 })}
             </tbody>
         </table>
+    );
+    if (datasetContents.contents.length === 0) {
+        dataTable = <div style={{ textAlign: 'center' }}>
+            <div style={{ paddingBottom: '50px' }}>
+                No folders or subjects yet!
+            </div>
+        </div>;
+    }
 
+    return <div>
+        {dataTable}
         <div className="row mb-4">
             <input type="text" placeholder="New Subject Name" value={subjectName} onChange={(e) => {
                 setSubjectName(e.target.value);
