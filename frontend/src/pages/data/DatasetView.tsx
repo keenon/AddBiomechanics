@@ -8,6 +8,7 @@ import { Spinner } from "react-bootstrap";
 
 type DatasetViewProps = {
     home: UserHomeDirectory;
+    session: Session;
     currentLocationUserId: string;
     path: string;
     readonly: boolean;
@@ -231,6 +232,18 @@ const DatasetView = observer((props: DatasetViewProps) => {
             </div>
         </div>;
     }
+    let reprocessButton = null;
+    if (props.session.userEmail.endsWith("@stanford.edu")) {
+        reprocessButton = (
+            <div className="row mb-4 mt-4">
+                <button className='btn btn-danger' onClick={() => {
+                    if (window.confirm("DANGER! This will reprocess all subjects in this dataset. This will delete all existing results for thees subjects. Are you sure?")) {
+                        home.reprocessAllSubjects(path);
+                    }
+                }}>Reprocess All Subjects</button>
+            </div>
+        );
+    }
 
     return <div>
         {dataTable}
@@ -262,15 +275,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 setFolderName("");
             }}>Create New Folder</button>
         </div>
-        {/*
-        <div className="row mb-4 mt-4">
-            <button className='btn btn-danger' onClick={() => {
-                if (window.confirm("DANGER! This will reprocess all subjects in this dataset. This will delete all existing results for thees subjects. Are you sure?")) {
-                    home.reprocessAllSubjects(path);
-                }
-            }}>Reprocess All Subjects</button>
-        </div>
-        */}
+        {reprocessButton}
 
         {citationDetails}
 

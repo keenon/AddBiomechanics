@@ -110,7 +110,7 @@ const DataTypeRouter = observer((props: DataTypeRouterProps) => {
     body = <Spinner animation="border" role="status" />
   }
   else if (pathType === 'dataset') {
-    body = <DatasetView home={home} path={path} currentLocationUserId={dataPath.userId} readonly={readonly} />
+    body = <DatasetView home={home} path={path} currentLocationUserId={dataPath.userId} readonly={readonly} session={props.session} />
   }
   else if (pathType === 'subject') {
     body = <SubjectView home={home} path={path} currentLocationUserId={dataPath.userId} readonly={readonly} />
