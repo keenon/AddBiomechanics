@@ -101,10 +101,10 @@ class LiveFile {
         const pathData = this.dir.getCachedPath(this.path, false);
         const loading = pathData?.loading ?? true;
         if (loading && pathData?.promise != null) {
-            this.loading = pathData.promise.then(action((resultDate: PathData) => {
-                this.exists = resultDate.files.map((file) => file.key).includes(this.path);
+            this.loading = pathData.promise.then(action((resultData: PathData) => {
+                this.exists = resultData.files.map((file) => file.key).includes(this.path);
                 if (this.exists) {
-                    this.metadata = resultDate.files.filter((file) => file.key === this.path)[0];
+                    this.metadata = resultData.files.filter((file) => file.key === this.path)[0];
                 }
             })).finally(action(() => {
                 this.loading = null;

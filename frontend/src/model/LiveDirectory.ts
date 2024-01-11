@@ -342,7 +342,10 @@ class LiveDirectoryImpl extends LiveDirectory {
 
         let firstLoadPath = path;
         // If we're not loading recursively and this is the root path, then we want to load the root path with a trailing slash
-        if (!recursive && originalPath.length === 0) {
+        // if (!recursive && originalPath.length === 0) {
+        //     firstLoadPath = path + '/';
+        // }
+        if (!recursive) {
             firstLoadPath = path + '/';
         }
         const promise: Promise<PathData> = this.s3.loadPathData(firstLoadPath, recursive, abortController).then(action(({folders, files}) => {

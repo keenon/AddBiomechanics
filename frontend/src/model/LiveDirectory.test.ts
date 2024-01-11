@@ -78,6 +78,33 @@ describe("LiveDirectory", () => {
         expect(result.folders).toContain("dataset1/subject1/");
     });
 
+    test("Loading with a prefix", async () => {
+        const s3 = new S3APIMock();
+        const pubsub = new PubSubSocketMock("DEV");
+        const api = new LiveDirectoryImpl("protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/", s3, pubsub);
+        s3.setFilePathsExist([
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S1",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S1/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S1/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S1/trials/1",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S10",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S10/_subject.json",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S10/trials",
+            "protected/us-west-2:35e1c7ca-cc58-457e-bfc5-f6161cc7278b/data/ASB2023/S10/trials/1",
+        ]);
+
+        const path = api.getPath("ASB2023/S1", false);
+        expect(path.loading).toBe(true);
+        expect(path.promise).toBeDefined();
+        const result: PathData | null = await path.promise;
+        if (result == null) {
+            fail("Promise returned null");
+            return;
+        }
+        expect(result.folders).toContain("ASB2023/S1/trials/");
+    });
+
     test("Loading with real paths", async () => {
         const s3 = new S3APIMock();
         const pubsub = new PubSubSocketMock("DEV");
@@ -207,11 +234,11 @@ describe("LiveDirectory", () => {
         await api.faultInPath("ASB2023").promise;
         // We want to separately load the child folders, to give a nice user experience of folders coming in rapidly when they load the page
         // Each subject gets a non-recursive load, and then a recursive load if it is a subject
-        expect(s3.networkCallCount).toBe(8);
+        expect(s3.networkCallCount).toBe(5);
 
         // Redundant calls should do nothing
         await api.faultInPath("ASB2023").promise;
-        expect(s3.networkCallCount).toBe(8);
+        expect(s3.networkCallCount).toBe(5);
 
         // We want the root node to be recursive, after the progressive faulting in of all its children, so that subsequent 
         // file creations get registered correctly.
