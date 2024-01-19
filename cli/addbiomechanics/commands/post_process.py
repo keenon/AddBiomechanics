@@ -249,7 +249,7 @@ class PostProcessCommand(AbstractCommand):
             resampled = False
             if sample_rate is not None:
                 print('Re-sampling kinematics + kinetics data at {} Hz...'.format(sample_rate))
-                print('Warning! Re-sampling input source data (markers, IMU, EMG) is not yet supported, so those will '
+                print('Warning! Re-sampling input source data (IMU, EMG) is not yet supported, so those will '
                       'be zeroed out')
                 resampled = True
 
