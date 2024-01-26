@@ -228,7 +228,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
     if (datasetContents.contents.length === 0) {
         dataTable = <div style={{ textAlign: 'center' }}>
             <div style={{ paddingBottom: '50px' }}>
-                No folders or subjects yet!
+                No datasets or subjects yet!
             </div>
         </div>;
     }
@@ -262,18 +262,18 @@ const DatasetView = observer((props: DatasetViewProps) => {
             }}>Create New Subject</button>
         </div>
         <div className="row mb-4 mt-4">
-            <input type="text" placeholder="New Folder Name" value={folderName} onChange={(e) => {
+            <input type="text" placeholder="New Dataset Name" value={folderName} onChange={(e) => {
                 setFolderName(e.target.value);
             }}></input>
             <br />
             <button className='btn btn-dark mt-1' onClick={() => {
                 if (folderName === "") {
-                    alert("Folder name cannot be empty");
+                    alert("Dataset name cannot be empty");
                     return;
                 }
                 home.createDataset(path, folderName);
                 setFolderName("");
-            }}>Create New Folder</button>
+            }}>Create New Dataset</button>
         </div>
         {reprocessButton}
 
