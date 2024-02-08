@@ -58,6 +58,12 @@ class ModelFileError(Error):
                "you have provided."
 
 
+class LoadingError(Error):
+    """Raised when loading subject or trials files fails."""
+    def get_message(self):
+        return "LoadingError: Error when loading subject or trials files."
+
+
 class TrialPreprocessingError(Error):
     """Raised when an error occurs during the trial segmentation step."""
     def get_message(self):
