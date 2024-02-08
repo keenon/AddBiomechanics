@@ -3,8 +3,7 @@ from typing import List, Dict, Tuple, Any, Optional
 import json
 import nimblephysics as nimble
 from nimblephysics import absPath
-from exceptions import Error, PathError, SubjectConfigurationError, ModelFileError, LoadingError, \
-                       TrialPreprocessingError, MarkerFitterError, DynamicsFitterError, MocoError, WriteError
+from exceptions import LoadingError, TrialPreprocessingError, MarkerFitterError, DynamicsFitterError, WriteError
 import numpy as np
 import os
 import shutil
