@@ -3,6 +3,7 @@ from typing import List, Dict, Tuple, Any, Optional
 import json
 import nimblephysics as nimble
 from nimblephysics import absPath
+from exceptions import LoadingError, TrialPreprocessingError, MarkerFitterError, DynamicsFitterError, WriteError
 import numpy as np
 import os
 import shutil
@@ -21,7 +22,43 @@ KINEMATIC_OSIM_NAME = 'match_markers_but_ignore_physics.osim'
 DYNAMICS_OSIM_NAME = 'match_markers_and_physics.osim'
 
 
-class Subject:
+# This metaclass wraps all methods in the Subject class with a try-except block, except for the __init__ method.
+class ExceptionHandlingMeta(type):
+    # Only the methods in this map will be wrapped with a try-except block.
+    EXCEPTION_MAP = {
+        'load_folder': LoadingError,
+        'segment_trials': TrialPreprocessingError,
+        'run_kinematics_fit': MarkerFitterError,
+        'lowpass_filter': TrialPreprocessingError,
+        'run_dynamics_fit': DynamicsFitterError,
+        # 'run_moco': MocoError,
+        'write_opensim_results': WriteError,
+        'write_b3d_file': WriteError,
+        'write_web_results': WriteError,
+    }
+
+    def __new__(cls, name, bases, attrs):
+        for attr_name, attr_value in attrs.items():
+            if attr_name not in cls.EXCEPTION_MAP:
+                continue
+            if callable(attr_value):
+                attrs[attr_name] = cls.wrap_method(attr_value)
+        return super().__new__(cls, name, bases, attrs)
+
+    @staticmethod
+    def wrap_method(method):
+        def wrapper(*args, **kwargs):
+            try:
+                method(*args, **kwargs)
+            except Exception as e:
+                msg = f"Exception caught in {method.__name__}: {e}"
+                exc_type = ExceptionHandlingMeta.EXCEPTION_MAP.get(method.__name__, Exception)
+                raise exc_type(msg)
+
+        return wrapper
+
+
+class Subject(metaclass=ExceptionHandlingMeta):
     def __init__(self):
         # 0. Initialize the engine.
         # -------------------------
