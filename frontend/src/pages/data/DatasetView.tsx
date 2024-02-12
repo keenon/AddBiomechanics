@@ -4,7 +4,7 @@ import { observer } from "mobx-react-lite";
 import UserHomeDirectory, { DatasetContents } from "../../model/UserHomeDirectory";
 import Session from "../../model/Session";
 import LiveJsonFile from "../../model/LiveJsonFile";
-import { Spinner } from "react-bootstrap";
+import { Spinner, OverlayTrigger, Tooltip } from "react-bootstrap";
 
 type DatasetViewProps = {
     home: UserHomeDirectory;
@@ -236,11 +236,20 @@ const DatasetView = observer((props: DatasetViewProps) => {
     if (props.session.userEmail.endsWith("@stanford.edu")) {
         reprocessButton = (
             <div className="row mb-4 mt-4">
-                <button className='btn btn-danger' onClick={() => {
-                    if (window.confirm("DANGER! This will reprocess all subjects in this dataset. This will delete all existing results for thees subjects. Are you sure?")) {
-                        home.reprocessAllSubjects(path);
-                    }
-                }}>Reprocess All Subjects</button>
+              <OverlayTrigger
+                placement="top"
+                delay={{ show: 50, hide: 400 }}
+                overlay={(props) => (
+                  <Tooltip id="button-tooltip" {...props}>
+                    DANGER! This will reprocess all subjects in this dataset. This will delete all existing results for thees subjects. Are you sure?.
+                  </Tooltip>
+                )}>
+                  <button className='btn btn-danger' onClick={() => {
+                      if (window.confirm("DANGER! This will reprocess all subjects in this dataset. This will delete all existing results for thees subjects. Are you sure?")) {
+                          home.reprocessAllSubjects(path);
+                      }
+                  }}>Reprocess All Subjects</button>
+              </OverlayTrigger>
             </div>
         );
     }
