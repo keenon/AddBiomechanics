@@ -4,7 +4,7 @@ import { observer } from "mobx-react-lite";
 import UserHomeDirectory, { DatasetContents } from "../../model/UserHomeDirectory";
 import Session from "../../model/Session";
 import LiveJsonFile from "../../model/LiveJsonFile";
-import { Spinner, OverlayTrigger, Tooltip } from "react-bootstrap";
+import { Spinner, OverlayTrigger, Tooltip, Row, Col} from "react-bootstrap";
 
 type DatasetViewProps = {
     home: UserHomeDirectory;
@@ -23,7 +23,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
     const dir = home.dir;
     const datasetContents: DatasetContents = home.getDatasetContents(path);
 
-    const showCitationData = false;
+    const showCitationData = true;
     let citationDetails: React.ReactNode = null;
     if (showCitationData) {
         const searchJson: LiveJsonFile = dir.getJsonFile(path + "_search.json")
@@ -34,54 +34,83 @@ const DatasetView = observer((props: DatasetViewProps) => {
         const datasetFunding: string = searchJson.getAttribute("funding", "")
         const datasetAcknowledgements: string = searchJson.getAttribute("acknowledgements", "")
         citationDetails = <>
-            <h3>Dataset Citation Details:</h3>
             <div key="datasetTitle" className="mb-3">
-                <label>
-                    Title:
-                </label>
-                <textarea
-                    id="title"
-                    value={datasetTitle == null ? "" : datasetTitle}
-                    className={"form-control" + ((datasetTitle == null) ? " border-primary border-2" : "")}
-                    aria-describedby="citeHelp"
-                    onFocus={() => {
-                        searchJson.onFocusAttribute("title");
-                    }}
-                    onBlur={() => {
-                        searchJson.onBlurAttribute("title");
-                    }}
-                    onChange={(e) => {
-                        searchJson.setAttribute("title", e.target.value);
-                    }}
-                    readOnly={props.readonly}>
-                </textarea>
-                <div id="citeHelp" className="form-text">What title do you want for your dataset?</div>
+              {props.readonly ? (
+                <h4>
+                  {datasetTitle}
+                </h4>
+                ) : (
+                <>
+                  <label>
+                      Title:
+                  </label>
+                  <textarea
+                      id="title"
+                      value={datasetTitle == null ? "" : datasetTitle}
+                      className={"form-control" + ((datasetTitle == null) ? " border-primary border-2" : "")}
+                      aria-describedby="citeHelp"
+                      onFocus={() => {
+                          searchJson.onFocusAttribute("title");
+                      }}
+                      onBlur={() => {
+                          searchJson.onBlurAttribute("title");
+                      }}
+                      onChange={(e) => {
+                          searchJson.setAttribute("title", e.target.value);
+                      }}
+                      readOnly={props.readonly}>
+                  </textarea>
+                  <div id="citeHelp" className="form-text">What title do you want for your dataset?</div>
+                </>
+              )}
             </div>
 
+
             <div key="notes" className="mb-3">
-                <label>
-                    Dataset Info:
-                </label>
-                <textarea
-                    id="info"
-                    value={datasetNotes == null ? "" : datasetNotes}
-                    className={"form-control" + ((datasetNotes == null) ? " border-primary border-2" : "")}
-                    aria-describedby="citeHelp"
-                    onFocus={() => {
-                        searchJson.onFocusAttribute("notes");
-                    }}
-                    onBlur={() => {
-                        searchJson.onBlurAttribute("notes");
-                    }}
-                    onChange={(e) => {
-                        searchJson.setAttribute("notes", e.target.value);
-                    }}
-                    readOnly={props.readonly}>
-                </textarea>
-                <div id="citeHelp" className="form-text">Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!</div>
+              <label>
+                  Dataset Info:
+              </label>
+              {props.readonly ? (
+                <>
+                <p>
+                  {datasetNotes}
+                </p>
+                </>
+              ) : (
+                <>
+                  <textarea
+                      id="info"
+                      value={datasetNotes == null ? "" : datasetNotes}
+                      className={"form-control" + ((datasetNotes == null) ? " border-primary border-2" : "")}
+                      aria-describedby="citeHelp"
+                      onFocus={() => {
+                          searchJson.onFocusAttribute("notes");
+                      }}
+                      onBlur={() => {
+                          searchJson.onBlurAttribute("notes");
+                      }}
+                      onChange={(e) => {
+                          searchJson.setAttribute("notes", e.target.value);
+                      }}
+                      readOnly={props.readonly}>
+                  </textarea>
+                  <div id="citeHelp" className="form-text">Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!</div>
+                </>
+              )}
             </div>
 
             <div key="citation" className="mb-3">
+              <label>
+                    Desired Citation:
+              </label>
+              {props.readonly ? (
+                <>
+                <p>
+                  {datasetCitation}
+                </p>
+                </>
+              ) : (
+              <>
                 <label>
                     Desired Citation:
                 </label>
@@ -102,52 +131,74 @@ const DatasetView = observer((props: DatasetViewProps) => {
                     readOnly={props.readonly}>
                 </textarea>
                 <div id="citeHelp" className="form-text">How do you want this data to be cited?</div>
+              </>
+              )}
             </div>
 
             <div key="funding" className="mb-3">
                 <label>
-                    Funding:
+                      Funding:
                 </label>
-                <textarea
-                    id="funding"
-                    value={datasetFunding == null ? "" : datasetFunding}
-                    className={"form-control" + ((datasetFunding == null) ? " border-primary border-2" : "")}
-                    aria-describedby="citeHelp"
-                    onFocus={() => {
-                        searchJson.onFocusAttribute("funding");
-                    }}
-                    onBlur={() => {
-                        searchJson.onBlurAttribute("funding");
-                    }}
-                    onChange={(e) => {
-                        searchJson.setAttribute("funding", e.target.value);
-                    }}
-                    readOnly={props.readonly}>
-                </textarea>
-                <div id="citeHelp" className="form-text">Funding supporting this project.</div>
+                {props.readonly ? (
+                  <>
+                  <p>
+                    {datasetFunding}
+                  </p>
+                  </>
+                ) : (
+                  <>
+                  <textarea
+                      id="funding"
+                      value={datasetFunding == null ? "" : datasetFunding}
+                      className={"form-control" + ((datasetFunding == null) ? " border-primary border-2" : "")}
+                      aria-describedby="citeHelp"
+                      onFocus={() => {
+                          searchJson.onFocusAttribute("funding");
+                      }}
+                      onBlur={() => {
+                          searchJson.onBlurAttribute("funding");
+                      }}
+                      onChange={(e) => {
+                          searchJson.setAttribute("funding", e.target.value);
+                      }}
+                      readOnly={props.readonly}>
+                  </textarea>
+                  <div id="citeHelp" className="form-text">Funding supporting this project.</div>
+                </>
+              )}
             </div>
 
             <div key="acknowledgements" className="mb-3">
                 <label>
-                    Acknowledgements:
+                      Acknowledgements:
                 </label>
-                <textarea
-                    id="acknowledgements"
-                    value={datasetAcknowledgements == null ? "" : datasetAcknowledgements}
-                    className={"form-control" + ((datasetAcknowledgements == null) ? " border-primary border-2" : "")}
-                    aria-describedby="citeHelp"
-                    onFocus={() => {
-                        searchJson.onFocusAttribute("acknowledgements");
-                    }}
-                    onBlur={() => {
-                        searchJson.onBlurAttribute("acknowledgements");
-                    }}
-                    onChange={(e) => {
-                        searchJson.setAttribute("acknowledgements", e.target.value);
-                    }}
-                    readOnly={props.readonly}>
-                </textarea>
-                <div id="citeHelp" className="form-text">Acknowledgements you would like to add.</div>
+                {props.readonly ? (
+                  <>
+                  <p>
+                    {datasetAcknowledgements}
+                  </p>
+                  </>
+                ) : (
+                  <>
+                    <textarea
+                        id="acknowledgements"
+                        value={datasetAcknowledgements == null ? "" : datasetAcknowledgements}
+                        className={"form-control" + ((datasetAcknowledgements == null) ? " border-primary border-2" : "")}
+                        aria-describedby="citeHelp"
+                        onFocus={() => {
+                            searchJson.onFocusAttribute("acknowledgements");
+                        }}
+                        onBlur={() => {
+                            searchJson.onBlurAttribute("acknowledgements");
+                        }}
+                        onChange={(e) => {
+                            searchJson.setAttribute("acknowledgements", e.target.value);
+                        }}
+                        readOnly={props.readonly}>
+                    </textarea>
+                    <div id="citeHelp" className="form-text">Acknowledgements you would like to add.</div>
+                </>
+              )}
             </div>
         </>;
     }
@@ -235,7 +286,6 @@ const DatasetView = observer((props: DatasetViewProps) => {
     let reprocessButton = null;
     if (props.session.userEmail.endsWith("@stanford.edu")) {
         reprocessButton = (
-            <div className="row mb-4 mt-4">
               <OverlayTrigger
                 placement="top"
                 delay={{ show: 50, hide: 400 }}
@@ -250,44 +300,70 @@ const DatasetView = observer((props: DatasetViewProps) => {
                       }
                   }}>Reprocess All Subjects</button>
               </OverlayTrigger>
-            </div>
         );
     }
 
-    return <div>
-        {dataTable}
-        <div className="row mb-4">
-            <input type="text" placeholder="New Subject Name" value={subjectName} onChange={(e) => {
-                setSubjectName(e.target.value);
-            }}></input>
-            <br />
-            <button className='btn btn-primary mt-1' onClick={() => {
-                if (subjectName === "") {
-                    alert("Subject name cannot be empty");
-                    return;
-                }
-                home.createSubject(path, subjectName);
-                setSubjectName("");
-            }}>Create New Subject</button>
-        </div>
-        <div className="row mb-4 mt-4">
-            <input type="text" placeholder="New Dataset Name" value={folderName} onChange={(e) => {
-                setFolderName(e.target.value);
-            }}></input>
-            <br />
-            <button className='btn btn-dark mt-1' onClick={() => {
-                if (folderName === "") {
-                    alert("Dataset name cannot be empty");
-                    return;
-                }
-                home.createDataset(path, folderName);
-                setFolderName("");
-            }}>Create New Dataset</button>
-        </div>
-        {reprocessButton}
+    return <div className="container">
 
-        {citationDetails}
-
+        <Row className="mb-4 align-items-center">
+            {props.readonly ? null : (
+                <>
+                  <Col className="align-items-center">
+                    <div className="row mx-2">
+                        <input type="text" placeholder="New Dataset Name" value={folderName} onChange={(e) => {
+                            setFolderName(e.target.value);
+                        }}></input>
+                        <br />
+                        <button className='btn btn-dark mt-1' onClick={() => {
+                            if (folderName === "") {
+                                alert("Dataset name cannot be empty");
+                                return;
+                            }
+                            home.createDataset(path, folderName);
+                            setFolderName("");
+                        }}>Create New Dataset</button>
+                    </div>
+                  </Col>
+                  <Col className="align-items-center">
+                    <div className="row mx-2">
+                      <input type="text" placeholder="New Subject Name" value={subjectName} onChange={(e) => {
+                          setSubjectName(e.target.value);
+                      }}></input>
+                      <br />
+                      <button className='btn btn-primary mt-1' onClick={() => {
+                          if (subjectName === "") {
+                              alert("Subject name cannot be empty");
+                              return;
+                          }
+                          home.createSubject(path, subjectName);
+                          setSubjectName("");
+                      }}>Create New Subject</button>
+                    </div>
+                  </Col>
+                  {props.session.userEmail.endsWith("@stanford.edu") ?
+                    <Col className="align-items-center">
+                      <div className="row mx-2 align-items-center">
+                        {reprocessButton}
+                      </div>
+                    </Col>
+                  : null}
+                </>
+              )}
+        </Row>
+        <Row>
+          <Col xs={3}>
+            <Row className="align-items-center">
+                <Row className="align-items-center">
+                  <div className="row mt-2">
+                    {citationDetails}
+                  </div>
+                </Row>
+            </Row>
+          </Col>
+          <Col>
+            {dataTable}
+          </Col>
+        </Row>
     </div>
 });
 
