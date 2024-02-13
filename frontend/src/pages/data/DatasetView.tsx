@@ -14,6 +14,35 @@ type DatasetViewProps = {
     readonly: boolean;
 };
 
+const dataset_info_input = (name:string, variable:string, json_file:any, json_key:string, help_string: string, readonly:boolean) => {
+  return    <div key={json_key} className="mb-3">
+              <label> {name} </label>
+              {readonly ? (
+                  <p>
+                    {variable}
+                  </p>
+              ) : (
+                <>
+                  <textarea
+                    id={json_key}
+                    value={variable == null ? "" : variable}
+                    className={"form-control" + ((variable == null) ? " border-primary border-2" : "")}
+                    onFocus={() => {
+                        json_file.onFocusAttribute(json_key);
+                    }}
+                    onBlur={() => {
+                        json_file.onBlurAttribute(json_key);
+                    }}
+                    onChange={(e) => {
+                        json_file.setAttribute(json_key, e.target.value);
+                    }}>
+                  </textarea>
+                  <div id={json_key + "Help"} className="form-text">{help_string}</div>
+                </>
+              )}
+            </div>
+}
+
 const DatasetView = observer((props: DatasetViewProps) => {
     const [folderName, setFolderName] = useState("");
     const [subjectName, setSubjectName] = useState("");
@@ -44,7 +73,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
                   <label>
                       Title:
                   </label>
-                  <textarea
+                  <input
                       id="title"
                       value={datasetTitle == null ? "" : datasetTitle}
                       className={"form-control" + ((datasetTitle == null) ? " border-primary border-2" : "")}
@@ -59,147 +88,16 @@ const DatasetView = observer((props: DatasetViewProps) => {
                           searchJson.setAttribute("title", e.target.value);
                       }}
                       readOnly={props.readonly}>
-                  </textarea>
+                  </input>
                   <div id="citeHelp" className="form-text">What title do you want for your dataset?</div>
                 </>
               )}
             </div>
 
-
-            <div key="notes" className="mb-3">
-              <label>
-                  Dataset Info:
-              </label>
-              {props.readonly ? (
-                <>
-                <p>
-                  {datasetNotes}
-                </p>
-                </>
-              ) : (
-                <>
-                  <textarea
-                      id="info"
-                      value={datasetNotes == null ? "" : datasetNotes}
-                      className={"form-control" + ((datasetNotes == null) ? " border-primary border-2" : "")}
-                      aria-describedby="citeHelp"
-                      onFocus={() => {
-                          searchJson.onFocusAttribute("notes");
-                      }}
-                      onBlur={() => {
-                          searchJson.onBlurAttribute("notes");
-                      }}
-                      onChange={(e) => {
-                          searchJson.setAttribute("notes", e.target.value);
-                      }}
-                      readOnly={props.readonly}>
-                  </textarea>
-                  <div id="citeHelp" className="form-text">Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!</div>
-                </>
-              )}
-            </div>
-
-            <div key="citation" className="mb-3">
-              <label>
-                    Desired Citation:
-              </label>
-              {props.readonly ? (
-                <>
-                <p>
-                  {datasetCitation}
-                </p>
-                </>
-              ) : (
-              <>
-                <label>
-                    Desired Citation:
-                </label>
-                <textarea
-                    id="citation"
-                    value={datasetCitation == null ? "" : datasetCitation}
-                    className={"form-control" + ((datasetCitation == null) ? " border-primary border-2" : "")}
-                    aria-describedby="citeHelp"
-                    onFocus={() => {
-                        searchJson.onFocusAttribute("citation");
-                    }}
-                    onBlur={() => {
-                        searchJson.onBlurAttribute("citation");
-                    }}
-                    onChange={(e) => {
-                        searchJson.setAttribute("citation", e.target.value);
-                    }}
-                    readOnly={props.readonly}>
-                </textarea>
-                <div id="citeHelp" className="form-text">How do you want this data to be cited?</div>
-              </>
-              )}
-            </div>
-
-            <div key="funding" className="mb-3">
-                <label>
-                      Funding:
-                </label>
-                {props.readonly ? (
-                  <>
-                  <p>
-                    {datasetFunding}
-                  </p>
-                  </>
-                ) : (
-                  <>
-                  <textarea
-                      id="funding"
-                      value={datasetFunding == null ? "" : datasetFunding}
-                      className={"form-control" + ((datasetFunding == null) ? " border-primary border-2" : "")}
-                      aria-describedby="citeHelp"
-                      onFocus={() => {
-                          searchJson.onFocusAttribute("funding");
-                      }}
-                      onBlur={() => {
-                          searchJson.onBlurAttribute("funding");
-                      }}
-                      onChange={(e) => {
-                          searchJson.setAttribute("funding", e.target.value);
-                      }}
-                      readOnly={props.readonly}>
-                  </textarea>
-                  <div id="citeHelp" className="form-text">Funding supporting this project.</div>
-                </>
-              )}
-            </div>
-
-            <div key="acknowledgements" className="mb-3">
-                <label>
-                      Acknowledgements:
-                </label>
-                {props.readonly ? (
-                  <>
-                  <p>
-                    {datasetAcknowledgements}
-                  </p>
-                  </>
-                ) : (
-                  <>
-                    <textarea
-                        id="acknowledgements"
-                        value={datasetAcknowledgements == null ? "" : datasetAcknowledgements}
-                        className={"form-control" + ((datasetAcknowledgements == null) ? " border-primary border-2" : "")}
-                        aria-describedby="citeHelp"
-                        onFocus={() => {
-                            searchJson.onFocusAttribute("acknowledgements");
-                        }}
-                        onBlur={() => {
-                            searchJson.onBlurAttribute("acknowledgements");
-                        }}
-                        onChange={(e) => {
-                            searchJson.setAttribute("acknowledgements", e.target.value);
-                        }}
-                        readOnly={props.readonly}>
-                    </textarea>
-                    <div id="citeHelp" className="form-text">Acknowledgements you would like to add.</div>
-                </>
-              )}
-            </div>
+            {dataset_info_input("Dataset Info:", datasetNotes, searchJson, "notes", "Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!", props.readonly)}
+            {dataset_info_input("Desired Citation:", datasetCitation, searchJson, "citation", "How do you want this data to be cited?", props.readonly)}
+            {dataset_info_input("Funding:", datasetFunding, searchJson, "funding", "Funding supporting this project.", props.readonly)}
+            {dataset_info_input("Acknowledgements:", datasetAcknowledgements, searchJson, "acknowledgements", "Acknowledgements you would like to add.", props.readonly)}
         </>;
     }
 
