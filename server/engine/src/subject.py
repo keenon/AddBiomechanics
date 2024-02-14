@@ -1216,8 +1216,10 @@ class Subject:
         # 2. Create the trials
         for trial in self.trials:
             # Write out all the data from the trial segments
+            print('Writing B3D output for trial ' + trial.trial_name, flush=True)
             for i in range(len(trial.segments)):
                 segment = trial.segments[i]
+                print('Writing B3D output for trial ' + trial.trial_name + ' segment ' + str(i) + ' of ' + str(len(trial.segments)), flush=True)
 
                 trial_data = subject_header.addTrial()
                 trial_data.setTimestep(trial.timestep)
@@ -1233,6 +1235,7 @@ class Subject:
 
                 # 3. Create the passes, based on what we saw in the trials
                 if segment.kinematics_status == ProcessingStatus.FINISHED:
+                    print('Kinematics succeeded for trial ' + trial.trial_name + ' segment ' + str(i) + '. Writing kinematics data to B3D file.', flush=True)
                     trial_kinematic_data = trial_data.addPass()
                     trial_kinematic_data.setType(nimble.biomechanics.ProcessingPassType.KINEMATICS)
                     trial_kinematic_data.setDofPositionsObserved([True for _ in range(self.skeleton.getNumDofs())])
@@ -1247,6 +1250,7 @@ class Subject:
                     print('  Kinematics Status: ' + segment.kinematics_status.name, flush=True)
 
                 if segment.lowpass_status == ProcessingStatus.FINISHED:
+                    print('Lowpass succeeded for trial ' + trial.trial_name + ' segment ' + str(i) + '. Writing lowpass data to B3D file.', flush=True)
                     trial_lowpass_data = trial_data.addPass()
                     trial_lowpass_data.setType(nimble.biomechanics.ProcessingPassType.LOW_PASS_FILTER)
                     trial_lowpass_data.setDofPositionsObserved([True for _ in range(self.skeleton.getNumDofs())])
@@ -1260,6 +1264,7 @@ class Subject:
                     trial_lowpass_data.setLowpassFilterOrder(2)
 
                 if segment.dynamics_status == ProcessingStatus.FINISHED:
+                    print('Dynamics succeeded for trial ' + trial.trial_name + ' segment ' + str(i) + '. Writing dynamics data to B3D file.', flush=True)
                     trial_dynamics_data = trial_data.addPass()
                     trial_dynamics_data.setType(nimble.biomechanics.ProcessingPassType.DYNAMICS)
                     trial_dynamics_data.setDofPositionsObserved([True for _ in range(self.skeleton.getNumDofs())])
@@ -1300,8 +1305,19 @@ class Subject:
                         if missing_grf_reason[j] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
                             linear_residuals[j] = 0.0
                             angular_residuals[j] = 0.0
-                    print('      Linear Residual (on frames with GRF): ' + str(np.mean([r for r in linear_residuals if r > 0.0])), flush=True)
-                    print('      Angular Residual (on frames with GRF): ' + str(np.mean([r for r in angular_residuals if r > 0.0])), flush=True)
+
+                    non_zero_linear_residuals = [r for r in linear_residuals if r > 0.0]
+                    if len(non_zero_linear_residuals) > 0:
+                        print('      Linear Residual (on frames with GRF): ' + str(np.mean(non_zero_linear_residuals)), flush=True)
+                    else:
+                        print('      Linear Residual (on frames with GRF): 0.0', flush=True)
+
+                    non_zero_angular_residuals = [r for r in angular_residuals if r > 0.0]
+                    if len(non_zero_angular_residuals) > 0:
+                        print('      Angular Residual (on frames with GRF): ' + str(np.mean(non_zero_angular_residuals)), flush=True)
+                    else:
+                        print('      Angular Residual (on frames with GRF): 0.0', flush=True)
+
 
     def write_web_results(self, results_path: str):
         if not results_path.endswith('/'):
