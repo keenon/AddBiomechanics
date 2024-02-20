@@ -19,7 +19,7 @@ class UserProfile {
     }
 
     setAttribute(key: string, value: any) {
-        this.profileJson.getAttribute(key, value)
+        this.profileJson.setAttribute(key, value)
     }
 
     getProfileFullName() : string {

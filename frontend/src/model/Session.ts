@@ -8,6 +8,7 @@ import { makeObservable, action, observable } from 'mobx';
 type DataURL = {
     homeDirectory: UserHomeDirectory;
     path: string;
+    userProfile: UserProfile;
     userId: string;
     readonly: boolean;
 }
@@ -155,11 +156,20 @@ class Session {
             this.homeDirectories.set(userId, homeDirectory);
         }
 
+        prefix = (userId === 'private' ? 'private/' : 'protected/') + this.region + ":" + (userId === 'private' ? this.userId : userId) + "/";
+        const liveDirectoryImplProfile = new LiveDirectoryImpl(prefix, this.s3, this.pubsub)
+        let userProfile = this.userProfiles.get(userId);
+        if (userProfile == null) {
+            userProfile = new UserProfile(liveDirectoryImplProfile);
+            this.userProfiles.set(userId, userProfile);
+        }
+
         const readonly = !(this.loggedIn && (this.userId === userId || userId === 'private'));
 
         return {
             homeDirectory,
             path,
+            userProfile,
             userId,
             readonly,
         }
