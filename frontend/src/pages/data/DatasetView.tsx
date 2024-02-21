@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { observer } from "mobx-react-lite";
-import UserHomeDirectory, { DatasetContents } from "../../model/UserHomeDirectory";
+import UserHomeDirectory, { DatasetContents, AttributionContents } from "../../model/UserHomeDirectory";
 import Session from "../../model/Session";
 import LiveJsonFile from "../../model/LiveJsonFile";
 import { Spinner, OverlayTrigger, Tooltip, Row, Col} from "react-bootstrap";
@@ -29,13 +29,13 @@ const dataset_info_input = (name:string, variable:string, searchJson:any, json_k
                     value={variable == null ? "" : variable}
                     className={"form-control" + ((variable == null) ? " border-primary border-2" : "")}
                     onFocus={() => {
-                        getSearchJsonObject(searchJson, inherit).onFocusAttribute(json_key);
+                        searchJson.onFocusAttribute(json_key);
                     }}
                     onBlur={() => {
-                        getSearchJsonObject(searchJson, inherit).onBlurAttribute(json_key);
+                        searchJson.onBlurAttribute(json_key);
                     }}
                     onChange={(e) => {
-                        setJsonValue(json_key, e.target.value, searchJson)
+                        searchJson.setAttribute(json_key, e.target.value)
                     }}>
                   </textarea>
                   <div id={json_key + "Help"} className="form-text">{help_string}</div>
@@ -111,44 +111,6 @@ const loadSearchJson = async (path:string, dir:any, session:Session) => {
     }
 }
 
-const getSearchJsonObject = (searchJson:any, inherit:boolean) => {
-  return inherit ? searchJson["parent"] : searchJson["current"]
-}
-
-const getJsonValue = (key:string, searchJson:any) => {
-  var inherit = searchJson["current"].getAttribute("inherit", false) === "true" ? true : false
-  if (key === "title") {
-    return inherit ? searchJson["parent"].getAttribute("title", "") : searchJson["current"].getAttribute("title", "")
-  } else if (key === "notes") {
-    return inherit ? searchJson["parent"].getAttribute("notes", "") : searchJson["current"].getAttribute("notes", "")
-  } else if (key === "citation") {
-    return inherit ? searchJson["parent"].getAttribute("citation", "") : searchJson["current"].getAttribute("citation", "")
-  } else if (key === "funding") {
-    return inherit ? searchJson["parent"].getAttribute("funding", "") : searchJson["current"].getAttribute("funding", "")
-  } else if (key === "acknowledgements") {
-    return inherit ? searchJson["parent"].getAttribute("acknowledgements", "") : searchJson["current"].getAttribute("acknowledgements", "")
-  } else if (key === "inherit") {
-    return inherit ? (searchJson["parent"].getAttribute("inherit", "") === "true" ? true : false) : inherit
-  }
-}
-
-const setJsonValue = (key:string, value:string, searchJson:any) => {
-  var inherit = searchJson["current"].getAttribute("inherit", true) === "true" ? true : false
-  if (key === "title") {
-    inherit ? searchJson["parent"].setAttribute("title", value) : searchJson["current"].setAttribute("title", value)
-  } else if (key === "notes") {
-    inherit ? searchJson["parent"].setAttribute("notes", value) : searchJson["current"].setAttribute("notes", value)
-  } else if (key === "citation") {
-    inherit ? searchJson["parent"].setAttribute("citation", value) : searchJson["current"].setAttribute("citation", value)
-  } else if (key === "funding") {
-    inherit ? searchJson["parent"].setAttribute("funding", value) : searchJson["current"].setAttribute("funding", value)
-  } else if (key === "acknowledgements") {
-    inherit ? searchJson["parent"].setAttribute("acknowledgements", value) : searchJson["current"].setAttribute("acknowledgements", value)
-  } else if (key === "inherit") {
-    searchJson["current"].setAttribute("inherit", value) // Only current because we do not want to change inherit in parent.
-  }
-}
-
 const DatasetView = observer((props: DatasetViewProps) => {
     const location = useLocation();
 
@@ -161,25 +123,20 @@ const DatasetView = observer((props: DatasetViewProps) => {
 
     const datasetContents: DatasetContents = home.getDatasetContents(path);
 
-    const [searchJson, setSearchJson] = useState(loadSearchJson(path, dir, props.session))
-
-    const [datasetTitle, setDatasetTitle] = useState("")
-    const [datasetNotes, setDatasetNotes] = useState("")
-    const [datasetCitation, setDatasetCitation] = useState("")
-    const [datasetFunding, setDatasetFunding] = useState("")
-    const [datasetAcknowledgements, setDatasetAcknowledgements] = useState("")
-    const [inheritFromParent, setInheritFromParent] = useState(false)
+    const attributionContents: AttributionContents | undefined = home.getAttributionContents(path);
+    const searchJson = attributionContents?.searchJson;
 
 
-    useEffect(() => {
-      searchJson.then((jsonFile) => {
-        setDatasetTitle(getJsonValue("title", jsonFile))
-        setDatasetNotes(getJsonValue("notes", jsonFile))
-        setDatasetCitation(getJsonValue("citation", jsonFile))
-        setDatasetFunding(getJsonValue("funding", jsonFile))
-        setDatasetAcknowledgements(getJsonValue("acknowledgements", jsonFile))
-      })
-    }, [location.pathname, inheritFromParent, searchJson]);
+    let datasetTitle = attributionContents?.searchJson.getAttribute("title", "")
+    let datasetNotes = attributionContents?.searchJson.getAttribute("notes", "")
+    let datasetCitation = attributionContents?.searchJson.getAttribute("citation", "")
+    let datasetFunding = attributionContents?.searchJson.getAttribute("funding", "")
+    let datasetAcknowledgements = attributionContents?.searchJson.getAttribute("acknowledgements", "")
+    let inheritFromParent = attributionContents?.searchJson.getAttribute("inherit", true)
+
+    const [inheritButton, setInheritButton] = useState(inheritFromParent)
+    console.log("INHERIT: " + inheritFromParent)
+    console.log("INHERIT BUTTON: " + inheritButton)
 
     const showCitationData = true;
     let citationDetails: React.ReactNode = null;
@@ -202,14 +159,13 @@ const DatasetView = observer((props: DatasetViewProps) => {
                     className={"form-control" + ((datasetTitle == null) ? " border-primary border-2" : "")}
                     aria-describedby="citeHelp"
                     onFocus={() => {
-                        getSearchJsonObject(searchJson, inheritFromParent).onFocusAttribute("title");
+                        searchJson?.onFocusAttribute("title");
                     }}
                     onBlur={() => {
-                        getSearchJsonObject(searchJson, inheritFromParent).onBlurAttribute("title");
+                        searchJson?.onBlurAttribute("title");
                     }}
                     onChange={(e) => {
-                        setJsonValue("title", e.target.value, searchJson)
-                        setDatasetTitle(e.target.value)
+                        searchJson?.setAttribute("title", e.target.value)
                     }}
                     readOnly={props.readonly}>
                 </input>
@@ -229,16 +185,16 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 <input
                   type="checkbox"
                   id="checkboxInheritFromParent"
-                  checked={inheritFromParent}
+                  checked={inheritButton}
                   onFocus={() => {
-                      getSearchJsonObject(searchJson, false).onFocusAttribute("inherit"); // False because we only modify the inherit variable in the current file.
+                      searchJson?.onFocusAttribute("inherit");
                   }}
                   onBlur={() => {
-                      getSearchJsonObject(searchJson, false).onBlurAttribute("inherit"); // False because we only modify the inherit variable in the current file.
+                      searchJson?.onBlurAttribute("inherit");
                   }}
                   onChange={(e) => {
-                    setJsonValue("inherit", e.target.checked ? "true" : "false", searchJson)
-                    setInheritFromParent(e.target.checked)
+                    searchJson?.setAttribute("inherit", e.target.checked ? "true" : "false")
+                    setInheritButton(e.target.checked)
                   }}
                   disabled={props.readonly}
                 />
