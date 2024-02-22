@@ -64,53 +64,6 @@ const get_parent_path_absolute = (path:string|undefined) => {
   return parent
 }
 
-function normalizePath(path: string): string {
-    if (path.startsWith('/')) {
-        path = path.substring(1);
-    }
-    // Replace any accidental // with /
-    path = path.replace(/\/\//g, '/');
-
-    if (path !== "")
-      if (!path.endsWith("/"))
-        path = path + "/"
-    return path;
-}
-
-const loadSearchJson = async (path:string, dir:any, session:Session) => {
-    // Get current search json and information associated.
-    var searchJsonParent: LiveJsonFile | null = null
-    path = normalizePath(path)
-    var searchJson: LiveJsonFile = await dir.getJsonFile(path + "_search.json")
-    var inheritFromParent: boolean = searchJson.getAttribute("inherit", "false") === "true" ? true : false
-
-    // If path is home, it cannot inherit from parent, so it will always be set to false.
-    if (path === ""){
-      inheritFromParent = false
-      searchJson.setAttribute("inherit", "false");
-    }
-
-    // If the attribution info is inherited from parent, let's search for the parent.
-    if (inheritFromParent && path !== "") {
-      // Recursively retrieve parents until one of them is not marked as inheriting, or home is reached.
-      var path_parent_absolute:string = get_parent_path_absolute(path)
-      var dir_parent = session.parseDataURL('/data/' + session.userId + "/" + path_parent_absolute).homeDirectory.dir;
-      searchJsonParent = dir_parent.getJsonFile("_search.json")
-      var inheritFromParentOfParent = searchJsonParent.getAttribute("inherit", "true") === "true" ? true : false
-      while (inheritFromParentOfParent && path_parent_absolute !== "undefined") {
-        path_parent_absolute = get_parent_path_absolute(path_parent_absolute)
-        dir_parent = session.parseDataURL(path_parent_absolute).homeDirectory.dir;
-        searchJsonParent = dir_parent.getJsonFile("_search.json")
-        inheritFromParentOfParent = searchJsonParent.getAttribute("inherit", "true") === "true" ? true : false
-      }
-    }
-
-    return {
-      "current": searchJson,
-      "parent": searchJsonParent,
-    }
-}
-
 const DatasetView = observer((props: DatasetViewProps) => {
     const location = useLocation();
 
