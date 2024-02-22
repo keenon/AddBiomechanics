@@ -124,19 +124,34 @@ const DatasetView = observer((props: DatasetViewProps) => {
     const datasetContents: DatasetContents = home.getDatasetContents(path);
 
     const attributionContents: AttributionContents | undefined = home.getAttributionContents(path);
-    const searchJson = attributionContents?.searchJson;
+    const searchJson:LiveJsonFile | undefined = attributionContents?.searchJson;
+    const searchJsonParent:LiveJsonFile | undefined = searchJson
 
+    let datasetTitle = searchJson?.getAttribute("title", "")
+    let datasetNotes = searchJson?.getAttribute("notes", "")
+    let datasetCitation = searchJson?.getAttribute("citation", "")
+    let datasetFunding = searchJson?.getAttribute("funding", "")
+    let datasetAcknowledgements = searchJson?.getAttribute("acknowledgements", "")
+    let inheritFromParent = searchJson?.getAttribute("inherit", "true") === "true"
 
-    let datasetTitle = attributionContents?.searchJson.getAttribute("title", "")
-    let datasetNotes = attributionContents?.searchJson.getAttribute("notes", "")
-    let datasetCitation = attributionContents?.searchJson.getAttribute("citation", "")
-    let datasetFunding = attributionContents?.searchJson.getAttribute("funding", "")
-    let datasetAcknowledgements = attributionContents?.searchJson.getAttribute("acknowledgements", "")
-    let inheritFromParent = attributionContents?.searchJson.getAttribute("inherit", true)
+    // If inherit from parent, get parent path recursively until a parent without inherit is found, and load it.
+    if (inheritFromParent) {
+      let parent_path = get_parent_path_absolute(path)
+      let attributionContentsParent: AttributionContents | undefined = home.getAttributionContents(parent_path);
+      let searchJsonParent = attributionContentsParent?.searchJson;
+      while (searchJsonParent?.getAttribute("inherit", "false") === "true" && parent_path !== "undefined") {
+        attributionContentsParent = home.getAttributionContents(parent_path)
+        searchJsonParent = attributionContentsParent?.searchJson;
+        parent_path = get_parent_path_absolute(parent_path)
+      }
+      datasetTitle = searchJsonParent?.getAttribute("title", "")
+      datasetNotes = searchJsonParent?.getAttribute("notes", "")
+      datasetCitation = searchJsonParent?.getAttribute("citation", "")
+      datasetFunding = searchJsonParent?.getAttribute("funding", "")
+      datasetAcknowledgements = searchJsonParent?.getAttribute("acknowledgements", "")
+    }
 
     const [inheritButton, setInheritButton] = useState(inheritFromParent)
-    console.log("INHERIT: " + inheritFromParent)
-    console.log("INHERIT BUTTON: " + inheritButton)
 
     const showCitationData = true;
     let citationDetails: React.ReactNode = null;
@@ -159,13 +174,25 @@ const DatasetView = observer((props: DatasetViewProps) => {
                     className={"form-control" + ((datasetTitle == null) ? " border-primary border-2" : "")}
                     aria-describedby="citeHelp"
                     onFocus={() => {
-                        searchJson?.onFocusAttribute("title");
+                        if (inheritFromParent) {
+                            searchJsonParent?.onFocusAttribute("title");
+                        } else {
+                            searchJson?.onFocusAttribute("title");
+                        }
                     }}
                     onBlur={() => {
-                        searchJson?.onBlurAttribute("title");
+                        if (inheritFromParent) {
+                            searchJsonParent?.onBlurAttribute("title");
+                        } else {
+                            searchJson?.onBlurAttribute("title");
+                        }
                     }}
                     onChange={(e) => {
-                        searchJson?.setAttribute("title", e.target.value)
+                        if (inheritFromParent) {
+                            searchJsonParent?.setAttribute("title", e.target.value)
+                        } else {
+                            searchJson?.setAttribute("title", e.target.value)
+                        }
                     }}
                     readOnly={props.readonly}>
                 </input>
@@ -174,10 +201,10 @@ const DatasetView = observer((props: DatasetViewProps) => {
             )}
           </div>
 
-          {dataset_info_input("Dataset Info:", datasetNotes, searchJson, "notes", "Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!", inheritFromParent, props.readonly)}
-          {dataset_info_input("Desired Citation:", datasetCitation, searchJson, "citation", "How do you want this data to be cited?", inheritFromParent, props.readonly)}
-          {dataset_info_input("Funding:", datasetFunding, searchJson, "funding", "Funding supporting this project.", inheritFromParent, props.readonly)}
-          {dataset_info_input("Acknowledgements:", datasetAcknowledgements, searchJson, "acknowledgements", "Acknowledgements you would like to add.", inheritFromParent, props.readonly)}
+          {dataset_info_input("Dataset Info:", datasetNotes, inheritFromParent ? searchJsonParent : searchJson, "notes", "Insert public notes about the dataset (purpose, description, number of subjects, etc.). It is your responsibility to not include any Personally Identifiable Information (PII) about your subjects!", inheritFromParent, props.readonly)}
+          {dataset_info_input("Desired Citation:", datasetCitation, inheritFromParent ? searchJsonParent : searchJson, "citation", "How do you want this data to be cited?", inheritFromParent, props.readonly)}
+          {dataset_info_input("Funding:", datasetFunding, inheritFromParent ? searchJsonParent : searchJson, "funding", "Funding supporting this project.", inheritFromParent, props.readonly)}
+          {dataset_info_input("Acknowledgements:", datasetAcknowledgements, inheritFromParent ? searchJsonParent : searchJson, "acknowledgements", "Acknowledgements you would like to add.", inheritFromParent, props.readonly)}
 
           {path !== "" ? (
             <Row>
