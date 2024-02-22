@@ -151,6 +151,10 @@ const DatasetView = observer((props: DatasetViewProps) => {
       datasetAcknowledgements = searchJsonParent?.getAttribute("acknowledgements", "")
     }
 
+    useEffect(() => {
+      setInheritButton(inheritFromParent);
+    }, [inheritFromParent]);
+
     const [inheritButton, setInheritButton] = useState(inheritFromParent)
 
     const showCitationData = true;
