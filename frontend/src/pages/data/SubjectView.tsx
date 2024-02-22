@@ -1,13 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Button, ProgressBar, Form, Collapse } from "react-bootstrap";
+import { ProgressBar, Form } from "react-bootstrap";
 import { observer } from "mobx-react-lite";
-import UserHomeDirectory, { SubjectContents, TrialSegmentContents } from "../../model/UserHomeDirectory";
+import UserHomeDirectory from "../../model/UserHomeDirectory";
 import DropFile from "../../components/DropFile";
 import TagEditor from '../../components/TagEditor';
 import Session from "../../model/Session";
-import { Link } from "react-router-dom";
-import SubjectViewState, { SubjectResultsJSON } from "../../model/SubjectViewState";
+import SubjectViewState from "../../model/SubjectViewState";
 import LiveFile from "../../model/LiveFile";
 
 type SubjectViewProps = {
@@ -294,7 +293,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <label>Subject Tags:</label>
             <TagEditor
                 tagSet='subject'
-                error={subjectTags.length == 0}
+                error={subjectTags.length === 0}
                 tags={subjectTags}
                 readonly={props.readonly}
                 onTagsChanged={(newTags) => {
@@ -313,7 +312,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             />
         </div>);
 
-        if (subjectTags.length == 0) {
+        if (subjectTags.length === 0) {
             formCompleteSoFar = false;
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
                 <h4 className="alert-heading">Why do I need to tag my subject?</h4>
@@ -341,8 +340,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <select
                 id="model"
                 value={subjectModel}
-                className={"form-control" + ((subjectModel == '') ? " border-primary border-2" : "")}
-                autoFocus={subjectModel == ''}
+                className={"form-control" + ((subjectModel === '') ? " border-primary border-2" : "")}
+                autoFocus={subjectModel === ''}
                 aria-describedby="modelHelp"
                 disabled={props.readonly}
                 onChange={(e) => {
@@ -356,7 +355,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <div id="modelHelp" className="form-text">Musculoskeletal model to use as a starting point to personalize for the subject.</div>
         </div>);
 
-        if (subjectModel == '') {
+        if (subjectModel === '') {
             formCompleteSoFar = false;
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
                 <h4 className="alert-heading">How do I choose which OpenSim model to use?</h4>
@@ -366,7 +365,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     It's ok if the model has more markers than the motion capture files, as additional markers will be ignored.
                 </p>
                 <p>
-                    If you are not familiar with <a href="https://simtk.org/projects/opensim" rel="noreferrer" target="_blank">OpenSim</a>, a good default model is the <a href="https://simtk.org/projects/full_body" target="_blank">Rajagopal 2016</a> model.
+                    If you are not familiar with <a href="https://simtk.org/projects/opensim" rel="noreferrer" target="_blank">OpenSim</a>, a good default model is the <a href="https://simtk.org/projects/full_body" target="_blank" rel="noreferrer">Rajagopal 2016</a> model.
                     We offer a Rajagopal 2016 model with a few different common markersets as a convenience, if you don't want to upload your own model.
                     <ul>
                         <li>The <a href="https://simtk.org/projects/full_body" rel="noreferrer" target="_blank">Rajagopal 2016</a> model with a <a href="https://docs.vicon.com/download/attachments/133828966/Plug-in%20Gait%20Reference%20Guide.pdf?version=2&modificationDate=1637681079000&api=v2" rel="noreferrer" target="_blank">standard Vicon markerset</a></li>
@@ -565,8 +564,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <select
                 id="data"
                 value={subjectDataSource}
-                className={"form-control" + ((subjectDataSource == '') ? " border-primary border-2" : "")}
-                autoFocus={subjectDataSource == ''}
+                className={"form-control" + ((subjectDataSource === '') ? " border-primary border-2" : "")}
+                autoFocus={subjectDataSource === ''}
                 disabled={props.readonly}
                 aria-describedby="dataHelp"
                 onChange={(e) => {
@@ -580,7 +579,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <div id="dataHelp" className="form-text">We treat different kinds of data differently</div>
         </div>);
 
-        if (subjectDataSource == '') {
+        if (subjectDataSource === '') {
             formCompleteSoFar = false;
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
                 <h4 className="alert-heading">How do I choose which "Quality of Data" to say?</h4>
@@ -631,7 +630,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <select
                 id="consent"
                 value={subjectConsent == null ? "" : (subjectConsent ? "true" : "false")}
-                className={"form-control" + ((subjectConsent == null) ? " border-primary border-2" : "") + ((subjectConsent == false) ? " border-danger border-2" : "")}
+                className={"form-control" + ((subjectConsent === null) ? " border-primary border-2" : "") + ((subjectConsent === false) ? " border-danger border-2" : "")}
                 autoFocus={subjectConsent == null}
                 aria-describedby="consentHelp"
                 disabled={props.readonly}
@@ -937,7 +936,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             }
             else {
                 statusSection = <div>
-                    <h3>Status: Error</h3>
+                    <h3>Status:  <div className="badge bg-danger ">Error</div></h3>
                     <h3>Processing log contents:</h3>
                     <pre>
                         {subjectState.logText}
@@ -962,7 +961,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             }
             statusSection = <>
                 <div className='row mt-2'>
-                    <h3>Status: Finished!</h3>
+                    <h3>Status: <div className="badge bg-success ">Finished!</div></h3>
                 </div>
                 <div className='row'>
                     <div className='col-md-12'>
@@ -989,7 +988,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
         else if (processingFlagExists) {
             if (!props.readonly) {
                 statusSection = <div>
-                    <h3>Status: Processing</h3>
+                    <h3>Status: <div className="badge bg-warning ">Processing</div></h3>
                     <button className="btn btn-primary" onClick={async (e) => {
                         if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
                             e.preventDefault();
@@ -1001,14 +1000,14 @@ const SubjectView = observer((props: SubjectViewProps) => {
             }
             else {
                 statusSection = <div>
-                    <h3>Status: Processing</h3>
+                    <h3>Status: <div className="badge bg-warning ">Processing</div></h3>
                 </div>;
             }
         }
         else if (slurmFlagExists) {
             if (!props.readonly) {
                 statusSection = <div>
-                    <h3>Status: Queued on <a href="https://www.sherlock.stanford.edu/docs/" target="_blank">Sherlock</a></h3>
+                    <h3>Status: <div className="badge bg-warning ">Queued on <a href="https://www.sherlock.stanford.edu/docs/" target="_blank" rel="noreferrer">Sherlock</a></div></h3>
                     <button className="btn btn-primary" onClick={async (e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1022,21 +1021,19 @@ const SubjectView = observer((props: SubjectViewProps) => {
             }
             else {
                 statusSection = <div>
-                    <h3>Status: Queued on <a href="https://www.sherlock.stanford.edu/docs/" target="_blank">Sherlock</a></h3>
+                    <h3>Status: <div className="badge bg-warning ">Queued on <a href="https://www.sherlock.stanford.edu/docs/" target="_blank" rel="noreferrer">Sherlock</a></div></h3>
                 </div>;
             }
         }
         else {
             statusSection = <div>
-                <h3>Status: Waiting for server</h3>
+                <h3>Status: <div className="badge bg-secondary">Waiting for server</div></h3>
             </div>;
         }
     }
 
     let resultsSection = null;
     if (resultsExist) {
-        const trialNames: string[] = subjectState.trials.map((trial) => trial.name);
-
         let reviewControls = null;
         if (!props.readonly) {
             reviewControls = <div>

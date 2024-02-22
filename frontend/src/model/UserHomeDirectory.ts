@@ -74,7 +74,7 @@ type AttributionContents = {
     loading: boolean;
 
     name: string;
-    searchJson: LiveJsonFile;
+    searchJson: LiveJsonFile; // _search.json
 }
 
 class UserHomeDirectory {
