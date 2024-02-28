@@ -86,12 +86,13 @@ class SubjectSnapshot:
         contents are complete. Because this process can be killed at any time, there may be a partial upload that was
         cancelled when still incomplete, and if that happens we need to re-translate the data.
         """
-        # # Check if the root folder exists
+        # If we've already tried to copy this dataset, but there's some reason we can't (like it's missing critical
+        # data), then report that here as being "up to date", because it's impossible to copy over.
+        if self.index.hasChildren(self.get_target_path(dataset), ['INCOMPATIBLE']):
+            return True
+        # Check if the root folder exists
         if not (self.index.exists(self.get_target_path(dataset)) or
                 len(self.index.getChildren(self.get_target_path(dataset)+'/')) > 0):
-            return False
-        # If we've already tried to copy this dataset, but there's some reason we can't, then report that here
-        if self.index.hasChildren(self.get_target_path(dataset), ['INCOMPATIBLE']):
             return False
         # Check if all the files exist
         for child in self.index.getChildren(self.path):
@@ -264,7 +265,6 @@ class SubjectSnapshot:
 
     def mark_incompatible(self, datasets: List[StandardizedDataset]):
         # First filter the datasets to just the ones we want to copy
-        # TODO: Janelle - figure out why bad skeletons are still sneaking in
         datasets = self.has_snapshots_to_copy(datasets)
         if len(datasets) == 0:
             return
