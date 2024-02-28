@@ -10,8 +10,8 @@ import shutil
 import hashlib
 
 # ===================== CONSTANTS =====================
-GEOMETRY_FOLDER_PATH = absPath('../engine/Geometry')
-DATA_FOLDER_PATH = absPath('../data')
+GEOMETRY_FOLDER_PATH = absPath('../../data/Geometry')
+DATA_FOLDER_PATH = absPath('../../data')
 MIN_TRIAL_LENGTH = 15  # trials with timesteps shorter than this will be removed
 # =====================================================
 
