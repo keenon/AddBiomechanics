@@ -4,7 +4,7 @@ import { observer } from "mobx-react-lite";
 import UserHomeDirectory, { DatasetContents } from "../../model/UserHomeDirectory";
 import Session from "../../model/Session";
 import LiveJsonFile from "../../model/LiveJsonFile";
-import { Spinner } from "react-bootstrap";
+import { Spinner, OverlayTrigger, Tooltip } from "react-bootstrap";
 
 type DatasetViewProps = {
     home: UserHomeDirectory;
@@ -228,7 +228,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
     if (datasetContents.contents.length === 0) {
         dataTable = <div style={{ textAlign: 'center' }}>
             <div style={{ paddingBottom: '50px' }}>
-                No folders or subjects yet!
+                No datasets or subjects yet!
             </div>
         </div>;
     }
@@ -236,11 +236,20 @@ const DatasetView = observer((props: DatasetViewProps) => {
     if (props.session.userEmail.endsWith("@stanford.edu")) {
         reprocessButton = (
             <div className="row mb-4 mt-4">
-                <button className='btn btn-danger' onClick={() => {
-                    if (window.confirm("DANGER! This will reprocess all subjects in this dataset. This will delete all existing results for thees subjects. Are you sure?")) {
-                        home.reprocessAllSubjects(path);
-                    }
-                }}>Reprocess All Subjects</button>
+              <OverlayTrigger
+                placement="top"
+                delay={{ show: 50, hide: 400 }}
+                overlay={(props) => (
+                  <Tooltip id="button-tooltip" {...props}>
+                    DANGER! This will reprocess all subjects in this dataset. This will delete all existing results for thees subjects. Are you sure?.
+                  </Tooltip>
+                )}>
+                  <button className='btn btn-danger' onClick={() => {
+                      if (window.confirm("DANGER! This will reprocess all subjects in this dataset. This will delete all existing results for thees subjects. Are you sure?")) {
+                          home.reprocessAllSubjects(path);
+                      }
+                  }}>Reprocess All Subjects</button>
+              </OverlayTrigger>
             </div>
         );
     }
@@ -262,18 +271,18 @@ const DatasetView = observer((props: DatasetViewProps) => {
             }}>Create New Subject</button>
         </div>
         <div className="row mb-4 mt-4">
-            <input type="text" placeholder="New Folder Name" value={folderName} onChange={(e) => {
+            <input type="text" placeholder="New Dataset Name" value={folderName} onChange={(e) => {
                 setFolderName(e.target.value);
             }}></input>
             <br />
             <button className='btn btn-dark mt-1' onClick={() => {
                 if (folderName === "") {
-                    alert("Folder name cannot be empty");
+                    alert("Dataset name cannot be empty");
                     return;
                 }
                 home.createDataset(path, folderName);
                 setFolderName("");
-            }}>Create New Folder</button>
+            }}>Create New Dataset</button>
         </div>
         {reprocessButton}
 
