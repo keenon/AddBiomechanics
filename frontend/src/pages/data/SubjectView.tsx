@@ -922,7 +922,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
         if (errorFlagExists) {
             if (!props.readonly) {
                 statusSection = <div>
-                    <h3>Status: Error</h3>
+                    <h3>Status: <div className="badge bg-danger ">Error</div></h3>
                     <button className="btn btn-primary" onClick={async (e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -936,7 +936,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             }
             else {
                 statusSection = <div>
-                    <h3>Status:  <div className="badge bg-danger ">Error</div></h3>
+                    <h3>Status: <div className="badge bg-danger ">Error</div></h3>
                     <h3>Processing log contents:</h3>
                     <pre>
                         {subjectState.logText}
@@ -986,6 +986,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             </>;
         }
         else if (processingFlagExists) {
+
             if (!props.readonly) {
                 statusSection = <div>
                     <h3>Status: <div className="badge bg-warning ">Processing</div></h3>
