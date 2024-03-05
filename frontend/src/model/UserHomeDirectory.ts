@@ -70,6 +70,13 @@ type FolderReviewStatus = {
     segmentsReviewed: TrialSegmentContents[];
 };
 
+type AttributionContents = {
+    loading: boolean;
+
+    name: string;
+    searchJson: LiveJsonFile; // _search.json
+}
+
 class UserHomeDirectory {
     dir: LiveDirectory;
     subjectViewStates: Map<string, SubjectViewState> = new Map();
@@ -78,6 +85,7 @@ class UserHomeDirectory {
     pathReviewCache: Map<string, FolderReviewStatus> = new Map();
     datasetContentsCache: Map<string, DatasetContents> = new Map();
     subjectContentsCache: Map<string, SubjectContents> = new Map();
+    attributionContentsCache: Map<string, AttributionContents> = new Map();
 
     // 'protected/' + s3.region + ':' + userId + '/data/'
     constructor(dir: LiveDirectory) {
@@ -100,6 +108,7 @@ class UserHomeDirectory {
                     this.pathReviewCache.delete(subPath);
                     this.datasetContentsCache.delete(subPath);
                     this.subjectContentsCache.delete(subPath);
+                    this.attributionContentsCache.delete(subPath);
                 }
             });
         }));
@@ -110,6 +119,7 @@ class UserHomeDirectory {
             pathReviewCache: observable,
             datasetContentsCache: observable,
             subjectContentsCache: observable,
+            attributionContentsCache: observable,
         });
     }
 
@@ -326,6 +336,43 @@ class UserHomeDirectory {
 
         return 'done';
     };
+
+    /**
+     * If this is a dataset, we will return the attribution info.
+     *
+     * @param path The path to the dataset
+     */
+    getAttributionContents(path: string): AttributionContents | undefined {
+        const dir = this.dir;
+
+        if (path.endsWith('/')) {
+            path = path.substring(0, path.length-1);
+        }
+
+        let attrib = this.attributionContentsCache.get(path);
+        if (attrib == null) {
+            let name = '';
+
+            if (path.includes('/')) {
+                name = path.split('/').slice(-1)[0];
+            }
+            const searchJson = dir.getJsonFile(path + '/_search.json');
+
+            const searchJsonPathData: PathData | undefined = dir.getCachedPath(path, false);
+
+            attrib = {
+                name,
+                loading: (searchJsonPathData?.loading ?? true),
+                searchJson,
+            };
+            if (searchJsonPathData != null) {
+                action(() => {
+                    this.attributionContentsCache.set(path, attrib!);
+                });
+            }
+        }
+        return attrib;
+    }
 
     /**
      * If this is a dataset, we will return the contents.
@@ -670,5 +717,5 @@ class UserHomeDirectory {
     }
 };
 
-export type { PathType, DatasetContents, SubjectContents, TrialContents, TrialSegmentContents, FolderReviewStatus };
+export type { PathType, DatasetContents, SubjectContents, TrialContents, TrialSegmentContents, FolderReviewStatus, AttributionContents };
 export default UserHomeDirectory;
