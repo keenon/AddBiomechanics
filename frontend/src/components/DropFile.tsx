@@ -93,6 +93,30 @@ const DropFile = observer((props: DropFileProps) => {
         });
       });
 
+      const handleFileSelect = () => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true; // Allow multiple file selection
+        fileInput.addEventListener('change', (event) => {
+          const inputElement = event.target as HTMLInputElement;
+
+          let acceptedFiles: File[] = [];
+          if (inputElement.files) {
+            const files = Array.from(inputElement.files);
+            files.forEach((file) => {
+              acceptedFiles.push(file);
+            });
+
+
+            props.onDrop(acceptedFiles).catch((e) => {
+              console.error(e);
+              alert(e);
+            });
+          }
+        });
+        fileInput.click();
+      };
+
   return (
     <div className={"dropzone dropzone-sm" + (exists ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && !exists && !uploading) ? ' dropzone-error' : ''))}
         onDrop={onDrop as any}
@@ -104,7 +128,8 @@ const DropFile = observer((props: DropFileProps) => {
         }}
         onDragLeave={() => {
           setIsDragActive(false);
-        }}>
+        }}
+        onClick={handleFileSelect}>
       <div className="dz-message needsclick" style={{
         whiteSpace: 'nowrap',
         overflow: 'hidden',
