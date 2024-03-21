@@ -6,6 +6,7 @@ import { action } from "mobx";
 import { FileMetadata } from "../model/S3API";
 import LiveFile from "../model/LiveFile";
 import { observer } from "mobx-react-lite";
+import * as path from 'path';
 
 type DropFileProps = {
   file: LiveFile;
@@ -56,10 +57,10 @@ const DropFile = observer((props: DropFileProps) => {
       if (metadata != null) {
         const file: FileMetadata = metadata;
         if (props.hideDate) {
-          body = <>{humanFileSize(file.size)}</>
+          body = <>Uploaded <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b></>
         }
         else {
-          body = <>{humanFileSize(file.size)} on {file.lastModified.toDateString()}</>
+          body = <>Uploaded <b>{path.basename(file.key)}</b> on {file.lastModified.toDateString()} - {humanFileSize(file.size)}</>
         }
       }
       else {
@@ -93,6 +94,30 @@ const DropFile = observer((props: DropFileProps) => {
         });
       });
 
+      const handleFileSelect = () => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true; // Allow multiple file selection
+        fileInput.addEventListener('change', (event) => {
+          const inputElement = event.target as HTMLInputElement;
+
+          let acceptedFiles: File[] = [];
+          if (inputElement.files) {
+            const files = Array.from(inputElement.files);
+            files.forEach((file) => {
+              acceptedFiles.push(file);
+            });
+
+
+            props.onDrop(acceptedFiles).catch((e) => {
+              console.error(e);
+              alert(e);
+            });
+          }
+        });
+        fileInput.click();
+      };
+
   return (
     <div className={"dropzone dropzone-sm" + (exists ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && !exists && !uploading) ? ' dropzone-error' : ''))}
         onDrop={onDrop as any}
@@ -104,7 +129,8 @@ const DropFile = observer((props: DropFileProps) => {
         }}
         onDragLeave={() => {
           setIsDragActive(false);
-        }}>
+        }}
+        onClick={handleFileSelect}>
       <div className="dz-message needsclick" style={{
         whiteSpace: 'nowrap',
         overflow: 'hidden',

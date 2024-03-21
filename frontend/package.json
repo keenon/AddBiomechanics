@@ -23,6 +23,7 @@
     "mobx-react-lite": "^4.0.4",
     "mqtt": "^4.3.7",
     "nimble-visualizer": "0.10.26.5",
+    "path": "^0.12.7",
     "process": "^0.11.10",
     "react": "^18.2.0",
     "react-app-rewired": "^2.2.1",

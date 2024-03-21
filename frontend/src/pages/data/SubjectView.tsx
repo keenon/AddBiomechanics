@@ -881,6 +881,26 @@ const SubjectView = observer((props: SubjectViewProps) => {
         subjectState.dropFilesToUpload(acceptedFiles);
     };
 
+    const handleFileSelect = () => {
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.multiple = true; // Allow multiple file selection
+      fileInput.addEventListener('change', (event) => {
+        const inputElement = event.target as HTMLInputElement;
+
+        let acceptedFiles: File[] = [];
+        if (inputElement.files) {
+          const files = Array.from(inputElement.files);
+          files.forEach((file) => {
+            acceptedFiles.push(file);
+          });
+
+          subjectState.dropFilesToUpload(acceptedFiles);
+        }
+      });
+      fileInput.click();
+    };
+
     let uploadTrialsDropZone = null;
     if (!props.readonly) {
         uploadTrialsDropZone = (
@@ -894,7 +914,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 }}
                 onDragLeave={() => {
                     setDropZoneActive(false);
-                }}>
+                }}
+                onClick={handleFileSelect}>
                 <div className="dz-message needsclick">
                     <i className="h3 text-muted dripicons-cloud-upload"></i>
                     <h5>
