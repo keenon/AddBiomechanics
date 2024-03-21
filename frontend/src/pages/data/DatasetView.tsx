@@ -88,21 +88,21 @@ const DatasetView = observer((props: DatasetViewProps) => {
     let inheritFromParent = searchJson?.getAttribute("inherit", "true") === "true"
 
     // If inherit from parent, get parent path recursively until a parent without inherit is found, and load it.
-    if (inheritFromParent) {
-      let parent_path = get_parent_path_absolute(path)
-      let attributionContentsParent: AttributionContents | undefined = home.getAttributionContents(parent_path);
-      let searchJsonParent = attributionContentsParent?.searchJson;
-      while (searchJsonParent?.getAttribute("inherit", "false") === "true" && parent_path !== "undefined") {
-        attributionContentsParent = home.getAttributionContents(parent_path)
-        searchJsonParent = attributionContentsParent?.searchJson;
-        parent_path = get_parent_path_absolute(parent_path)
-      }
-      datasetTitle = searchJsonParent?.getAttribute("title", "")
-      datasetNotes = searchJsonParent?.getAttribute("notes", "")
-      datasetCitation = searchJsonParent?.getAttribute("citation", "")
-      datasetFunding = searchJsonParent?.getAttribute("funding", "")
-      datasetAcknowledgements = searchJsonParent?.getAttribute("acknowledgements", "")
-    }
+//    if (inheritFromParent) {
+//      let parent_path = get_parent_path_absolute(path)
+//      let attributionContentsParent: AttributionContents | undefined = home.getAttributionContents(parent_path);
+//      let searchJsonParent = attributionContentsParent?.searchJson;
+//      while (searchJsonParent?.getAttribute("inherit", "false") === "true" && parent_path !== "undefined") {
+//        attributionContentsParent = home.getAttributionContents(parent_path)
+//        searchJsonParent = attributionContentsParent?.searchJson;
+//        parent_path = get_parent_path_absolute(parent_path)
+//      }
+//      datasetTitle = searchJsonParent?.getAttribute("title", "")
+//      datasetNotes = searchJsonParent?.getAttribute("notes", "")
+//      datasetCitation = searchJsonParent?.getAttribute("citation", "")
+//      datasetFunding = searchJsonParent?.getAttribute("funding", "")
+//      datasetAcknowledgements = searchJsonParent?.getAttribute("acknowledgements", "")
+//    }
 
     useEffect(() => {
       setInheritButton(inheritFromParent);
@@ -110,7 +110,10 @@ const DatasetView = observer((props: DatasetViewProps) => {
 
     const [inheritButton, setInheritButton] = useState(inheritFromParent)
 
-    const showCitationData = true;
+    let parent_path = get_parent_path_absolute(path)
+    const showCitationData = parent_path == "";
+    console.log("PATH: " + path)
+    console.log("PARENT PATH: " + parent_path)
     let citationDetails: React.ReactNode = null;
     if (showCitationData) {
 
@@ -163,31 +166,31 @@ const DatasetView = observer((props: DatasetViewProps) => {
           {dataset_info_input("Funding:", datasetFunding, inheritFromParent ? searchJsonParent : searchJson, "funding", "Funding supporting this project.", inheritFromParent, props.readonly)}
           {dataset_info_input("Acknowledgements:", datasetAcknowledgements, inheritFromParent ? searchJsonParent : searchJson, "acknowledgements", "Acknowledgements you would like to add.", inheritFromParent, props.readonly)}
 
-          {path !== "" ? (
-            <Row>
-              <Col>
-                <input
-                  type="checkbox"
-                  id="checkboxInheritFromParent"
-                  checked={inheritButton}
-                  onFocus={() => {
-                      searchJson?.onFocusAttribute("inherit");
-                  }}
-                  onBlur={() => {
-                      searchJson?.onBlurAttribute("inherit");
-                  }}
-                  onChange={(e) => {
-                    searchJson?.setAttribute("inherit", e.target.checked ? "true" : "false")
-                    setInheritButton(e.target.checked)
-                  }}
-                  disabled={props.readonly}
-                />
-                <label htmlFor="checkboxInheritFromParent">Inherit from parent</label>
-              </Col>
-            </Row>
-          ) : null }
       </>;
     }
+//          {path !== "" ? (
+//            <Row>
+//              <Col>
+//                <input
+//                  type="checkbox"
+//                  id="checkboxInheritFromParent"
+//                  checked={inheritButton}
+//                  onFocus={() => {
+//                      searchJson?.onFocusAttribute("inherit");
+//                  }}
+//                  onBlur={() => {
+//                      searchJson?.onBlurAttribute("inherit");
+//                  }}
+//                  onChange={(e) => {
+//                    searchJson?.setAttribute("inherit", e.target.checked ? "true" : "false")
+//                    setInheritButton(e.target.checked)
+//                  }}
+//                  disabled={props.readonly}
+//                />
+//                <label htmlFor="checkboxInheritFromParent">Inherit from parent</label>
+//              </Col>
+//            </Row>
+//          ) : null }
 
     if (datasetContents.loading) {
         return <div>
@@ -294,22 +297,25 @@ const DatasetView = observer((props: DatasetViewProps) => {
         <Row className="mb-4 align-items-center">
             {props.readonly ? null : (
                 <>
-                  <Col className="align-items-center">
-                    <div className="row mx-2">
-                        <input type="text" placeholder="New Dataset Name" value={folderName} onChange={(e) => {
-                            setFolderName(e.target.value);
-                        }}></input>
-                        <br />
-                        <button className='btn btn-dark mt-1' onClick={() => {
-                            if (folderName === "") {
-                                alert("Dataset name cannot be empty");
-                                return;
-                            }
-                            home.createDataset(path, folderName);
-                            setFolderName("");
-                        }}>Create New Dataset</button>
-                    </div>
-                  </Col>
+                  {/* If no parent, we are in home. Only allow to create folders (datasets) here. */}
+                  {parent_path === "undefined" ?
+                    <Col className="align-items-center">
+                      <div className="row mx-2">
+                          <input type="text" placeholder="New Dataset Name" value={folderName} onChange={(e) => {
+                              setFolderName(e.target.value);
+                          }}></input>
+                          <br />
+                          <button className='btn btn-dark mt-1' onClick={() => {
+                              if (folderName === "") {
+                                  alert("Dataset name cannot be empty");
+                                  return;
+                              }
+                              home.createDataset(path, folderName);
+                              setFolderName("");
+                          }}>Create New Dataset</button>
+                      </div>
+                    </Col>
+                    : null}
                   <Col className="align-items-center">
                     <div className="row mx-2">
                       <input type="text" placeholder="New Subject Name" value={subjectName} onChange={(e) => {
@@ -336,7 +342,10 @@ const DatasetView = observer((props: DatasetViewProps) => {
                 </>
               )}
         </Row>
-        <Row>
+
+        {/* This folder is not a dataset.*/}
+        {showCitationData ?
+          <Row>
           <Col xs={3}>
             <Row className="align-items-center">
                 <Row className="align-items-center">
@@ -350,6 +359,16 @@ const DatasetView = observer((props: DatasetViewProps) => {
             {dataTable}
           </Col>
         </Row>
+        :
+        <></>}
+
+        {/* This folder is not a dataset.*/}
+        <Row>
+          <Col>
+            {dataTable}
+          </Col>
+        </Row>
+
     </div>
 });
 
