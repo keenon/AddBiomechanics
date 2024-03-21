@@ -360,14 +360,11 @@ const DatasetView = observer((props: DatasetViewProps) => {
           </Col>
         </Row>
         :
-        <></>}
-
-        {/* This folder is not a dataset.*/}
         <Row>
           <Col>
             {dataTable}
           </Col>
-        </Row>
+        </Row>}
 
     </div>
 });
