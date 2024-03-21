@@ -4,6 +4,7 @@ import json
 import nimblephysics as nimble
 from nimblephysics import absPath
 from exceptions import LoadingError, TrialPreprocessingError, MarkerFitterError, DynamicsFitterError, WriteError
+from plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
 import numpy as np
 import os
 import shutil
@@ -1092,6 +1093,10 @@ class Subject(metaclass=ExceptionHandlingMeta):
             # Write out all the data from the trial segments
             for i in range(len(trial.segments)):
                 print('Writing OpenSim output for trial ' + trial.trial_name + ' segment ' + str(i) + ' of ' + str(len(trial.segments)), flush=True)
+                ik_fpath = ''
+                id_fpath = ''
+                grf_fpath = ''
+                grf_raw_fpath = ''
                 segment = trial.segments[i]
                 segment_name = trial.trial_name + '_segment_' + str(i)
                 # Write out the IK for the manually scaled skeleton, if appropriate
@@ -1193,6 +1198,22 @@ class Subject(metaclass=ExceptionHandlingMeta):
                 if result_ik is not None:
                     marker_errors_fpath = f'{results_path}IK/{segment_name}_marker_errors.csv'
                     result_ik.saveCSVMarkerErrorReport(marker_errors_fpath)
+
+                # 9.9.11. Plot results.
+                print(f'Plotting results for trial segment {segment_name}')
+                if ik_fpath and os.path.exists(ik_fpath):
+                    plot_ik_results(ik_fpath)
+                    plot_marker_errors(marker_errors_fpath, ik_fpath)
+
+                if id_fpath and os.path.exists(id_fpath):
+                    plot_id_results(id_fpath)
+
+                if grf_fpath and os.path.exists(grf_fpath):
+                    plot_grf_data(grf_fpath)
+
+                if os.path.exists(grf_raw_fpath):
+                    plot_grf_data(grf_raw_fpath)
+
         print('Zipping up OpenSim files...', flush=True)
         shutil.make_archive(results_path, 'zip', results_path, results_path)
         print('Finished outputting OpenSim files.', flush=True)
