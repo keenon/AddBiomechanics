@@ -8,6 +8,7 @@ import TagEditor from '../../components/TagEditor';
 import Session from "../../model/Session";
 import SubjectViewState from "../../model/SubjectViewState";
 import LiveFile from "../../model/LiveFile";
+import { parseLinks } from "../../utils"
 
 type SubjectViewProps = {
     home: UserHomeDirectory;
@@ -20,6 +21,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const home = props.home;
     const path = props.path;
     const navigate = useNavigate();
+
+    const [showLog, setShowLog] = useState<boolean>(false);
 
     const subjectState: SubjectViewState = home.getSubjectViewState(path);
     const subjectJson = subjectState.subjectJson;
@@ -939,20 +942,55 @@ const SubjectView = observer((props: SubjectViewProps) => {
     </>;
 
     let statusSection = null;
+    let errorsSection = null;
     if (readyFlagExists) {
         if (errorFlagExists) {
+
+            let guessedError = <li>
+                  <p>
+                    <strong>{subjectState.parsedErrorsJson.type} - </strong>
+                    {parseLinks(subjectState.parsedErrorsJson.message)}
+                  </p>
+                  <p>
+                    {parseLinks(subjectState.parsedErrorsJson.original_message)}
+                  </p>
+              </li>
+            console.log(subjectState.parsedErrorsJson)
+            if (Object.keys(subjectState.parsedErrorsJson).length > 0) {
+              errorsSection = <div>
+                <h3>Status: <div className="badge bg-danger ">Error</div></h3>
+                <div className="alert alert-danger my-2">
+                <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
+                <p>
+                  There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
+                </p>
+                <hr />
+                <ul>
+                  {guessedError}
+                </ul>
+                <hr />
+                <p>
+                  Please, fix the errors and update your data and/or your OpenSim Model and Markerset and then hit "Reprocess" (below in blue) to fix the problem.
+                </p>
+                <button className="btn btn-secondary" onClick={() => setShowLog(!showLog)}>
+                  {showLog ? "Hide Processing Log": "Show Processing Log"}
+                </button>
+                {showLog && (
+                  <pre className="alert alert-light my-2">
+                    {subjectState.logText}
+                  </pre>
+                )}
+              </div>
+              </div>;
+            }
+
             if (!props.readonly) {
                 statusSection = <div>
-                    <h3>Status: <div className="badge bg-danger ">Error</div></h3>
                     <button className="btn btn-primary" onClick={async (e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         return subjectState.reprocess();
                     }}>Reprocess</button>
-                    <h3>Processing log contents:</h3>
-                    <pre>
-                        {subjectState.logText}
-                    </pre>
                 </div>;
             }
             else {
@@ -1188,6 +1226,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     return <div className='container'>
         {subjectForm}
         {trialsUploadSection}
+        {errorsSection}
         {statusSection}
         {resultsSection}
     </div>
