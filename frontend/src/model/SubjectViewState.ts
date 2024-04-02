@@ -37,6 +37,12 @@ type SubjectResultsJSON = {
     [trialName: string]: TrialResultsJSON
 };
 
+type SubjectErrorsJSON = {
+  type: string;
+  message: string;
+  original_message: string;
+}
+
 /**
  * The SubjectView grew to the point where we needed a separate class to manage its state.
  * 
@@ -58,6 +64,7 @@ class SubjectViewState {
 
     resultsExist: boolean;
     resultsJsonPath: string;
+    errorsJsonPath: string;
     resultsOsimZipPath: string;
     resultsB3dPath: string;
     logPath: string;
@@ -75,8 +82,11 @@ class SubjectViewState {
     uploadedTrialPaths: Map<string, string> = new Map();
 
     loadedResultsJsonFirstTime: boolean = false;
+    loadedErrorsJsonFirstTime: boolean = false;
     loadingResultsJsonPromise: Promise<void> | null = null;
+    loadingErrorsJsonPromise: Promise<void> | null = null;
     parsedResultsJson: SubjectResultsJSON = {};
+    parsedErrorsJson: SubjectErrorsJSON = {"type": "", "message": "", "original_message": ""};
 
     loadingLogsFirstTime: boolean = false;
     loadingLogsPromise: Promise<void> | null = null;
@@ -104,6 +114,7 @@ class SubjectViewState {
 
         this.subjectJson = dir.getJsonFile(path + '/_subject.json');
         this.resultsJsonPath = path + '/_results.json';
+        this.errorsJsonPath = path + '/_errors.json';
         this.logPath = path + '/log.txt';
         this.resultsOsimZipPath = path + '/' + this.name + '.zip';
         this.resultsB3dPath = path + '/' + this.name + '.b3d';
@@ -234,6 +245,49 @@ class SubjectViewState {
                     }
                 })).catch((e) => {
                     console.error("Error downloading _results.json from " + this.path + '/_results.json' + ": ", e);
+                });
+            }
+        }
+
+        // If the errors errors exists on the server, and we haven't loaded it yet, then load it
+        const errorsExist = subjectPathData.files.map((file) => {
+            return file.key;
+        }).includes(this.errorsJsonPath);
+        if (!this.loadedErrorsJsonFirstTime) {
+            if (errorsExist) {
+                this.loadedErrorsJsonFirstTime = true;
+                this.loadingErrorsJsonPromise = this.home.dir.downloadText(this.path + "/_errors.json").then(action((errorsText) => {
+                    try {
+                        const reviver = (key: string, value: any) => {
+                            if (typeof value === 'string') {
+                                switch (value) {
+                                    case 'NaN':
+                                        return NaN;
+                                    case 'Infinity':
+                                        return Infinity;
+                                    case '-Infinity':
+                                        return -Infinity;
+                                    default:
+                                        return value;
+                                }
+                            }
+                            return value;
+                        };
+                        const preprocessJson = (jsonString: string): string => {
+                            return jsonString
+                                .replace(/(:\s*)NaN(\s*[,}])/g, '$1"NaN"$2')
+                                .replace(/(:\s*)Infinity(\s*[,}])/g, '$1"Infinity"$2')
+                                .replace(/(:\s*)-Infinity(\s*[,}])/g, '$1"-Infinity"$2');
+                        };
+                        const errorsTextProcessed = preprocessJson(errorsText);
+                        const errors: SubjectErrorsJSON = JSON.parse(errorsTextProcessed, reviver);
+                        this.parsedErrorsJson = errors;
+                    }
+                    catch (e) {
+                        console.error("Bad JSON format for file \"" + this.path + "/_errors.json\", got: \"" + errorsText + "\"");
+                    }
+                })).catch((e) => {
+                    console.error("Error downloading _errors.json from " + this.path + '/_errors.json' + ": ", e);
                 });
             }
         }
