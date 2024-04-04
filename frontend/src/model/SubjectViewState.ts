@@ -435,7 +435,7 @@ class SubjectViewState {
             path = path.substring(0, path.length-1);
         }
         this.uploadedTrialPaths.delete(path);
-        return this.home.dir.deleteByPrefix(path);
+        return this.home.dir.delete(path);
     }
 
     /**
