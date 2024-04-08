@@ -39,37 +39,43 @@ function humanFileSize(bytes: number, si: boolean = true, dp: number = 1) {
     return bytes.toFixed(dp) + ' ' + units[u];
 }
 
-function showToast(message:string | any, type:string, position:ToastPosition=toast.POSITION.BOTTOM_CENTER, autoCloseTime:number=5000) {
-
+function showToast(message:string | any, type:string, toastId:string, position:ToastPosition=toast.POSITION.BOTTOM_CENTER, autoCloseTime:number|false=5000) {
+    if (autoCloseTime === -1)
+      autoCloseTime = false
     if(type === "success") {
         toast.success(message, {
             position: position,
             autoClose: autoCloseTime,
-            closeOnClick: false
+            closeOnClick: false,
+            toastId: toastId
         });
     } else if (type === "error") {
         toast.error(message, {
             position: position,
             autoClose: autoCloseTime,
-            closeOnClick: false
+            closeOnClick: false,
+            toastId: toastId
         });
     } else if (type === "info") {
         toast.info(message, {
             position: position,
             autoClose: autoCloseTime,
-            closeOnClick: false
+            closeOnClick: false,
+            toastId: toastId
         });
     } else if (type === "warning") {
         toast.warning(message, {
             position: position,
             autoClose: autoCloseTime,
-            closeOnClick: false
+            closeOnClick: false,
+            toastId: toastId
         });
     } else {
         toast(message, {
             position: position,
             autoClose: autoCloseTime,
-            closeOnClick: false
+            closeOnClick: false,
+            toastId: toastId
         });
     }
 }
@@ -78,9 +84,9 @@ async function copyProfileUrlToClipboard(userId:string) {
     const url:string = window.location.origin + "/profile/" + userId;
     try {
       await navigator.clipboard.writeText(url);
-      showToast("Profile URL copied to clipboard!", "success");
+      showToast("Profile URL copied to clipboard!", "success", "profile-url-copied");
     } catch (err) {
-      showToast("Error while copying profile URL to clipboard", "error");
+      showToast("Error while copying profile URL to clipboard", "error", "profile-url-copied-error");
     }
 }
 

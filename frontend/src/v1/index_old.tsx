@@ -89,7 +89,7 @@ function afterLogin(email: string) {
                     We noticed you have not created a profile. Please click <Link to="/profile">here</Link> to create one!.
                   </div>
                 );
-                showToast(CustomToastWithLink, "info", toast.POSITION.BOTTOM_CENTER, 20000);
+                showToast(CustomToastWithLink, "info", "create-profile", toast.POSITION.BOTTOM_CENTER, 20000);
               }
             });
           }

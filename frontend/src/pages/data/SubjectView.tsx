@@ -8,7 +8,9 @@ import TagEditor from '../../components/TagEditor';
 import Session from "../../model/Session";
 import SubjectViewState from "../../model/SubjectViewState";
 import LiveFile from "../../model/LiveFile";
-import { parseLinks } from "../../utils"
+import { parseLinks, showToast } from "../../utils"
+import {toast } from 'react-toastify';
+
 
 type SubjectViewProps = {
     home: UserHomeDirectory;
@@ -462,21 +464,21 @@ const SubjectView = observer((props: SubjectViewProps) => {
     if (!disableDynamics && subjectModel === 'custom') {
         totalFormElements++;
         if (formCompleteSoFar) {
-            let footErrorMessage = null;
-            if (footBodyNames.length < 2) {
-                footErrorMessage = (
-                    <div className="invalid-feedback">
-                        To fit dynamics to your data, please specify at least two body nodes that we can treat as "feet", and send ground reaction forces through.
-                    </div>
-                );
-            }
-            // else if (footBodyNames.length > 2) {
-            //     footErrorMessage = (
-            //         <div className="invalid-feedback">
-            //             Currently AddBiomechanics dynamics fitter only supports treating each foot as a single body segment. Please don't include multiple segments from each foot.
-            //         </div>
-            //     );
-            // }
+//            let footErrorMessage = null;
+//            if (footBodyNames.length < 2) {
+//                footErrorMessage = (
+//                    <div className="invalid-feedback">
+//                        To fit dynamics to your data, please specify at least two body nodes that we can treat as "feet", and send ground reaction forces through.
+//                    </div>
+//                );
+//            }
+//            else if (footBodyNames.length > 2) {
+//                footErrorMessage = (
+//                    <div className="invalid-feedback">
+//                        Currently AddBiomechanics dynamics fitter only supports treating each foot as a single body segment. Please don't include multiple segments from each foot.
+//                    </div>
+//                );
+//            }
 
             formElements.push(<div key="feet" className="mb-3">
                 <label>Specify Two Feet in Custom OpenSim Model:</label>
@@ -944,6 +946,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     let statusSection = null;
     let errorsSection = null;
+    let waitingForServer = false;
     if (readyFlagExists) {
         if (errorFlagExists) {
 
@@ -963,7 +966,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <div className="alert alert-danger my-2">
                 <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
                 <p>
-                  There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank">Tips and Tricks page</a> for more suggestions.
+                  There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank" rel="noreferrer">Tips and Tricks page</a> for more suggestions.
                 </p>
                 <hr />
                 <ul>
@@ -1046,7 +1049,6 @@ const SubjectView = observer((props: SubjectViewProps) => {
             </>;
         }
         else if (processingFlagExists) {
-
             if (!props.readonly) {
                 statusSection = <div>
                     <h3>Status: <div className="badge bg-warning ">Processing</div></h3>
@@ -1087,9 +1089,37 @@ const SubjectView = observer((props: SubjectViewProps) => {
             }
         }
         else {
+            waitingForServer = true
+
             statusSection = <div>
                 <h3>Status: <div className="badge bg-secondary">Waiting for server</div></h3>
             </div>;
+        }
+
+        if (processingFlagExists || slurmFlagExists || waitingForServer) {
+            // Check if flags were created less than 6 hours ago.
+            let possibleProcessingProblem = false
+
+            let processingFlagFileModified = processingFlagFile.metadata?.lastModified
+            let slurmFlagFileModified = slurmFlagFile.metadata?.lastModified
+            let sixHoursAgo = new Date()
+            sixHoursAgo.setHours(new Date().getHours() - 6);
+
+            if (processingFlagExists) {
+                if (processingFlagFileModified)
+                    possibleProcessingProblem = processingFlagFileModified < sixHoursAgo
+            }
+
+            if (slurmFlagExists) {
+                if (slurmFlagFileModified)
+                    possibleProcessingProblem = slurmFlagFileModified < sixHoursAgo
+            }
+
+            if(possibleProcessingProblem)
+                showToast("Your data is taking to much time to process. Please, click on reprocess to try again.", "warning", "reprocess", toast.POSITION.BOTTOM_CENTER, false)
+            else
+                showToast("Your data is being processed. Please, come back later", "info", "processing", toast.POSITION.BOTTOM_CENTER, false)
+
         }
     }
 
