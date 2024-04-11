@@ -1117,7 +1117,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             let sixHoursAgo = new Date()
             sixHoursAgo.setHours(new Date().getHours() - 24);
 
-            if (readyFlagExists && !resultsExist && !errorFlagExists) {
+            if (readyFlagExists && !resultsExist && !errorFlagExists && !processingFlagExists && !slurmFlagExists) {
                 if (readyFlagFileModified)
                     possibleProcessingProblem = readyFlagFileModified < sixHoursAgo
             }
