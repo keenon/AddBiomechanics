@@ -1091,19 +1091,36 @@ const SubjectView = observer((props: SubjectViewProps) => {
         else {
             waitingForServer = true
 
-            statusSection = <div>
+            statusSection = <>
+            <button className="btn btn-primary" onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await subjectState.reprocess();
+                }
+            }}>Force Reprocess</button>
+            <div>
                 <h3>Status: <div className="badge bg-secondary">Waiting for server</div></h3>
-            </div>;
+            </div>
+            </>;
         }
 
-        if (processingFlagExists || slurmFlagExists || waitingForServer) {
+        if (readyFlagExists || processingFlagExists || slurmFlagExists || waitingForServer) {
             // Check if flags were created less than 6 hours ago.
             let possibleProcessingProblem = false
 
+            let readyFlagFileModified = readyFlagFile.metadata?.lastModified
             let processingFlagFileModified = processingFlagFile.metadata?.lastModified
             let slurmFlagFileModified = slurmFlagFile.metadata?.lastModified
             let sixHoursAgo = new Date()
-            sixHoursAgo.setHours(new Date().getHours() - 6);
+            sixHoursAgo.setHours(new Date().getHours() - 24);
+
+            if (readyFlagExists && !resultsExist && !errorFlagExists) {
+                if (readyFlagFileModified)
+                    possibleProcessingProblem = readyFlagFileModified < sixHoursAgo
+            }
 
             if (processingFlagExists) {
                 if (processingFlagFileModified)
