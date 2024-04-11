@@ -16,6 +16,7 @@
     "buffer": "^6.0.3",
     "chart.js": "^4.0.1",
     "chartjs-plugin-autocolors": "^0.0.7",
+    "date-fns": "^3.6.0",
     "history": "5",
     "i18next": "^21.4.2",
     "jszip": "^3.7.1",

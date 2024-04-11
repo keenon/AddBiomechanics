@@ -7,6 +7,7 @@ import { FileMetadata } from "../model/S3API";
 import LiveFile from "../model/LiveFile";
 import { observer } from "mobx-react-lite";
 import * as path from 'path';
+import { format } from 'date-fns';
 
 type DropFileProps = {
   file: LiveFile;
@@ -60,7 +61,7 @@ const DropFile = observer((props: DropFileProps) => {
           body = <>Uploaded <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b></>
         }
         else {
-          body = <>Uploaded <b>{path.basename(file.key)}</b> on {file.lastModified.toDateString()} - {humanFileSize(file.size)}</>
+          body = <>Uploaded <b>{path.basename(file.key)}</b> on {format(file.lastModified.toString(), 'yyyy/MM/dd kk:mm:ss')} - {humanFileSize(file.size)}</>
         }
       }
       else {

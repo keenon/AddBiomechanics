@@ -315,23 +315,23 @@ const DatasetView = observer((props: DatasetViewProps) => {
                           }}>Create New Dataset</button>
                       </div>
                     </Col>
-                    : null}
-                  <Col className="align-items-center">
-                    <div className="row mx-2">
-                      <input type="text" placeholder="New Subject Name" value={subjectName} onChange={(e) => {
-                          setSubjectName(e.target.value);
-                      }}></input>
-                      <br />
-                      <button className='btn btn-primary mt-1' onClick={() => {
-                          if (subjectName === "") {
-                              alert("Subject name cannot be empty");
-                              return;
-                          }
-                          home.createSubject(path, subjectName);
-                          setSubjectName("");
-                      }}>Create New Subject</button>
-                    </div>
-                  </Col>
+                    :
+                    <Col className="align-items-center">
+                      <div className="row mx-2">
+                        <input type="text" placeholder="New Subject Name" value={subjectName} onChange={(e) => {
+                            setSubjectName(e.target.value);
+                        }}></input>
+                        <br />
+                        <button className='btn btn-primary mt-1' onClick={() => {
+                            if (subjectName === "") {
+                                alert("Subject name cannot be empty");
+                                return;
+                            }
+                            home.createSubject(path, subjectName);
+                            setSubjectName("");
+                        }}>Create New Subject</button>
+                      </div>
+                    </Col>}
                   {props.session.userEmail.endsWith("@stanford.edu") ?
                     <Col className="align-items-center">
                       <div className="row mx-2 align-items-center">
