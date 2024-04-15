@@ -493,7 +493,7 @@ class UserHomeDirectory {
      */
     deleteFolder(path: string): Promise<void> {
         const dir = this.dir;
-        return dir.deleteByPrefix(path + (path.length > 0 ? '/' : ''));
+        return dir.deleteByPrefix(path + (path.length > 0 && !path.endsWith('/') ? '/' : ''));
     }
 
     /**
