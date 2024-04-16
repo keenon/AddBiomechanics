@@ -31,7 +31,7 @@ const SearchResult = observer((props: SearchResultProps) => {
   const description = props.datasetInfo.getAttribute("notes", "");
 
   function highlightSearchTerm(htmlString: string, searchTerm: string) {
-    if (searchTerm.length == 0) return htmlString;
+    if (searchTerm.length === 0) return htmlString;
 
     // Create a regular expression to match the search term
     const regex = new RegExp('(' + searchTerm + ')', "gi");
@@ -205,7 +205,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                               <button type="button" className="btn btn-primary w-100" onClick={() => { navigate("/forgot-password") }}>Change Password</button>
                             </div>
                             <div className="col-md-12">
-                              <button type="button" className="btn btn-primary mt-2 w-100" onClick={() => { setEditing(false); showToast("Profile updated.", "info"); }}>Finish</button>
+                              <button type="button" className="btn btn-primary mt-2 w-100" onClick={() => { setEditing(false); showToast("Profile updated.", "info", "profile-updated"); }}>Finish</button>
                             </div>
                           </div>
                         </div>

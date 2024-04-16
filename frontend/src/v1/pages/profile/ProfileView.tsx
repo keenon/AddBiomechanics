@@ -189,7 +189,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                                 {/* {generate_input_field(affiliation, "Affiliation", "Insert your affiliation.", "Your affiliation...", "affiliation", "mdi-school-outline")} */}
                                 <InputField cursor={props.cursor} label="Lab" tooltip="Insert your lab." placeholder="Your lab..." attributeName="lab" icon="mdi-test-tube" />
                                 {/* {generate_input_field(lab, "Lab", "Insert your lab.", "Your lab...", "lab", "mdi-test-tube")} */}
-                                <button type="button" className="btn btn-primary" onClick={() => { setEditing(false); showToast("Profile updated.", "info"); }}>Finish</button>
+                                <button type="button" className="btn btn-primary" onClick={() => { setEditing(false); showToast("Profile updated.", "info", "profile-updated"); }}>Finish</button>
                               </div>
                             </div>
                           );
