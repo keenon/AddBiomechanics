@@ -370,7 +370,10 @@ class S3APIImpl extends S3API {
             if (output.Contents != null && output.Contents.length > 0) {
                 for (let i = 0; i < output.Contents.length; i++) {
                     let file = output.Contents[i];
-                    if (file.Key != null && file.LastModified != null && file.Size != null) {
+                    // file.Key.startsWith(path + "/") to avoid it removing or listing elements from siblings whose folder
+                    // name contains current path as prefix.
+                    const pathWithSlash = path.endsWith("/") ? path : path + "/";
+                    if (file.Key != null && file.Key.startsWith(pathWithSlash) && file.LastModified != null && file.Size != null) {
                         files.push({
                             key: file.Key,
                             lastModified: file.LastModified,

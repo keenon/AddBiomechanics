@@ -625,7 +625,7 @@ class LiveDirectoryImpl extends LiveDirectory {
     }
 
     _onReceivedPubSubDelete(path: string): Promise<void> {
-        if (!path.startsWith(this.prefix)) {
+        if (path !== this.prefix) {
             return Promise.resolve();
         }
 
