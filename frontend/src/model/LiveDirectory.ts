@@ -625,7 +625,7 @@ class LiveDirectoryImpl extends LiveDirectory {
     }
 
     _onReceivedPubSubDelete(path: string): Promise<void> {
-        if (path !== this.prefix) {
+        if (!path.startsWith(this.prefix)) {
             return Promise.resolve();
         }
 
@@ -859,7 +859,8 @@ class LiveDirectoryImpl extends LiveDirectory {
                 this._onReceivedPubSubDelete(fullPath),
                 // Also send to PubSub
                 this.pubsub.publish({ topic, message: JSON.stringify(updatedFile) })
-            ]).then(() => {});
+            ]).then(() => {
+            });
         });
     }
 
@@ -915,6 +916,7 @@ class LiveDirectoryImpl extends LiveDirectory {
         if (data.promise != null) {
             data = await data.promise;
         }
+
         const files = this.recursivelyGetAllCachedFilesIncludingSelf(path);
         return Promise.all(files.map((file) => {
             return this.delete(file.key);
