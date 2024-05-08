@@ -1114,27 +1114,45 @@ const SubjectView = observer((props: SubjectViewProps) => {
             let readyFlagFileModified = readyFlagFile.metadata?.lastModified
             let processingFlagFileModified = processingFlagFile.metadata?.lastModified
             let slurmFlagFileModified = slurmFlagFile.metadata?.lastModified
-            let sixHoursAgo = new Date()
-            sixHoursAgo.setHours(new Date().getHours() - 24);
+            let aDayAgo = new Date()
+            aDayAgo.setHours(new Date().getHours() - 24);
+            const pacificTimeOptions = { timeZone: 'America/Los_Angeles' };
+            aDayAgo = new Date(aDayAgo.toLocaleString('en-US', pacificTimeOptions));
 
             if (readyFlagExists && !resultsExist && !errorFlagExists && !processingFlagExists && !slurmFlagExists) {
-                if (readyFlagFileModified)
-                    possibleProcessingProblem = readyFlagFileModified < sixHoursAgo
+                if (readyFlagFileModified) {
+                    possibleProcessingProblem = readyFlagFileModified < aDayAgo
+                    console.log(readyFlagFileModified)
+                    console.log(readyFlagFileModified < aDayAgo)
+                }
+                console.log("READY")
+                console.log(readyFlagFileModified)
+                console.log(aDayAgo)
             }
 
-            if (processingFlagExists) {
-                if (processingFlagFileModified)
-                    possibleProcessingProblem = processingFlagFileModified < sixHoursAgo
+            if (processingFlagExists && !resultsExist && !errorFlagExists) {
+                if (processingFlagFileModified) {
+                    possibleProcessingProblem = processingFlagFileModified < aDayAgo
+                  console.log(processingFlagFileModified < aDayAgo)
+                }
+                console.log("PROCESSING")
+                console.log(processingFlagFileModified)
+                console.log(aDayAgo)
             }
 
-            if (slurmFlagExists) {
-                if (slurmFlagFileModified)
-                    possibleProcessingProblem = slurmFlagFileModified < sixHoursAgo
+            if (slurmFlagExists && !resultsExist && !errorFlagExists) {
+                if (slurmFlagFileModified) {
+                    possibleProcessingProblem = slurmFlagFileModified < aDayAgo
+                    console.log(slurmFlagFileModified < aDayAgo)
+                }
+                console.log("SLURM")
+                console.log(slurmFlagFileModified)
+                console.log(aDayAgo)
             }
 
             if(possibleProcessingProblem)
                 showToast("Your data is taking to much time to process. Please, click on reprocess to try again.", "warning", "reprocess", toast.POSITION.BOTTOM_CENTER, false)
-            else
+            else if(!resultsExist && !errorFlagExists)
                 showToast("Your data is being processed. Please, come back later", "info", "processing", toast.POSITION.BOTTOM_CENTER, false)
 
         }
