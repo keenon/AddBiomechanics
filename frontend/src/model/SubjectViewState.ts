@@ -500,22 +500,26 @@ class SubjectViewState {
     }
 
     reprocess(): Promise<void> {
-        return this.errorFlagFile.delete().then(() => {
-            return this.slurmFlagFile.delete().then(() => {
-                return this.processingFlagFile.delete().then(() => {
-                    return this.home.dir.delete(this.resultsJsonPath).then(() => {
-                        return this.home.dir.delete(this.logPath).then(action(() => {
-                            this.parsedResultsJson = {};
-                            this.loadingResultsJsonPromise = null;
-                            this.loadedResultsJsonFirstTime = false;
+        return this.readyFlagFile.delete().then(() => {
+          return this.errorFlagFile.delete().then(() => {
+              return this.slurmFlagFile.delete().then(() => {
+                  return this.processingFlagFile.delete().then(() => {
+                      return this.home.dir.delete(this.resultsJsonPath).then(() => {
+                          return this.home.dir.delete(this.logPath).then(action(() => {
+                              this.submitForProcessing();
 
-                            this.logText = '';
-                            this.loadingLogsPromise = null;
-                            this.loadingLogsFirstTime = false;
-                        }));
-                    });
-                });
-            });
+                              this.parsedResultsJson = {};
+                              this.loadingResultsJsonPromise = null;
+                              this.loadedResultsJsonFirstTime = false;
+
+                              this.logText = '';
+                              this.loadingLogsPromise = null;
+                              this.loadingLogsFirstTime = false;
+                          }));
+                      });
+                  });
+              });
+          });
         });
     }
 
