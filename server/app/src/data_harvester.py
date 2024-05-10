@@ -8,6 +8,8 @@ from nimblephysics import absPath
 import json
 import shutil
 import hashlib
+import multiprocessing
+import time
 
 # ===================== CONSTANTS =====================
 GEOMETRY_FOLDER_PATH = absPath('../../data/Geometry')
@@ -355,12 +357,19 @@ class DataHarvester:
                 if len(self.queue) > 0:
                     print('Processing queue: ' +
                           str(len(self.queue)) + ' items remaining')
-                    try:
-                        self.queue[0].copy_snapshots(self.datasets)
-                    except Exception as e:
-                        print('Got an exception when trying to process dataset ' +
-                              self.queue[0].path)
-                        print(e)
+                    # Create a new process to handle the copy_snapshots call, to shield the server from segfaults in
+                    # Nimble as it is attempting to convert whatever crazy raw OpenSim file the user has uploaded into
+                    # our standard skeletons.
+                    p = multiprocessing.Process(target=self.copy_snashots_other_process_entry_point, args=(self.queue[0],))
+                    p.start()  # Start the process
+                    p.join()  # Wait for the process to complete
+                    # Check the process exit code (0 means success)
+                    if p.exitcode == 0:
+                        print('Snapshot copied successfully.')
+                    else:
+                        print('Error in copying snapshots. Exit code:', p.exitcode)
+                        # We will mark this dataset as incompatible, because we can't process it. This will prevent
+                        # us from trying to process it again in the future.
                         try:
                             self.queue[0].mark_incompatible(self.datasets)
                         except Exception as e2:
@@ -370,10 +379,28 @@ class DataHarvester:
                             print('We will now quit, because it is pointless to keep looping on this dataset')
                             break
 
-                    self.queue.pop(0)
+                    self.queue.pop(0)  # Remove the processed item from the queue
+
             except Exception as e:
                 print(e)
             time.sleep(1)
+
+    def copy_snashots_other_process_entry_point(self, dataset):
+        """
+        Method to call copy_snapshots in a separate process, so that if it segfaults, it doesn't take down the whole
+        server. The server can then mark the dataset as incompatible, and move on.
+        """
+        try:
+            dataset.copy_snapshots(self.datasets)
+        except Exception as e:
+            print(f'Got an exception when trying to process dataset {dataset.path}')
+            print(e)
+            try:
+                dataset.mark_incompatible(self.datasets)
+            except Exception as e2:
+                print(f'Got an exception when trying to mark dataset as incompatible {dataset.path}')
+                print(e2)
+                raise Exception('Critical error, terminating process')
 
 
 if __name__ == "__main__":
