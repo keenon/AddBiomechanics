@@ -30,7 +30,10 @@
             <a class="nav-link" href="data_sharing_mission.html">Data Sharing Mission</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" aria-current="page" href="data.html">Tips and Tricks</a>
+            <a class="nav-link" href="download_data.html">Download Data</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" aria-current="page" href="tips_and_tricks.html">Tips and Tricks</a>
           </li>
           <li class="nav-item">
             <a class="nav-link active" href="faq.html">FAQ</a>
@@ -51,37 +54,44 @@
     <div id="index-section" class="mb-5">
       <h1 class="mt-5">Index</h1>
       <ul>
-          <li><a href="#addbiomechanics-manuscript">AddBiomechanics Manuscript</a></li>
-          <li><a href="#addbiomechanics-forum">AddBiomechanics Forum</a></li>
-          <li><a href="#faq">Frequently Asked Questions</a></li>
-          <ul>
-            <li><a href="#data-input-types">Data Input Types</a></li>
-            <li><a href="#model-scaling-and-accuracy">Model Scaling and Accuracy</a></li>
-            <li><a href="#movement-types">Movement Types</a></li>
-            <li><a href="#using-the-web-application">Using the Web Application</a></li>
-            <li><a href="#tagging-and-metadata">Tagging and Metadata</a></li>
-            <li><a href="#addbiomechanics-dataset">AddBiomechanics dataset</a></li>
-            <li><a href="#data-sharing-compliance">Data Sharing and Compliance</a></li>
-          </ul>
+        <li><a href="#addbiomechanics-manuscript">AddBiomechanics Manuscript</a></li>
+        <li><a href="#addbiomechanics-forum">AddBiomechanics Forum</a></li>
+        <li><a href="#faq">Frequently Asked Questions</a></li>
+        <ul>
+          <li><a href="#data-input-types">Data Input Types</a></li>
+          <li><a href="#model-scaling-and-accuracy">Model Scaling and Accuracy</a></li>
+          <li><a href="#movement-types">Movement Types</a></li>
+          <li><a href="#using-the-web-application">Using the Web Application</a></li>
+          <li><a href="#tagging-and-metadata">Tagging and Metadata</a></li>
+          <li><a href="#addbiomechanics-dataset">AddBiomechanics dataset</a></li>
+          <li><a href="#data-sharing-compliance">Data Sharing and Compliance</a></li>
+        </ul>
       </ul>
     </div>
 
     <div id="addbiomechanics-manuscript" class="mb-5">
       <h1 class="mt-5">Addbiomechanics Manuscript</h1>
-      <p>To read about the design, implementation, and validation of the AddBiomechanics data-processing pipeline and web application, please see our associated manuscript.</p>
+      <p>To read about the design, implementation, and validation of the AddBiomechanics data-processing pipeline and
+        web application, please see our associated manuscript.</p>
 
       <p>
-        <a href="https://www.biorxiv.org/content/10.1101/2023.06.15.545116v2" target="_blank">AddBiomechanics: Automating model scaling, inverse kinematics, and inverse dynamics from human motion data through sequential optimization</a>
+        <a href="https://www.biorxiv.org/content/10.1101/2023.06.15.545116v2" target="_blank">AddBiomechanics:
+          Automating model scaling, inverse kinematics, and inverse dynamics from human motion data through sequential
+          optimization</a>
         </br>
-        Keenon Werling, Nicholas A. Bianco, Michael Raitor, Jon Stingel, Jennifer L. Hicks, Steven H. Collins, Scott L. Delp, C. Karen Liu
+        Keenon Werling, Nicholas A. Bianco, Michael Raitor, Jon Stingel, Jennifer L. Hicks, Steven H. Collins, Scott L.
+        Delp, C. Karen Liu
         </br>
-        bioRxiv 2023.06.15.545116; doi: <a href="https://doi.org/10.1101/2023.06.15.545116" target="_blank">https://doi.org/10.1101/2023.06.15.545116</a>
+        bioRxiv 2023.06.15.545116; doi: <a href="https://doi.org/10.1101/2023.06.15.545116"
+          target="_blank">https://doi.org/10.1101/2023.06.15.545116</a>
       </p>
     </div>
 
     <div id="addbiomechanics-forum" class="mb-5">
       <h1 class="mt-5">Addbiomechanics Forum</h1>
-      <p>For questions that are not covered below, please visit <a href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB" target="_blank">our user forum on SimTK.org</a>.</p>
+      <p>For questions that are not covered below, please visit <a
+          href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB" target="_blank">our user
+          forum on SimTK.org</a>.</p>
     </div>
 
     <div id="faq" class="mb-5">
@@ -89,80 +99,153 @@
       <p><u>Last updated</u>: October 26, 2023</p>
 
       <h2 id="data-input-types">Data Input Types</h2>
-      <p><b>Q. How do you see this working with markerless data, without trajectories, and only segment rotation matrices?</b></p>
-      <p>A. If the markerless motion capture system exports keypoint data or estimates of marker positions, then it may be compatible with AddBiomechanics. However, we currently do not have plans to support datasets with only segment rotations, since rotation matrices alone do not contain enough information for model scaling.</p>
+      <p><b>Q. How do you see this working with markerless data, without trajectories, and only segment rotation
+          matrices?</b></p>
+      <p>A. If the markerless motion capture system exports keypoint data or estimates of marker positions, then it may
+        be compatible with AddBiomechanics. However, we currently do not have plans to support datasets with only
+        segment rotations, since rotation matrices alone do not contain enough information for model scaling.</p>
       <p><b>Q. Could this tool work with motion capture data from OpenCap?</b></p>
-      <p>A. Yes, as long as you provide models and data in the expected OpenSim formats, then they will work with AddBiomechanics. However, it’s important to keep in mind that AddBiomechanics is only as accurate as the data you provide, and so will not improve accuracy over OpenCap if it is fed OpenCap output data.</p>
+      <p>A. Yes, as long as you provide models and data in the expected OpenSim formats, then they will work with
+        AddBiomechanics. However, it’s important to keep in mind that AddBiomechanics is only as accurate as the data
+        you provide, and so will not improve accuracy over OpenCap if it is fed OpenCap output data.</p>
       <p><b>Q. Can I use IMU data with AddBiomechanics?</b></p>
-      <p>A. We hope to include data from inertial measurements units in the AddBiomechanics model fitting pipeline in the future. Stay tuned for development updates.</p>
+      <p>A. We hope to include data from inertial measurements units in the AddBiomechanics model fitting pipeline in
+        the future. Stay tuned for development updates.</p>
       <p><b>Q. Can we use pressure sensor insole data as the force data?</b></p>
-      <p>A. As long as you format the pressure insole data in the same format as the ground reaction forces file format in OpenSim, you can use it in AddBiomechanics. Note, your results will be dependent on the quality of the data you upload.</p>
+      <p>A. As long as you format the pressure insole data in the same format as the ground reaction forces file format
+        in OpenSim, you can use it in AddBiomechanics. Note, your results will be dependent on the quality of the data
+        you upload.</p>
       <p><b>Q. How can AddBiomechanics work with Joint Coordinate System Data?</b></p>
-      <p>A. There currently is not a way to use joint coordinate trajectories in the AddBiomechanics pipeline. We will keep this in mind for future development.</p>
+      <p>A. There currently is not a way to use joint coordinate trajectories in the AddBiomechanics pipeline. We will
+        keep this in mind for future development.</p>
       <p><b>Q. Does AddBiomechanics support C3D files?</b></p>
-      <p>A. Yes, AddBiomechanics accepts C3D files as an input if you do not want to upload markers and forces in separate files.</p>
+      <p>A. Yes, AddBiomechanics accepts C3D files as an input if you do not want to upload markers and forces in
+        separate files.</p>
 
       <h2 id="model-scaling-and-accuracy">Model Scaling and Accuracy</h2>
-      <p><b>Q. Does AddBiomechanics handle gaps in marker trajectory data? Do I still need to clean these gaps in my motion capture software?</b></p>
-      <p>A. AddBiomechanics will attempt to automatically clean up the marker trajectory data provided by filling in small gaps with inverse kinematics on the remaining markers and swapping marker labels, but we cannot guarantee that all issues will be corrected. Therefore, if you do not achieve the quality of results you want, it is best to clean your data as much as possible before uploading.</p>
-      <p><b>Q. Are the joint center estimations sensitive to the range of motion the joint moves through during the trial? Do I still need to use a static trial or functional range of motion trial in addition to my motion trials?</b></p>
-      <p>A. As long as your uploaded marker data is motion rich (i.e., explores the full range of motion you care about for each joint in the scaled model) and you have an appropriate number of anatomical and tracking markers on the model, AddBiomechanics will produce a good scaling result.</p>
+      <p><b>Q. Does AddBiomechanics handle gaps in marker trajectory data? Do I still need to clean these gaps in my
+          motion capture software?</b></p>
+      <p>A. AddBiomechanics will attempt to automatically clean up the marker trajectory data provided by filling in
+        small gaps with inverse kinematics on the remaining markers and swapping marker labels, but we cannot guarantee
+        that all issues will be corrected. Therefore, if you do not achieve the quality of results you want, it is best
+        to clean your data as much as possible before uploading.</p>
+      <p><b>Q. Are the joint center estimations sensitive to the range of motion the joint moves through during the
+          trial? Do I still need to use a static trial or functional range of motion trial in addition to my motion
+          trials?</b></p>
+      <p>A. As long as your uploaded marker data is motion rich (i.e., explores the full range of motion you care about
+        for each joint in the scaled model) and you have an appropriate number of anatomical and tracking markers on the
+        model, AddBiomechanics will produce a good scaling result.</p>
       <p><b>Q. Can you define manual scale factors for body segments or is it all measurement-based scaling?</b></p>
-      <p>A. Currently, AddBiomechanics scales models using measurement-based scaling only. We will keep manual scale factors in mind for future development.</p>
-      <p><b>Q. Are models scaled with AddBiomechanics trial-specific (i.e., do they need to be generated for every trial)? Or are multiple trials from a subject considered simultaneously in the optimization?</b></p>
-      <p>A. When you scale a model in AddBiomechanics, you can upload multiple trials associated with a single subject. AddBiomechanics will fit a model to the data in all uploaded trials simultaneously.</p>
-      <p><b>Q. Are you able to define the joint center locations manually? I work with prosthetic limbs and wish to define the knee joint center according to a specific design.</b></p>
-      <p>A. Not currently, but if you place an anatomical marker at the joint center you found, that should encourage AddBiomechanics to find it automatically. We will consider manual joint center identification for future development.</p>
+      <p>A. Currently, AddBiomechanics scales models using measurement-based scaling only. We will keep manual scale
+        factors in mind for future development.</p>
+      <p><b>Q. Are models scaled with AddBiomechanics trial-specific (i.e., do they need to be generated for every
+          trial)? Or are multiple trials from a subject considered simultaneously in the optimization?</b></p>
+      <p>A. When you scale a model in AddBiomechanics, you can upload multiple trials associated with a single subject.
+        AddBiomechanics will fit a model to the data in all uploaded trials simultaneously.</p>
+      <p><b>Q. Are you able to define the joint center locations manually? I work with prosthetic limbs and wish to
+          define the knee joint center according to a specific design.</b></p>
+      <p>A. Not currently, but if you place an anatomical marker at the joint center you found, that should encourage
+        AddBiomechanics to find it automatically. We will consider manual joint center identification for future
+        development.</p>
       <p><b>Q. Is there a minimum requirement number of markers on each segment for this to work properly?</b></p>
-      <p>A. We require at least 8 anatomical markers on the model for the AddBiomechanics algorithm to work well. We recommend that you apply at least one anatomical marker on each rigid body in your model for best results.</p>
+      <p>A. We require at least 8 anatomical markers on the model for the AddBiomechanics algorithm to work well. We
+        recommend that you apply at least one anatomical marker on each rigid body in your model for best results.</p>
       <p><b>Q. Can your model contain additional bodies or non-anatomical objects (e.g., a barbell)?</b></p>
-      <p>A. Yes, but AddBiomechanics will not differentiate these bodies from anatomical bodies in the model, and will attempt to optimize the mass of these objects during the inverse dynamics step (if enabled) to reduce residual forces.</p>
-      <p><b>Q. What is the accuracy of the AddBiomechanics model scaling, inverse kinematics, and inverse dynamics pipeline? Can I trust my results?</b></p>
-      <p>A. We have tested and validated the AddBiomechanics pipeline by reprocessing previously published simulation datasets and comparing the results to the expert-processed results. You can read more about the details of our validation process in the AddBiomechanics manuscript linked above.</p>
-      <p><b>Q. Are there limits to the complexity of models that AddBiomechanics can handle (e.g., foot models with multiple segments, spine models, etc.)?</b></p>
-      <p>A. If you define your model using standard OpenSim joint types, apply anatomical markers to all bodies, and use motion rich trials, AddBiomechanics will have the best chance to produce a good result. Use of more complicated models has been limited in early testing, so if you encounter unforeseen problems, please post them to the <a href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB" target="_blank">user forum.</a></p>
+      <p>A. Yes, but AddBiomechanics will not differentiate these bodies from anatomical bodies in the model, and will
+        attempt to optimize the mass of these objects during the inverse dynamics step (if enabled) to reduce residual
+        forces.</p>
+      <p><b>Q. What is the accuracy of the AddBiomechanics model scaling, inverse kinematics, and inverse dynamics
+          pipeline? Can I trust my results?</b></p>
+      <p>A. We have tested and validated the AddBiomechanics pipeline by reprocessing previously published simulation
+        datasets and comparing the results to the expert-processed results. You can read more about the details of our
+        validation process in the AddBiomechanics manuscript linked above.</p>
+      <p><b>Q. Are there limits to the complexity of models that AddBiomechanics can handle (e.g., foot models with
+          multiple segments, spine models, etc.)?</b></p>
+      <p>A. If you define your model using standard OpenSim joint types, apply anatomical markers to all bodies, and use
+        motion rich trials, AddBiomechanics will have the best chance to produce a good result. Use of more complicated
+        models has been limited in early testing, so if you encounter unforeseen problems, please post them to the <a
+          href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB" target="_blank">user
+          forum.</a></p>
       <p><b>Q. Are there plans to implement the AddBiomechanics pipeline in OpenSim?</b></p>
-      <p>A. The inputs and outputs are both using OpenSim file formats. It is on our development plan to make the integration with the OpenSim application more seamless!</p>
+      <p>A. The inputs and outputs are both using OpenSim file formats. It is on our development plan to make the
+        integration with the OpenSim application more seamless!</p>
 
       <h2 id="movement-types">Movement Types</h2>
       <p><b>Q. Does AddBiomechanics work with walking data (i.e., motions with double-stance phases)?</b></p>
       <p>A. Yes, absolutely! As of this posting, most of the data uploaded to AddBiomechanics is walking data.</p>
       <p><b>Q. Can I use AddBiomechanics for motion types other than overground walking?</b></p>
-      <p>A. AddBiomechanics is not limited to overground walking. The scaling and inverse kinematics pipeline will work well for most motions provided that you upload quality marker data. Inverse dynamics results depend on the quality of the ground reaction force data and its consistency with the marker data.</p>
+      <p>A. AddBiomechanics is not limited to overground walking. The scaling and inverse kinematics pipeline will work
+        well for most motions provided that you upload quality marker data. Inverse dynamics results depend on the
+        quality of the ground reaction force data and its consistency with the marker data.</p>
       <p><b>Q. How does AddBiomechanics accommodate data captured from people with functional disabilities?</b></p>
-      <p>A. We have not done broad testing with different populations, but we would love to get feedback from users working with different populations.  You will need to have markers on the model that match your experiment, as always.</p>
+      <p>A. We have not done broad testing with different populations, but we would love to get feedback from users
+        working with different populations. You will need to have markers on the model that match your experiment, as
+        always.</p>
       <p><b>Q. Can I use AddBiomechanics if I want to process upper-extremity data only?</b></p>
-      <p>A.  Yes, as long as you have markers on the model that match your experiment, and use a model that AddBiomechanics supports (e.g., standard OpenSim joints and no kinematic constraints). However, currently, the inverse dynamics will not be possible since we only support applying external loads to foot bodies in the model. </p>
-      <p><b>Q. Is there a way to optimize a new trajectory using the model and processed data I get from AddBiomechanics?</b></p>
-      <p>A. AddBiomechanics now features an option to export your processed data and model directly into a trajectory optimization problem in <a href="https://simtk.org/projects/opensim-moco" target="_blank">OpenSim Moco</a>. By default, we exported an “inverse” problem, where the kinematic trajectory and external forces are prescribed to the model, so you can estimate muscle activations. But you can visit the <a href="https://opensim-org.github.io/opensim-moco-site/" target="_blank">Moco API documentation</a> to learn more about how to customize a new problem that suits your needs.</p>
-      <p><b>Q. Are there plans to provide more flexibility in specifying weights for individual markers (e.g., similar to the OpenSim InverseKinematicsTool)?</b></p>
+      <p>A. Yes, as long as you have markers on the model that match your experiment, and use a model that
+        AddBiomechanics supports (e.g., standard OpenSim joints and no kinematic constraints). However, currently, the
+        inverse dynamics will not be possible since we only support applying external loads to foot bodies in the model.
+      </p>
+      <p><b>Q. Is there a way to optimize a new trajectory using the model and processed data I get from
+          AddBiomechanics?</b></p>
+      <p>A. AddBiomechanics now features an option to export your processed data and model directly into a trajectory
+        optimization problem in <a href="https://simtk.org/projects/opensim-moco" target="_blank">OpenSim Moco</a>. By
+        default, we exported an “inverse” problem, where the kinematic trajectory and external forces are prescribed to
+        the model, so you can estimate muscle activations. But you can visit the <a
+          href="https://opensim-org.github.io/opensim-moco-site/" target="_blank">Moco API documentation</a> to learn
+        more about how to customize a new problem that suits your needs.</p>
+      <p><b>Q. Are there plans to provide more flexibility in specifying weights for individual markers (e.g., similar
+          to the OpenSim InverseKinematicsTool)?</b></p>
       <p>A. We are considering this feature for future development plans.</p>
 
       <h2 id="using-the-web-application">Using the Web Application</h2>
-      <p><b>Q. If I have a large dataset, do I still need to upload participants one by one? Is there a way to automate the process for many participants all at once?</b></p>
-      <p>A. This is a common request from our early users, and we are currently working on a command line interface (CLI) for this purpose. The <a href="https://github.com/keenon/AddBiomechanics/tree/main/cli" target="_blank">development version of the CLI</a> can be found on GitHub now. Stay tuned for more documentation and features.</p>
+      <p><b>Q. If I have a large dataset, do I still need to upload participants one by one? Is there a way to automate
+          the process for many participants all at once?</b></p>
+      <p>A. This is a common request from our early users, and we are currently working on a command line interface
+        (CLI) for this purpose. The <a href="https://github.com/keenon/AddBiomechanics/tree/main/cli"
+          target="_blank">development version of the CLI</a> can be found on GitHub now. Stay tuned for more
+        documentation and features.</p>
       <p><b>Q. Do we need to crop data to "clean strides" for AddBiomechanics?</b></p>
-      <p>A. AddBiomechanics will automatically crop trials into different segments depending on the time points that have ground reaction force data and those that do not. Trials that are longer than 20 seconds will also be split into segments of maximum length 20 seconds to speed up processing times on very large data captures.</p>
+      <p>A. AddBiomechanics will automatically crop trials into different segments depending on the time points that
+        have ground reaction force data and those that do not. Trials that are longer than 20 seconds will also be split
+        into segments of maximum length 20 seconds to speed up processing times on very large data captures.</p>
 
       <h2 id="tagging-and-metadata">Tagging and Metadata</h2>
-      <p><b>Q. If you are pooling data from various studies with different inclusion criteria (controls, athletes, patients, amputees, etc), how does this affect the public data set? How can they be used in future studies if there is no information about the participants?</b></p>
-      <p>A. We require that informative tags be applied to all subjects uploaded to AddBiomechanics so that our dataset releases will contain metadata for all included subjects and trials. If your subject does not have any more informative characteristics, you may select “unimpaired” as a default tag.</p>
+      <p><b>Q. If you are pooling data from various studies with different inclusion criteria (controls, athletes,
+          patients, amputees, etc), how does this affect the public data set? How can they be used in future studies if
+          there is no information about the participants?</b></p>
+      <p>A. We require that informative tags be applied to all subjects uploaded to AddBiomechanics so that our dataset
+        releases will contain metadata for all included subjects and trials. If your subject does not have any more
+        informative characteristics, you may select “unimpaired” as a default tag.</p>
       <p><b>Q. In addition to adding tags for the subject, is there a way to tag the movement tasks?</b></p>
-      <p>A. Yes! Movement tasks can be tagged (e.g., “Walking”, “Running”, “Exo - Passive”, etc.), and individual movement tasks added to a subject can have different tags.</p>
-      <p><b>Q. Are there a consistent set of tags for us to choose from? That would help me when I need to think of the right tags.</b></p>
-      <p>A. Please use the set of existing tags that we provide. If these tags are not relevant to your subject or movement trials, please request new tags on the forum.</p>
+      <p>A. Yes! Movement tasks can be tagged (e.g., “Walking”, “Running”, “Exo - Passive”, etc.), and individual
+        movement tasks added to a subject can have different tags.</p>
+      <p><b>Q. Are there a consistent set of tags for us to choose from? That would help me when I need to think of the
+          right tags.</b></p>
+      <p>A. Please use the set of existing tags that we provide. If these tags are not relevant to your subject or
+        movement trials, please request new tags on the forum.</p>
 
       <h2 id="addbiomechanics-dataset">AddBiomechanics dataset</h2>
       <p><b>Q. I couldn't find a link for the dataset, has it been released yet?</b></p>
-      <p>A. We are planning to release the first version of the dataset soon and are currently writing an accompanying manuscript for it. Stay tuned!</p>
+      <p>A. We are planning to release the first version of the dataset soon and are currently writing an accompanying
+        manuscript for it. Stay tuned!</p>
 
       <h2 id="data-sharing-compliance">Data Sharing and Compliance</h2>
       <p><b>Q.Can I run AddBiomechanics on my local machine?</b></p>
-      <p>A. We highly encourage using the web application, in order to contribute to the data sharing mission of AddBiomechanics. It is possible to build locally, but we have a very small team, which is funded to support the web application, and thus are not able to provide support for those building locally.</p>
+      <p>A. We highly encourage using the web application, in order to contribute to the data sharing mission of
+        AddBiomechanics. It is possible to build locally, but we have a very small team, which is funded to support the
+        web application, and thus are not able to provide support for those building locally.</p>
       <p><b>Q. Is it possible to publish accompanying data (e.g., IMU, EMG, etc.) via AddBiomechanics?</b></p>
-      <p>A.We currently do not have an automated way for publishing accompanying data through AddBiomechanics. Until we support this, please create a project on <a href="https://simtk.org/" target="_blank">SimTK.org</a> to share your data.</p>
-      <p><b>Q. Are there any concerns or resistance by IRBs about the public nature of AddBiomechanics? Members of the typical IRB might not fully appreciate what is potentially identifiable, or they might be concerned about the ability in the future to identify a subject by their unique gait “signature,” even if that is not a concern today.</b></p>
-      <p>A. We provide <a href="https://addbiomechanics.org/data_sharing_mission.html" target="_blank">sample language</a> that may be useful when writing your next IRB that will include data sharing with AddBiomechanics.</p>
+      <p>A.We currently do not have an automated way for publishing accompanying data through AddBiomechanics. Until we
+        support this, please create a project on <a href="https://simtk.org/" target="_blank">SimTK.org</a> to share
+        your data.</p>
+      <p><b>Q. Are there any concerns or resistance by IRBs about the public nature of AddBiomechanics? Members of the
+          typical IRB might not fully appreciate what is potentially identifiable, or they might be concerned about the
+          ability in the future to identify a subject by their unique gait “signature,” even if that is not a concern
+          today.</b></p>
+      <p>A. We provide <a href="https://addbiomechanics.org/data_sharing_mission.html" target="_blank">sample
+          language</a> that may be useful when writing your next IRB that will include data sharing with
+        AddBiomechanics.</p>
 
     </div>
 
