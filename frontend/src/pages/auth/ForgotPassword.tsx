@@ -99,7 +99,7 @@ const ForgetPassword = () => {
             <p>{t("We've sent a code to your email!")}</p>
             <Link
               to={{
-                pathname: "/enter-confirmation-code",
+                pathname: "/reset-password",
                 search: `?${createSearchParams({ email })}`,
               }}
               state={{ from: location.state?.from }}

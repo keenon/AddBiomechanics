@@ -1,139 +1,145 @@
 import React, { useEffect, useState } from "react";
-import { ProgressBar } from "react-bootstrap";
-import { observer } from "mobx-react-lite";
-import MocapS3Cursor from '../state/MocapS3Cursor';
+import { PathData } from "../model/LiveDirectory";
+import { ProgressBar, Button } from "react-bootstrap";
 import { humanFileSize } from '../utils';
-import Dropzone from "react-dropzone";
 import { action } from "mobx";
+import { FileMetadata } from "../model/S3API";
+import LiveFile from "../model/LiveFile";
+import { observer } from "mobx-react-lite";
+import * as path from 'path';
+import { format } from 'date-fns';
 
 type DropFileProps = {
-  cursor: MocapS3Cursor;
-  path: string;
+  file: LiveFile;
+  readonly: boolean;
   accept: string;
-  uploadOnMount?: File;
-  validateFile?: (f: File) => Promise<string | null>;
-  onMultipleFiles?: (files: File[]) => void;
+  onDrop: (f: File[]) => Promise<void>;
   text?: string;
+  hideDate?: boolean;
   required?: boolean;
 };
 
 const DropFile = observer((props: DropFileProps) => {
-  let [isUploading, setIsUploading] = useState(false);
-  let [uploadProgress, setUploadProgress] = useState(0.0);
-  let metadata = props.cursor.rawCursor.getChildMetadata(props.path);
-
-  useEffect(() => {
-    if (props.uploadOnMount) {
-      setUploadProgress(0.0);
-      setIsUploading(true);
-      props.cursor.rawCursor.uploadChild(props.path, props.uploadOnMount, setUploadProgress).then(action(() => {
-        setIsUploading(false);
-      }));
-    }
-  }, [props.cursor.rawCursor, props.path, props.uploadOnMount]);
+  let [isDragActive, setIsDragActive] = useState(false);
 
   let body = <></>;
 
-  if (props.cursor.dataIsReadonly()) {
-    if (metadata != null) {
-      return (<button onClick={() => props.cursor.rawCursor.downloadFile(props.path)}>Download</button>);
+  const loading: Promise<void> | null = props.file.loading;
+  const exists = props.file.exists;
+  const uploading = props.file.uploading;
+  const metadata = props.file.metadata;
+
+  if (props.readonly) {
+    if (exists) {
+      return (<Button className="btn-light" onClick={() => props.file.download()}>
+        <i className="mdi mdi-download me-2 vertical-middle"></i>
+        Download
+      </Button>);
     }
     else {
       return <></>;
     }
   }
-  else if (isUploading) {
+  else if (uploading) {
     body = <ProgressBar
       style={{ width: "100%" }}
       min={0}
       max={1}
-      now={uploadProgress}
+      now={props.file.uploadProgress}
       striped={true}
       animated={true}
     />;
   }
   else {
-    if (metadata != null) {
-      body = <>{humanFileSize(metadata.size)} on {metadata.lastModified.toDateString()}</>
+    if (loading != null) {
+      body = <><i className="mdi mdi-loading mdi-spin me-2"></i> Loading...</>
+    }
+    else if (exists) {
+      if (metadata != null) {
+        const file: FileMetadata = metadata;
+        if (props.hideDate) {
+          body = <>Uploaded <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b></>
+        }
+        else {
+          body = <>Uploaded <b>{path.basename(file.key)}</b> on {format(file.lastModified.toString(), 'yyyy/MM/dd kk:mm:ss')} - {humanFileSize(file.size)}</>
+        }
+      }
+      else {
+          body = <>Loading size...</>
+      }
     }
     else {
       body = <><i className={(props.required ? "" : "text-muted ") + "dripicons-cloud-upload"} style={{ marginRight: '5px' }}></i> {(props.required ? <b>Required: </b> : null)} {props.text ? props.text : "Drop files here or click to upload"}</>
     }
   }
 
-  return (
-    <Dropzone
-      {...props}
-      onDrop={action((acceptedFiles) => {
-        if (acceptedFiles.length === 1) {
-          let errorPromise: Promise<string | null>;
-          if (props.validateFile) {
-            errorPromise = props.validateFile(acceptedFiles[0]);
-          }
-          else {
-            errorPromise = Promise.resolve(null);
-          }
-          errorPromise.then((error: string | null) => {
-            if (error != null) {
-              alert(error);
-            }
-            else {
-              setUploadProgress(0.0);
-              setIsUploading(true);
-              props.cursor.rawCursor.uploadChild(props.path, acceptedFiles[0], setUploadProgress).then(action(() => {
-                setIsUploading(false);
-              })).catch(action(() => {
-                setIsUploading(false);
-              }));
-            }
-          });
+    const onDrop = action((e: DragEvent) => {
+        setIsDragActive(false);
+        e.preventDefault();
 
-          /*
-          */
-        }
-        else if (acceptedFiles.length > 1 && props.onMultipleFiles != null) {
-          let errorPromise: Promise<string | null>;
-          if (props.validateFile) {
-            let errorPromises: Promise<string | null>[] = [];
-            for (let i = 0; i < acceptedFiles.length; i++) {
-              errorPromises.push(props.validateFile(acceptedFiles[i]));
-            }
-            errorPromise = Promise.all(errorPromises).then((errors: (string | null)[]) => {
-              for (let j = 0; j < errors.length; j++) {
-                if (errors[j] != null) {
-                  return acceptedFiles[j].name + ": " + errors[j];
+        let acceptedFiles: File[] = [];
+        if (e.dataTransfer && e.dataTransfer.items) {
+            for (let i = 0; i < e.dataTransfer.items.length; i++) {
+                if (e.dataTransfer.items[i].kind === 'file') {
+                    const file = e.dataTransfer.items[i].getAsFile();
+                    if (file) {
+                        acceptedFiles.push(file);
+                    }
                 }
-              }
-              return null;
+            }
+        }
+
+        props.onDrop(acceptedFiles).catch((e) => {
+          console.error(e);
+          alert(e);
+        });
+      });
+
+      const handleFileSelect = () => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true; // Allow multiple file selection
+        fileInput.addEventListener('change', (event) => {
+          const inputElement = event.target as HTMLInputElement;
+
+          let acceptedFiles: File[] = [];
+          if (inputElement.files) {
+            const files = Array.from(inputElement.files);
+            files.forEach((file) => {
+              acceptedFiles.push(file);
+            });
+
+
+            props.onDrop(acceptedFiles).catch((e) => {
+              console.error(e);
+              alert(e);
             });
           }
-          else {
-            errorPromise = Promise.resolve(null);
-          }
+        });
+        fileInput.click();
+      };
 
-          errorPromise.then((error: string | null) => {
-            if (error != null) {
-              alert(error);
-            }
-            else if (props.onMultipleFiles != null) {
-              props.onMultipleFiles(acceptedFiles);
-            }
-          });
-        }
-        else if (acceptedFiles.length > 1) {
-          alert("This input doesn't accept multiple files at once!");
-        }
-      })}
-    >
-      {({ getRootProps, getInputProps, isDragActive }) => (
-        <div className={"dropzone dropzone-sm" + (metadata != null ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && metadata == null && !isUploading) ? ' dropzone-error' : ''))} {...getRootProps()}>
-          <div className="dz-message needsclick">
-            <input {...getInputProps()} />
-            {body}
-          </div>
-        </div>
-      )}
-    </Dropzone >
+  return (
+    <div className={"dropzone dropzone-sm" + (exists ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && !exists && !uploading) ? ' dropzone-error' : ''))}
+        onDrop={onDrop as any}
+        onDragOver={(e) => {
+          e.preventDefault();
+        }}
+        onDragEnter={() => {
+          setIsDragActive(true);
+        }}
+        onDragLeave={() => {
+          setIsDragActive(false);
+        }}
+        onClick={handleFileSelect}>
+      <div className="dz-message needsclick" style={{
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}>
+        {body}
+      </div>
+    </div>
   );
 });
 

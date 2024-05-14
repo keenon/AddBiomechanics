@@ -1,5 +1,5 @@
 // @flow
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Alert, Row, Col } from "react-bootstrap";
 import { Auth } from "aws-amplify";
 import * as yup from "yup";
@@ -16,6 +16,7 @@ import VerticalForm from "../../components/VerticalForm";
 import FormInput from "../../components/FormInput";
 
 import AccountLayout from "./AccountLayout";
+import Session from "../../model/Session";
 
 /* bottom link of account pages */
 const BottomLink = () => {
@@ -36,7 +37,8 @@ const BottomLink = () => {
 };
 
 type LoginProps = {
-  onLogin?: (email: string) => void;
+  onLogin?: (myIdentityId: string, email: string) => void;
+  session: Session;
 };
 
 const Login = (props: LoginProps) => {
@@ -48,6 +50,14 @@ const Login = (props: LoginProps) => {
   const [loading, setLoading] = useState(false);
 
   let from = location.state?.from?.pathname || "/";
+  if (from === '/login') {
+    from = '/';
+  }
+
+  if (props.session.loggedIn) {
+    console.log("User is logged in. Navigating to " + from);
+    navigate(from, { replace: true });
+  }
 
   function handleSubmit(value: { [key: string]: any }) {
     let email = value["username"] as string;
@@ -56,16 +66,24 @@ const Login = (props: LoginProps) => {
     setLoading(true);
     Auth.signIn(email, password)
       .then(() => {
-        if (props.onLogin) {
-          props.onLogin(email);
-        }
-        // Send them back to the page they tried to visit when they were
-        // redirected to the login page. Use { replace: true } so we don't create
-        // another entry in the history stack for the login page.  This means that
-        // when they get to the protected page and click the back button, they
-        // won't end up back on the login page, which is also really nice for the
-        // user experience.
-        navigate(from, { replace: true });
+        return Auth.currentCredentials().then((credentials) => {
+          const authenticated = credentials.authenticated;
+          const myIdentityId = credentials.identityId.replace("us-west-2:", "");
+          console.log("Logged in successfully, got auth " + authenticated + ", identity ID " + myIdentityId);
+
+          if (props.onLogin) {
+            props.onLogin(myIdentityId, email);
+          }
+
+          // Send them back to the page they tried to visit when they were
+          // redirected to the login page. Use { replace: true } so we don't create
+          // another entry in the history stack for the login page.  This means that
+          // when they get to the protected page and click the back button, they
+          // won't end up back on the login page, which is also really nice for the
+          // user experience.
+          console.log("Navigating to " + from);
+          navigate(from, { replace: true });
+        });
       })
       .catch((reason: Error) => {
         setLoading(false);
@@ -80,6 +98,7 @@ const Login = (props: LoginProps) => {
             }
           );
         } else {
+          console.log("Got login error: " + reason.name + ' - ' + reason.message);
           setError(reason.message);
         }
       });
@@ -112,6 +131,9 @@ const Login = (props: LoginProps) => {
         {error && (
           <Alert variant="danger" className="my-2">
             {error}
+            <p style={{ marginTop: '10px' }}>
+              <b>NOTE FOR STANFORD USERS:</b> We've recently split the service into a <a href="https://dev.addbiomechanics.org">development deployment</a> (for bleeding edge features) and a completely separate <a href="https://app.addbiomechanics.org">production deployment</a> (for stable use). If you've been helping to test AddBiomechanics, and you can't log in, note that all old accounts and data have been moved to the development deployment.
+            </p>
           </Alert>
         )}
 
