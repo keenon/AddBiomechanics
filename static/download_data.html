@@ -10,6 +10,14 @@
   <link href="css/custom.css" rel="stylesheet">
   <link rel="icon" href="img/favicon.ico" />
   <script src="js/bootstrap.bundle.min.js"></script>
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-7HWW3SL108"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-7HWW3SL108');
+  </script>
 </head>
 
 <body>
@@ -68,10 +76,9 @@
       published datasets that we have manually reviewed for quality and correctness. We also have a larger dataset
       that includes all public uploads to AddBiomechanics, though may vary in quality.
     </p>
-    <h2>High Quality Core AddBiomechanics 1.0 Dataset:</h2>
+    <h2>AddBiomechanics 1.0 Dataset (High Quality Core Data):</h2>
     <p>
-      <a href="https://drive.google.com/drive/folders/1X3OEJXF5gzvjR5vRG7VO7h58bRwYTV0a?usp=sharing"
-        class="btn btn-primary btn-lg">Download Core Dataset</a>
+      <a href="download_redirect.html" class="btn btn-primary btn-lg">Download Core Dataset</a>
       <a href="https://nimblephysics.org/docs/working-with-addbiomechanics-data.html"
         class="btn btn-secondary btn-lg">View Documentation</a>
       <a href="https://github.com/keenon/InferBiomechanics" class="btn btn-secondary btn-lg">GitHub Example ML
@@ -247,7 +254,7 @@
       </tbody>
     </table>
 
-    <h2>User Submitted Dataset</h2>
+    <h2>User Submitted Dataset (Larger, but unreviewed):</h2>
     <p>
       We generate aggregate datasets from snapshots of the AddBiomechanics data from time to time.
       The datasets come in efficient on-disk binary formats that support reading individual frames off of disk in random
