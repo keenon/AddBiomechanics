@@ -2,7 +2,7 @@ import argparse
 import os
 from reactive_s3 import ReactiveS3Index, FileMetadata
 import boto3
-
+import tempfile
 
 def upload_data(standard_model: str, target_gdrive_folder: str):
     # Load the 'rclone' module
@@ -12,19 +12,31 @@ def upload_data(standard_model: str, target_gdrive_folder: str):
     dev_bucket = 'biomechanics-uploads161949-dev'
     buckets = [prod_bucket, dev_bucket]
     s3 = boto3.resource('s3', region_name='us-west-2')
-    for bucket_name in buckets:
-        bucket = s3.Bucket(bucket_name)
-        for object in bucket.objects.all():
-            key: str = object.key
-            if key.startswith('standardized/'+standard_model):
-                if key.endswith('.osim') or key.endswith('.b3d'):
-                    last_modified: int = int(object.last_modified.timestamp() * 1000)
-                    e_tag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
-                    size: int = object.size
-                    local_file_path = f'/tmp/{key}'
-                    bucket.download_file(key, local_file_path)
-                    google_file_path = f'{target_gdrive_folder}/{key}'
-                    os.system(f'rclone copy {local_file_path} gdrive:{google_file_path}')
+    num_objects = 0
+    num_uploaded = 0
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for bucket_name in buckets:
+            bucket = s3.Bucket(bucket_name)
+            for object in bucket.objects.all():
+                num_objects += 1
+                if num_objects % 100 == 0:
+                    print(f'Processed {num_objects} objects, uploaded {num_uploaded} objects.')
+                key: str = object.key
+                if key.startswith('standardized/'+standard_model):
+                    print(key)
+                    if key.endswith('.osim') or key.endswith('.b3d'):
+                        last_modified: int = int(object.last_modified.timestamp() * 1000)
+                        e_tag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
+                        size: int = object.size
+                        local_file_path = f'/{temp_dir}/{key}'
+                        print(f'Downloading {key} to {local_file_path}')
+                        bucket.download_file(key, local_file_path)
+                        google_file_path = f'{target_gdrive_folder}/{key}'
+                        print(f'Uploading {local_file_path} to {google_file_path}')
+                        os.system(f'rclone copy {local_file_path} gdrive:{google_file_path}')
+                        # Delete the local file
+                        os.remove(local_file_path)
+                        num_uploaded += 1
 
 
 if __name__ == "__main__":
