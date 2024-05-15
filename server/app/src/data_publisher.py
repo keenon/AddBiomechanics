@@ -28,10 +28,14 @@ def upload_data(standard_model: str, target_gdrive_folder: str):
                         last_modified: int = int(object.last_modified.timestamp() * 1000)
                         e_tag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
                         size: int = object.size
-                        local_file_path = f'/{temp_dir}/{key}'
+                        local_file_path = f'{temp_dir}/{key}'
                         print(f'Downloading {key} to {local_file_path}')
+                        # Ensure the local directory exists
+                        os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+                        # Download the file
                         bucket.download_file(key, local_file_path)
                         google_file_path = f'{target_gdrive_folder}/{key}'
+                        # Upload the file to Google Drive
                         print(f'Uploading {local_file_path} to {google_file_path}')
                         os.system(f'rclone copy {local_file_path} gdrive:{google_file_path}')
                         # Delete the local file
