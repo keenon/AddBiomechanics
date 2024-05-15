@@ -326,7 +326,7 @@ class RobustUpload {
         const options: AxiosHttpHandlerOptions = {
           progressCallback: (progress) => {
             progressCallback(progress);
-            if (progress.loaded === progress.total) {
+            if (progress.loaded >= progress.total) {
               // This is a bad use of types, but hopefully is fine
               resolve(null as any);
             }

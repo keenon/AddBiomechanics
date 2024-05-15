@@ -204,21 +204,60 @@ class Trial:
         return trial
 
     def set_force_plates(self, plates: List[nimble.biomechanics.ForcePlate]):
+        print('Setting force plates: '+str(len(plates))+' plates, trial index: '+str(self.trial_index))
+
         # Copy the raw force plate data to Python memory, so we don't have to copy back and forth every time we access
         # it.
         self.force_plates = plates
         for i, plate in enumerate(self.force_plates):
             if len(plate.forces) > 0:
                 assert(len(plate.forces) == len(self.marker_observations))
+            print('Processing force plate '+str(i))
+            print('Number of non-zero forces: '+str(len([force for force in plate.forces if np.linalg.norm(force) > 1e-3])))
+            print('Autodetecting noise threshold for force plate '+str(i))
             plate.autodetectNoiseThresholdAndClip(
                 percentOfMaxToDetectThumb=0.25,
                 percentOfMaxToCheckThumbRightEdge=0.35
             )
+            # print([np.linalg.norm(force) for force in plate.forces])
+            print('Detecting and fixing cop moment convention for force plate '+str(i))
             plate.detectAndFixCopMomentConvention(trial=self.trial_index, i=i)
             self.force_plate_raw_cops.append(plate.centersOfPressure)
             self.force_plate_raw_forces.append(plate.forces)
+            print('Number of non-zero forces: '+str(len([force for force in plate.forces if np.linalg.norm(force) > 1e-3])))
             self.force_plate_raw_moments.append(plate.moments)
             self.force_plate_thresholds.append(0)
+
+    def zero_force_plate(self, index: int, every_n_steps: int = 3):
+        # Zero out the force plate data for a given force plate index. This is useful for running ablation studies.
+        start = -1
+        step = 0
+        for t in range(len(self.force_plate_raw_forces[index])):
+            # print(str(t) + ': '+ str(np.linalg.norm(self.force_plate_raw_forces[index][t])))
+            if np.linalg.norm(self.force_plate_raw_forces[index][t]) > 1e-3:
+                if start == -1:
+                    start = t
+                    step += 1
+                    if step > every_n_steps:
+                        step = 0
+                if step == every_n_steps:
+                    self.missing_grf_manual_review[t] = nimble.biomechanics.MissingGRFStatus.yes
+                    self.force_plate_raw_forces[index][t] = np.zeros(3)
+                    self.force_plate_raw_cops[index][t] = np.zeros(3)
+                    self.force_plate_raw_moments[index][t] = np.zeros(3)
+                else:
+                    self.missing_grf_manual_review[t] = nimble.biomechanics.MissingGRFStatus.no
+            else:
+                # Don't mark any other frames as missing, regardless of heuristics
+                self.missing_grf_manual_review[t] = nimble.biomechanics.MissingGRFStatus.no
+                if start != -1:
+                    if step == every_n_steps:
+                        print('Zeroing out force plate '+str(index)+' from '+str(start)+' to '+str(t))
+                    start = -1
+        self.force_plate_thresholds[index] = 0
+
+        if start != -1:
+            print('Zeroing out force plate ' + str(index) + ' from ' + str(start) + ' to ' + str(len(self.force_plate_raw_forces[index])))
 
     def split_segments(self, max_grf_gap_fill_size=1.0, max_segment_frames=3000):
         """
@@ -313,14 +352,17 @@ class TrialSegment:
         self.force_plate_raw_cops: List[List[np.ndarray]] = []
         self.force_plate_raw_forces: List[List[np.ndarray]] = []
         self.force_plate_raw_moments: List[List[np.ndarray]] = []
+        print('Segmenting trial segment '+str(self.start)+' to '+str(self.end))
         for i, plate in enumerate(self.parent.force_plates):
             new_plate = nimble.biomechanics.ForcePlate.copyForcePlate(plate)
+            print('Copying force plate '+str(i))
             if len(new_plate.forces) > 0:
                 assert(len(new_plate.forces) == len(self.parent.marker_observations))
                 new_plate.trimToIndexes(self.start, self.end)
                 assert(len(new_plate.forces) == len(self.original_marker_observations))
             raw_cops = self.parent.force_plate_raw_cops[i][self.start:self.end]
             raw_forces = self.parent.force_plate_raw_forces[i][self.start:self.end]
+            print('Num non-zero forces: '+str(len([force for force in raw_forces if np.linalg.norm(force) > 1e-3])))
             raw_moments = self.parent.force_plate_raw_moments[i][self.start:self.end]
             self.force_plates.append(new_plate)
             new_plate.forces = raw_forces

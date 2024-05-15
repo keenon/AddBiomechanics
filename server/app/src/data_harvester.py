@@ -10,6 +10,7 @@ import shutil
 import hashlib
 import multiprocessing
 import time
+import traceback
 
 # ===================== CONSTANTS =====================
 GEOMETRY_FOLDER_PATH = absPath('../../data/Geometry')
@@ -90,7 +91,7 @@ class SubjectSnapshot:
         """
         # If we've already tried to copy this dataset, but there's some reason we can't (like it's missing critical
         # data), then report that here as being "up to date", because it's impossible to copy over.
-        if self.index.hasChildren(self.get_target_path(dataset), ['INCOMPATIBLE']):
+        if self.index.exists(self.get_target_path(dataset) + '/INCOMPATIBLE'):
             return True
         # Check if the root folder exists
         if not (self.index.exists(self.get_target_path(dataset)) or
@@ -375,14 +376,16 @@ class DataHarvester:
                         except Exception as e2:
                             print('Got an exception when trying to mark dataset as incompatible ' +
                                   self.queue[0].path)
-                            print(e2)
+                            print('Caught exception in mark_incompatible(): '+str(e2))
+                            traceback.print_exc()  # Print the traceback
                             print('We will now quit, because it is pointless to keep looping on this dataset')
                             break
 
                     self.queue.pop(0)  # Remove the processed item from the queue
 
             except Exception as e:
-                print(e)
+                print('Caught overall processing loop exception: '+str(e))
+                traceback.print_exc()  # Print the traceback
             time.sleep(1)
 
     def copy_snashots_other_process_entry_point(self, dataset):

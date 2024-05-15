@@ -487,7 +487,7 @@ class ViewCommand(AbstractCommand):
         # ticker.start()
         while True:
             onTick(time.time())
-            time.sleep(0.01)
+            time.sleep(subject.getTrialTimestep(trial) / playback_speed)
 
         print(subject.getHref())
         print(subject.getTrialName(trial))

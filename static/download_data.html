@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>
+    AddBiomechanics
+  </title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link href="css/bootstrap.min.css" rel="stylesheet">
+  <link href="css/custom.css" rel="stylesheet">
+  <link rel="icon" href="img/favicon.ico" />
+  <script src="js/bootstrap.bundle.min.js"></script>
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-7HWW3SL108"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-7HWW3SL108');
+  </script>
+</head>
+
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/">add<span class="text-primary">biomechanics</span></a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
+        aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link" aria-current="page" href="/">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="data_sharing_mission.html">Data Sharing Mission</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" aria-current="page" href="#">Download Data</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="tips_and_tricks.html">Tips and Tricks</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="faq.html">FAQ</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="tos.html">Terms of Service</a>
+          </li>
+        </ul>
+        <form class="d-flex">
+          <a href="https://app.addbiomechanics.org" class="btn btn-primary">Go to app</a>
+        </form>
+      </div>
+    </div>
+  </nav>
+  <main role="main" class="container">
+    <h1 class="mt-5">Large Datasets for Human Dynamics <span style="color: red; font-style: italic;">[Beta]</span></h1>
+    <p class="lead">Aggregated data from all public AddBiomechanics uploads to enable large-scale machine learning</p>
+    <p>
+      This is the world's largest dataset of physically validated human motion. We provide individually scaled
+      skeletons, their physical
+      properties such as link masses and inertias, all the joint positions, velocities, and accelerations over time,
+      along with all the measured contact forces with the ground and all joint torques computed with inverse dynamics.
+    </p>
+    <p>
+      <iframe width="560" height="315" src="https://www.youtube.com/embed/YP0WOK9ZQ9g?si=Y-60zi8k7OARdtnL"
+        title="YouTube video player" frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+    </p>
+    <p>
+      We present several levels of data you can download. We have a high quality core dataset constructed from
+      previously
+      published datasets that we have manually reviewed for quality and correctness. We also have a larger dataset
+      that includes all public uploads to AddBiomechanics, though may vary in quality.
+    </p>
+    <h2>AddBiomechanics 1.0 Dataset (High Quality Core Data):</h2>
+    <p>
+      <a href="download_redirect.html" class="btn btn-primary btn-lg">Download Core Dataset</a>
+      <a href="https://nimblephysics.org/docs/working-with-addbiomechanics-data.html"
+        class="btn btn-secondary btn-lg">View Documentation</a>
+      <a href="https://github.com/keenon/InferBiomechanics" class="btn btn-secondary btn-lg">GitHub Example ML
+        Project</a>
+      <a href="assets/AddBiomechanics_Dataset_Paper.pdf" class="btn btn-secondary btn-lg">Read the Pre-Print</a>
+    </p>
+    <p>
+      The dataset is composed of the following sources:
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th>Subjects</th>
+          <th>Total Hours</th>
+          <th>GRF Hours</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><a href="https://www.nature.com/articles/s41597-019-0323-z">Lencioni et al. 2019</a></td>
+          <td>50</td>
+          <td>0.52</td>
+          <td>0.37</td>
+        </tr>
+        <tr>
+          <td><a
+              href="https://www.researchgate.net/publication/324786732_Joint_kinematics_and_ground_reaction_forces_in_overground_versus_treadmill_graded_running">Carter
+              et al. 2023</a></td>
+          <td>50</td>
+          <td>21.60</td>
+          <td>19.80</td>
+        </tr>
+        <tr>
+          <td><a href="https://pubmed.ncbi.nlm.nih.gov/28761798/">Santos et al. 2017</a></td>
+          <td>49</td>
+          <td>4.90</td>
+          <td>4.90</td>
+        </tr>
+        <tr>
+          <td><a href="https://www.sciencedirect.com/science/article/pii/S0021929021001007">Camargo et al. 2021</a></td>
+          <td>22</td>
+          <td>19.87</td>
+          <td>10.10</td>
+        </tr>
+        <tr>
+          <td><a href="https://ieeexplore.ieee.org/document/9826418/">Tan et al. 2023</a></td>
+          <td>17</td>
+          <td>4.40</td>
+          <td>4.40</td>
+        </tr>
+        <tr>
+          <td><a href="https://pubmed.ncbi.nlm.nih.gov/25945311/">Moore et al. 2015</a></td>
+          <td>12</td>
+          <td>6.22</td>
+          <td>6.03</td>
+        </tr>
+        <tr>
+          <td><a href="https://pubmed.ncbi.nlm.nih.gov/27875132/">Falisse et al. 2016</a></td>
+          <td>11</td>
+          <td>0.49</td>
+          <td>0.10</td>
+        </tr>
+        <tr>
+          <td><a href="https://pubmed.ncbi.nlm.nih.gov/23246045/">Hamner et al. 2013</a></td>
+          <td>10</td>
+          <td>0.02</td>
+          <td>0.02</td>
+        </tr>
+        <tr>
+          <td><a href="https://www.nature.com/articles/s41597-022-01817-1">Van der Zee et al. 2022</a></td>
+          <td>10</td>
+          <td>5.46</td>
+          <td>5.31</td>
+        </tr>
+        <tr>
+          <td><a href="https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1011462">Uhlrich et al.
+              2023</a></td>
+          <td>10</td>
+          <td>0.24</td>
+          <td>0.05</td>
+        </tr>
+        <tr>
+          <td><a href="https://pubmed.ncbi.nlm.nih.gov/35594817/">Tan et al. 2022</a></td>
+          <td>9</td>
+          <td>3.73</td>
+          <td>3.73</td>
+        </tr>
+        <tr>
+          <td><a
+              href="https://www.cambridge.org/core/journals/wearable-technologies/article/wearable-realtime-kinetic-measurement-sensor-setup-for-human-locomotion/488C21B7706FFDFA7FFAB387FD0A1A64">Wang
+              et al. 2023</a></td>
+          <td>9</td>
+          <td>1.84</td>
+          <td>1.84</td>
+        </tr>
+        <tr>
+          <td><a href="https://arxiv.org/abs/2310.03930">Han et al. 2023</a></td>
+          <td>7</td>
+          <td>1.70</td>
+          <td>0.52</td>
+        </tr>
+        <tr>
+          <td><a href="https://pubmed.ncbi.nlm.nih.gov/22161745/">Fregly et al. 2012</a></td>
+          <td>6</td>
+          <td>0.14</td>
+          <td>0.04</td>
+        </tr>
+        <tr>
+          <td><a href="https://pubmed.ncbi.nlm.nih.gov/33490046/">Li et al. 2021</a></td>
+          <td>1</td>
+          <td>0.34</td>
+          <td>0.34</td>
+        </tr>
+        <tr>
+          <td><strong>Sum</strong></td>
+          <td><strong>273</strong></td>
+          <td><strong>71.47</strong></td>
+          <td><strong>57.55</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    </p>
+    <p>
+      Version 1.0 of the AddBiomechanics Dataset contains standardized musculoskeletal models as well as position and
+      physics information for over 24 million frames from 70+ hours of motion for 273 participants. Each of these frames
+      contains optical marker locations and ground reaction moment and force measurements, along with estimated joint
+      kinematics, estimated joint torques, and estimated center of mass kinematics. The dataset includes nine different
+      activity types collected from 15 publicly available raw data sources, captured in 12 different laboratories. Each
+      raw data source includes
+      experimental optical motion capture and force plate data; refer to the corresponding publications for more details
+      about the experimental data collection. All raw data was run through the same processing pipeline, presented in
+      the paper. For the data sources that reported demographic information, the subjects
+      have a mean age of 30.7 (+/- 15.8) years (range: 6-84), and mean BMI of 22.8 (+/- 3.4) (range: 11.7-34.4).
+      The majority of the subjects are male (73%), and 23% are female. A portion of the datasets did not contain
+      reported age (9%) or biological sex (4%).
+    </p>
+    <p>
+      Activity distributions are as follows:
+      <br />
+      <img src="img/coarse_activity_type_distribution_updated_colors.png" alt="Activity Distribution"
+        class="img-fluid img-thumbnail" style="max-width: 50%;">
+    </p>
+    <p>Evaluating dataset quality. "Marker Error" is measured in centimeters RMS to evaluate the quality of pose
+      reconstruction. "Linear Residual" is force discrepancy between model and raw data, normalized across subjects as
+      body-weights (BW) RMS. "Angular Residual" is torque dynamic discrepancy at the model's root, normalized across
+      subjects as body-weights * height (BW*h) RMS. The <a href="https://pubmed.ncbi.nlm.nih.gov/25474098/">Hicks
+        Thresholds</a> for accuracy are presented with
+      each metric.</p>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Measurement</th>
+          <th>Mean &plusmn; Std-dev</th>
+          <th><a href="https://pubmed.ncbi.nlm.nih.gov/25474098/">Hicks Thresholds</a> for quality</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Marker Error</td>
+          <td>2.17 &plusmn; 2.44 (cm)</td>
+          <td>N/A</td>
+        </tr>
+        <tr>
+          <td>Linear Residual</td>
+          <td>0.046 &plusmn; 0.027 (BW)</td>
+          <td>0.05 BW</td>
+        </tr>
+        <tr>
+          <td>Angular Residual</td>
+          <td>0.11 &plusmn; 0.02 (BW*h)</td>
+          <td>0.1 BW*h</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>User Submitted Dataset (Larger, but unreviewed):</h2>
+    <p>
+      We generate aggregate datasets from snapshots of the AddBiomechanics data from time to time.
+    </p>
+    <p>
+      <b>First Link Coming Soon!</b>
+    </p>
+  </main>
+</body>
+
+</html>
