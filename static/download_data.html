@@ -61,7 +61,7 @@
     <p class="lead">Aggregated data from all public AddBiomechanics uploads to enable large-scale machine learning</p>
     <p>
       Below are (currently) the world's largest datasets of physically validated human motion, available for free under
-      a Creative Commons license.
+      a <a href="https://creativecommons.org/licenses/by/4.0/">Creative Commons BY 4.0</a> license.
       We provide individually scaled skeletons, their physical properties such as link masses and inertias, all the
       joint positions, velocities, and accelerations over time,
       along with all the measured contact forces with the ground and all joint torques computed with inverse dynamics.
@@ -256,12 +256,51 @@
       </tbody>
     </table>
 
-    <h2>User Submitted Dataset (Larger, but unreviewed):</h2>
+    <hr style="margin: 50px 0;" />
+
+    <h1>User-Generated AddBiomechanics Dataset:</h1>
+    <h2>Larger, but not Manually Reviewed Data</h2>
     <p>
-      We generate aggregate datasets from snapshots of the AddBiomechanics data from time to time.
+      We generate aggregate datasets from snapshots of the AddBiomechanics server data from time to time.
+      We use scripts to attempt to automatically retarget the markersets on uploaded OpenSim models into standard model
+      sets, so that the data can be compared and used to train standard models.
+      We standardize on the <a href="https://simtk.org/projects/full_body">Rajagopal 2015</a> model, which is quite
+      commonly used.
+      Original models are included in the dataset, to help diagnose any issues with the retargeting.
+      A lot of collected data does not include arm markers, and we do not attempt to retarget that to the standard model
+      with arms.
+      We therefore present a (somewhat smaller) dataset of motions with arms, and a (somewhat larger) dataset of motions
+      without arms.
     </p>
     <p>
-      <b>First Link Coming Soon!</b>
+      Please note the LICENSE.txt file in each dataset, which lists the original uploaders of the data so that you can
+      correctly credit them.
+    </p>
+    <p>
+    <h3>Snapshot 1: May 15, 2024</h3>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>OpenSim Model</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <a href="https://drive.google.com/drive/folders/1JE4kUDXWRDq6yjkTxH6-VAkLRGodKtr6?usp=sharing">Rajagopal
+              Model
+              with Arms</a>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <a href="https://drive.google.com/drive/folders/12CStQmsNVx_UEr9mkBkUApKZgjKOfGUq?usp=sharing">Rajagopal
+              Model
+              without Arms</a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
     </p>
   </main>
 </body>
