@@ -10,6 +10,7 @@ import SubjectViewState from "../../model/SubjectViewState";
 import LiveFile from "../../model/LiveFile";
 import { parseLinks, showToast } from "../../utils"
 import {toast } from 'react-toastify';
+import { action } from "mobx";
 
 
 type SubjectViewProps = {
@@ -24,15 +25,15 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const path = props.path;
     const navigate = useNavigate();
 
-    // Show or hide extended log.
-    const [showLog, setShowLog] = useState<boolean>(false);
-
     const subjectState: SubjectViewState = home.getSubjectViewState(path);
     const subjectJson = subjectState.subjectJson;
     const readyFlagFile = subjectState.readyFlagFile;
     const processingFlagFile = subjectState.processingFlagFile;
     const slurmFlagFile = subjectState.slurmFlagFile;
     const errorFlagFile = subjectState.errorFlagFile;
+
+    // Show or hide extended log.
+    const [showLog, setShowLog] = useState<boolean>(false);
 
     // Check on the value of the key _subject.json attributes unconditionally, to ensure that MobX updates if the attributes change
     let subjectDataSource: '' | 'public' | 'pilot' | 'study' = subjectJson.getAttribute("dataSource", "");
@@ -69,6 +70,28 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     // Create state to manage the file drop zone
     const [dropZoneActive, setDropZoneActive] = useState(false);
+
+    // Handle checkbox change for dismissing warnings.
+    const handleCheckboxChange = (segment: any) => (event: any) => {
+      const isChecked = event.target.checked;
+      if (isChecked) {
+          if (!segment.reviewFlagExists) {
+              home.dir.uploadText(segment.reviewFlagPath, "").then(() => {
+                  action(() => {
+                      segment.reviewFlagExists = false;
+                  })();
+                  });
+          }
+      } else {
+          if (segment.reviewFlagExists) {
+              home.dir.delete(segment.reviewFlagPath).then(() => {
+              action(() => {
+                  segment.reviewFlagExists = false;
+              })();
+              });
+          }
+      }
+    };
 
     /////////////////////////////////////////////////////////////////////////
     // There are several states a subject can be in:
@@ -1172,11 +1195,24 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     }}>Mark All Reviewed</button>
                 </div>
                 <div>
-                    <button className="btn btn-warning mt-2 mb-2" onClick={async (e) => {
+                    <button className="btn btn-warning mt-2" onClick={async (e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         await subjectState.markAllTrialsUnreviewed();
                     }}>Mark All Unreviewed</button>
+                </div>
+                <div>
+                    {subjectJson.getAttribute("showReviewedWarnings", false) ? (
+                      <button className="btn btn-info mt-2 mb-2" onClick={
+                        () => {
+                          subjectJson.setAttribute("showReviewedWarnings", false)
+                      }}>Hide Reviewed Warnings</button>
+                    ) : (
+                      <button className="btn btn-info mt-2" onClick={
+                        () => {
+                          subjectJson.setAttribute("showReviewedWarnings", true)
+                      }}>Show Reviewed Warnings</button>
+                    )}
                 </div>
             </div>;
         }
@@ -1242,9 +1278,32 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                     let reviewStatus: string | React.ReactFragment = '';
                                     if (segment.reviewFlagExists) {
                                         reviewStatus = <span className='badge bg-success'>Reviewed</span>;
+                                        if (!props.readonly) {
+                                            reviewStatus = <label className='badge bg-success' style={{ cursor: 'pointer' }}>
+                                              Reviewed
+                                              <input
+                                                type="checkbox"
+                                                onClick={handleCheckboxChange(segment)}
+                                                checked={segment.reviewFlagExists}
+                                                style={{ marginLeft: '10px' }}
+                                              />
+                                            </label>
+                                        }
                                     }
                                     else if (!segment.loading) {
-                                        reviewStatus = <span className='badge bg-warning'>Needs Review</span>;
+                                        reviewStatus = <><span className='badge bg-warning'>Needs Review
+                                        </span></>
+                                        if (!props.readonly) {
+                                            reviewStatus = <label className='badge bg-warning' style={{ cursor: 'pointer' }}>
+                                              Needs Review
+                                              <input
+                                                type="checkbox"
+                                                onClick={handleCheckboxChange(segment)}
+                                                checked={segment.reviewFlagExists}
+                                                style={{ marginLeft: '10px' }}
+                                              />
+                                            </label>
+                                        }
                                     }
                                     else {
                                         reviewStatus = <span className='badge bg-secondary'>Loading</span>;
@@ -1272,7 +1331,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                     }
 
                                     if (hasWarnings) {
-                                        return <tr key={segment.path} className='table-warning'>
+//                                        return <tr key={segment.path} className='table-warning' style={{display: isHiddenCheckboxWarning(String(trial.name + "_" + segment.name)) ? "none" : "table-row"}}>
+                                        return <tr key={segment.path} className='table-warning' style={{display: subjectJson.getAttribute("showReviewedWarnings", false) || !segment.reviewFlagExists ? "table-row" : "none"}}>
                                                     <td><button className="btn btn-dark" onClick={() => {
                                                         navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
                                                     }}>
