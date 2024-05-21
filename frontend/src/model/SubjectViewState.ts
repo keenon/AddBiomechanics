@@ -244,7 +244,7 @@ class SubjectViewState {
                         console.error("Bad JSON format for file \"" + this.path + "/_results.json\", got: \"" + resultsText + "\"");
                     }
                 })).catch((e) => {
-                    console.error("Error downloading _results.json from " + this.path + '/_results.json' + ": ", e);
+                    console.error("Error downloading _results.json from " + this.path + "/_results.json: ", e);
                 });
             }
         }
@@ -287,7 +287,7 @@ class SubjectViewState {
                         console.error("Bad JSON format for file \"" + this.path + "/_errors.json\", got: \"" + errorsText + "\"");
                     }
                 })).catch((e) => {
-                    console.error("Error downloading _errors.json from " + this.path + '/_errors.json' + ": ", e);
+                    console.error("Error downloading _errors.json from " + this.path + "/_errors.json: ", e);
                 });
             }
         }
@@ -302,7 +302,7 @@ class SubjectViewState {
                 this.loadingLogsPromise = this.home.dir.downloadText(this.path + "/log.txt").then(action((resultsText) => {
                     this.logText = resultsText;
                 })).catch((e) => {
-                    console.error("Error downloading log.txt from " + this.path + '/log.txt' + ": ", e);
+                    console.error("Error downloading log.txt from " + this.path + "/log.txt: ", e);
                 });
             }
         }
