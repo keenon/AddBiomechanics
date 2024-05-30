@@ -766,7 +766,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
 //            completedFormElements++;
 //        }
 //    }
-    if (subjectCitation !== null) {
+    if (subjectCitation !== null && subjectCitation !== "") {
         formElements.push(<div key="citation" className="mb-3">
             <label>Desired Citation:</label>
             <textarea
@@ -796,7 +796,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     subjectJson.setAttribute("citation", e.target.value);
                 }}>
             </textarea>
-            <div id="citeHelp" className="form-text">We are deprecating citation for individual subjects. Instead, you should add a citation for the full dataset.</div>
+            <div id="citeHelp" className="form-text">We are replacing citations for individual subjects with dataset citations. Please add a citation for the full dataset and remove the subject citations.</div>
+            <button className="btn btn-warning" onClick={async (e) => {
+                subjectJson.setAttribute("citation", "");
+            }}>Remove Citation</button>
           </div>)
     };
 
