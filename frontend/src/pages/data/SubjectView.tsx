@@ -797,7 +797,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 }}>
             </textarea>
             <div id="citeHelp" className="form-text">We are replacing citations for individual subjects with dataset citations. Please add a citation for the full dataset and remove the subject citations.</div>
-            <button className="btn btn-warning" onClick={async (e) => {
+            <button disabled={props.readonly} className="btn btn-warning" onClick={async (e) => {
                 subjectJson.setAttribute("citation", "");
             }}>Remove Citation</button>
           </div>)
