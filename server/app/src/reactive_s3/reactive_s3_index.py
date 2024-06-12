@@ -89,6 +89,29 @@ class ReactiveS3Index:
         self.children = {}
         self.changeListeners = []
 
+    # Add pickling support
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['s3_low_level']
+        del state['s3']
+        del state['lock']
+        if 'pubSub' in state:
+            del state['pubSub']
+        del state['changeListeners']
+        del state['bucket']
+        return state
+
+    # Add unpickling support - always unpickle with PubSub disabled, since we don't want multiple instances of the
+    # PubSub connection from separate processing threads.
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.s3_low_level = boto3.client('s3', region_name='us-west-2')
+        self.s3 = boto3.resource('s3', region_name='us-west-2')
+        self.bucket = self.s3.Bucket(self.bucketName)
+        self.lock = threading.Lock()
+        self.disable_pubsub = True
+        self.changeListeners = []
+
     def registerPubSub(self) -> None:
         """
         This registers a PubSub listener
@@ -260,8 +283,10 @@ class ReactiveS3Index:
         children: Dict[str, FileMetadata] = self.getChildren(folder)
         for path in subPaths:
             foundChild = False
+            if len(subPaths) == 1 and subPaths[0] == 'INCOMPATIBLE':
+                print('Checking for '+path+' in '+str(children.keys()))
             for key in children:
-                if key.startswith(path):
+                if key.startswith(path) or key.startswith('/'+path):
                     foundChild = True
                     break
             if not foundChild:

@@ -12,6 +12,7 @@ from addbiomechanics.commands.export_csv import ExportCSVCommand
 from addbiomechanics.commands.describe_dataset import DescribeDatasetCommand
 from addbiomechanics.commands.transfer_reviews import TransferReviewsCommand
 from addbiomechanics.commands.create_b3d import CreateB3DCommand
+from addbiomechanics.commands.generate_credits import GenerateCreditsCommand
 
 
 PROD_DEPLOYMENT = {
@@ -53,6 +54,7 @@ def main():
 
     commands = [LsCommand(),
                 DownloadCommand(),
+                GenerateCreditsCommand(),
                 UploadCommand(),
                 AnalyticsCommand()]
 

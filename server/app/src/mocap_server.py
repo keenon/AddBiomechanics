@@ -179,9 +179,13 @@ class SubjectToProcess:
         self.pytorchResults = self.subjectPath + self.subjectName + '.b3d'
         self.logfile = self.subjectPath + 'log.txt'
 
-    def sendNotificationEmail(self, email: str, name: str, path: str):
+    def sendNotificationEmail(self, email: str, name: str, path: str, userId: str):
         ses_client = boto3.client("ses", region_name="us-west-2")
         CHARSET = "UTF-8"
+
+        prefix = "app"
+        if self.index.deployment == 'DEV':
+            prefix = "dev"
 
         response = ses_client.send_email(
             Destination={
@@ -193,7 +197,7 @@ class SubjectToProcess:
                 "Body": {
                     "Text": {
                         "Charset": CHARSET,
-                        "Data":  "Your subject \"{0}\" has finished processing. Visit https://addbiomechanics.org/my_data/{1} to view and download. You can view in-browser visualizations of the uploaded trial data by clicking on each trial name.\n\nThank you for using AddBiomechanics!\n-AddBiomechanics team\n\nP.S: Do not reply to this email. To give feedback on AddBiomechanics or if you have questions, please visit the AddBiomechanics forum on SimTK: https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB".format(name, path)
+                        "Data":  "Your subject \"{0}\" has finished processing. Visit https://{1}.addbiomechanics.org/data/{2}/{3} to view and download. You can view in-browser visualizations of the uploaded trial data by clicking on each trial name.\n\nThank you for using AddBiomechanics!\n-AddBiomechanics team\n\nHaving problems or questions? Do not reply to this email. Please visit the AddBiomechanics forum on SimTK: https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB".format(name, prefix, userId, path)
                     }
                 },
                 "Subject": {
@@ -405,7 +409,15 @@ class SubjectToProcess:
                         if self.subjectPath.startswith('protected/') or self.subjectPath.startswith('private/'):
                             print('sending notification email to '+str(email))
                             print('subject path: '+str(self.subjectPath))
+
+                            # Get User id from filtered path (remove type of folder and zone from beginning).
+                            filteredPath = self.subjectPath.replace('protected/us-west-2:', '')
+                            parts = filteredPath.split('/')
+                            userId = parts[0]
+
+                            # Get rest of parameters from full path.
                             parts = self.subjectPath.split('/')
+
                             print('path parts: '+str(parts))
                             name = parts[-1]
                             if parts[-1] == '':
@@ -415,7 +427,7 @@ class SubjectToProcess:
                                                  if parts[-1] == '' else parts[3:])
                             print('email path: '+str(emailPath))
                             emailPath = emailPath.replace(' ', '%20')
-                            self.sendNotificationEmail(email, name, emailPath)
+                            self.sendNotificationEmail(email, name, emailPath, userId)
                         else:
                             print('Not sending notification email because subject path does not start with "protected/"'
                                   ' or "private/"')

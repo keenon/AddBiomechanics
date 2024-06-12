@@ -10,6 +10,7 @@ import SubjectViewState from "../../model/SubjectViewState";
 import LiveFile from "../../model/LiveFile";
 import { parseLinks, showToast } from "../../utils"
 import {toast } from 'react-toastify';
+import { action } from "mobx";
 
 
 type SubjectViewProps = {
@@ -24,15 +25,15 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const path = props.path;
     const navigate = useNavigate();
 
-    // Show or hide extended log.
-    const [showLog, setShowLog] = useState<boolean>(false);
-
     const subjectState: SubjectViewState = home.getSubjectViewState(path);
     const subjectJson = subjectState.subjectJson;
     const readyFlagFile = subjectState.readyFlagFile;
     const processingFlagFile = subjectState.processingFlagFile;
     const slurmFlagFile = subjectState.slurmFlagFile;
     const errorFlagFile = subjectState.errorFlagFile;
+
+    // Show or hide extended log.
+    const [showLog, setShowLog] = useState<boolean>(false);
 
     // Check on the value of the key _subject.json attributes unconditionally, to ensure that MobX updates if the attributes change
     let subjectDataSource: '' | 'public' | 'pilot' | 'study' = subjectJson.getAttribute("dataSource", "");
@@ -69,6 +70,28 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     // Create state to manage the file drop zone
     const [dropZoneActive, setDropZoneActive] = useState(false);
+
+    // Handle checkbox change for dismissing warnings.
+    const handleCheckboxChange = (segment: any) => (event: any) => {
+      const isChecked = event.target.checked;
+      if (isChecked) {
+          if (!segment.reviewFlagExists) {
+              home.dir.uploadText(segment.reviewFlagPath, "").then(() => {
+                  action(() => {
+                      segment.reviewFlagExists = false;
+                  })();
+                  });
+          }
+      } else {
+          if (segment.reviewFlagExists) {
+              home.dir.delete(segment.reviewFlagPath).then(() => {
+              action(() => {
+                  segment.reviewFlagExists = false;
+              })();
+              });
+          }
+      }
+    };
 
     /////////////////////////////////////////////////////////////////////////
     // There are several states a subject can be in:
@@ -680,9 +703,70 @@ const SubjectView = observer((props: SubjectViewProps) => {
         }
     }
     //////////////////////////////////////////////////////////////////
-    // 1.12. Create the entry for citation info
-    totalFormElements++;
-    if (formCompleteSoFar) {
+    // 1.12. Create the entry for citation ifo
+//    totalFormElements++;
+//    if (formCompleteSoFar) {
+//        formElements.push(<div key="citation" className="mb-3">
+//            <label>Desired Citation:</label>
+//            <textarea
+//                id="citation"
+//                value={subjectCitation == null ? "" : subjectCitation}
+//                className={"form-control" + ((subjectCitation == null) ? " border-primary border-2" : "")}
+//                autoFocus={subjectCitation == null || !subjectCitationComplete}
+//                aria-describedby="citeHelp"
+//                onKeyDown={(e) => {
+//                    if (e.key === 'Enter' || e.key === 'Tab') {
+//                        if (subjectCitation == null) {
+//                            subjectJson.setAttribute("citation", "");
+//                        }
+//                        setSubjectCitationComplete(true);
+//                        const input = e.target as HTMLInputElement;
+//                        input.blur();
+//                    }
+//                }}
+//                disabled={props.readonly}
+//                onFocus={() => {
+//                    subjectJson.onFocusAttribute("citation");
+//                }}
+//                onBlur={() => {
+//                    subjectJson.onBlurAttribute("citation");
+//                }}
+//                onChange={(e) => {
+//                    subjectJson.setAttribute("citation", e.target.value);
+//                }}>
+//            </textarea>
+//            <div id="citeHelp" className="form-text">How do you want this data to be cited?</div>
+//        </div>);
+//
+//        if (subjectCitation == null || !subjectCitationComplete) {
+//            if (subjectCitationComplete) {
+//                setSubjectCitationComplete(false);
+//            }
+//            formCompleteSoFar = false;
+//            formElements.push(<div key='citationConfirm'>
+//                <button type="button" className="btn btn-primary" onClick={() => setSubjectCitationComplete(true)}>Confirm Citation</button> (or press Enter or Tab)
+//            </div>);
+//            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="citationExplanation">
+//                <h4 className="alert-heading">What should I put for my citation?</h4>
+//                <p>
+//                    It's fine to leave this blank, if you don't have a preferred citation. If you do, please include it here.
+//                </p>
+//                <p>
+//                    You can include your citation in any format you like, just note that this information is public.
+//                </p>
+//                <h5>IMPORTANT: NEVER INCLUDE PATIENT IDENTIFYING INFORMATION IN YOUR CITATION!</h5>
+//                <p>
+//                    Definitely do not put something like "Keenon Werling's gait data" in the citation field, unless
+//                    your subject has explicitly given informed consent to be identified and has requested that users
+//                    of the data cite them by name.
+//                </p>
+//            </div>);
+//        }
+//        else {
+//            completedFormElements++;
+//        }
+//    }
+    if (subjectCitation !== null && subjectCitation !== "") {
         formElements.push(<div key="citation" className="mb-3">
             <label>Desired Citation:</label>
             <textarea
@@ -701,7 +785,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                         input.blur();
                     }
                 }}
-                disabled={props.readonly}
+                disabled={true}
                 onFocus={() => {
                     subjectJson.onFocusAttribute("citation");
                 }}
@@ -712,38 +796,12 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     subjectJson.setAttribute("citation", e.target.value);
                 }}>
             </textarea>
-            <div id="citeHelp" className="form-text">How do you want this data to be cited?</div>
-        </div>);
-
-        if (subjectCitation == null || !subjectCitationComplete) {
-            if (subjectCitationComplete) {
-                setSubjectCitationComplete(false);
-            }
-            formCompleteSoFar = false;
-            formElements.push(<div key='citationConfirm'>
-                <button type="button" className="btn btn-primary" onClick={() => setSubjectCitationComplete(true)}>Confirm Citation</button> (or press Enter or Tab)
-            </div>);
-            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="citationExplanation">
-                <h4 className="alert-heading">What should I put for my citation?</h4>
-                <p>
-                    It's fine to leave this blank, if you don't have a preferred citation. If you do, please include it here.
-                </p>
-                <p>
-                    You can include your citation in any format you like, just note that this information is public.
-                </p>
-                <h5>IMPORTANT: NEVER INCLUDE PATIENT IDENTIFYING INFORMATION IN YOUR CITATION!</h5>
-                <p>
-                    Definitely do not put something like "Keenon Werling's gait data" in the citation field, unless
-                    your subject has explicitly given informed consent to be identified and has requested that users
-                    of the data cite them by name.
-                </p>
-            </div>);
-        }
-        else {
-            completedFormElements++;
-        }
-    }
-
+            <div id="citeHelp" className="form-text">We are replacing citations for individual subjects with dataset citations. Please add a citation for the full dataset and remove the subject citations.</div>
+            <button disabled={props.readonly} className="btn btn-warning" onClick={async (e) => {
+                subjectJson.setAttribute("citation", "");
+            }}>Remove Citation</button>
+          </div>)
+    };
 
     const subjectForm = (
         <Form onSubmit={(e) => {
@@ -1172,11 +1230,24 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     }}>Mark All Reviewed</button>
                 </div>
                 <div>
-                    <button className="btn btn-warning mt-2 mb-2" onClick={async (e) => {
+                    <button className="btn btn-warning mt-2" onClick={async (e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         await subjectState.markAllTrialsUnreviewed();
                     }}>Mark All Unreviewed</button>
+                </div>
+                <div>
+                    {subjectJson.getAttribute("showReviewedWarnings", false) ? (
+                      <button className="btn btn-info mt-2 mb-2" onClick={
+                        () => {
+                          subjectJson.setAttribute("showReviewedWarnings", false)
+                      }}>Hide Reviewed Warnings</button>
+                    ) : (
+                      <button className="btn btn-info mt-2" onClick={
+                        () => {
+                          subjectJson.setAttribute("showReviewedWarnings", true)
+                      }}>Show Reviewed Warnings</button>
+                    )}
                 </div>
             </div>;
         }
@@ -1242,9 +1313,32 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                     let reviewStatus: string | React.ReactFragment = '';
                                     if (segment.reviewFlagExists) {
                                         reviewStatus = <span className='badge bg-success'>Reviewed</span>;
+                                        if (!props.readonly) {
+                                            reviewStatus = <label className='badge bg-success' style={{ cursor: 'pointer' }}>
+                                              Reviewed
+                                              <input
+                                                type="checkbox"
+                                                onClick={handleCheckboxChange(segment)}
+                                                checked={segment.reviewFlagExists}
+                                                style={{ marginLeft: '10px' }}
+                                              />
+                                            </label>
+                                        }
                                     }
                                     else if (!segment.loading) {
-                                        reviewStatus = <span className='badge bg-warning'>Needs Review</span>;
+                                        reviewStatus = <><span className='badge bg-warning'>Needs Review
+                                        </span></>
+                                        if (!props.readonly) {
+                                            reviewStatus = <label className='badge bg-warning' style={{ cursor: 'pointer' }}>
+                                              Needs Review
+                                              <input
+                                                type="checkbox"
+                                                onClick={handleCheckboxChange(segment)}
+                                                checked={segment.reviewFlagExists}
+                                                style={{ marginLeft: '10px' }}
+                                              />
+                                            </label>
+                                        }
                                     }
                                     else {
                                         reviewStatus = <span className='badge bg-secondary'>Loading</span>;
@@ -1272,7 +1366,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                     }
 
                                     if (hasWarnings) {
-                                        return <tr key={segment.path} className='table-warning'>
+//                                        return <tr key={segment.path} className='table-warning' style={{display: isHiddenCheckboxWarning(String(trial.name + "_" + segment.name)) ? "none" : "table-row"}}>
+                                        return <tr key={segment.path} className='table-warning' style={{display: subjectJson.getAttribute("showReviewedWarnings", false) || !segment.reviewFlagExists ? "table-row" : "none"}}>
                                                     <td><button className="btn btn-dark" onClick={() => {
                                                         navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
                                                     }}>

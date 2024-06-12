@@ -103,6 +103,9 @@ class Subject(metaclass=ExceptionHandlingMeta):
         self.skippedMocoReason = None
         self.lowpass_hz = 30
 
+        # self.ablation_grf_test = False
+        # self.ablation_no_initialization = False
+
         # 0.3. Shared data structures.
         self.trials: List[Trial] = []
         self.skeleton: nimble.dynamics.Skeleton = None
@@ -345,6 +348,8 @@ class Subject(metaclass=ExceptionHandlingMeta):
         """
         for trial in self.trials:
             if not trial.error:
+                # Ablation #1: Remove the right force plate
+                # trial.zero_force_plate(0)
                 trial.split_segments(max_grf_gap_fill_size=1.0, max_segment_frames=2000)
 
     def evaluate_manually_scaled_error(self):
@@ -727,6 +732,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
             detectUnmeasuredTorque=detect_unmeasured_torque,
             tuneLinkMasses=False,
         )
+        # initialize_success = dynamics_fitter.zeroLinearResidualsOnCOMTrajectoryAblation(dynamics_init)
 
 
         # 8.3. If initialization succeeded, we will proceed with the full "kitchen sink" optimization.
