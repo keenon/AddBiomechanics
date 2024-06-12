@@ -409,14 +409,14 @@ class SubjectToProcess:
                         if self.subjectPath.startswith('protected/') or self.subjectPath.startswith('private/'):
                             print('sending notification email to '+str(email))
                             print('subject path: '+str(self.subjectPath))
-                            parts = self.subjectPath.split('/')
 
+                            # Get User id from filtered path (remove type of folder and zone from beginning).
                             filteredPath = self.subjectPath.replace('protected/us-west-2:', '')
                             parts = filteredPath.split('/')
-                            if len(parts) < 3:
-                                return '<error>'
-
                             userId = parts[0]
+
+                            # Get rest of parameters from full path.
+                            parts = self.subjectPath.split('/')
 
                             print('path parts: '+str(parts))
                             name = parts[-1]
