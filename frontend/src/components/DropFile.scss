@@ -1,0 +1,8 @@
+.flex-container {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.flex-container .form-text {
+    margin-left: auto; /* Optional if you want to push the element to the far right */
+}
