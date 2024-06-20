@@ -862,7 +862,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     const trialTagValues = subjectJson.getAttribute("trialTagValues", {} as { [key: string]: number });
                     return <tr key={trial.name}>
                         <td>{trial.name}</td>
-                        <td>
+                        <td align="right">
                             {dataFiles}
                         </td>
                         <td style={{
