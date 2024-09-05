@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from "react";
-import { PathData } from "../model/LiveDirectory";
+import React, { useState } from "react";
 import { ProgressBar, Button } from "react-bootstrap";
 import { humanFileSize } from '../utils';
 import { action } from "mobx";
@@ -15,6 +14,7 @@ type DropFileProps = {
   readonly: boolean;
   accept: string;
   onDrop: (f: File[]) => Promise<void>;
+  onDeleteFile?: () => void;
   text?: string;
   hideDate?: boolean;
   required?: boolean;
@@ -25,6 +25,7 @@ const DropFile = observer((props: DropFileProps) => {
 
   let body = <></>;
   let body_download = <></>;
+  let body_remove = <></>
 
   const loading: Promise<void> | null = props.file.loading;
   const exists = props.file.exists;
@@ -82,6 +83,10 @@ const DropFile = observer((props: DropFileProps) => {
             Download <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
           </Button>
         }
+        body_remove = <Button className="btn-danger form-text" onClick={() => {props.file.delete(); if(props.onDeleteFile !== undefined) props.onDeleteFile();}}>
+          <i className="mdi mdi-download me-2 vertical-middle"></i>
+          Delete <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
+        </Button>
       }
       else {
           body = <>Loading size...</>
@@ -162,6 +167,7 @@ const DropFile = observer((props: DropFileProps) => {
       </div>
       <div className="flex-container">
         {body_download}
+        {body_remove}
       </div>
     </>
   );

@@ -3,14 +3,16 @@ import { Container } from "react-bootstrap";
 import Topbar from "./Topbar";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import Session from "../../model/Session";
 
 const loading = () => <div className="text-center"></div>;
 
 type HorizontalLayoutProps = {
   children?: any;
+  session: Session;
 };
 
-const HorizontalLayout = ({ children }: HorizontalLayoutProps) => {
+const HorizontalLayout = ({ children, session }: HorizontalLayoutProps) => {
   const [isMenuOpened, setIsMenuOpened] = useState(false);
 
   /**
@@ -36,6 +38,7 @@ const HorizontalLayout = ({ children }: HorizontalLayoutProps) => {
               isMenuOpened={isMenuOpened}
               openLeftMenuCallBack={openMenu}
               navCssClasses="topnav-navbar"
+              session={session}
             />
 
             <Navbar isMenuOpened={isMenuOpened} />
