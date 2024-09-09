@@ -1,18 +1,33 @@
 // @flow
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Auth } from "aws-amplify";
 import { CognitoUser } from "amazon-cognito-identity-js";
 import Dropdown from 'react-bootstrap/Dropdown';
 import './ProfileDropdown.scss';
+import Session from "../model/Session";
+import { observer } from "mobx-react-lite";
 
 const STATE_LOADING = "loading";
 const STATE_LOGGED_IN = "logged-in";
 const STATE_LOGGED_OUT = "logged-out";
 
-const ProfileDropdown = () => {
+type ProfileDropdownProps = {
+  session?: Session;
+  hideLogo?: boolean;
+  isMenuOpened?: boolean;
+  openLeftMenuCallBack?: () => void;
+  navCssClasses?: string;
+};
+
+const ProfileDropdown = observer((props: ProfileDropdownProps) => {
   const [email, setEmail] = useState("");
   const [loggedInState, setLoggedInState] = useState(STATE_LOADING);
+
+  useEffect(() => {
+    console.log(props.session?.profilePictureURL)
+  }, [props.session, props.session?.profilePictureURL]);
+
 
   Auth.currentAuthenticatedUser()
     .then((user: CognitoUser | any) => {
@@ -32,7 +47,7 @@ const ProfileDropdown = () => {
       <>
         <Dropdown className="d-none d-lg-block">
           <Dropdown.Toggle className="btn btn-light bg-transparent border-transparent rounded-circle dropdown m-0 p-0 mt-1">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg" className="rounded-circle image-menu" height="60" alt="Profile"></img>
+            <img src={props.session?.profilePictureURL} className="rounded-circle image-menu" height="60" alt="Profile"></img>
           </Dropdown.Toggle>
 
           <Dropdown.Menu>
@@ -104,6 +119,6 @@ const ProfileDropdown = () => {
       </div>
     </div>
   );
-};
+});
 
 export default ProfileDropdown;

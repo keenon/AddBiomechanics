@@ -35,7 +35,7 @@ const ProfileRouter = observer((props: ProfileRouterProps) => {
   }
 
   return (
-    <HorizontalLayout>
+    <HorizontalLayout session={props.session}>
       <div className='container'>
         {body}
       </div>

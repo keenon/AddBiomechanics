@@ -168,7 +168,7 @@ const DataTypeRouter = observer((props: DataTypeRouterProps) => {
   }
 
   return (
-    <HorizontalLayout>
+    <HorizontalLayout session={props.session}>
       <div className='container'>
         {loginStatus}
         <Breadcrumb className="m-0 mb-0">{breadcrumbs}</Breadcrumb>

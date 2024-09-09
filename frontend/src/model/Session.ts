@@ -36,6 +36,7 @@ class Session {
     loggedIn: boolean;
     userId: string;
     userEmail: string;
+    profilePictureURL: string;
 
     constructor(s3: S3API, pubsub: PubSubSocket, region: string) {
         this.s3 = s3;
@@ -49,6 +50,7 @@ class Session {
         this.loggedIn = false;
         this.userId = '';
         this.userEmail = '';
+        this.profilePictureURL = 'https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg';
 
         this.setLoggedIn = this.setLoggedIn.bind(this);
         this.setNotLoggedIn = this.setNotLoggedIn.bind(this);
@@ -60,6 +62,7 @@ class Session {
             loggedIn: observable,
             userId: observable,
             userEmail: observable,
+            profilePictureURL: observable,
             setLoggedIn: action,
             setNotLoggedIn: action,
         });
@@ -95,7 +98,7 @@ class Session {
 
     /**
      * Once the user is logged in, this returns the path to their home directory.
-     * 
+     *
      * @returns The path to the user's home directory
      */
     getHomeDirectoryURL(): string
@@ -160,8 +163,18 @@ class Session {
         const liveDirectoryImplProfile = new LiveDirectoryImpl(prefix, this.s3, this.pubsub)
         let userProfile = this.userProfiles.get(userId);
         if (userProfile == null) {
-            userProfile = new UserProfile(liveDirectoryImplProfile);
+            userProfile = new UserProfile(liveDirectoryImplProfile, path, this);
             this.userProfiles.set(userId, userProfile);
+
+            if (userId === this.userId || this.userId === "") {
+              userProfile.dir.getSignedURL(userProfile.profilePicture.path, 1000).then((url) => {
+                fetch(url).then((response) => {
+                  if (response.ok) {
+                      this.profilePictureURL = url;
+                  }
+                });
+              })
+            }
         }
 
         const readonly = !(this.loggedIn && (this.userId === userId || userId === 'private'));
@@ -216,8 +229,18 @@ class Session {
         const liveDirectoryImplProfile = new LiveDirectoryImpl(prefix, this.s3, this.pubsub)
         let userProfile = this.userProfiles.get(userId);
         if (userProfile == null) {
-            userProfile = new UserProfile(liveDirectoryImplProfile);
+            userProfile = new UserProfile(liveDirectoryImplProfile, path, this);
             this.userProfiles.set(userId, userProfile);
+
+            if (userId === this.userId || this.userId === "") {
+              userProfile.dir.getSignedURL(userProfile.profilePicture.path, 1000).then((url) => {
+                fetch(url).then((response) => {
+                  if (response.ok) {
+                    this.profilePictureURL = url;
+                  }
+                });
+              })
+            }
         }
 
         const readonly = !(this.loggedIn && (this.userId === userId || userId === 'private'));

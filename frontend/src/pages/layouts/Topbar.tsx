@@ -11,8 +11,10 @@ import logoSmall from "../../assets/images/logo-alone.svg";
 
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import Session from "../../model/Session";
 
 type TopbarProps = {
+  session: Session;
   hideLogo?: boolean;
   isMenuOpened?: boolean;
   openLeftMenuCallBack?: () => void;
@@ -48,7 +50,7 @@ const Topbar = (props: TopbarProps) => {
             </li>
             */}
             <li className="dropdown notification-list topbar-dropdown d-lg-block">
-              <ProfileDropdown />
+              <ProfileDropdown session={props.session}/>
             </li>
           </ul>
 
