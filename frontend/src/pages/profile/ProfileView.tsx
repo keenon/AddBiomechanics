@@ -169,30 +169,6 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
   const [selectedImage, setSelectedImage] = useState<string | ArrayBuffer | null | undefined>(null);
 
-  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-         const fetchProfilePicture = async () => {
-            try {
-              const url = await props.userProfile.dir.getSignedURL(props.userProfile.profilePicture.path, 1000);
-              const response = await fetch(url);
-              if (response.ok) {
-                  setProfilePicture(url);
-                  props.session.profilePictureURL = url;
-              }
-            } catch (error) {
-              console.error("Error fetching profile picture URL:", error);
-            }
-          };
-
-          fetchProfilePicture();
-      };
-      reader.readAsDataURL(event.target.files[0]);
-      console.log(reader.readAsDataURL(event.target.files[0]))
-    }
-  };
-
   function generate_info_row(valueField: any, label: string, icon: string, show: boolean = true, link: string = "") {
     if (show)
       return (
@@ -248,9 +224,34 @@ const ProfileView = observer((props: ProfileViewProps) => {
                           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                             <img src={profilePicture} alt="Profile" style={{ width: '150px', height: '150px', borderRadius: '50%' }} />
 
-                            <input accept="image/*" style={{ display: 'none' }} id="icon-button-file" type="file" onChange={handleImageChange} />
                             <label htmlFor="icon-button-file">
-                                <DropFile file={props.userProfile.profilePicture} accept=".png" onDrop={props.userProfile.dropProfilePicture} onDeleteFile={() => {props.userProfile.deleteProfilePicture(); setProfilePicture("https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg")} } readonly={false}></DropFile>
+                                <DropFile file={props.userProfile.profilePicture}
+                                    accept=".png,.jpg,.jpeg,.gif,.jfif"
+                                    onDrop={async (files) => {
+                                        if (files.length === 1) {
+                                            const file = files[0];
+
+                                            const reader = new FileReader();
+                                            reader.onload = async () => {
+                                                // Set the profile picture preview
+                                                setProfilePicture(reader.result as string);
+
+                                                // Proceed with uploading the image to the server
+                                                try {
+                                                    await props.userProfile.dropProfilePicture([file]);
+
+                                                    // Fetch the signed URL to display the uploaded image
+                                                    const url = await props.userProfile.dir.getSignedURL(props.userProfile.profilePicture.path, 1000);
+                                                    setProfilePicture(url);  // Set the uploaded image URL
+                                                    props.session.profilePictureURL = url;  // Update session profile picture URL
+                                                } catch (error) {
+                                                    console.error("Error uploading profile picture:", error);
+                                                }
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                 onDeleteFile={() => {props.userProfile.deleteProfilePicture(); setProfilePicture("https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg")} } readonly={false}></DropFile>
                             </label>
                           </div>
 
