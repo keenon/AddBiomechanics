@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, ChangeEvent, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Row,
@@ -12,6 +12,7 @@ import { showToast, copyProfileUrlToClipboard } from "../../utils";
 import UserProfile from "../../model/UserProfile"
 import Session from "../../model/Session"
 import LiveJsonFile from "../../model/LiveJsonFile";
+import DropFile from "../../components/DropFile";
 
 type SearchResultProps = {
   datasetInfo: LiveJsonFile
@@ -108,16 +109,46 @@ const ProfileView = observer((props: ProfileViewProps) => {
 
   const [editing, setEditing] = useState(false)
 
-  let name: string = props.userProfile.getAttribute("name", "");
-  let surname: string = props.userProfile.getAttribute("surname", "");
-  let contact: string = props.userProfile.getAttribute("contact", "");
-  let affiliation: string = props.userProfile.getAttribute("affiliation", "");
-  let personalWebsite: string = props.userProfile.getAttribute("personalWebsite", "");
-  let lab: string = props.userProfile.getAttribute("lab", "");
-  let fullName: string = props.userProfile.getProfileFullName();
+  const [name, setName] = useState(props.userProfile.getAttribute("name", ""))
+  const [surname, setSurname] = useState(props.userProfile.getAttribute("surname", ""))
+  const [contact, setContact] = useState(props.userProfile.getAttribute("contact", ""))
+  const [affiliation, setAffiliation] = useState(props.userProfile.getAttribute("affiliation", ""))
+  const [personalWebsite, setPersonalWebsite] = useState(props.userProfile.getAttribute("personalWebsite", ""))
+  const [lab, setLab] = useState(props.userProfile.getAttribute("lab", ""))
+  const [fullName, setFullName] = useState(props.userProfile.getProfileFullName())
+  const [profilePicture, setProfilePicture] = useState("https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg");
+
+  const [datasetsInfo, setDatasetInfo] = useState(props.userProfile.getUserDatasetMetadata());
+
+  useEffect(() => {
+    const fetchProfilePicture = async () => {
+      try {
+        const url = await props.userProfile.dir.getSignedURL(props.userProfile.profilePicture.path, 1000);
+        const response = await fetch(url);
+        if (response.ok) {
+            setProfilePicture(url);
+        }
+      } catch (error) {
+        console.error("Error fetching profile picture URL:", error);
+      }
+    };
+
+    fetchProfilePicture();
+    setDatasetInfo(props.userProfile.getUserDatasetMetadata())
+  }, [props.userProfile]);
+
+  useEffect(() => {
+    setName(props.userProfile.getAttribute("name", ""))
+    setSurname(props.userProfile.getAttribute("surname", ""))
+    setContact(props.userProfile.getAttribute("contact", ""))
+    setAffiliation(props.userProfile.getAttribute("affiliation", ""))
+    setPersonalWebsite(props.userProfile.getAttribute("personalWebsite", ""))
+    setLab(props.userProfile.getAttribute("lab", ""))
+    setFullName(props.userProfile.getProfileFullName())
+    setDatasetInfo(props.userProfile.getUserDatasetMetadata())
+  }, [props.userProfile.profileJson.values]);
 
   // Get user's datasets and add to profile.
-  const datasetsInfo = props.userProfile.getUserDatasetMetadata();
   let body = null;
   body = <>
     {Array.from(datasetsInfo.entries()).map(([key, dataset], index) => (
@@ -136,6 +167,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
     ))}
   </>;
 
+  const [selectedImage, setSelectedImage] = useState<string | ArrayBuffer | null | undefined>(null);
 
   function generate_info_row(valueField: any, label: string, icon: string, show: boolean = true, link: string = "") {
     if (show)
@@ -188,6 +220,41 @@ const ProfileView = observer((props: ProfileViewProps) => {
                       return (
                         <div className="container">
                           <div className="justify-content-md-center">
+
+                          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                            <img src={profilePicture} alt="Profile" style={{ width: '150px', height: '150px', borderRadius: '50%' }} />
+
+                            <label htmlFor="icon-button-file">
+                                <DropFile file={props.userProfile.profilePicture}
+                                    accept=".png,.jpg,.jpeg,.gif,.jfif"
+                                    onDrop={async (files) => {
+                                        if (files.length === 1) {
+                                            const file = files[0];
+
+                                            const reader = new FileReader();
+                                            reader.onload = async () => {
+                                                // Set the profile picture preview
+                                                setProfilePicture(reader.result as string);
+
+                                                // Proceed with uploading the image to the server
+                                                try {
+                                                    await props.userProfile.dropProfilePicture([file]);
+
+                                                    // Fetch the signed URL to display the uploaded image
+                                                    const url = await props.userProfile.dir.getSignedURL(props.userProfile.profilePicture.path, 1000);
+                                                    setProfilePicture(url);  // Set the uploaded image URL
+                                                    props.session.profilePictureURL = url;  // Update session profile picture URL
+                                                } catch (error) {
+                                                    console.error("Error uploading profile picture:", error);
+                                                }
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                 onDeleteFile={() => {props.userProfile.deleteProfilePicture(); setProfilePicture("https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg")} } readonly={false}></DropFile>
+                            </label>
+                          </div>
+
                             <InputField userProfile={props.userProfile} label="First Name" tooltip="Insert your first name." placeholder="Your first name..." attributeName="name" icon="mdi-account" />
                             {/* {generate_input_field(name, "First Name", "Insert your first name.", "Your first name...", "name", "mdi-account")} */}
                             <InputField userProfile={props.userProfile} label="Last Name" tooltip="Insert your last name (surname)." placeholder="Your last name (surname)..." attributeName="surname" icon="mdi-account-star" />
@@ -216,7 +283,7 @@ const ProfileView = observer((props: ProfileViewProps) => {
                           <div className="col-lg-4">
                             <div className="card mb-4">
                               <div className="card-body text-center">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/2/2c/Default_pfp.svg" alt="avatar" className="rounded-circle img-fluid w-25"></img>
+                                <img src={profilePicture} alt="avatar" className="rounded-circle img-fluid w-25"></img>
                                 {
                                   /* By default show name and surname. If name is not available, show only surname.
                                   If none is available, show user id. */

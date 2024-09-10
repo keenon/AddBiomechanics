@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from "react";
-import { PathData } from "../model/LiveDirectory";
+import React, { useState } from "react";
 import { ProgressBar, Button } from "react-bootstrap";
 import { humanFileSize } from '../utils';
 import { action } from "mobx";
@@ -8,12 +7,14 @@ import LiveFile from "../model/LiveFile";
 import { observer } from "mobx-react-lite";
 import * as path from 'path';
 import { format } from 'date-fns';
+import './DropFile.scss'
 
 type DropFileProps = {
   file: LiveFile;
   readonly: boolean;
   accept: string;
   onDrop: (f: File[]) => Promise<void>;
+  onDeleteFile?: () => void;
   text?: string;
   hideDate?: boolean;
   required?: boolean;
@@ -23,6 +24,8 @@ const DropFile = observer((props: DropFileProps) => {
   let [isDragActive, setIsDragActive] = useState(false);
 
   let body = <></>;
+  let body_download = <></>;
+  let body_remove = <></>
 
   const loading: Promise<void> | null = props.file.loading;
   const exists = props.file.exists;
@@ -31,10 +34,19 @@ const DropFile = observer((props: DropFileProps) => {
 
   if (props.readonly) {
     if (exists) {
-      return (<Button className="btn-light" onClick={() => props.file.download()}>
-        <i className="mdi mdi-download me-2 vertical-middle"></i>
-        Download
-      </Button>);
+      if (metadata != null) {
+        const file: FileMetadata = metadata;
+        return(<Button className="btn-light ml-2" onClick={() => props.file.download()}>
+          <i className="mdi mdi-download me-2 vertical-middle middle"></i>
+            Download <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
+        </Button>);
+      }
+      else {
+        return(<Button className="btn-light ml-2" onClick={() => props.file.download()}>
+          <i className="mdi mdi-download me-2 vertical-middle middle"></i>
+            Download
+        </Button>);
+      }
     }
     else {
       return <></>;
@@ -59,10 +71,22 @@ const DropFile = observer((props: DropFileProps) => {
         const file: FileMetadata = metadata;
         if (props.hideDate) {
           body = <>Uploaded <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b></>
+          body_download = <Button className="btn-light form-text" onClick={() => props.file.download()}>
+            <i className="mdi mdi-download me-2 vertical-middle"></i>
+            Download <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
+          </Button>
         }
         else {
           body = <>Uploaded <b>{path.basename(file.key)}</b> on {format(file.lastModified.toString(), 'yyyy/MM/dd kk:mm:ss')} - {humanFileSize(file.size)}</>
+          body_download = <Button className="btn-light form-text" onClick={() => props.file.download()}>
+            <i className="mdi mdi-download me-2 vertical-middle"></i>
+            Download <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
+          </Button>
         }
+        body_remove = <Button className="btn-danger form-text" onClick={() => {props.file.delete(); if(props.onDeleteFile !== undefined) props.onDeleteFile();}}>
+          <i className="mdi mdi-download me-2 vertical-middle"></i>
+          Delete <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
+        </Button>
       }
       else {
           body = <>Loading size...</>
@@ -120,26 +144,35 @@ const DropFile = observer((props: DropFileProps) => {
       };
 
   return (
-    <div className={"dropzone dropzone-sm" + (exists ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && !exists && !uploading) ? ' dropzone-error' : ''))}
-        onDrop={onDrop as any}
-        onDragOver={(e) => {
-          e.preventDefault();
-        }}
-        onDragEnter={() => {
-          setIsDragActive(true);
-        }}
-        onDragLeave={() => {
-          setIsDragActive(false);
-        }}
-        onClick={handleFileSelect}>
-      <div className="dz-message needsclick" style={{
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-      }}>
-        {body}
+    <>
+      <div className={"dropzone dropzone-sm" + (exists ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && !exists && !uploading) ? ' dropzone-error' : ''))}
+          onDrop={onDrop as any}
+          onDragOver={(e) => {
+            e.preventDefault();
+          }}
+          onDragEnter={() => {
+            setIsDragActive(true);
+          }}
+          onDragLeave={() => {
+            setIsDragActive(false);
+          }}
+          onClick={(e) => {
+            //e.preventDefault();
+            handleFileSelect();
+          }}>
+        <div className="dz-message needsclick" style={{
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}>
+          {body}
+        </div>
       </div>
-    </div>
+      <div className="flex-container">
+        {body_download}
+        {body_remove}
+      </div>
+    </>
   );
 });
 
