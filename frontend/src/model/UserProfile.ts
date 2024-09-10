@@ -108,29 +108,65 @@ class UserProfile {
      * This file uploads a png file to the server.
      */
     dropProfilePicture(files: File[]): Promise<void> {
-        if (files.length === 1) {
-            const file = files[0];
-            if (file.name.endsWith('.png')) {
-
-                if (this.profilePicture === undefined) {
-                console.log(this.dir)
-                  this.profilePicture = this.dir.getLiveFile("/profile_picture.png");
-                }
-                console.log(this.profilePicture)
-                const uploadPromise = this.profilePicture.uploadFile(file);
-
-                this.session.profilePictureURL = this.profilePicture.path
-
-                return Promise.all([uploadPromise]).then(() => {});
-            }
-            else {
-                return Promise.reject("Unsupported image file type");
-            }
-        }
-        else {
+        if (files.length !== 1) {
             return Promise.reject("Don't support multiple files for a drop");
         }
-    };
+
+        const file = files[0];
+
+        if (!file.type.startsWith('image/')) {
+            return Promise.reject("Unsupported file type. Please drop an image.");
+        }
+
+        const image = new Image();
+        const reader = new FileReader();
+
+        return new Promise<void>((resolve, reject) => {
+            reader.onload = (e) => {
+                image.src = e.target?.result as string;
+            };
+
+            image.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                canvas.width = image.width;
+                canvas.height = image.height;
+                ctx?.drawImage(image, 0, 0);
+
+                // Convert canvas to PNG
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        reject("Failed to convert image to PNG");
+                        return;
+                    }
+
+                    const pngFile = new File([blob], 'profile_picture.png', { type: 'image/png' });
+
+                    // Proceed with the upload logic
+                    if (this.profilePicture === undefined) {
+                        console.log(this.dir);
+                        this.profilePicture = this.dir.getLiveFile("/profile_picture.png");
+                    }
+
+                    console.log(this.profilePicture);
+                    const uploadPromise = this.profilePicture.uploadFile(pngFile);
+
+                    this.session.profilePictureURL = this.profilePicture.path;
+
+                    Promise.all([uploadPromise])
+                        .then(() => resolve())
+                        .catch((error) => reject(error));
+                }, 'image/png');
+            };
+
+            reader.onerror = () => {
+                reject("Error reading the file");
+            };
+
+            reader.readAsDataURL(file);
+        });
+    }
 };
 
 export default UserProfile;
