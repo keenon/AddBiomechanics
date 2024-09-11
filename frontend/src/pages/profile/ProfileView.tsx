@@ -72,6 +72,7 @@ type InputFieldProps = {
 
 const InputField = observer((props: InputFieldProps) => {
   let valueField: string = props.userProfile.getAttribute(props.attributeName, "");
+
   return (
     <form className="row g-3 mb-15">
       <div className="col-md-12">
@@ -84,7 +85,7 @@ const InputField = observer((props: InputFieldProps) => {
           type="text"
           className="form-control"
           placeholder={props.placeholder}
-          value={valueField}
+          defaultValue={valueField}
           onFocus={(e) => props.userProfile.profileJson.onFocusAttribute(props.attributeName)}
           onBlur={(e) => props.userProfile.profileJson.onBlurAttribute(props.attributeName)}
           onChange={(e) => props.userProfile.profileJson.setAttribute(props.attributeName, e.target.value)}>
