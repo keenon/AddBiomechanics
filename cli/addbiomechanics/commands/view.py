@@ -18,6 +18,8 @@ class ViewCommand(AbstractCommand):
         view_parser.add_argument(
             '--trial', help='The number of the trial to view (default: 0)', default=0, type=int)
         view_parser.add_argument(
+            '--trial-pass', help='The number of the processing pass to view (default: -1)', default=-1, type=int)
+        view_parser.add_argument(
             '--geometry',
             help='The path to the Geometry folder to use when loading OpenSim skeletons',
             type=str,
@@ -60,6 +62,7 @@ class ViewCommand(AbstractCommand):
             return False
         file_path: str = args.file_path
         trial: int = args.trial
+        trial_pass: int = args.trial_pass
         graph_dof: str = args.graph_dof
         graph_lowpass_hz: int = args.graph_lowpass_hz
         playback_speed: float = args.playback_speed
@@ -152,7 +155,7 @@ class ViewCommand(AbstractCommand):
             for frame in range(num_frames):
                 timesteps[frame] = frame * subject.getTrialTimestep(trial)
                 loaded: List[nimble.biomechanics.Frame] = subject.readFrames(trial, frame, 1, True, True)
-                processing_pass = loaded[0].processingPasses[0]
+                processing_pass = loaded[0].processingPasses[trial_pass]
                 p = processing_pass.pos[dof_index]
                 v = processing_pass.vel[dof_index]
                 a = processing_pass.acc[dof_index]
@@ -237,7 +240,7 @@ class ViewCommand(AbstractCommand):
             loaded: List[nimble.biomechanics.Frame] = subject.readFrames(trial, frame, 1, contactThreshold=20)
 
             if show_root_frame:
-                pos_in_root_frame = np.copy(loaded[0].processingPasses[-1].pos)
+                pos_in_root_frame = np.copy(loaded[0].processingPasses[trial_pass].pos)
                 pos_in_root_frame[0:6] = 0
                 skel.setPositions(pos_in_root_frame)
 
@@ -246,21 +249,21 @@ class ViewCommand(AbstractCommand):
                 gui.nativeAPI().renderSkeleton(skel, overrideColor=[1,0,0,1] if missing_grf else [0.7,0.7,0.7,1])
                 gui.nativeAPI().setTextContents('missing_reason', str(loaded[0].missingGRFReason))
 
-                joint_centers = loaded[0].processingPasses[-1].jointCentersInRootFrame
+                joint_centers = loaded[0].processingPasses[trial_pass].jointCentersInRootFrame
                 num_joints = int(len(joint_centers) / 3)
                 for j in range(num_joints):
                     gui.nativeAPI().createSphere('joint_'+str(j), [0.05, 0.05, 0.05], joint_centers[j*3:(j+1)*3], [1,0,0,1])
 
-                root_lin_vel = loaded[0].processingPasses[-1].rootLinearAccInRootFrame
+                root_lin_vel = loaded[0].processingPasses[trial_pass].rootLinearAccInRootFrame
                 gui.nativeAPI().createLine('root_lin_vel', [[0,0,0], root_lin_vel], [1,0,0,1])
 
-                root_pos_history = loaded[0].processingPasses[-1].rootPosHistoryInRootFrame
+                root_pos_history = loaded[0].processingPasses[trial_pass].rootPosHistoryInRootFrame
                 num_history = int(len(root_pos_history) / 3)
                 for h in range(num_history):
                     gui.nativeAPI().createSphere('root_pos_history_'+str(h), [0.05, 0.05, 0.05], root_pos_history[h*3:(h+1)*3], [0,1,0,1])
 
-                force_cops = loaded[0].processingPasses[-1].groundContactCenterOfPressureInRootFrame
-                force_fs = loaded[0].processingPasses[-1].groundContactForceInRootFrame
+                force_cops = loaded[0].processingPasses[trial_pass].groundContactCenterOfPressureInRootFrame
+                force_fs = loaded[0].processingPasses[trial_pass].groundContactForceInRootFrame
                 num_forces = int(len(force_cops) / 3)
                 for f in range(num_forces):
                     cop = force_cops[f*3:(f+1)*3]
@@ -270,7 +273,7 @@ class ViewCommand(AbstractCommand):
                                                 cop + force],
                                                [1,0,1,1])
             else:
-                skel.setPositions(loaded[0].processingPasses[0].pos)
+                skel.setPositions(loaded[0].processingPasses[trial_pass].pos)
                 gui.nativeAPI().renderSkeleton(skel)
                 # Render assigned force plates
                 for i in range(0, subject.getNumForcePlates(trial)):
@@ -293,8 +296,8 @@ class ViewCommand(AbstractCommand):
                         gui.nativeAPI().setObjectTooltip(marker_name, marker_name)
 
                 for i in range(0, len(contact_bodies)):
-                    cop = loaded[0].processingPasses[-1].groundContactCenterOfPressure[i*3:(i+1)*3]
-                    f = loaded[0].processingPasses[-1].groundContactForce[i*3:(i+1)*3] * 0.001
+                    cop = loaded[0].processingPasses[trial_pass].groundContactCenterOfPressure[i*3:(i+1)*3]
+                    f = loaded[0].processingPasses[trial_pass].groundContactForce[i*3:(i+1)*3] * 0.001
                     if np.linalg.norm(f) > 0:
                         body_pos = skel.getBodyNode(contact_bodies[i]).getWorldTransform().translation()
                         color: np.ndarray = np.array([0, 0, 0, 1])

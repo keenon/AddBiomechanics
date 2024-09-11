@@ -85,7 +85,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
         self.tuneResidualLoss = 1.0
         self.shiftGRF = False
         self.maxTrialsToSolveMassOver = 4
-        self.regularizeJointAcc = 0
+        self.regularizeJointAcc = 1e-6
         self.dynamicsMarkerOffsets = False
         self.dynamicsMarkerWeight = 50.0
         self.dynamicsJointWeight = 0.01
@@ -97,11 +97,12 @@ class Subject(metaclass=ExceptionHandlingMeta):
         self.mergeZeroForceSegmentsThreshold = 1.0
         self.footBodyNames = ['calcn_l', 'calcn_r']
         self.totalForce = 0.0
-        self.fitDynamics = False
         self.skippedDynamicsReason = None
         self.runMoco = False
         self.skippedMocoReason = None
         self.lowpass_hz = 30
+        # self.lowpass_filter_type: str = 'lowpass'
+        self.lowpass_filter_type: str = 'acc-min'
 
         # self.ablation_grf_test = False
         # self.ablation_no_initialization = False
@@ -607,7 +608,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
             return
         # Actually do the lowpass filtering
         for trial_segment in trial_segments:
-            success = trial_segment.lowpass_filter(self.kinematics_skeleton, self.lowpass_hz)
+            success = trial_segment.lowpass_filter(self.kinematics_skeleton, self.lowpass_filter_type, self.lowpass_hz, self.ignoreJointLimits)
             if success:
                 trial_segment.lowpass_ik_error_report = nimble.biomechanics.IKErrorReport(
                     self.kinematics_skeleton,
@@ -697,8 +698,8 @@ class Subject(metaclass=ExceptionHandlingMeta):
             )
         print('Created DynamicsInitialization', flush=True)
 
-        radius: float = 0.05
-        min_time: float = 0.2
+        radius: float = 0.02
+        min_time: float = 0.5
         dynamics_fitter.estimateFootGroundContactsWithStillness(dynamics_init, radius=radius, minTime=min_time)
 
         print("Initial mass: " +
@@ -752,7 +753,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
                       'frames. This probably means input GRF data is badly miscalibrated with respect to '
                       'marker data (maybe they are in different coordinate frames?), or there are unmeasured '
                       'external forces acting on your subject. Aborting the physics fitter!', flush=True)
-                self.fitDynamics = False
+                self.disableDynamics = True
             else:
                 # Run an optimization to figure out the model parameters
                 dynamics_fitter.setIterationLimit(200)

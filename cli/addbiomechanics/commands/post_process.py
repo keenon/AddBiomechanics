@@ -344,6 +344,8 @@ class PostProcessCommand(AbstractCommand):
                 new_overall_pass.setOpenSimFileText(subject.getHeaderProto().getProcessingPasses()[-2].getOpenSimFileText())
                 pass_skels.append(pass_skels[-1])
 
+                use_lowpass = False
+
                 for trial in range(subject.getNumTrials()):
                     if trial in drop_trials:
                         continue
@@ -359,41 +361,229 @@ class PostProcessCommand(AbstractCommand):
                         dropped_trials_log.flush()
                         continue
 
-                    fs = int(1.0 / trial_protos[trial].getTimestep())
-                    cutoff_frequencies: List[float] = [find_cutoff_frequency(poses[i, :], fs) for i in range(poses.shape[0])]
-                    cutoff = max(max(cutoff_frequencies), 1.0)
-                    print(f"Cutoff Frequency to preserve 99% of signal power: {cutoff} Hz")
-                    nyq = 0.5 * fs
-                    normal_cutoff = cutoff / nyq
-                    if cutoff >= nyq:
-                        print('Warning! Cutoff frequency is at or above Nyquist frequency. This suggests some funny business with the data. Dropping this trial to be on the safe side.')
-                        # dropped_trials_log.write(f'ERROR {input_path} trial {trial} cutoff frequency above Nyquist frequency\n')
-                        # dropped_trials_log.flush()
-                        # drop_trials.append(trial)
+                    dt = trial_protos[trial].getTimestep()
+                    fs = int(1.0 / dt)
+                    if use_lowpass:
+                        # Use a lowpass filter to clean up the data
+                        cutoff_frequencies: List[float] = [find_cutoff_frequency(poses[i, :], fs) for i in range(poses.shape[0])]
+                        cutoff = max(max(cutoff_frequencies), 1.0)
+                        print(f"Cutoff Frequency to preserve 99% of signal power: {cutoff} Hz")
+                        nyq = 0.5 * fs
+                        normal_cutoff = cutoff / nyq
+                        if cutoff >= nyq:
+                            print('Warning! Cutoff frequency is at or above Nyquist frequency. This suggests some funny business with the data. Dropping this trial to be on the safe side.')
+                            # dropped_trials_log.write(f'ERROR {input_path} trial {trial} cutoff frequency above Nyquist frequency\n')
+                            # dropped_trials_log.flush()
+                            # drop_trials.append(trial)
+                        else:
+                            b, a = butter(3, normal_cutoff, btype='low', analog=False)
+                            new_pass = trial_protos[trial].addPass()
+                            new_pass.copyValuesFrom(last_pass_proto)
+                            new_pass.setType(nimble.biomechanics.ProcessingPassType.LOW_PASS_FILTER)
+                            new_pass.setLowpassFilterOrder(3)
+                            new_pass.setLowpassCutoffFrequency(cutoff)
+                            accs = new_pass.getAccs()
+                            if accs.shape[1] > 1:
+                                accs[:, 0] = accs[:, 1]
+                                accs[:, -1] = accs[:, -2]
+                                new_pass.setAccs(accs)
+                            vels = new_pass.getVels()
+                            if vels.shape[1] > 1:
+                                vels[:, 0] = vels[:, 1]
+                                vels[:, -1] = vels[:, -2]
+                                new_pass.setVels(vels)
+                            if poses.shape[1] > 12:
+                                new_pass.setResamplingMatrix(filtfilt(b, a, new_pass.getResamplingMatrix(), axis=1, padtype='constant'))
+
+                            # Copy force plate data to Python
+                            raw_force_plates = trial_protos[trial].getForcePlates()
+                            cops = [force_plate.centersOfPressure for force_plate in raw_force_plates]
+                            force_plate_raw_forces = [force_plate.forces for force_plate in raw_force_plates]
+
+                            print('Fixing COM acceleration for trial ' + str(trial))
+                            skel = pass_skels[-1]
+                            new_poses = new_pass.getPoses()
+                            new_vels = new_pass.getVels()
+                            new_accs = new_pass.getAccs()
+                            for t in range(new_poses.shape[1]):
+                                pass_skels[-1].setPositions(new_poses[:, t])
+                                pass_skels[-1].setVelocities(new_vels[:, t])
+                                pass_skels[-1].setAccelerations(new_accs[:, t])
+                                com_acc = pass_skels[-1].getCOMLinearAcceleration() - pass_skels[-1].getGravity()
+                                total_acc = np.sum(np.row_stack([force_plate_raw_forces[f][t] for f in range(len(raw_force_plates))]), axis=0) / pass_skels[-1].getMass()
+                                # print('Expected acc: '+str(total_acc))
+                                # print('Got acc: '+str(com_acc))
+                                root_acc_correction = total_acc - com_acc
+                                # print('Correcting root acc: '+str(root_acc_correction))
+                                new_accs[3:6, t] += root_acc_correction
+                            trial_protos[trial].getPasses()[-1].setAccs(new_accs)
+
+
+                            # Check the CoP data to ensure it is physically plausible
+                            print('Cleaning up CoP data for trial ' + str(trial))
+                            foot_bodies = [skel.getBodyNode(name) for name in subject.getGroundForceBodies()]
+                            dist_threshold_m = 0.35  # A bit more than 1 foot
+
+                            num_timesteps_cop_wrong = 0
+                            cutoff_threshold_to_drop_trial = 10
+                            missing_grf_reason = trial_protos[trial].getMissingGRFReason()
+                            for t in range(new_poses.shape[1]):
+                                if missing_grf_reason[t] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
+                                    continue
+                                skel.setPositions(new_poses[:, t])
+                                foot_body_locations = [body.getWorldTransform().translation() for body in foot_bodies]
+                                for f in range(len(raw_force_plates)):
+                                    force = force_plate_raw_forces[f][t]
+                                    cop = cops[f][t]
+                                    dist_to_feet = [np.linalg.norm(cop - foot_body_location) for foot_body_location in
+                                                    foot_body_locations]
+                                    if np.linalg.norm(force) > 5:
+                                        if min(dist_to_feet) > dist_threshold_m:
+                                            closest_foot = np.argmin(dist_to_feet)
+                                            num_timesteps_cop_wrong += 1
+                                            if num_timesteps_cop_wrong < cutoff_threshold_to_drop_trial:
+                                                print(f"Warning! Trial {trial}, CoP for plate {f} is not near a foot at time {t}. Bringing it within {dist_threshold_m}m of the closest foot.")
+                                                print(f"  Force: {force}")
+                                                print(f"  CoP: {cop}")
+                                                print(f"  Dist to feet: {dist_to_feet}")
+                                            cop = foot_body_locations[closest_foot] + dist_threshold_m * (cop - foot_body_locations[closest_foot]) / np.linalg.norm(cop - foot_body_locations[closest_foot])
+                                            cops[f][t] = cop
+                                            if num_timesteps_cop_wrong < cutoff_threshold_to_drop_trial:
+                                                print(f"  Updated CoP: {cop}")
+                                                dist_to_feet = [np.linalg.norm(cop - foot_body_location) for foot_body_location in foot_body_locations]
+                                                print(f"  Updated Dist to feet: {dist_to_feet}")
+                                    else:
+                                        force_plate_raw_forces[f][t] = np.zeros(3)
+                                        closest_foot = np.argmin(dist_to_feet)
+                                        cops[f][t] = foot_body_locations[closest_foot]
+
+                            if num_timesteps_cop_wrong >= cutoff_threshold_to_drop_trial:
+                                print(f"Warning! Trial {trial} has {num_timesteps_cop_wrong} timesteps with CoP not near a foot. Dropping trial.")
+                                dropped_trials_log.write(f'ERROR {input_path} trial {trial} has {num_timesteps_cop_wrong} timesteps with CoP not near a foot\n')
+                                dropped_trials_log.flush()
+                                drop_trials.append(trial)
+                                continue
+
+                            for f in range(len(raw_force_plates)):
+                                raw_force_plates[f].centersOfPressure = cops[f]
+                                raw_force_plates[f].forces = force_plate_raw_forces[f]
+                            trial_protos[trial].setForcePlates(raw_force_plates)
                     else:
-                        b, a = butter(3, normal_cutoff, btype='low', analog=False)
+                        # Use an acceleration minimizer to clean up the data
+                        dt = trial_protos[trial].getTimestep()
+                        acc_weight = 1.0 / (dt * dt)
+                        regularization_weight = 1000.0
+
                         new_pass = trial_protos[trial].addPass()
                         new_pass.copyValuesFrom(last_pass_proto)
                         new_pass.setType(nimble.biomechanics.ProcessingPassType.LOW_PASS_FILTER)
-                        new_pass.setLowpassFilterOrder(3)
-                        new_pass.setLowpassCutoffFrequency(cutoff)
-                        accs = new_pass.getAccs()
-                        if accs.shape[1] > 1:
-                            accs[:, 0] = accs[:, 1]
-                            accs[:, -1] = accs[:, -2]
-                            new_pass.setAccs(accs)
-                        vels = new_pass.getVels()
-                        if vels.shape[1] > 1:
-                            vels[:, 0] = vels[:, 1]
-                            vels[:, -1] = vels[:, -2]
-                            new_pass.setVels(vels)
-                        if poses.shape[1] > 12:
-                            new_pass.setResamplingMatrix(filtfilt(b, a, new_pass.getResamplingMatrix(), axis=1, padtype='constant'))
+                        new_pass.setLowpassFilterOrder(-1)
+                        new_pass.setLowpassCutoffFrequency(regularization_weight)
+
+                        poses = new_pass.getPoses().copy()
+
+                        acc_minimizer = nimble.utils.AccelerationMinimizer(poses.shape[1], acc_weight,
+                                                                           regularization_weight)
+                        for i in range(poses.shape[0]):
+                            poses[i, :] = acc_minimizer.minimize(poses[i, :])
+                        new_pass.setPoses(poses)
+
+                        # Get velocities and accelerations as finite differences
+                        vels = np.zeros_like(poses)
+                        for i in range(1, poses.shape[1]):
+                            vels[:, i] = (poses[:, i] - poses[:, i - 1]) / dt
+                        vels[:, 0] = vels[:, 1]
+                        new_pass.setVels(vels)
+                        accs = np.zeros_like(poses)
+                        for i in range(1, poses.shape[1]):
+                            accs[:, i] = (vels[:, i] - vels[:, i - 1]) / dt
+                        accs[:, 0] = accs[:, 1]
+                        new_pass.setAccs(accs)
+
+                        print('Minimized accelerations for trial ' + str(trial))
+                        print('Max acc: ' + str(np.max(accs)))
+                        print('Min acc: ' + str(np.min(accs)))
 
                         # Copy force plate data to Python
                         raw_force_plates = trial_protos[trial].getForcePlates()
-                        cops = [force_plate.centersOfPressure for force_plate in raw_force_plates]
-                        forces = [force_plate.forces for force_plate in raw_force_plates]
+                        force_plate_raw_forces: List[List[np.ndarray]] = [force_plate.forces for force_plate in raw_force_plates]
+                        force_plate_raw_cops: List[List[np.ndarray]] = [force_plate.centersOfPressure for force_plate in raw_force_plates]
+                        force_plate_raw_moments: List[List[np.ndarray]] = [force_plate.moments for force_plate in raw_force_plates]
+
+                        trial_len = poses.shape[1]
+                        force_plate_norms: List[np.ndarray] = [np.zeros(trial_len) for _ in
+                                                               range(len(raw_force_plates))]
+                        for i in range(len(raw_force_plates)):
+                            force_norms = force_plate_norms[i]
+                            for t in range(trial_len):
+                                force_norms[t] = np.linalg.norm(force_plate_raw_forces[i][t])
+                        # 4. Next, low-pass filter the GRF data for each non-zero section
+                        lowpass_force_plates: List[nimble.biomechanics.ForcePlate] = []
+                        for i in range(len(raw_force_plates)):
+                            force_matrix = np.zeros((3, trial_len))
+                            cop_matrix = np.zeros((3, trial_len))
+                            moment_matrix = np.zeros((3, trial_len))
+                            force_norms = force_plate_norms[i]
+                            non_zero_segments: List[Tuple[int, int]] = []
+                            last_nonzero = -1
+                            # 4.1. Find the non-zero segments
+                            for t in range(trial_len):
+                                if force_norms[t] > 0.0:
+                                    if last_nonzero < 0:
+                                        last_nonzero = t
+                                else:
+                                    if last_nonzero >= 0:
+                                        non_zero_segments.append((last_nonzero, t))
+                                        last_nonzero = -1
+                                force_matrix[:, t] = force_plate_raw_forces[i][t]
+                                cop_matrix[:, t] = force_plate_raw_cops[i][t]
+                                moment_matrix[:, t] = force_plate_raw_moments[i][t]
+                            if last_nonzero >= 0:
+                                non_zero_segments.append((last_nonzero, trial_len))
+
+                            # 4.2. Lowpass filter each non-zero segment
+                            for start, end in non_zero_segments:
+                                # print(f"Filtering force plate {i} on non-zero range [{start}, {end}]")
+                                if end - start < 10:
+                                    # print(" - Skipping non-zero segment because it's too short. Zeroing instead")
+                                    for t in range(start, end):
+                                        force_plate_raw_forces[i][t] = np.zeros(3)
+                                        force_plate_raw_cops[i][t] = np.zeros(3)
+                                        force_plate_raw_moments[i][t] = np.zeros(3)
+                                        force_norms[t] = 0.0
+                                else:
+                                    start_weight = 1e5 if start > 0 else 0.0
+                                    end_weight = 1e5 if end < trial_len else 0.0
+                                    acc_minimizer = nimble.utils.AccelerationMinimizer(end - start, acc_weight,
+                                                                                       regularization_weight,
+                                                                                       startPositionZeroWeight=start_weight,
+                                                                                       endPositionZeroWeight=end_weight,
+                                                                                       startVelocityZeroWeight=start_weight,
+                                                                                       endVelocityZeroWeight=end_weight)
+                                    cop_acc_minimizer = nimble.utils.AccelerationMinimizer(end - start, acc_weight,
+                                                                                           regularization_weight)
+                                    for j in range(3):
+                                        smoothed_force = acc_minimizer.minimize(force_matrix[j, start:end])
+                                        if np.sum(smoothed_force) != 0:
+                                            smoothed_force *= np.sum(force_matrix[j, start:end]) / np.sum(smoothed_force)
+                                        force_matrix[j, start:end] = smoothed_force
+                                        cop_matrix[j, start:end] = cop_acc_minimizer.minimize(cop_matrix[j, start:end])
+                                        smoothed_moment = acc_minimizer.minimize(moment_matrix[j, start:end])
+                                        if np.sum(smoothed_moment) != 0:
+                                            smoothed_moment *= np.sum(moment_matrix[j, start:end]) / np.sum(smoothed_moment)
+                                        moment_matrix[j, start:end] = smoothed_moment
+                                    for t in range(start, end):
+                                        force_plate_raw_forces[i][t] = force_matrix[:, t]
+                                        force_plate_raw_cops[i][t] = cop_matrix[:, t]
+                                        force_plate_raw_moments[i][t] = moment_matrix[:, t]
+
+                            # 4.3. Create a new lowpass filtered force plate
+                            force_plate_copy = nimble.biomechanics.ForcePlate.copyForcePlate(raw_force_plates[i])
+                            force_plate_copy.forces = force_plate_raw_forces[i]
+                            force_plate_copy.centersOfPressure = force_plate_raw_cops[i]
+                            force_plate_copy.moments = force_plate_raw_moments[i]
+                            lowpass_force_plates.append(force_plate_copy)
+                        trial_protos[trial].setForcePlates(lowpass_force_plates)
 
                         print('Fixing COM acceleration for trial ' + str(trial))
                         skel = pass_skels[-1]
@@ -405,64 +595,14 @@ class PostProcessCommand(AbstractCommand):
                             pass_skels[-1].setVelocities(new_vels[:, t])
                             pass_skels[-1].setAccelerations(new_accs[:, t])
                             com_acc = pass_skels[-1].getCOMLinearAcceleration() - pass_skels[-1].getGravity()
-                            total_acc = np.sum(np.row_stack([forces[f][t] for f in range(len(raw_force_plates))]), axis=0) / pass_skels[-1].getMass()
+                            total_acc = np.sum(np.row_stack([force_plate_raw_forces[f][t] for f in range(len(raw_force_plates))]),
+                                               axis=0) / pass_skels[-1].getMass()
                             # print('Expected acc: '+str(total_acc))
                             # print('Got acc: '+str(com_acc))
                             root_acc_correction = total_acc - com_acc
                             # print('Correcting root acc: '+str(root_acc_correction))
                             new_accs[3:6, t] += root_acc_correction
                         trial_protos[trial].getPasses()[-1].setAccs(new_accs)
-
-
-                        # Check the CoP data to ensure it is physically plausible
-                        print('Cleaning up CoP data for trial ' + str(trial))
-                        foot_bodies = [skel.getBodyNode(name) for name in subject.getGroundForceBodies()]
-                        dist_threshold_m = 0.35  # A bit more than 1 foot
-
-                        num_timesteps_cop_wrong = 0
-                        cutoff_threshold_to_drop_trial = 10
-                        missing_grf_reason = trial_protos[trial].getMissingGRFReason()
-                        for t in range(new_poses.shape[1]):
-                            if missing_grf_reason[t] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
-                                continue
-                            skel.setPositions(new_poses[:, t])
-                            foot_body_locations = [body.getWorldTransform().translation() for body in foot_bodies]
-                            for f in range(len(raw_force_plates)):
-                                force = forces[f][t]
-                                cop = cops[f][t]
-                                dist_to_feet = [np.linalg.norm(cop - foot_body_location) for foot_body_location in
-                                                foot_body_locations]
-                                if np.linalg.norm(force) > 5:
-                                    if min(dist_to_feet) > dist_threshold_m:
-                                        closest_foot = np.argmin(dist_to_feet)
-                                        num_timesteps_cop_wrong += 1
-                                        if num_timesteps_cop_wrong < cutoff_threshold_to_drop_trial:
-                                            print(f"Warning! Trial {trial}, CoP for plate {f} is not near a foot at time {t}. Bringing it within {dist_threshold_m}m of the closest foot.")
-                                            print(f"  Force: {force}")
-                                            print(f"  CoP: {cop}")
-                                            print(f"  Dist to feet: {dist_to_feet}")
-                                        cop = foot_body_locations[closest_foot] + dist_threshold_m * (cop - foot_body_locations[closest_foot]) / np.linalg.norm(cop - foot_body_locations[closest_foot])
-                                        cops[f][t] = cop
-                                        if num_timesteps_cop_wrong < cutoff_threshold_to_drop_trial:
-                                            print(f"  Updated CoP: {cop}")
-                                            dist_to_feet = [np.linalg.norm(cop - foot_body_location) for foot_body_location in foot_body_locations]
-                                            print(f"  Updated Dist to feet: {dist_to_feet}")
-                                else:
-                                    forces[f][t] = np.zeros(3)
-                                    closest_foot = np.argmin(dist_to_feet)
-                                    cops[f][t] = foot_body_locations[closest_foot]
-
-                        if num_timesteps_cop_wrong >= cutoff_threshold_to_drop_trial:
-                            print(f"Warning! Trial {trial} has {num_timesteps_cop_wrong} timesteps with CoP not near a foot. Dropping trial.")
-                            dropped_trials_log.write(f'ERROR {input_path} trial {trial} has {num_timesteps_cop_wrong} timesteps with CoP not near a foot\n')
-                            dropped_trials_log.flush()
-                            drop_trials.append(trial)
-                            continue
-
-                        for f in range(len(raw_force_plates)):
-                            raw_force_plates[f].centersOfPressure = cops[f]
-                            raw_force_plates[f].forces = forces[f]
-                        trial_protos[trial].setForcePlates(raw_force_plates)
 
             if recompute_values or resampled or clean_up_noise:
                 print('Recomputing values in the raw B3D')
