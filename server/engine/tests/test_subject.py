@@ -1,15 +1,19 @@
 import shutil
 import unittest
-from src.subject import Subject
-from src.trial import TrialSegment, Trial
+from subject import Subject
+from trial import TrialSegment, Trial
 from typing import Dict, List, Any
 import os
 import nimblephysics as nimble
+from inspect import getsourcefile
 
+TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
+DATA_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')
+TEST_DATA_PATH = os.path.join(TESTS_PATH, '..', 'test_data')
 
 def reset_test_data(name: str):
-    original_path = os.path.abspath('../test_data/'+name+'_original')
-    live_path = os.path.abspath('../test_data/'+name)
+    original_path = os.path.join(TEST_DATA_PATH, f'{name}_original')
+    live_path = os.path.join(TEST_DATA_PATH, name)
     if os.path.exists(live_path):
         shutil.rmtree(live_path)
     shutil.copytree(original_path, live_path)
@@ -28,13 +32,13 @@ class TestSubject(unittest.TestCase):
     def test_load_subject_json(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_subject_json(os.path.abspath('../test_data/opencap_test/_subject.json'))
+        subject.load_subject_json(os.path.join(TEST_DATA_PATH, 'opencap_test', '_subject.json'))
 
     def test_load_subject(self):
         subject = Subject()
         reset_test_data('opencap_test')
         subject.skeletonPreset = 'custom'
-        subject.load_model_files(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.load_model_files(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
@@ -52,7 +56,7 @@ class TestSubject(unittest.TestCase):
         # If we trigger to export either an SDF or an MJCF, we use simplified joint definitions, so we run a
         # pre-processing step on the data.
         subject.exportSDF = True
-        subject.load_model_files(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.load_model_files(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
@@ -64,13 +68,13 @@ class TestSubject(unittest.TestCase):
     def test_load_trial(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_trials(os.path.abspath('../test_data/opencap_test/trials'))
+        subject.load_trials(os.path.join(TEST_DATA_PATH, 'opencap_test', 'trials'))
         self.assertEqual(4, len(subject.trials))
 
     def test_load_folder(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
@@ -79,7 +83,7 @@ class TestSubject(unittest.TestCase):
     def test_segment_trials(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
         subject.segment_trials()
         for trial in subject.trials:
             for segment in trial.segments:
@@ -92,51 +96,51 @@ class TestSubject(unittest.TestCase):
     def test_rescale_osim_model(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
         subject.kinematics_skeleton = subject.skeleton
-        print(os.path.abspath('../test_data/opencap_test/unscaled_generic.osim'))
-        self.assertTrue(os.path.exists(os.path.abspath('../test_data/opencap_test/unscaled_generic.osim')))
-        subject.scale_osim(os.path.abspath('../test_data/opencap_test/unscaled_generic.osim'), os.path.abspath('../test_data/opencap_test/scaled_test.osim'), subject.skeleton, subject.markerSet)
-        self.assertTrue(os.path.exists(os.path.abspath('../test_data/opencap_test/scaled_test.osim')))
+        print(os.path.join(TEST_DATA_PATH, 'opencap_test', 'unscaled_generic.osim'))
+        self.assertTrue(os.path.exists(os.path.join(TEST_DATA_PATH, 'opencap_test', 'unscaled_generic.osim')))
+        subject.scale_osim(os.path.join(TEST_DATA_PATH, 'opencap_test', 'unscaled_generic.osim'), os.path.join(TEST_DATA_PATH, 'opencap_test', 'scaled_test.osim'), subject.skeleton, subject.markerSet)
+        self.assertTrue(os.path.exists(os.path.join(TEST_DATA_PATH, 'opencap_test', 'scaled_test.osim')))
 
     def test_write_opensim_results_without_data(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
         subject.segment_trials()
         subject.kinematics_skeleton = subject.skeleton
-        subject.write_opensim_results(os.path.abspath('../test_data/opencap_test/osim_results'), os.path.abspath('../../data'))
-        self.assertTrue(os.path.exists(os.path.abspath('../test_data/opencap_test/osim_results/Models/kinematics.osim')))
+        subject.write_opensim_results(os.path.join(TEST_DATA_PATH, 'opencap_test', 'osim_results'), DATA_PATH)
+        self.assertTrue(os.path.exists(os.path.join(TEST_DATA_PATH, 'opencap_test', 'osim_results', 'Models', 'match_markers_but_ignore_physics.osim')))
 
     def test_write_web_results_without_data(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
         subject.segment_trials()
-        subject.write_web_results(os.path.abspath('../test_data/opencap_test/web_results'))
+        subject.write_web_results(os.path.join(TEST_DATA_PATH, 'opencap_test', 'web_results'))
 
     def test_kinematics_fit(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
         subject.segment_trials()
         subject.kinematicsIterations = 20
         subject.initialIKRestarts = 3
-        subject.run_kinematics_fit(os.path.abspath('../../data'))
-        subject.write_opensim_results(os.path.abspath('../test_data/opencap_test/osim_results'), os.path.abspath('../../data'))
-        self.assertTrue(os.path.exists(os.path.abspath('../test_data/opencap_test/osim_results/Models/kinematics.osim')))
-        subject.write_b3d_file(os.path.abspath('../test_data/opencap_test/subject.b3d'), os.path.abspath('../test_data/opencap_test/osim_results'), 'http://addbiomechanics.org')
-        subject.write_web_results(os.path.abspath('../test_data/opencap_test/'))
+        subject.run_kinematics_fit(DATA_PATH)
+        subject.write_opensim_results(os.path.join(TEST_DATA_PATH, 'opencap_test', 'osim_results'), DATA_PATH)
+        self.assertTrue(os.path.exists(os.path.join(TEST_DATA_PATH, 'opencap_test', 'osim_results', 'Models', 'match_markers_but_ignore_physics.osim')))
+        subject.write_b3d_file(os.path.join(TEST_DATA_PATH, 'opencap_test' 'subject.b3d'), os.path.join(TEST_DATA_PATH, 'opencap_test', 'osim_results'), 'http://addbiomechanics.org')
+        subject.write_web_results(os.path.join(TEST_DATA_PATH, 'opencap_test'))
 
     def test_dynamics_fit(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.abspath('../test_data/opencap_test'), os.path.abspath('../../data'))
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
         subject.segment_trials()
         subject.kinematicsIterations = 20
         subject.initialIKRestarts = 3
-        subject.run_kinematics_fit(os.path.abspath('../../data'))
+        subject.run_kinematics_fit(DATA_PATH)
         subject.run_dynamics_fit()
-        subject.write_opensim_results(os.path.abspath('../test_data/opencap_test/osim_results'), os.path.abspath('../../data'))
-        subject.write_b3d_file(os.path.abspath('../test_data/opencap_test/subject.b3d'), os.path.abspath('../test_data/opencap_test/osim_results'), 'http://addbiomechanics.org')
-        subject.write_web_results(os.path.abspath('../test_data/opencap_test/'))
+        subject.write_opensim_results(os.path.join(TEST_DATA_PATH, 'opencap_test', 'osim_results'), DATA_PATH)
+        subject.write_b3d_file(os.path.join(TEST_DATA_PATH, 'opencap_test', 'subject.b3d'), os.path.join(TEST_DATA_PATH, 'opencap_test', 'osim_results'), 'http://addbiomechanics.org')
+        subject.write_web_results(os.path.join(TEST_DATA_PATH, 'opencap_test'))
