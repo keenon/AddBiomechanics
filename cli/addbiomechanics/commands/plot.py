@@ -54,6 +54,11 @@ class PlotCommand(AbstractCommand):
         contact_bodies = subject.getGroundForceBodies()
         print('Contact bodies: '+str(contact_bodies))
 
+        print('Marker RMS: '+str(np.mean(subject.getTrialMarkerRMSs(trial, trial_pass))))
+        print('Marker Max: '+str(np.mean(subject.getTrialMarkerMaxs(trial, trial_pass))))
+        print('Linear residuals: '+str(np.mean(subject.getTrialLinearResidualNorms(trial, trial_pass))))
+        print('Angular residuals: '+str(np.mean(subject.getTrialAngularResidualNorms(trial, trial_pass))))
+
         num_frames = subject.getTrialLength(trial)
         osim: nimble.biomechanics.OpenSimFile = subject.readOpenSimFile(0, ignoreGeometry=True)
         skel = osim.skeleton
@@ -115,10 +120,10 @@ class PlotCommand(AbstractCommand):
         axs[1, 0].set_title('Acceleration')
         axs[1, 0].set(xlabel='Time (s)', ylabel='Acceleration (rad/s^2)')
         axs[1, 1].plot(timesteps, dof_taus)
-        for i in range(len(grfs)):
-            axs[1, 1].plot(timesteps, grfs[i], label='Force Plate '+str(i))
-            axs[1, 1].plot(timesteps, grms[i], label='Moment Plate '+str(i))
-            axs[1, 1].plot(timesteps, grcops[i], label='COP Plate '+str(i))
+        # for i in range(len(grfs)):
+        #     axs[1, 1].plot(timesteps, grfs[i], label='Force Plate '+str(i))
+        #     axs[1, 1].plot(timesteps, grms[i], label='Moment Plate '+str(i))
+        #     axs[1, 1].plot(timesteps, grcops[i], label='COP Plate '+str(i))
         axs[1, 1].set_title('Torque')
         axs[1, 1].set(xlabel='Time (s)', ylabel='Torque (Nm)')
         axs[1, 1].legend()

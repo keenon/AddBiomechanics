@@ -56,6 +56,8 @@ class ViewCommand(AbstractCommand):
             default=1.0)
         view_parser.add_argument('--loop-frames', type=int, nargs='+', default=[],
                                help='Specific frames to loop over.')
+        view_parser.add_argument('--grf-body-radius', type=float, default=0.0,
+                                 help='Specify the radius of spheres to place at the GRF bodies, if greater than 0.')
 
     def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'view':
@@ -70,6 +72,9 @@ class ViewCommand(AbstractCommand):
         show_root_frame: bool = args.show_root_frame
         show_markers: bool = args.show_markers
         loop_frames: List[int] = args.loop_frames
+        if len(loop_frames) == 2:
+            loop_frames = list(range(loop_frames[0], loop_frames[1]))
+        grf_body_radius: float = args.grf_body_radius
 
         try:
             import nimblephysics as nimble
@@ -115,6 +120,18 @@ class ViewCommand(AbstractCommand):
         print('Subject biological sex: '+subject.getBiologicalSex())
         contact_bodies = subject.getGroundForceBodies()
         print('Contact bodies: '+str(contact_bodies))
+
+        print('Marker RMS: '+str(np.mean(subject.getTrialMarkerRMSs(trial, trial_pass))))
+        print('Marker Max: '+str(np.mean(subject.getTrialMarkerMaxs(trial, trial_pass))))
+        linear_residuals = subject.getTrialLinearResidualNorms(trial, trial_pass)
+        angular_residuals = subject.getTrialAngularResidualNorms(trial, trial_pass)
+        missing_grf = subject.getMissingGRF(trial)
+        for i in range(len(missing_grf)):
+            if missing_grf[i] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
+                linear_residuals[i] = 0.0
+                angular_residuals[i] = 0.0
+        print('Linear residuals (only on frames with GRF): '+str(np.mean(linear_residuals)))
+        print('Angular residuals (only on frames with GRF): '+str(np.mean(angular_residuals)))
 
         num_frames = subject.getTrialLength(trial)
         osim: nimble.biomechanics.OpenSimFile = subject.readOpenSimFile(0, geometry)
@@ -294,6 +311,16 @@ class ViewCommand(AbstractCommand):
                             gui.nativeAPI().deleteObject(marker_name+"_err")
                         gui.nativeAPI().createBox(marker_name, [0.01, 0.01, 0.01], marker_pos, np.zeros(3), [0.7,0.7,0.7,1])
                         gui.nativeAPI().setObjectTooltip(marker_name, marker_name)
+
+                if grf_body_radius > 0.0:
+                    for b in range(0, len(contact_bodies)):
+                        body = skel.getBodyNode(contact_bodies[b])
+                        visit_queue = [body]
+                        while visit_queue:
+                            current = visit_queue.pop(0)
+                            gui.nativeAPI().createSphere('grf_body_'+str(b)+'_'+current.getName(), [grf_body_radius, grf_body_radius, grf_body_radius], current.getWorldTransform().translation(), [0,0,1,1])
+                            for j in range(current.getNumChildJoints()):
+                                visit_queue.append(current.getChildJoint(j).getChildBodyNode())
 
                 for i in range(0, len(contact_bodies)):
                     cop = loaded[0].processingPasses[trial_pass].groundContactCenterOfPressure[i*3:(i+1)*3]
