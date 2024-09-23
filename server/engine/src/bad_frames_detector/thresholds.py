@@ -5,6 +5,8 @@ import json
 import numpy as np
 import os
 import importlib.resources
+from subject import Subject
+from trial import TrialSegment
 
 
 class ThresholdsDetector(AbstractDetector):
@@ -55,14 +57,13 @@ class ThresholdsDetector(AbstractDetector):
         }
 
     @staticmethod
-    def has_input_outliers(trial_header: nimble.biomechanics.SubjectOnDiskTrial,
+    def has_input_outliers(marker_observations: List[Dict[str, np.ndarray]],
                            raw_force_plate_forces: List[List[np.ndarray]]) -> bool:
         """
         Check if the raw sensor input data has outliers, which would produce bad fits during the optimization steps.
         :param trial_header:
         :return:
         """
-        marker_observations: List[Dict[str, np.ndarray]] = trial_header.getMarkerObservations()
 
         for t in range(len(marker_observations)):
 
@@ -334,31 +335,26 @@ class ThresholdsDetector(AbstractDetector):
             return 'Treadmill'
         return 'Overground'
 
-    def estimate_missing_grfs(self, subject: nimble.biomechanics.SubjectOnDisk, trials: List[int]) -> List[List[nimble.biomechanics.MissingGRFReason]]:
-        osim: nimble.biomechanics.OpenSimFile = subject.readOpenSimFile(processingPass=0, ignoreGeometry=True)
-        skel: nimble.dynamics.Skeleton = osim.skeleton
+    def estimate_missing_grfs(self, subject: Subject, trial_segments: List[TrialSegment]) -> List[List[nimble.biomechanics.MissingGRFReason]]:
+        osim: nimble.biomechanics.OpenSimFile = subject.customOsim
+        skel: nimble.dynamics.Skeleton = subject.skeleton
         foot_markers: List[List[Tuple[nimble.dynamics.BodyNode, np.ndarray]]] = self.get_foot_marker_sets(osim)
-        foot_bodies = [skel.getBodyNode(body_name) for body_name in subject.getGroundForceBodies()]
-
-        if not subject.hasLoadedAllFrames():
-            subject.loadAllFrames(doNotStandardizeForcePlateData=True)
-        trial_protos = subject.getHeaderProto().getTrials()
+        foot_bodies = [skel.getBodyNode(body_name) for body_name in subject.footBodyNames]
 
         result: List[List[nimble.biomechanics.MissingGRFReason]] = []
-        for trial in trials:
-            trial_len = subject.getTrialLength(trial)
-            trial_proto = trial_protos[trial]
+        for trial_segment in trial_segments:
+            trial_len = len(trial_segment.marker_observations)
 
-            raw_force_plates: List[nimble.biomechanics.ForcePlate] = trial_proto.getForcePlates()
+            raw_force_plates: List[nimble.biomechanics.ForcePlate] = trial_segment.force_plates
             raw_force_plate_forces: List[List[np.ndarray]] = [plate.forces for plate in raw_force_plates]
             raw_force_plate_cops: List[List[np.ndarray]] = [plate.centersOfPressure for plate in raw_force_plates]
 
             # 1. Rapidly check if the entire trial is bad for some reason that can be checked cheaply, without running
             # the smoother first.
-            if np.mean(subject.getTrialMarkerRMSs(trial, 0)) > 0.08:
+            if trial_segment.kinematics_ik_error_report.averageRootMeanSquaredError > 0.08:
                 result.append([nimble.biomechanics.MissingGRFReason.tooHighMarkerRMS] * trial_len)
                 continue
-            elif self.has_input_outliers(trial_proto, raw_force_plate_forces):
+            elif self.has_input_outliers(trial_segment.marker_observations, raw_force_plate_forces):
                 result.append([nimble.biomechanics.MissingGRFReason.hasInputOutliers] * trial_len)
                 continue
             if len(raw_force_plate_forces) == 0:
@@ -366,9 +362,13 @@ class ThresholdsDetector(AbstractDetector):
                 continue
 
             # 2. Smooth the positions and velocities
-            dt = subject.getTrialTimestep(trial)
-            poses = trial_proto.getPasses()[1].getPoses()
-            vels = trial_proto.getPasses()[1].getVels()
+            dt = trial_segment.parent.timestep
+            poses = trial_segment.lowpass_poses
+            vels = np.zeros_like(poses)
+            for i in range(1, trial_len):
+                vels[:, i] = skel.getPositionDifferences(poses[:, i], poses[:, i - 1]) / dt
+            if vels.shape[1] > 1:
+                vels[:, 0] = vels[:, 1]
 
             # 3. Check if the trial has badly wrapped IK based on the smoothed velocities
             if np.max(np.abs(vels)) > 40.0:

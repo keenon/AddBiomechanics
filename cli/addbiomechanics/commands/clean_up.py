@@ -21,6 +21,7 @@ class CleanUpCommand(AbstractCommand):
         parser.add_argument('input_path', type=str)
         parser.add_argument('output_path', type=str)
         parser.add_argument('--skip-dynamics', action='store_true', help='Skip the dynamics optimization step')
+        parser.add_argument('--filter-non-dynamics-trials', action='store_true', help='Filter out trials that are not suitable for dynamics optimization')
 
     def run_local(self, args: argparse.Namespace) -> bool:
         if args.command != 'clean-up':
@@ -41,6 +42,7 @@ class CleanUpCommand(AbstractCommand):
         input_path_raw: str = os.path.abspath(args.input_path)
         output_path_raw: str = os.path.abspath(args.output_path)
         skip_dynamics: bool = args.skip_dynamics
+        filter_non_dynamics_trials: bool = args.filter_non_dynamics_trials
 
         input_output_pairs: List[Tuple[str, str]] = []
 
@@ -59,7 +61,7 @@ class CleanUpCommand(AbstractCommand):
                         if len(relative_path) == 0:
                             relative_path = filename
                         output_path = os.path.join(output_path_raw, relative_path)
-                        if os.path.exists(output_path):
+                        if os.path.exists(output_path) or os.path.exists(output_path + '.error'):
                             print('Skipping ' + input_path + ' because the output file already exists at ' + output_path)
                         else:
                             # Ensure the directory structure for the output path exists
@@ -71,8 +73,6 @@ class CleanUpCommand(AbstractCommand):
 
         print('Will clean-up '+str(len(input_output_pairs))+' file' + ("s" if len(input_output_pairs) > 1 else ""))
         for file_index, (input_path, output_path) in enumerate(input_output_pairs):
-            if 'Tan2022_Formatted_No_Arm/02/02' in input_path:
-                continue
             print('Reading SubjectOnDisk '+str(file_index+1)+'/'+str(len(input_output_pairs))+' at ' + input_path + '...')
 
             # Read all the contents from the current SubjectOnDisk
@@ -345,27 +345,28 @@ class CleanUpCommand(AbstractCommand):
                 acc_min_pass_proto.setAccelerationMinimizingForceRegularization(pose_regularization)
 
             if corrupt_file:
+                print('No good dynamics trials found')
+                # os.path.dirname gets the directory portion from the full path
+                directory = os.path.dirname(output_path)
+                # Create the directory structure, if it doesn't exist already
+                os.makedirs(directory, exist_ok=True)
+                with open(output_path + '.error', 'w') as f:
+                    f.write('No good dynamics trials found')
                 continue
 
             #######################################################################################################
             # Thresholds to decide if we should do the dynamics optimization, and if so which frames to keep
             #######################################################################################################
             detector = ThresholdsDetector()
-            missing_grf: List[List[bool]] = detector.estimate_missing_grfs(subject, list(range(num_trials)))
+            missing_grf: List[List[nimble.biomechanics.MissingGRFReason]] = detector.estimate_missing_grfs(subject, list(range(num_trials)))
             dynamics_trials: List[int] = []
             for i in range(num_trials):
-                all_missing = all(missing_grf[i])
-                if all_missing:
-                    print(f"Trial {i} has all missing GRFs. Skipping dynamics optimization.")
-                    # TODO: thread the actual reasons through
-                    missing_grf_reasons = [nimble.biomechanics.MissingGRFReason.manualReview for _ in range(subject.getTrialLength(i))]
-                    trial_protos[i].setMissingGRFReason(missing_grf_reasons)
+                trial_protos[i].setMissingGRFReason(missing_grf[i])
+                num_not_missing = sum([missing == nimble.biomechanics.MissingGRFReason.notMissingGRF for missing in missing_grf[i]])
+                print(f"Trial {i} has {num_not_missing} frames of good GRF data")
+                if num_not_missing < 50:
+                    print(f"Trial {i} has less than 50 frames of good GRF data. Skipping dynamics optimization.")
                     continue
-                # TODO: thread the actual reasons through
-                missing_grf_reasons = []
-                for t in range(subject.getTrialLength(i)):
-                    missing_grf_reasons.append(nimble.biomechanics.MissingGRFReason.notMissingGRF if not missing_grf[i][t] else nimble.biomechanics.MissingGRFReason.manualReview)
-                trial_protos[i].setMissingGRFReason(missing_grf_reasons)
                 # Run the dynamics optimization
                 print('Running dynamics optimization on trial '+str(i) + '/' + str(num_trials))
                 dynamics_trials.append(i)
@@ -373,6 +374,7 @@ class CleanUpCommand(AbstractCommand):
             #######################################################################################################
             # Actually run the dynamics fitting problem
             #######################################################################################################
+            any_good_dynamics_trials = False
             if len(dynamics_trials) > 0 and not skip_dynamics:
                 foot_bodies = [kinematics_skeleton.getBodyNode(body) for body in subject.getGroundForceBodies()]
 
@@ -594,12 +596,27 @@ class CleanUpCommand(AbstractCommand):
                                                                              trial_lowpass_force_plates[dynamics_trials[segment]])
                             trial_dynamics_data.setMarkerRMS(dynamics_ik_error_report.rootMeanSquaredError)
                             trial_dynamics_data.setMarkerMax(dynamics_ik_error_report.maxError)
+                            any_good_dynamics_trials = True
+                        if filter_non_dynamics_trials:
+                            keep_trials = []
+                            for trial in range(num_trials):
+                                if trial in dynamics_trials:
+                                    keep_trials.append(True)
+                                else:
+                                    keep_trials.append(False)
+                            subject.getHeaderProto().filterTrials(keep_trials)
 
             # os.path.dirname gets the directory portion from the full path
             directory = os.path.dirname(output_path)
             # Create the directory structure, if it doesn't exist already
             os.makedirs(directory, exist_ok=True)
-            # Now write the output back out to the new SubjectOnDisk file
-            print('Writing SubjectOnDisk to {}...'.format(output_path))
-            nimble.biomechanics.SubjectOnDisk.writeB3D(output_path, subject.getHeaderProto())
-            print('Done '+str(file_index+1)+'/'+str(len(input_output_pairs)))
+            if filter_non_dynamics_trials and not any_good_dynamics_trials:
+                print('No good dynamics trials found, not writing this subject to disk')
+                with open(output_path+'.error', 'w') as f:
+                    f.write('No good dynamics trials found')
+                continue
+            else:
+                # Now write the output back out to the new SubjectOnDisk file
+                print('Writing SubjectOnDisk to {}...'.format(output_path))
+                nimble.biomechanics.SubjectOnDisk.writeB3D(output_path, subject.getHeaderProto())
+                print('Done '+str(file_index+1)+'/'+str(len(input_output_pairs)))
