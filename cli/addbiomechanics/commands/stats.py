@@ -17,7 +17,7 @@ class StatsCommand(AbstractCommand):
             'file_path', help='The name of the file to view')
 
     def run_local(self, args: argparse.Namespace) -> bool:
-        if args.command != 'view':
+        if args.command != 'stats':
             return False
         file_path: str = args.file_path
 

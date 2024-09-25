@@ -16,6 +16,7 @@ from addbiomechanics.commands.transfer_reviews import TransferReviewsCommand
 from addbiomechanics.commands.create_b3d import CreateB3DCommand
 from addbiomechanics.commands.generate_credits import GenerateCreditsCommand
 from addbiomechanics.commands.clean_up import CleanUpCommand
+from addbiomechanics.commands.stats import StatsCommand
 
 
 PROD_DEPLOYMENT = {
@@ -56,7 +57,8 @@ def main():
                       DescribeDatasetCommand(),
                       TransferReviewsCommand(),
                       CreateB3DCommand(),
-                      CleanUpCommand()]
+                      CleanUpCommand(),
+                      StatsCommand()]
 
     commands = [LsCommand(),
                 DownloadCommand(),
