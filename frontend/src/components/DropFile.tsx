@@ -156,7 +156,10 @@ const DropFile = observer((props: DropFileProps) => {
           onDragLeave={() => {
             setIsDragActive(false);
           }}
-          onClick={handleFileSelect}>
+          onClick={(e) => {
+            //e.preventDefault();
+            handleFileSelect();
+          }}>
         <div className="dz-message needsclick" style={{
           whiteSpace: 'nowrap',
           overflow: 'hidden',
