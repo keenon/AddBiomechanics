@@ -59,26 +59,13 @@ def main():
         # write out the B3D file, but also can be used as our working object as we run subsequent pipeline steps.
         subject_on_disk: nimble.biomechanics.SubjectOnDisk = subject.create_subject_on_disk(href)
 
-        print('Writing B3D file encoded kinematics results', flush=True)
-        nimble.biomechanics.SubjectOnDisk.writeB3D(path + output_name + '_kinematics.b3d', subject_on_disk.getHeaderProto())
-
-        print('Trying to read back the kinematics results', flush=True)
-        read_back_subject: nimble.biomechanics.SubjectOnDisk = nimble.biomechanics.SubjectOnDisk(path + output_name + '_kinematics.b3d')
-        read_back_subject.loadAllFrames(doNotStandardizeForcePlateData=True)
-        print('Running acc minimizing pass on read back subject', flush=True)
-        add_acc_minimize_pass(read_back_subject)
-
-        print('Running acc minimizing pass on in memory subject', flush=True)
+        print('Running acc minimizing pass...', flush=True)
         add_acc_minimize_pass(subject_on_disk)
 
-        print('Writing B3D file encoded acc minimizing results', flush=True)
-        nimble.biomechanics.SubjectOnDisk.writeB3D(path + output_name + '_acc_min.b3d', subject_on_disk.getHeaderProto())
-
+        print('Detecting missing GRF frames...', flush=True)
         missing_grf_detection_pass(subject_on_disk)
 
-        print('Writing B3D file encoded GRF detection results', flush=True)
-        nimble.biomechanics.SubjectOnDisk.writeB3D(path + output_name + '_missing_grf.b3d', subject_on_disk.getHeaderProto())
-
+        print('Running dynamics pass...', flush=True)
         dynamics_pass(subject_on_disk)
 
         # # This will write out a folder of OpenSim results files.
@@ -89,9 +76,35 @@ def main():
         # print('Writing web visualizer results', flush=True)
         # subject.write_web_results(path)
 
-        # # This will write out a B3D file
+        # This will write out a B3D file
         print('Writing B3D file encoded results', flush=True)
         nimble.biomechanics.SubjectOnDisk.writeB3D(path + output_name + '.b3d', subject_on_disk.getHeaderProto())
+
+        # Check if we have any dynamics trials
+        pass_index = -1
+        for p in range(subject_on_disk.getNumProcessingPasses()):
+            if subject_on_disk.getProcessingPassType(p) == nimble.biomechanics.ProcessingPassType.DYNAMICS:
+                pass_index = p
+
+        num_dynamics_trials = 0
+        include_dynamics_trials = []
+        if pass_index > -1:
+            for trial in range(subject_on_disk.getNumTrials()):
+                if subject_on_disk.getTrialNumProcessingPasses(trial):
+                    include_dynamics_trials.append(True)
+                    num_dynamics_trials += 1
+                else:
+                    include_dynamics_trials.append(False)
+
+        if num_dynamics_trials > 0:
+            subject_on_disk.getHeaderProto().filterTrials(include_dynamics_trials)
+            nimble.biomechanics.SubjectOnDisk.writeB3D(path + output_name + '_dynamics_trials_only.b3d', subject_on_disk.getHeaderProto())
+        else:
+            print('No dynamics trials found', flush=True)
+            # Write a flag file to the output directory to indicate that no dynamics trials were found
+            with open(path + output_name + '_no_dynamics_trials.txt', 'w') as f:
+                f.write('No dynamics trials found')
+
     except Error as e:
         # If we failed, write a JSON file with the error information.
         print(e, flush=True)

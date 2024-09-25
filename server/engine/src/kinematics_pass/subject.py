@@ -628,12 +628,12 @@ class Subject(metaclass=ExceptionHandlingMeta):
         # 2. Create the trials
         for trial in self.trials:
             # Write out all the data from the trial segments
-            print('Writing B3D output for trial ' + trial.trial_name, flush=True)
+            print('Creating B3D output for trial ' + trial.trial_name, flush=True)
             for i in range(len(trial.segments)):
                 # 3. Create the passes, based on what we saw in the trials
                 segment = trial.segments[i]
                 if segment.kinematics_status == ProcessingStatus.FINISHED:
-                    print('Writing B3D output for trial ' + trial.trial_name + ' segment ' + str(i) + ' of ' + str(len(trial.segments)), flush=True)
+                    print('Creating B3D output for trial ' + trial.trial_name + ' segment ' + str(i) + ' of ' + str(len(trial.segments)), flush=True)
 
                     trial_data = subject_header.addTrial()
                     trial_data.setTimestep(trial.timestep)
