@@ -4,8 +4,8 @@ set -e
 #TEST_NAME="sprinter"
 #TEST_NAME="Moore2015"
 #TEST_NAME="Moore2015_trimmed"
-#TEST_NAME="AB06_split5"
-TEST_NAME="falisse2017_small"
+TEST_NAME="AB06_split5"
+#TEST_NAME="falisse2017_small"
 #TEST_NAME="Moore2015_trimmed"
 
 CURR_DIR=`pwd`

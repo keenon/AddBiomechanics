@@ -11,10 +11,7 @@ import os
 from nimblephysics.loader import absPath
 import json
 from exceptions import Error
-from kinematics_pass.subject import Subject, ProcessingStatus
-from passes.acc_minimize_pass_debug import add_acc_minimize_pass
-from passes.missing_grf_detection_pass import missing_grf_detection_pass
-from passes.dynamics_pass import dynamics_pass
+from subject import Subject, ProcessingStatus
 
 import numpy as np
 import nimblephysics as nimble
@@ -55,56 +52,43 @@ def main():
         # segments that have not yet thrown an error during loading.
         print('Running kinematics fit', flush=True)
         subject.run_kinematics_fit(DATA_FOLDER_PATH)
-        # This will create a B3D object in memory for the current fit of the subject. This can be used at any point to
-        # write out the B3D file, but also can be used as our working object as we run subsequent pipeline steps.
-        subject_on_disk: nimble.biomechanics.SubjectOnDisk = subject.create_subject_on_disk(href)
 
-        print('Running acc minimizing pass...', flush=True)
-        add_acc_minimize_pass(subject_on_disk)
+        # This plausibly skips kinematics, with placeholder 0s for (most of) the necessary kinematics results.
+        # for trial in subject.trials:
+        #     for segment in trial.segments:
+        #         segment.kinematics_status = ProcessingStatus.FINISHED
+        #         num_steps = len(segment.marker_observations)
+        #         segment.kinematics_poses = np.zeros((subject.skeleton.getNumDofs(), num_steps))
+        #         dummy_results: nimble.biomechanics.MarkerInitialization = nimble.biomechanics.MarkerInitialization()
+        #         dummy_results.poses = segment.kinematics_poses
+        #         dummy_results.updatedMarkerMap = subject.markerSet
+        #         dummy_results.groupScales = subject.skeleton.getGroupScales()
+        #         dummy_results.joints = []
+        #         dummy_results.jointWeights = np.zeros(0)
+        #         dummy_results.axisWeights = np.zeros(0)
+        #         dummy_results.jointAxis = np.zeros((0, num_steps))
+        #         dummy_results.jointCenters = np.zeros((0, num_steps))
+        #         segment.marker_fitter_result = dummy_results
 
-        print('Detecting missing GRF frames...', flush=True)
-        missing_grf_detection_pass(subject_on_disk)
+        # This will lowpass filter all the input kinematics data
+        print('Running lowpass filter', flush=True)
+        subject.lowpass_filter()
 
-        print('Running dynamics pass...', flush=True)
-        dynamics_pass(subject_on_disk)
-
-        # # This will write out a folder of OpenSim results files.
-        # print('Writing OpenSim results', flush=True)
-        # subject.write_opensim_results(path + output_name,
-        #                               DATA_FOLDER_PATH)
-        # # This will write out all the results to display in the web UI back into the existing folder structure
-        # print('Writing web visualizer results', flush=True)
-        # subject.write_web_results(path)
-
+        # The dynamics fit will fit the dynamics parameters of the subject, to all the trial segments that have not yet
+        # thrown an error during loading or kinematics fitting.
+        if not subject.disableDynamics:
+            print('Running dynamics fit', flush=True)
+            subject.run_dynamics_fit()
+        # This will write out a folder of OpenSim results files.
+        print('Writing OpenSim results', flush=True)
+        subject.write_opensim_results(path + output_name,
+                                      DATA_FOLDER_PATH)
+        # This will write out all the results to display in the web UI back into the existing folder structure
+        print('Writing web visualizer results', flush=True)
+        subject.write_web_results(path)
         # This will write out a B3D file
         print('Writing B3D file encoded results', flush=True)
-        nimble.biomechanics.SubjectOnDisk.writeB3D(path + output_name + '.b3d', subject_on_disk.getHeaderProto())
-
-        # Check if we have any dynamics trials
-        pass_index = -1
-        for p in range(subject_on_disk.getNumProcessingPasses()):
-            if subject_on_disk.getProcessingPassType(p) == nimble.biomechanics.ProcessingPassType.DYNAMICS:
-                pass_index = p
-
-        num_dynamics_trials = 0
-        include_dynamics_trials = []
-        if pass_index > -1:
-            for trial in range(subject_on_disk.getNumTrials()):
-                if subject_on_disk.getTrialNumProcessingPasses(trial):
-                    include_dynamics_trials.append(True)
-                    num_dynamics_trials += 1
-                else:
-                    include_dynamics_trials.append(False)
-
-        if num_dynamics_trials > 0:
-            subject_on_disk.getHeaderProto().filterTrials(include_dynamics_trials)
-            nimble.biomechanics.SubjectOnDisk.writeB3D(path + output_name + '_dynamics_trials_only.b3d', subject_on_disk.getHeaderProto())
-        else:
-            print('No dynamics trials found', flush=True)
-            # Write a flag file to the output directory to indicate that no dynamics trials were found
-            with open(path + output_name + '_no_dynamics_trials.txt', 'w') as f:
-                f.write('No dynamics trials found')
-
+        subject.write_b3d_file(path + output_name + '.b3d', path + output_name, href)
     except Error as e:
         # If we failed, write a JSON file with the error information.
         print(e, flush=True)

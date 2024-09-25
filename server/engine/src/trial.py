@@ -429,7 +429,7 @@ class TrialSegment:
             self.manually_scaled_ik_poses,
             self.marker_observations)
 
-    def lowpass_filter(self, skel: nimble.dynamics.Skeleton, filter_type: str = 'lowpass', lowpass_hz: float = 30.0, ignore_joint_limits: bool = False) -> bool:
+    def lowpass_filter(self, skel: nimble.dynamics.Skeleton, lowpass_hz: float = 30.0) -> bool:
         # 1. Setup the lowpass filter
         b, a = butter(2, lowpass_hz, 'low', fs=1 / self.parent.timestep)
 
@@ -447,37 +447,23 @@ class TrialSegment:
         for i in range(1, self.lowpass_poses.shape[1]):
             unwrapped_pose = skel.unwrapPositionToNearest(self.lowpass_poses[:, i], self.lowpass_poses[:, i - 1])
             if np.any(unwrapped_pose < lower_bound) or np.any(unwrapped_pose > upper_bound):
-                if not ignore_joint_limits:
-                    dofs_out_of_bounds: List[str] = []
-                    for d in range(len(unwrapped_pose)):
-                        if unwrapped_pose[d] > upper_bound[d] or unwrapped_pose[d] < lower_bound[d]:
-                            dofs_out_of_bounds.append(skel.getDofByIndex(d).getName())
-                    print(f'ERROR: Unwrapped joint pose is out of bounds at timestep {i} of {self.lowpass_poses.shape[1]}. '
-                          f'This means that we are trying to lowpass filter a joint angle that has wrapped around (for '
-                          f'example, from 2PI back to 0, or from PI to -PI), and in "unwrapping" the joint angle to be '
-                          f'continuous with the previous angle has caused it to go past the bound. Error joints are '+str(dofs_out_of_bounds))
-                    self.error = True
-                    self.error_msg = f'Joint angle unwrapping caused out of bounds error on {dofs_out_of_bounds}'
-                    break
+                dofs_out_of_bounds: List[str] = []
+                for d in range(len(unwrapped_pose)):
+                    if unwrapped_pose[d] > upper_bound[d] or unwrapped_pose[d] < lower_bound[d]:
+                        dofs_out_of_bounds.append(skel.getDofByIndex(d).getName())
+                print(f'ERROR: Unwrapped joint pose is out of bounds at timestep {i} of {self.lowpass_poses.shape[1]}. '
+                      f'This means that we are trying to lowpass filter a joint angle that has wrapped around (for '
+                      f'example, from 2PI back to 0, or from PI to -PI), and in "unwrapping" the joint angle to be '
+                      f'continuous with the previous angle has caused it to go past the bound. Error joints are '+str(dofs_out_of_bounds))
+                self.error = True
+                self.error_msg = f'Joint angle unwrapping caused out of bounds error on {dofs_out_of_bounds}'
+                break
             self.lowpass_poses[:, i] = unwrapped_pose
         if self.error:
             return False
 
-        # Use an acceleration minimizer to clean up the data
-        dt = self.timestamps[1] - self.timestamps[0]
-        acc_weight = 1.0 / (dt * dt)
-        regularization_weight = 1000.0
-
         # 2.2. Then actually run the lowpass filter
-        if filter_type == 'lowpass':
-            self.lowpass_poses = filtfilt(b, a, self.lowpass_poses, axis=1, padtype='constant')
-        elif filter_type == 'acc-min':
-            acc_minimizer = nimble.utils.AccelerationMinimizer(self.lowpass_poses.shape[1], acc_weight, regularization_weight)
-            for i in range(self.lowpass_poses.shape[0]):
-                self.lowpass_poses[i, :] = acc_minimizer.minimize(self.lowpass_poses[i, :])
-        else:
-            raise ValueError(f'Unknown filter type {filter_type}, must be "lowpass" or "acc-min"')
-
+        self.lowpass_poses = filtfilt(b, a, self.lowpass_poses, axis=1, padtype='constant')
         self.marker_fitter_result.poses = self.lowpass_poses
 
         force_plate_norms: List[np.ndarray] = [np.zeros(trial_len) for _ in range(len(self.force_plates))]
@@ -500,52 +486,28 @@ class TrialSegment:
                         last_nonzero = t
                 else:
                     if last_nonzero >= 0:
-                        non_zero_segments.append((last_nonzero, t))
+                        non_zero_segments.append((last_nonzero, t - 1))
                         last_nonzero = -1
                 force_matrix[:, t] = self.force_plate_raw_forces[i][t]
                 cop_matrix[:, t] = self.force_plate_raw_cops[i][t]
                 moment_matrix[:, t] = self.force_plate_raw_moments[i][t]
             if last_nonzero >= 0:
-                non_zero_segments.append((last_nonzero, trial_len))
+                non_zero_segments.append((last_nonzero, trial_len - 1))
 
             # 4.2. Lowpass filter each non-zero segment
             for start, end in non_zero_segments:
-                print(f"Filtering force plate {i} on non-zero range [{start}, {end}]")
+                # print(f"Filtering force plate {i} on non-zero range [{start}, {end}]")
                 if end - start < 10:
-                    print(" - Skipping non-zero segment because it's too short. Zeroing instead")
+                    # print(" - Skipping non-zero segment because it's too short. Zeroing instead")
                     for t in range(start, end):
                         self.force_plate_raw_forces[i][t] = np.zeros(3)
                         self.force_plate_raw_cops[i][t] = np.zeros(3)
                         self.force_plate_raw_moments[i][t] = np.zeros(3)
                         force_norms[t] = 0.0
                 else:
-                    if filter_type == 'lowpass':
-                        force_matrix[:, start:end] = filtfilt(b, a, force_matrix[:, start:end], padtype='constant')
-                        cop_matrix[:, start:end] = filtfilt(b, a, cop_matrix[:, start:end], padtype='constant')
-                        moment_matrix[:, start:end] = filtfilt(b, a, moment_matrix[:, start:end], padtype='constant')
-                    elif filter_type == 'acc-min':
-                        start_weight = 1e5 if start > 0 else 0.0
-                        end_weight = 1e5 if end < trial_len else 0.0
-                        acc_minimizer = nimble.utils.AccelerationMinimizer(end - start,
-                                                                           acc_weight,
-                                                                           regularization_weight,
-                                                                           startPositionZeroWeight=start_weight,
-                                                                           endPositionZeroWeight=end_weight,
-                                                                           startVelocityZeroWeight=start_weight,
-                                                                           endVelocityZeroWeight=end_weight)
-                        cop_acc_minimizer = nimble.utils.AccelerationMinimizer(end - start,
-                                                                               acc_weight,
-                                                                               regularization_weight)
-                        for j in range(3):
-                            smoothed_force = acc_minimizer.minimize(force_matrix[j, start:end])
-                            if np.sum(smoothed_force) != 0:
-                                smoothed_force *= np.sum(force_matrix[j, start:end]) / np.sum(smoothed_force)
-                            force_matrix[j, start:end] = smoothed_force
-                            cop_matrix[j, start:end] = cop_acc_minimizer.minimize(cop_matrix[j, start:end])
-                            smoothed_moment = acc_minimizer.minimize(moment_matrix[j, start:end])
-                            if np.sum(smoothed_moment) != 0:
-                                smoothed_moment *= np.sum(moment_matrix[j, start:end]) / np.sum(smoothed_moment)
-                            moment_matrix[j, start:end] = smoothed_moment
+                    force_matrix[:, start:end] = filtfilt(b, a, force_matrix[:, start:end], padtype='constant')
+                    cop_matrix[:, start:end] = filtfilt(b, a, cop_matrix[:, start:end], padtype='constant')
+                    moment_matrix[:, start:end] = filtfilt(b, a, moment_matrix[:, start:end], padtype='constant')
                     for t in range(start, end):
                         self.force_plate_raw_forces[i][t] = force_matrix[:, t]
                         self.force_plate_raw_cops[i][t] = cop_matrix[:, t]
