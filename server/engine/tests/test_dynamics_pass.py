@@ -12,7 +12,7 @@ TEST_DATA_PATH = os.path.join(TESTS_PATH, 'data')
 
 
 class TestDynamicsPass(unittest.TestCase):
-    def test_acc_minimize_pass(self):
+    def test_acceleration_minimizing_pass(self):
         path = os.path.join(TEST_DATA_PATH, 'b3ds', 'falisse2017_small.b3d')
         subject = nimble.biomechanics.SubjectOnDisk(path)
         subject.loadAllFrames(doNotStandardizeForcePlateData=True)
