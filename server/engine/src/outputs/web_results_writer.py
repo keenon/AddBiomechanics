@@ -305,8 +305,6 @@ def write_web_results(
     dynamics_osim: Optional[nimble.biomechanics.OpenSimFile] = None
     dynamics_pass_index = -1
 
-    print('Reading kinematics and dynamics OpenSim files...', flush=True)
-    print('Using geometry folder="' + geometry_folder+'"', flush=True)
     for p in range(subject.getNumProcessingPasses()):
         if subject.getProcessingPassType(p) == nimble.biomechanics.ProcessingPassType.KINEMATICS:
             kinematics_osim = subject.readOpenSimFile(p, geometryFolder=geometry_folder)
