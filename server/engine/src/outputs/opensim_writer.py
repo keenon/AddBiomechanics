@@ -3,214 +3,181 @@ import nimblephysics as nimble
 import shutil
 from typing import List, Optional
 from plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
+import numpy as np
 
 KINEMATIC_OSIM_NAME = 'match_markers_but_ignore_physics.osim'
 DYNAMICS_OSIM_NAME = 'match_markers_and_physics.osim'
 
 
-def write_opensim_results(self,
-                          results_path: str,
-                          data_folder_path: str):
-    if not results_path.endswith('/'):
-        results_path += '/'
-    if not data_folder_path.endswith('/'):
-        data_folder_path += '/'
+def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
+                          output_folder: str,
+                          original_geometry_folder_path: Optional[str] = None):
+    if not output_folder.endswith('/'):
+        output_folder += '/'
 
     print('Writing the OpenSim result files...', flush=True)
 
-    # 9.1. Create result directories.
-    if not os.path.exists(results_path):
-        os.mkdir(results_path)
-    if not os.path.exists(results_path + 'IK'):
-        os.mkdir(results_path + 'IK')
-    if not os.path.exists(results_path + 'ID'):
-        os.mkdir(results_path + 'ID')
-    if not os.path.exists(results_path + 'C3D'):
-        os.mkdir(results_path + 'C3D')
-    if not os.path.exists(results_path + 'Models'):
-        os.mkdir(results_path + 'Models')
-    if self.exportMJCF and not os.path.exists(results_path + 'MuJoCo'):
-        os.mkdir(results_path + 'MuJoCo')
-    if self.exportSDF and not os.path.exists(results_path + 'SDF'):
-        os.mkdir(results_path + 'SDF')
-    if not os.path.exists(results_path + 'MarkerData'):
-        os.mkdir(results_path + 'MarkerData')
-    if os.path.exists(self.subject_path + 'unscaled_generic.osim'):
-        shutil.copyfile(self.subject_path + 'unscaled_generic.osim', results_path +
-                        'Models/unscaled_generic.osim')
+    # Create result directories.
+    if not os.path.exists(output_folder):
+        os.mkdir(output_folder)
+    if not os.path.exists(output_folder + 'IK'):
+        os.mkdir(output_folder + 'IK')
+    if not os.path.exists(output_folder + 'ID'):
+        os.mkdir(output_folder + 'ID')
+    if not os.path.exists(output_folder + 'Models'):
+        os.mkdir(output_folder + 'Models')
+    if not os.path.exists(output_folder + 'MarkerData'):
+        os.mkdir(output_folder + 'MarkerData')
+
+    # Write the OpenSim model file to the output folder.
+    model_text = subject.getOpensimFileText(subject.getNumProcessingPasses()-1)
+    with open(output_folder + 'Models/unscaled_generic.osim', 'w') as f:
+        f.write(model_text)
 
     osim_path: str = 'Models/' + KINEMATIC_OSIM_NAME
 
-    # Create the kinematics model file
-    if self.kinematics_skeleton is not None:
-        osim_path = 'Models/' + KINEMATIC_OSIM_NAME
-        self.scale_osim(
-            self.subject_path + 'unscaled_generic.osim',
-            results_path + osim_path,
-            self.kinematics_skeleton,
-            self.kinematics_markers)
-
-    # Create the dynamics model file
-    if self.dynamics_skeleton is not None:
-        osim_path = 'Models/' + DYNAMICS_OSIM_NAME
-        self.scale_osim(
-            self.subject_path + 'unscaled_generic.osim',
-            results_path + osim_path,
-            self.dynamics_skeleton,
-            self.dynamics_markers)
-
-    # Copy over the manually scaled model file, if it exists.
-    if os.path.exists(self.subject_path + 'manually_scaled.osim'):
-        shutil.copyfile(self.subject_path + 'manually_scaled.osim', results_path + 'Models/manually_scaled.osim')
-
     # Copy over the geometry files, so the model can be loaded directly in OpenSim without chasing down
     # Geometry files somewhere else.
-    shutil.copytree(data_folder_path + 'OriginalGeometry', results_path + 'Models/Geometry')
+    if original_geometry_folder_path is not None:
+        shutil.copytree(original_geometry_folder_path, output_folder + 'Models/Geometry')
 
-    marker_names: List[str] = []
-    for k in self.kinematics_markers:
-        marker_names.append(k)
+    # Load the OpenSim file
+    osim = subject.readOpenSimFile(subject.getNumProcessingPasses()-1, ignoreGeometry=True)
+    marker_names: List[str] = list(osim.markersMap.keys())
 
     # 9.9. Write the results to disk.
-    for trial in self.trials:
-        print('Writing OpenSim output for trial ' + trial.trial_name, flush=True)
+    trial_protos = subject.getHeaderProto().getTrials()
+    for i in range(subject.getNumTrials()):
+        trial_proto = trial_protos[i]
+        trial_name = subject.getTrialName(i)
+        print('Writing OpenSim output for trial ' + trial_name, flush=True)
 
-        # Write out the original C3D file, if present
-        print('Copying original C3D file for trial ' + trial.trial_name + '...', flush=True)
-        c3d_fpath = f'{results_path}C3D/{trial.trial_name}.c3d'
-        if trial.c3d_file is not None:
-            shutil.copyfile(trial.trial_path + 'markers.c3d', c3d_fpath)
-        print('Copied', flush=True)
+        trial_passes = trial_proto.getPasses()
+        any_dynamics_passes = any([p.getType() == nimble.biomechanics.ProcessingPassType.DYNAMICS for p in trial_passes])
+        any_kinematics_passes = any([p.getType() == nimble.biomechanics.ProcessingPassType.DYNAMICS for p in trial_passes])
 
-        # Write out all the data from the trial segments
-        for i in range(len(trial.segments)):
-            print('Writing OpenSim output for trial ' + trial.trial_name + ' segment ' + str(i) + ' of ' + str(
-                len(trial.segments)), flush=True)
-            ik_fpath = ''
-            id_fpath = ''
-            grf_fpath = ''
-            grf_raw_fpath = ''
-            segment = trial.segments[i]
-            segment_name = trial.trial_name + '_segment_' + str(i)
-            # Write out the IK for the manually scaled skeleton, if appropriate
-            if segment.manually_scaled_ik_poses is not None and self.goldOsim is not None:
-                nimble.biomechanics.OpenSimParser.saveMot(
-                    self.goldOsim.skeleton,
-                    results_path + 'IK/' + segment_name + '_manual_ik.mot',
-                    segment.timestamps,
-                    segment.manually_scaled_ik_poses)
-                nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
-                    trial.trial_name,
-                    marker_names,
-                    '../Models/manually_scaled.osim',
-                    f'../MarkerData/{segment_name}.trc',
-                    f'{segment_name}_ik_on_manual_scaling_by_opensim.mot',
-                    f'{results_path}IK/{segment_name}_ik_on_manually_scaled_setup.xml')
+        ik_fpath = ''
+        id_fpath = ''
+        grf_fpath = ''
+        grf_raw_fpath = ''
+        # Write out the result data files.
+        result_ik: Optional[nimble.biomechanics.IKErrorReport] = None
+        if any_dynamics_passes:
+            last_pass = trial_passes[-1]
+            poses = last_pass.getPoses()
+            taus = last_pass.getTaus()
+            marker_observations = trial_proto.getMarkerObservations()
+            print(f'Writing OpenSim ID file, shape={str(poses.shape)}', flush=True)
+            timestamps = np.array(list(range(poses.shape[1]))) * subject.getTrialTimestep(i)
 
-            # Write out the result data files.
-            result_ik: Optional[nimble.biomechanics.IKErrorReport] = None
-            if segment.dynamics_status == ProcessingStatus.FINISHED:
-                assert (segment.dynamics_poses is not None)
-                assert (segment.dynamics_taus is not None)
-                # Write out the inverse kinematics results,
-                ik_fpath = f'{results_path}IK/{segment_name}_ik.mot'
-                print(f'Writing OpenSim {ik_fpath} file, shape={str(segment.dynamics_poses.shape)}', flush=True)
-                nimble.biomechanics.OpenSimParser.saveMot(self.skeleton, ik_fpath, segment.timestamps,
-                                                          segment.dynamics_poses)
-                # Write the inverse dynamics results.
-                id_fpath = f'{results_path}ID/{segment_name}_id.sto'
-                nimble.biomechanics.OpenSimParser.saveIDMot(self.skeleton, id_fpath, segment.timestamps,
-                                                            segment.dynamics_taus)
-                # Create the IK error report for this segment
-                result_ik = nimble.biomechanics.IKErrorReport(
-                    self.skeleton, self.fitMarkers, segment.dynamics_poses, segment.marker_observations)
-                # Write out the OpenSim ID files:
-                grf_fpath = f'{results_path}ID/{segment_name}_grf.mot'
-                grf_raw_fpath = f'{results_path}ID/{segment_name}_grf_raw.mot'
+            # Write out the inverse kinematics results,
+            ik_fpath = f'{output_folder}IK/{trial_name}_ik.mot'
+            print(f'Writing OpenSim {ik_fpath} file, shape={str(poses.shape)}', flush=True)
+            nimble.biomechanics.OpenSimParser.saveMot(osim.skeleton,
+                                                      ik_fpath,
+                                                      timestamps,
+                                                      poses)
+            # Write the inverse dynamics results.
+            id_fpath = f'{output_folder}ID/{trial_name}_id.sto'
+            nimble.biomechanics.OpenSimParser.saveIDMot(osim.skeleton,
+                                                        id_fpath,
+                                                        timestamps,
+                                                        taus)
+            # Create the IK error report for this segment
+            result_ik = nimble.biomechanics.IKErrorReport(
+                osim.skeleton,
+                osim.markersMap,
+                poses,
+                marker_observations)
+            # Write out the OpenSim ID files:
+            grf_fpath = f'{output_folder}ID/{trial_name}_grf.mot'
+            grf_raw_fpath = f'{output_folder}ID/{trial_name}_grf_raw.mot'
 
-                nimble.biomechanics.OpenSimParser.saveProcessedGRFMot(
-                    grf_fpath,
-                    segment.timestamps,
-                    [self.skeleton.getBodyNode(name) for name in self.footBodyNames],
-                    self.skeleton,
-                    segment.dynamics_poses,
-                    segment.force_plates,
-                    segment.foot_body_wrenches)
-                nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsProcessedForcesXMLFile(
-                    segment_name,
-                    [self.skeleton.getBodyNode(name) for name in self.footBodyNames],
-                    segment_name + '_grf.mot',
-                    results_path + 'ID/' + segment_name + '_external_forces.xml')
-                nimble.biomechanics.OpenSimParser.saveRawGRFMot(grf_fpath, segment.timestamps, segment.force_plates)
-                nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
-                    segment_name,
-                    self.skeleton,
-                    segment.dynamics_poses,
-                    segment.force_plates,
-                    segment_name + '_grf.mot',
-                    results_path + 'ID/' + segment_name + '_external_forces.xml')
-                nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
-                    segment_name,
-                    '../Models/' + DYNAMICS_OSIM_NAME,
-                    '../IK/' + segment_name + '_ik.mot',
-                    segment_name + '_external_forces.xml',
-                    segment_name + '_id.sto',
-                    segment_name + '_id_body_forces.sto',
-                    results_path + 'ID/' + segment_name + '_id_setup.xml',
-                    min(segment.timestamps), max(segment.timestamps))
+            force_plates = last_pass.getProcessedForcePlates()
 
-            elif segment.kinematics_status == ProcessingStatus.FINISHED:
-                assert (segment.kinematics_poses is not None)
-                # Write out the inverse kinematics results,
-                ik_fpath = f'{results_path}IK/{segment_name}_ik.mot'
-                print(f'Writing OpenSim {ik_fpath} file, shape={str(segment.kinematics_poses.shape)}', flush=True)
-                nimble.biomechanics.OpenSimParser.saveMot(self.skeleton, ik_fpath, segment.timestamps,
-                                                          segment.kinematics_poses)
-                # Create the IK error report for this segment
-                result_ik = nimble.biomechanics.IKErrorReport(
-                    self.skeleton, self.fitMarkers, segment.kinematics_poses, segment.marker_observations)
+            nimble.biomechanics.OpenSimParser.saveProcessedGRFMot(
+                grf_fpath,
+                timestamps,
+                [osim.skeleton.getBodyNode(name) for name in subject.getGroundForceBodies()],
+                osim.skeleton,
+                poses,
+                force_plates,
+                last_pass.getGroundBodyWrenches())
+            nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsProcessedForcesXMLFile(
+                trial_name,
+                [osim.skeleton.getBodyNode(name) for name in subject.getGroundForceBodies()],
+                trial_name + '_grf.mot',
+                output_folder + 'ID/' + trial_name + '_external_forces.xml')
+            nimble.biomechanics.OpenSimParser.saveRawGRFMot(grf_fpath, timestamps, force_plates)
+            nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
+                trial_name,
+                osim.skeleton,
+                poses,
+                force_plates,
+                trial_name + '_grf.mot',
+                output_folder + 'ID/' + trial_name + '_external_forces.xml')
+            nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
+                trial_name,
+                '../Models/' + DYNAMICS_OSIM_NAME,
+                '../IK/' + trial_name + '_ik.mot',
+                trial_name + '_external_forces.xml',
+                trial_name + '_id.sto',
+                trial_name + '_id_body_forces.sto',
+                output_folder + 'ID/' + trial_name + '_id_setup.xml',
+                min(timestamps), max(timestamps))
 
-            if result_ik is not None:
-                # Save OpenSim setup files to make it easy to (re)run IK on the results in OpenSim
-                nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
-                    segment_name,
-                    marker_names,
-                    f'../{osim_path}',
-                    f'../MarkerData/{segment_name}.trc',
-                    f'{segment_name}_ik_by_opensim.mot',
-                    f'{results_path}IK/{segment_name}_ik_setup.xml')
+        elif any_kinematics_passes:
+            # Write out the inverse kinematics results,
+            ik_fpath = f'{output_folder}IK/{trial_name}_ik.mot'
+            poses = last_pass.getPoses()
+            marker_observations = trial_proto.getMarkerObservations()
+            timestamps = np.array(range(len(poses))) * subject.getTrialTimestep(i)
+            print(f'Writing OpenSim {ik_fpath} file, shape={str(poses.shape)}', flush=True)
+            nimble.biomechanics.OpenSimParser.saveMot(osim.skeleton, ik_fpath, timestamps,
+                                                      poses)
+            # Create the IK error report for this segment
+            result_ik = nimble.biomechanics.IKErrorReport(
+                osim.skeleton, osim.markersMap, poses, marker_observations)
 
-            if segment.marker_observations is not None:
-                # Write out the marker trajectories.
-                markers_fpath = f'{results_path}MarkerData/{segment_name}.trc'
-                print('Saving TRC for trial ' + trial.trial_name + ' segment ' + str(i), flush=True)
-                print(len(segment.marker_observations))
-                print(len(segment.timestamps))
-                nimble.biomechanics.OpenSimParser.saveTRC(
-                    markers_fpath, segment.timestamps, segment.marker_observations)
-                print('Saved', flush=True)
+        if result_ik is not None:
+            # Save OpenSim setup files to make it easy to (re)run IK on the results in OpenSim
+            nimble.biomechanics.OpenSimParser.saveOsimInverseKinematicsXMLFile(
+                trial_name,
+                marker_names,
+                f'../{osim_path}',
+                f'../MarkerData/{trial_name}.trc',
+                f'{trial_name}_ik_by_opensim.mot',
+                f'{output_folder}IK/{trial_name}_ik_setup.xml')
 
-            # Write out the marker errors.
-            if result_ik is not None:
-                marker_errors_fpath = f'{results_path}IK/{segment_name}_marker_errors.csv'
-                result_ik.saveCSVMarkerErrorReport(marker_errors_fpath)
+        if marker_observations is not None:
+            # Write out the marker trajectories.
+            markers_fpath = f'{output_folder}MarkerData/{trial_name}.trc'
+            print('Saving TRC for trial ' + trial_name, flush=True)
+            nimble.biomechanics.OpenSimParser.saveTRC(
+                markers_fpath, timestamps, marker_observations)
+            print('Saved', flush=True)
 
-            # 9.9.11. Plot results.
-            print(f'Plotting results for trial segment {segment_name}')
-            if ik_fpath and os.path.exists(ik_fpath):
-                plot_ik_results(ik_fpath)
-                plot_marker_errors(marker_errors_fpath, ik_fpath)
+        # Write out the marker errors.
+        if result_ik is not None:
+            marker_errors_fpath = f'{output_folder}IK/{trial_name}_marker_errors.csv'
+            result_ik.saveCSVMarkerErrorReport(marker_errors_fpath)
 
-            if id_fpath and os.path.exists(id_fpath):
-                plot_id_results(id_fpath)
+        # 9.9.11. Plot results.
+        print(f'Plotting results for trial {trial_name}')
+        if ik_fpath and os.path.exists(ik_fpath):
+            plot_ik_results(ik_fpath)
+            plot_marker_errors(marker_errors_fpath, ik_fpath)
 
-            if grf_fpath and os.path.exists(grf_fpath):
-                plot_grf_data(grf_fpath)
+        if id_fpath and os.path.exists(id_fpath):
+            plot_id_results(id_fpath)
 
-            if os.path.exists(grf_raw_fpath):
-                plot_grf_data(grf_raw_fpath)
+        if grf_fpath and os.path.exists(grf_fpath):
+            plot_grf_data(grf_fpath)
+
+        if os.path.exists(grf_raw_fpath):
+            plot_grf_data(grf_raw_fpath)
 
     print('Zipping up OpenSim files...', flush=True)
-    shutil.make_archive(results_path, 'zip', results_path, results_path)
+    shutil.make_archive(output_folder, 'zip', output_folder, output_folder)
     print('Finished outputting OpenSim files.', flush=True)
 

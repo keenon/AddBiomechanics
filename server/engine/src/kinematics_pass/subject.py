@@ -641,6 +641,10 @@ class Subject(metaclass=ExceptionHandlingMeta):
                     trial_data.setOriginalTrialName(trial.trial_name)
                     trial_data.setName(trial.trial_name + '_segment_' + str(i))
                     trial_data.setSplitIndex(i)
+                    trial_data.setOriginalTrialStartFrame(segment.start)
+                    trial_data.setOriginalTrialStartTime(segment.timestamps[0] if len(segment.timestamps) > 0 else 0)
+                    trial_data.setOriginalTrialEndFrame(segment.end)
+                    trial_data.setOriginalTrialEndTime(segment.timestamps[-1] if len(segment.timestamps) > 0 else 0)
                     trial_data.setMarkerNamesGuessed(False)
                     trial_data.setMarkerObservations(segment.marker_observations)
                     # TODO: Acc, Gyro, EMG, Exo

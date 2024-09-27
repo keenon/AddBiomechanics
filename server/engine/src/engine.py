@@ -11,10 +11,12 @@ import os
 from nimblephysics.loader import absPath
 import json
 from exceptions import Error
-from kinematics_pass.subject import Subject, ProcessingStatus
-from passes.acc_minimize_pass_debug import add_acc_minimize_pass
-from passes.missing_grf_detection_pass import missing_grf_detection_pass
+from kinematics_pass.subject import Subject
+from passes.acc_minimize_pass import add_acc_minimize_pass
+from passes.missing_grf_detection import missing_grf_detection
 from passes.dynamics_pass import dynamics_pass
+from outputs.opensim_writer import write_opensim_results
+from outputs.web_results_writer import write_web_results
 
 import numpy as np
 import nimblephysics as nimble
@@ -63,18 +65,18 @@ def main():
         add_acc_minimize_pass(subject_on_disk)
 
         print('Detecting missing GRF frames...', flush=True)
-        missing_grf_detection_pass(subject_on_disk)
+        missing_grf_detection(subject_on_disk)
 
         print('Running dynamics pass...', flush=True)
         dynamics_pass(subject_on_disk)
 
         # # This will write out a folder of OpenSim results files.
-        # print('Writing OpenSim results', flush=True)
-        # subject.write_opensim_results(path + output_name,
-        #                               DATA_FOLDER_PATH)
+        print('Writing OpenSim results', flush=True)
+        write_opensim_results(subject_on_disk, path + output_name, GEOMETRY_FOLDER_PATH)
         # # This will write out all the results to display in the web UI back into the existing folder structure
-        # print('Writing web visualizer results', flush=True)
+        print('Writing web visualizer results', flush=True)
         # subject.write_web_results(path)
+        write_web_results(subject_on_disk, GEOMETRY_FOLDER_PATH, path)
 
         # This will write out a B3D file
         print('Writing B3D file encoded results', flush=True)

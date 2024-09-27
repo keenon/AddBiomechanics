@@ -1,6 +1,6 @@
 import json
 import unittest
-from trial import Trial, TrialSegment
+from kinematics_pass.trial import Trial, TrialSegment
 import numpy as np
 import nimblephysics as nimble
 from typing import List, Dict, Any
@@ -289,10 +289,3 @@ class TestTrial(unittest.TestCase):
         self.assertEqual(False, trial.error)
         trial.split_segments()
         self.assertEqual(1, len(trial.segments))
-
-    def test_get_trial_json(self):
-        trial = Trial()
-        segment = TrialSegment(trial, 1, 2)
-        results: Dict[str, Any] = segment.get_segment_results_json()
-        self.assertEqual(1, results['start_frame'])
-        self.assertEqual(2, results['end_frame'])
