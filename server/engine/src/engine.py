@@ -22,7 +22,7 @@ import numpy as np
 import nimblephysics as nimble
 
 # Global paths to the geometry and data folders.
-GEOMETRY_FOLDER_PATH = absPath('Geometry')
+GEOMETRY_FOLDER_PATH = absPath('Geometry') + '/'
 DATA_FOLDER_PATH = absPath('../../data')
 
 def main():
