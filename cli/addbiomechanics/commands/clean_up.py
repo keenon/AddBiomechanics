@@ -1,6 +1,6 @@
 import random
 
-from addbiomechanics.commands.abtract_command import AbstractCommand
+from addbiomechanics.commands.abstract_command import AbstractCommand
 import argparse
 from addbiomechanics.auth import AuthContext
 import os
