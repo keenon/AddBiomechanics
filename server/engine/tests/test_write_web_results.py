@@ -17,9 +17,6 @@ class TestWriteWebResults(unittest.TestCase):
         subject = nimble.biomechanics.SubjectOnDisk(path)
         subject.loadAllFrames(doNotStandardizeForcePlateData=True)
 
-        # output_folder = os.path.join(TEST_DATA_PATH, 'temp_web_results')
-        # write_web_results(subject, GEOMETRY_PATH, output_folder)
-
         # Create a temporary directory to store the web results
         with tempfile.TemporaryDirectory() as temp_dir:
             print(f"Temporary directory created: {temp_dir}")

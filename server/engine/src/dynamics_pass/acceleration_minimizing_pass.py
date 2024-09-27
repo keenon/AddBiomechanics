@@ -3,7 +3,7 @@ import numpy as np
 from typing import List, Tuple
 
 
-def add_acc_minimize_pass(subject: nimble.biomechanics.SubjectOnDisk):
+def add_acceleration_minimizing_pass(subject: nimble.biomechanics.SubjectOnDisk):
     # Apply an acceleration minimizing filter pass
     acc_minimizing_pass = subject.getHeaderProto().addProcessingPass()
     acc_minimizing_pass.setOpenSimFileText(subject.getOpensimFileText(0))

@@ -12,9 +12,9 @@ from nimblephysics.loader import absPath
 import json
 from exceptions import Error
 from kinematics_pass.subject import Subject
-from passes.acc_minimize_pass import add_acc_minimize_pass
-from passes.missing_grf_detection import missing_grf_detection
-from passes.dynamics_pass import dynamics_pass
+from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
+from dynamics_pass.missing_grf_detection import missing_grf_detection
+from dynamics_pass.dynamics_pass import dynamics_pass
 from outputs.opensim_writer import write_opensim_results
 from outputs.web_results_writer import write_web_results
 
@@ -61,21 +61,32 @@ def main():
         # write out the B3D file, but also can be used as our working object as we run subsequent pipeline steps.
         subject_on_disk: nimble.biomechanics.SubjectOnDisk = subject.create_subject_on_disk(href)
 
-        print('Running acc minimizing pass...', flush=True)
-        add_acc_minimize_pass(subject_on_disk)
+        print('Running acceleration minimizing pass...', flush=True)
+        print('-> This pass runs a simple least-squares optimization to minimize the acceleration of each DOF for the '
+              'subject over each trial, subject to also tracking the original trajectory closely. This is akin to a '
+              'Butterworth lowpass filtering step, except that it is better able to ensure that the high frequency '
+              'noise in the finite-differenced accelerations is knocked down, which makes the torque plots smoother.', flush=True)
+        add_acceleration_minimizing_pass(subject_on_disk)
 
         print('Detecting missing GRF frames...', flush=True)
+        print('-> This runs a set of heuristics to detect frames in the input data where we believe the subject is in '
+              'contact with the ground, but there is no force plate data. These heuristics are deliberately a bit too '
+              'aggressive in marking frames as "missing GRF", in order to make sure we get almost all the frames where '
+              'there actually is missing GRF labeled correctly. This means the dataset of frames which are marked as '
+              'not missing GRF are going to be very clean, but smaller than we might have with more selective '
+              'heuristics.', flush=True)
         missing_grf_detection(subject_on_disk)
 
         print('Running dynamics pass...', flush=True)
+        print('-> This pass runs the dynamics pipeline on the subject, which jointly optimizes a bunch of properties '
+              'just like the kinematics pass, except now we will balance the marker RMS _and_ the residual RMS.')
         dynamics_pass(subject_on_disk)
 
-        # # This will write out a folder of OpenSim results files.
+        # This will write out a folder of OpenSim results files.
         print('Writing OpenSim results', flush=True)
         write_opensim_results(subject_on_disk, path + output_name, GEOMETRY_FOLDER_PATH)
-        # # This will write out all the results to display in the web UI back into the existing folder structure
+        # This will write out all the results to display in the web UI back into the existing folder structure
         print('Writing web visualizer results', flush=True)
-        # subject.write_web_results(path)
         write_web_results(subject_on_disk, GEOMETRY_FOLDER_PATH, path)
 
         # This will write out a B3D file
@@ -99,6 +110,7 @@ def main():
                     include_dynamics_trials.append(False)
 
         if num_dynamics_trials > 0:
+            print('Writing B3D file encoded results which have been filtered to only include dynamics trials', flush=True)
             subject_on_disk.getHeaderProto().filterTrials(include_dynamics_trials)
             nimble.biomechanics.SubjectOnDisk.writeB3D(path + output_name + '_dynamics_trials_only.b3d', subject_on_disk.getHeaderProto())
         else:

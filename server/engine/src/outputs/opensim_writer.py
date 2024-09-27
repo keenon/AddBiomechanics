@@ -62,6 +62,7 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
         grf_raw_fpath = ''
         # Write out the result data files.
         result_ik: Optional[nimble.biomechanics.IKErrorReport] = None
+        marker_observations = None
         if any_dynamics_passes:
             last_pass = trial_passes[-1]
             poses = last_pass.getPoses()

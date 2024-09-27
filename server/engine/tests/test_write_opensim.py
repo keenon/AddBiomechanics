@@ -16,9 +16,6 @@ class TestWriteOpenSim(unittest.TestCase):
         subject = nimble.biomechanics.SubjectOnDisk(path)
         subject.loadAllFrames(doNotStandardizeForcePlateData=True)
 
-        # output_folder = os.path.join(TEST_DATA_PATH, 'temp_opensim_results')
-        # write_opensim_results(subject, output_folder)
-
         # Create a temporary directory to store the OpenSim results
         with tempfile.TemporaryDirectory() as temp_dir:
             print(f"Temporary directory created: {temp_dir}")

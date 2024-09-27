@@ -587,7 +587,6 @@ class Subject(metaclass=ExceptionHandlingMeta):
     # Writing out results
     ###################################################################################################################
 
-
     def create_subject_on_disk(self, href: str) -> nimble.biomechanics.SubjectOnDisk:
         # 1. Create the SubjectOnDisk Header object, which will be used to write out the header of the B3D file.
         subject_header: nimble.biomechanics.SubjectOnDiskHeader = nimble.biomechanics.SubjectOnDiskHeader()
