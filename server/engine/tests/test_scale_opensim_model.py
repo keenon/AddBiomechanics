@@ -6,7 +6,7 @@ from typing import Dict, List, Any
 import os
 import nimblephysics as nimble
 from inspect import getsourcefile
-from utils.scale_opensim_model import scale_opensim_model
+from utilities.scale_opensim_model import scale_opensim_model
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
 DATA_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')

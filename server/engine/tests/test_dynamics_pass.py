@@ -45,6 +45,8 @@ class TestDynamicsPass(unittest.TestCase):
         # This shouldn't add a pass
         self.assertEqual(num_passes, num_passes_after)
 
+        # TODO: It would be nice to have a more elaborate test here for which GRFs are missing.
+
     def test_dynamics_pass(self):
         path = os.path.join(TEST_DATA_PATH, 'b3ds', 'falisse2017_small.b3d')
         subject = nimble.biomechanics.SubjectOnDisk(path)
@@ -55,3 +57,5 @@ class TestDynamicsPass(unittest.TestCase):
         num_passes_after = subject.getNumProcessingPasses()
 
         self.assertEqual(num_passes + 1, num_passes_after)
+
+        # TODO: It would be nice to have a more elaborate test here for what the dynamics pass does.

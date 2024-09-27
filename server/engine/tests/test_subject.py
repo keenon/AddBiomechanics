@@ -100,6 +100,6 @@ class TestSubject(unittest.TestCase):
         subject.segment_trials()
         subject.kinematicsIterations = 20
         subject.initialIKRestarts = 3
-        subject.run_kinematics_fit(DATA_PATH)
+        subject.run_kinematics_pass(DATA_PATH)
         subject_on_disk = subject.create_subject_on_disk('<href>')
         self.assertIsNotNone(subject_on_disk)
