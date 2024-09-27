@@ -15,8 +15,8 @@ from kinematics_pass.subject import Subject
 from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
 from dynamics_pass.missing_grf_detection import missing_grf_detection
 from dynamics_pass.dynamics_pass import dynamics_pass
-from outputs.opensim_writer import write_opensim_results
-from outputs.web_results_writer import write_web_results
+from writers.opensim_writer import write_opensim_results
+from writers.web_results_writer import write_web_results
 
 import numpy as np
 import nimblephysics as nimble
@@ -56,7 +56,7 @@ def main():
         # The kinematics fit will fit the body scales, marker offsets, and motion of the subject, to all the trial
         # segments that have not yet thrown an error during loading.
         print('Running kinematics fit', flush=True)
-        subject.run_kinematics_fit(DATA_FOLDER_PATH)
+        subject.run_kinematics_pass(DATA_FOLDER_PATH)
         # This will create a B3D object in memory for the current fit of the subject. This can be used at any point to
         # write out the B3D file, but also can be used as our working object as we run subsequent pipeline steps.
         subject_on_disk: nimble.biomechanics.SubjectOnDisk = subject.create_subject_on_disk(href)

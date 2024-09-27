@@ -6,7 +6,7 @@ from typing import Dict, List, Any
 import os
 import nimblephysics as nimble
 from inspect import getsourcefile
-from utils.scale_osim import scale_osim
+from utils.scale_opensim_model import scale_opensim_model
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
 DATA_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')
@@ -32,6 +32,6 @@ class TestScaleOsim(unittest.TestCase):
         height_m = 1.65
         with open(os.path.join(TEST_DATA_PATH, 'opencap_test', 'unscaled_generic.osim'), 'r') as f:
             unscaled_generic_osim_text = f.read()
-        new_xml = scale_osim(unscaled_generic_osim_text, subject.skeleton, mass_kg, height_m, subject.markerSet)
+        new_xml = scale_opensim_model(unscaled_generic_osim_text, subject.skeleton, mass_kg, height_m, subject.markerSet)
         self.assertTrue(new_xml is not None)
         self.assertTrue(len(new_xml) > 0)

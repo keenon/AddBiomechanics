@@ -4,6 +4,18 @@ from typing import List, Tuple
 
 
 def add_acceleration_minimizing_pass(subject: nimble.biomechanics.SubjectOnDisk):
+    """
+    This serves the same function as the more familiar Butterworth lowpass filter. The trouble with a simple Butterworth
+    lowpass filter is that even though it smooths the signal, when you double-finite-difference to get acceleration, you
+    still have so much noise that it's basically unusable.
+
+    To address this, without simply over-smoothing the signal with a Butterworth (and probably still not really
+    adequately removing noise from the acceleration data) we have this filter, which uses a least squares optimization
+    to directly minimize acceleration, while still tracking the original position signals. This has a _much better_
+    ability to reconstruct low-noise velocity and acceleration estimates than a Butterworth, while preserving more
+    signal. See the experimental log here: https://docs.google.com/document/d/16dgRho13iFyfhQSlYNsdIj7Rer2-MZP_aKtYQj41CQs/edit
+    """
+
     # Apply an acceleration minimizing filter pass
     acc_minimizing_pass = subject.getHeaderProto().addProcessingPass()
     acc_minimizing_pass.setOpenSimFileText(subject.getOpensimFileText(0))
@@ -193,44 +205,6 @@ def add_acceleration_minimizing_pass(subject: nimble.biomechanics.SubjectOnDisk)
                         # We don't restrict the CoP dynamics at the beginning or end of a stride, so we don't
                         # need to pad the input to account for ramping up or down to zero.
                         cop_matrix[j, padded_start:padded_end] = cop_acc_minimizer.minimize(input_cops)
-
-                    # import matplotlib.pyplot as plt
-                    # fig, axs = plt.subplots(3, 1)
-                    # fig.suptitle('Force Plate: '+str(i))
-                    # plottable_force_plate_raw_forces = np.array(force_plate_raw_forces[i]).transpose()
-                    # axs[0].plot(range(trial_len), plottable_force_plate_raw_forces[0, :], label='original x')
-                    # axs[0].plot(range(trial_len), plottable_force_plate_raw_forces[1, :], label='original y')
-                    # axs[0].plot(range(trial_len), plottable_force_plate_raw_forces[2, :], label='original z')
-                    # axs[0].plot(range(trial_len), force_matrix[0, :], label='new x')
-                    # axs[0].plot(range(trial_len), force_matrix[1, :], label='new y')
-                    # axs[0].plot(range(trial_len), force_matrix[2, :], label='new z')
-                    # axs[0].set_title('Force')
-                    # axs[0].legend()
-                    # axs[0].set(xlabel='Time (s)', ylabel='Force (N)')
-                    #
-                    # plottable_cop_plate_raw_cops = np.array(force_plate_raw_cops[i]).transpose()
-                    # axs[1].plot(range(trial_len), plottable_cop_plate_raw_cops[0, :], label='original x')
-                    # axs[1].plot(range(trial_len), plottable_cop_plate_raw_cops[1, :], label='original y')
-                    # axs[1].plot(range(trial_len), plottable_cop_plate_raw_cops[2, :], label='original z')
-                    # axs[1].plot(range(trial_len), cop_matrix[0, :], label='new x')
-                    # axs[1].plot(range(trial_len), cop_matrix[1, :], label='new y')
-                    # axs[1].plot(range(trial_len), cop_matrix[2, :], label='new z')
-                    # axs[1].set_title('CoP')
-                    # axs[1].legend()
-                    # axs[1].set(xlabel='Time (s)', ylabel='CoP (m)')
-                    #
-                    # plottable_raw_moment_matrix = np.array(force_plate_raw_moments[i]).transpose()
-                    # axs[2].plot(range(trial_len), plottable_raw_moment_matrix[0, :], label='original x')
-                    # axs[2].plot(range(trial_len), plottable_raw_moment_matrix[1, :], label='original y')
-                    # axs[2].plot(range(trial_len), plottable_raw_moment_matrix[2, :], label='original z')
-                    # axs[2].plot(range(trial_len), moment_matrix[0, :], label='new x')
-                    # axs[2].plot(range(trial_len), moment_matrix[1, :], label='new y')
-                    # axs[2].plot(range(trial_len), moment_matrix[2, :], label='new z')
-                    # axs[2].set_title('Moment')
-                    # axs[2].legend()
-                    # axs[2].set(xlabel='Time (s)', ylabel='Moment (Nm)')
-                    #
-                    # plt.show()
 
                     for t in range(padded_start, padded_end):
                         force_plate_raw_forces[i][t] = force_matrix[:, t]

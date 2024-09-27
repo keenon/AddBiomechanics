@@ -8,6 +8,20 @@ import importlib.resources
 
 
 class ThresholdsDetector(AbstractDetector):
+    """
+    This detector uses a set of thresholds to detect frames that we would like to exclude from a
+    dynamics-of-human-motion dataset. It was engineered by referencing the 3M+ frames of manually annotated data that
+    we labeled as "good" and "bad" in the process of publishing the first AddB dataset paper. The experimental log is
+    here: https://docs.google.com/document/d/16dgRho13iFyfhQSlYNsdIj7Rer2-MZP_aKtYQj41CQs/edit.
+
+    The method here was originally developed in another repo, here: https://github.com/keenon/MissingGRFEstimator
+
+    The entry point is estimate_missing_grfs(), which takes a SubjectOnDisk object and a list of trials, and returns a
+    list of lists of MissingGRFReason enums, one for each frame in each trial. The MissingGRFReason enum is defined in
+    the NimblePhysics library, and is used to indicate why a frame is being marked as "bad" in the dataset, to make
+    it easier for users to understand why their frames are being dropped.
+    """
+
     def __init__(self):
         super().__init__()
         # Access a static file
@@ -355,39 +369,64 @@ class ThresholdsDetector(AbstractDetector):
 
             # 1. Rapidly check if the entire trial is bad for some reason that can be checked cheaply, without running
             # the smoother first.
+
+            # 1.1. If the marker RMS is greater than 8cm on average, the trial is probably bad in the IK somehow, and
+            # we should mark the entire trial as excluded.
             if np.mean(subject.getTrialMarkerRMSs(trial, 0)) > 0.08:
                 result.append([nimble.biomechanics.MissingGRFReason.tooHighMarkerRMS] * trial_len)
                 continue
+            # 1.2. If the inputs have crazy outliers (markers that are too far from the median, or force plates with
+            # forces greater than 2500 N), we should mark the entire trial as excluded, because those crazy outliers
+            # will tend to drag the other optimization steps to crazy places.
             elif self.has_input_outliers(trial_proto, raw_force_plate_forces):
                 result.append([nimble.biomechanics.MissingGRFReason.hasInputOutliers] * trial_len)
                 continue
+            # 1.3. If the trial has no force plate data, we should mark the entire trial as excluded, because we can't
+            # use data that doesn't have force plates to do dynamics optimization.
             if len(raw_force_plate_forces) == 0:
                 result.append([nimble.biomechanics.MissingGRFReason.hasNoForcePlateData] * trial_len)
                 continue
 
-            # 2. Smooth the positions and velocities
-            dt = subject.getTrialTimestep(trial)
+            # 2. Get the smoothed positions and velocities. We do this by getting the poses from the second pass, which
+            # is the acceleration minimizing smoother. If the trial doesn't have this pass, we mark the entire trial as
+            # excluded.
+            if len(trial_proto.getPasses()) < 2 or trial_proto.getPasses()[1].getType() != nimble.biomechanics.ProcessingPassType.ACC_MINIMIZING_FILTER:
+                result.append([nimble.biomechanics.MissingGRFReason.hasInputOutliers] * trial_len)
+                continue
             poses = trial_proto.getPasses()[1].getPoses()
             vels = trial_proto.getPasses()[1].getVels()
 
-            # 3. Check if the trial has badly wrapped IK based on the smoothed velocities
+            # 3. Check if the trial has badly wrapped IK based on the smoothed velocities. In theory, the previous code
+            # should prevent this from happening, but it seems in our dataset that sometimes the IK can still produce
+            # angular wrapping situations, where a joint angle jumps from 0 to 2PI, for example. When we smooth the
+            # position jump, this manifests as unrealistically high velocities.
             if np.max(np.abs(vels)) > 40.0:
                 result.append([nimble.biomechanics.MissingGRFReason.velocitiesStillTooHighAfterFiltering] * trial_len)
                 continue
 
-            # 4. Check for outlying CoP values
+            # 4. We can now begin the more computationally expensive checks. Here, we're checking that the center of
+            # pressure is generally beneath the convex hull outline of a foot. The convex hull is defined by a set of
+            # markers given at the top of the file. If the CoP is outside the convex hull, we mark the frame as bad,
+            # because something is probably wrong with the force plate data. Often this can be a force plate that's
+            # miscalibrated in space, or someone has a bug in their CoP calculation code.
             if self.get_force_weighted_convex_foot_cop_error(skel, foot_markers, poses, raw_force_plate_forces, raw_force_plate_cops) > 0.01:
                 result.append([nimble.biomechanics.MissingGRFReason.copOutsideConvexFootError] * trial_len)
                 continue
 
-            # 5. Estimate the trial type
+            # 5. Estimate the trial type -- this is most important for identifying treadmill trials, which will tend to
+            # have almost all steps on the force plates. Overground trials need further attention.
             trial_type = self.estimate_trial_type(skel, foot_bodies, poses, vels, raw_force_plate_forces, raw_force_plate_cops)
 
             # 6. Check for missing GRFs on footsteps off force plates, for data that is overground and has passed all
-            # the other checks -- For now we just check if the total force magnitude is less than 10 N.
+            # the other checks -- For now we just check if the total force magnitude is less than 10 N. This has the
+            # obvious problem that if you have overground sprinting, we will exclude flight phase frames. Because this
+            # case is so rare, I'm comfortable just asking users to manually annotate those frames, if they care about
+            # getting dynamics on them. We can always come back and add a more sophisticated heuristic later. This is
+            # a simple and extremely effective heuristic, which catches 99.8% of remaining bad frames in the dataset.
             if trial_type == 'Overground':
                 missing = []
                 force_mags: List[float] = []
+                # 6.1. Grab the frames with too little force, mark them as missing.
                 for i in range(trial_len):
                     forces = [raw_force_plate_forces[f][i] for f in range(len(raw_force_plate_forces))]
                     total_force_mag = 0.0
@@ -399,12 +438,12 @@ class ThresholdsDetector(AbstractDetector):
                         missing.append(nimble.biomechanics.MissingGRFReason.notMissingGRF)
                     force_mags.append(total_force_mag)
 
-                # Now we can go through and extend all the missing segments into the "rising force ramp" and "falling
-                # force ramp" regions at the edge of the missing segments.
+                # 6.2. Now we can go through and extend all the missing segments into the "rising force ramp" and
+                # "falling force ramp" regions at the edge of the missing segments.
 
-                # Start with the rising force ramp, which we can tell by checking left-to-right if any frame has more
-                # force magnitude than any of the previous few frames which may have been marked as missing, and if so,
-                # extend the missing segment to include that frame.
+                # 6.2.1. Start with the rising force ramp, which we can tell by checking left-to-right if any frame has
+                # more force magnitude than any of the previous few frames which may have been marked as missing, and
+                # if so, extend the missing segment to include that frame.
                 extend_frames = 20
                 extended_frames = 0
 
@@ -418,7 +457,7 @@ class ThresholdsDetector(AbstractDetector):
                                     missing[i + k] = nimble.biomechanics.MissingGRFReason.extendedToNearestPeakForce
                                 # break
 
-                # Now do the same for the falling force ramp, but right-to-left.
+                # 6.2.2. Now do the same for the falling force ramp, but right-to-left.
                 for i in range(trial_len - 1, -1, -1):
                     if missing[i] != nimble.biomechanics.MissingGRFReason.notMissingGRF or i == trial_len - 1:
                         for j in range(1, extend_frames + 1):
@@ -429,7 +468,6 @@ class ThresholdsDetector(AbstractDetector):
                                     missing[i - k] = nimble.biomechanics.MissingGRFReason.extendedToNearestPeakForce
                                 # break
 
-                # print(f"Extended {extended_frames} frames for trial {trial}")
                 result.append(missing)
             else:
                 result.append([nimble.biomechanics.MissingGRFReason.notMissingGRF] * trial_len)

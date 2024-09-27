@@ -5,12 +5,13 @@ import shutil
 import numpy as np
 import subprocess
 
-def scale_osim(unscaled_generic_osim_text: str,
-               skel: nimble.dynamics.Skeleton,
-               mass_kg: float,
-               height_m: float,
-               markers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]],
-               overwrite_inertia: bool = False) -> str:
+
+def scale_opensim_model(unscaled_generic_osim_text: str,
+                        skel: nimble.dynamics.Skeleton,
+                        mass_kg: float,
+                        height_m: float,
+                        markers: Dict[str, Tuple[nimble.dynamics.BodyNode, np.ndarray]],
+                        overwrite_inertia: bool = False) -> str:
     marker_names: List[str] = []
     if skel is not None:
         print('Adjusting marker locations on scaled OpenSim file', flush=True)

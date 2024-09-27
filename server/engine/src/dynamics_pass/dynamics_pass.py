@@ -1,10 +1,19 @@
 import nimblephysics as nimble
 import numpy as np
 from typing import List, Tuple
-from utils.scale_osim import scale_osim
+from utilities.scale_opensim_model import scale_opensim_model
 
 
 def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
+    """
+    This function is responsible for running the dynamics pass on the subject. It assumes that we already have a
+    reasonably accurate guess for the subject's body scales, marker offsets, and motion. This function will then
+    do the following:
+    - Run a center-of-mass trajectory initialization, which will attempt to fit the subject's COM acceleration to the
+    observed GRF data, while smoothing the motion that does not have observed GRF data.
+    - Run a full "kitchen sink" optimization to further refine everything about that initial guess, and improve metrics
+    on average around 20%.
+    """
     header_proto = subject.getHeaderProto()
     trial_protos = header_proto.getTrials()
     num_trials = subject.getNumTrials()
@@ -46,6 +55,10 @@ def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
             num_tracked = sum(track_indices)
             if num_tracked == 0 or trial_len < 10:
                 continue
+
+            ##########################################################################################################
+            # Stage 1: Initialize with a center-of-mass trajectory fit
+            ##########################################################################################################
 
             print("Fitting COM acceleration on trial: " + str(trial))
 
@@ -124,6 +137,10 @@ def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
             else:
                 print("Average root offset distance too large, not applying dynamics to this trial: " + str(
                     average_root_offset_distance))
+
+        ##########################################################################################################
+        # Stage 2: Full "kitchen sink" optimization
+        ##########################################################################################################
 
         if len(dynamics_prefit_trials) > 0:
             dynamics_trials = dynamics_prefit_trials
@@ -207,7 +224,7 @@ def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
 
                 dynamics_pass = subject.getHeaderProto().addProcessingPass()
                 dynamics_fitter.applyInitToSkeleton(skel, dynamics_init)
-                osim_file_xml = scale_osim(
+                osim_file_xml = scale_opensim_model(
                     subject.getOpensimFileText(0),
                     skel,
                     skel.getMass(),

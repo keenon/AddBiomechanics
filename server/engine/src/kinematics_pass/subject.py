@@ -11,7 +11,7 @@ import subprocess
 import textwrap
 import tempfile
 import os
-from utils.scale_osim import scale_osim
+from utilities.scale_opensim_model import scale_opensim_model
 
 
 # Global paths to the geometry and data folders.
@@ -26,9 +26,7 @@ class ExceptionHandlingMeta(type):
     EXCEPTION_MAP = {
         'load_folder': LoadingError,
         'segment_trials': TrialPreprocessingError,
-        'run_kinematics_fit': MarkerFitterError,
-        'lowpass_filter': TrialPreprocessingError,
-        'run_dynamics_fit': DynamicsFitterError,
+        'run_kinematics_pass': MarkerFitterError,
         # 'run_moco': MocoError,
         'write_opensim_results': WriteError,
         'write_b3d_file': WriteError,
@@ -360,7 +358,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
             for segment in trial.segments:
                 segment.compute_manually_scaled_ik_error(self.goldOsim)
 
-    def run_kinematics_fit(self, data_folder_path: str):
+    def run_kinematics_pass(self, data_folder_path: str):
         """
         This will optimize for body scales, marker offsets, and joint positions over time to minimize marker error. It
         ignores the dynamics information at this stage, even if it was provided.
@@ -597,7 +595,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
         with open(self.subject_path + 'unscaled_generic.osim', 'r') as f:
             original_file_text = '\n'.join(f.readlines())
 
-        osim_file_xml = scale_osim(
+        osim_file_xml = scale_opensim_model(
             original_file_text,
             self.kinematics_skeleton,
             self.massKg,
