@@ -240,8 +240,6 @@ class ThresholdsDetector(AbstractDetector):
                             if min_weighted_distance > largest_min_weighted_distance:
                                 largest_min_weighted_distance = min_weighted_distance
                             total_force += contact_forces[f]
-                        else:
-                            print(f"!! Frame {t} has a contact force of {contact_forces[f] * dt} Ns, which is less than the threshold of 10.0 Ns.")
 
                         last_in_contact[f] = False
                         contact_distances[f] = [0.0 for _ in range(num_contact_bodies)]
@@ -279,7 +277,7 @@ class ThresholdsDetector(AbstractDetector):
 
             passes = trial_proto.getPasses()
 
-            raw_force_plates: List[nimble.biomechanics.ForcePlate] = passes[-1].getProcessedForcePlates()
+            raw_force_plates: List[nimble.biomechanics.ForcePlate] = trial_proto.getForcePlates()
             raw_force_plate_forces: List[List[np.ndarray]] = [plate.forces for plate in raw_force_plates]
             raw_force_plate_cops: List[List[np.ndarray]] = [plate.centersOfPressure for plate in raw_force_plates]
 
