@@ -110,7 +110,7 @@ def main():
         include_dynamics_trials = []
         if pass_index > -1:
             for trial in range(subject_on_disk.getNumTrials()):
-                if subject_on_disk.getTrialNumProcessingPasses(trial):
+                if subject_on_disk.getTrialNumProcessingPasses(trial) > pass_index:
                     include_dynamics_trials.append(True)
                     num_dynamics_trials += 1
                 else:
