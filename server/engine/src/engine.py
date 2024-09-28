@@ -13,6 +13,7 @@ import json
 from exceptions import Error
 from kinematics_pass.subject import Subject
 from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
+from dynamics_pass.classification_pass import classification_pass
 from dynamics_pass.missing_grf_detection import missing_grf_detection
 from dynamics_pass.dynamics_pass import dynamics_pass
 from writers.opensim_writer import write_opensim_results
@@ -67,6 +68,12 @@ def main():
               'Butterworth lowpass filtering step, except that it is better able to ensure that the high frequency '
               'noise in the finite-differenced accelerations is knocked down, which makes the torque plots smoother.', flush=True)
         add_acceleration_minimizing_pass(subject_on_disk)
+
+        print('Heuristically classifying trials...', flush=True)
+        print('-> This runs a set of heuristics to classify trials as overground, treadmill, static, or other. This '
+              'coarse classification is useful for subsequent stages in the pipeline, like the missing GRF detector, '
+              'and may be useful for downstream data science as well.', flush=True)
+        classification_pass(subject_on_disk)
 
         print('Detecting missing GRF frames...', flush=True)
         print('-> This runs a set of heuristics to detect frames in the input data where we believe the subject is in '

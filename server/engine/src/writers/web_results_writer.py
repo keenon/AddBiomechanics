@@ -81,13 +81,15 @@ def save_segment_to_gui(trial_proto: nimble.biomechanics.SubjectOnDiskTrial,
     force_plate_raw_forces = [fp.forces for fp in force_plates]
     force_plate_raw_moments = [fp.moments for fp in force_plates]
 
+    trial_passes = trial_proto.getPasses()
+
     kinematics_poses = None
-    if kinematics_pass_index > -1:
-        kinematics_poses = trial_proto.getPasses()[kinematics_pass_index].getPoses()
+    if -1 < kinematics_pass_index < len(trial_passes):
+        kinematics_poses = trial_passes[kinematics_pass_index].getPoses()
 
     dynamics_poses = None
-    if dynamics_pass_index > -1:
-        dynamics_poses = trial_proto.getPasses()[dynamics_pass_index].getPoses()
+    if -1 < dynamics_pass_index < len(trial_passes):
+        dynamics_poses = trial_passes[dynamics_pass_index].getPoses()
 
     # 1.1. Set up the layers
     # We want to show the markers and warnings by default if the processing steps all failed
@@ -171,12 +173,12 @@ def save_segment_to_gui(trial_proto: nimble.biomechanics.SubjectOnDiskTrial,
                                width=[2.0, 1.0])
 
         # 4. Render the kinematics skeleton, if we have it
-        if kinematics_osim is not None and kinematics_pass_index > -1:
+        if kinematics_osim is not None and kinematics_pass_index > -1 and kinematics_poses is not None:
             kinematics_osim.skeleton.setPositions(kinematics_poses[:, t])
             gui.renderSkeleton(kinematics_osim.skeleton, prefix='kinematics_', layer=kinematics_fit_layer_name)
 
         # 5. Render the dynamics skeleton, if we have it
-        if dynamics_osim is not None and dynamics_pass_index > -1:
+        if dynamics_osim is not None and dynamics_pass_index > -1 and dynamics_poses is not None:
             dynamics_osim.skeleton.setPositions(dynamics_poses[:, t])
             gui.renderSkeleton(dynamics_osim.skeleton, prefix='dynamics_', layer=dynamics_fit_layer_name)
         gui.saveFrame()

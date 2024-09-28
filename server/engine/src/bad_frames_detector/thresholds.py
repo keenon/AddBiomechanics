@@ -47,23 +47,23 @@ class ThresholdsDetector(AbstractDetector):
                 "offset": [0.0, 0.0, 0.065]
             },
             "R_HEEL_1": {
-                "mesh_patterns": ["r_foot"],
+                "mesh_patterns": ["r_foot", "foot"],
                 "offset": [-0.01, 0.0, -0.02]
             },
             "R_HEEL_2": {
-                "mesh_patterns": ["r_foot"],
+                "mesh_patterns": ["r_foot", "foot"],
                 "offset": [-0.01, 0.0, 0.035]
             },
             "R_TOES_1": {
-                "mesh_patterns": ["r_bofoot"],
+                "mesh_patterns": ["r_bofoot", "bofoot"],
                 "offset": [0.1, 0.0, -0.03]
             },
             "R_TOES_2": {
-                "mesh_patterns": ["r_bofoot"],
+                "mesh_patterns": ["r_bofoot", "bofoot"],
                 "offset": [0.07, 0.0, 0.08]
             },
             "R_INNER_FOOT": {
-                "mesh_patterns": ["r_bofoot"],
+                "mesh_patterns": ["r_bofoot", "bofoot"],
                 "offset": [0.0, 0.0, -0.065]
             }
         }
@@ -162,7 +162,9 @@ class ThresholdsDetector(AbstractDetector):
             mesh_patterns: List[str] = marker['mesh_patterns']
             mesh_name: Optional[str] = None
             for mesh in osim.meshMap:
-                if any([pattern in mesh for pattern in mesh_patterns]):
+                # Split mesh by both '/' and '.' to get the mesh name parts
+                mesh_file_name = mesh.split('/')[-1].split('.')[0]
+                if any([pattern == mesh_file_name for pattern in mesh_patterns]):
                     mesh_name = mesh
                     break
             if mesh_name is None:
@@ -257,97 +259,6 @@ class ThresholdsDetector(AbstractDetector):
 
         return largest_min_weighted_distance
 
-    @staticmethod
-    def get_num_steps(raw_force_plate_forces: List[List[np.ndarray]],
-                      raw_force_plate_cops: List[List[np.ndarray]]) -> Tuple[int, List[int]]:
-        num_force_plates = len(raw_force_plate_forces)
-        trial_len = len(raw_force_plate_forces[0])
-        num_steps = 0
-        num_steps_per_force_plate = [0 for _ in range(num_force_plates)]
-        last_in_contact = [False for _ in range(num_force_plates)]
-        for t in range(trial_len):
-            forces = [raw_force_plate_forces[f][t] for f in range(num_force_plates)]
-            for f in range(len(forces)):
-                force = forces[f]
-                if np.linalg.norm(force) > 10.0:
-                    if not last_in_contact[f]:
-                        last_in_contact[f] = True
-                else:
-                    if last_in_contact[f]:
-                        last_in_contact[f] = False
-                        num_steps += 1
-                        num_steps_per_force_plate[f] += 1
-                    last_in_contact[f] = False
-        for f in range(num_force_plates):
-            if last_in_contact[f]:
-                num_steps += 1
-                num_steps_per_force_plate[f] += 1
-        return num_steps, num_steps_per_force_plate
-
-    @staticmethod
-    def get_foot_travel_distance_in_contact(skel: nimble.dynamics.Skeleton,
-                                            ground_bodies: List[nimble.dynamics.BodyNode],
-                                            positions: np.ndarray,
-                                            raw_force_plate_forces: List[List[np.ndarray]],
-                                            raw_force_plate_cops: List[List[np.ndarray]]) -> List[float]:
-        trial_len = len(raw_force_plate_forces[0])
-        num_contact_bodies = len(ground_bodies)
-        body_last_in_contact = [False for _ in range(num_contact_bodies)]
-        body_started_contact = [np.zeros(3) for _ in range(num_contact_bodies)]
-        body_last_position = [np.zeros(3) for _ in range(num_contact_bodies)]
-        step_travel_distances = []
-        for t in range(trial_len):
-            skel.setPositions(positions[:, t])
-            ground_body_locations = [body.getWorldTransform().translation() for body in ground_bodies]
-            forces = [raw_force_plate_forces[f][t] for f in range(len(raw_force_plate_forces))]
-            for f in range(len(ground_body_locations)):
-                force = forces[f * 3:f * 3 + 3]
-                if np.linalg.norm(force) > 10.0:
-                    body_last_position[f] = ground_body_locations[f]
-                    if not body_last_in_contact[f]:
-                        body_started_contact[f] = ground_body_locations[f]
-                        body_last_in_contact[f] = True
-                else:
-                    if body_last_in_contact[f]:
-                        body_last_in_contact[f] = False
-                        step_travel_distances.append(np.linalg.norm(body_last_position[f] - body_started_contact[f]))
-        for f in range(num_contact_bodies):
-            if body_last_in_contact[f]:
-                step_travel_distances.append(np.linalg.norm(body_last_position[f] - body_started_contact[f]))
-        return step_travel_distances
-
-    @staticmethod
-    def get_root_box_volume(positions: np.ndarray):
-        # Compute the root box volumes
-        root_translation = positions[3:6, :]
-        root_box_lower_bound = np.min(root_translation, axis=1)
-        root_box_upper_bound = np.max(root_translation, axis=1)
-        root_box_volume = np.sum(root_box_upper_bound - root_box_lower_bound)
-        return root_box_volume
-
-    def estimate_trial_type(self,
-                            skel: nimble.dynamics.Skeleton,
-                            foot_bodies: List[nimble.dynamics.BodyNode],
-                            positions: np.ndarray,
-                            velocities: np.ndarray,
-                            raw_force_plate_forces: List[List[np.ndarray]],
-                            raw_force_plate_cops: List[List[np.ndarray]]) -> str:
-        num_force_plates = len(raw_force_plate_forces)
-        num_steps, _ = self.get_num_steps(raw_force_plate_forces, raw_force_plate_cops)
-        step_travel_distances = self.get_foot_travel_distance_in_contact(skel, foot_bodies, positions, raw_force_plate_forces, raw_force_plate_cops)
-        root_box_volume = self.get_root_box_volume(positions)
-        max_root_rot_vel = np.max(np.abs(velocities[0:3, :]))
-
-        if root_box_volume < 0.06 or max_root_rot_vel < 0.1:
-            return 'Static'
-        if root_box_volume > 0.8:
-            return 'Overground'
-        if len(step_travel_distances) > 0 and np.max(step_travel_distances) > 0.4 and num_force_plates == 2:
-            return 'Treadmill'
-        if num_steps > 15 and num_force_plates == 2:
-            return 'Treadmill'
-        return 'Overground'
-
     def estimate_missing_grfs(self, subject: nimble.biomechanics.SubjectOnDisk, trials: List[int]) -> List[List[nimble.biomechanics.MissingGRFReason]]:
         osim: nimble.biomechanics.OpenSimFile = subject.readOpenSimFile(processingPass=0, ignoreGeometry=True)
         skel: nimble.dynamics.Skeleton = osim.skeleton
@@ -415,7 +326,7 @@ class ThresholdsDetector(AbstractDetector):
 
             # 5. Estimate the trial type -- this is most important for identifying treadmill trials, which will tend to
             # have almost all steps on the force plates. Overground trials need further attention.
-            trial_type = self.estimate_trial_type(skel, foot_bodies, poses, vels, raw_force_plate_forces, raw_force_plate_cops)
+            trial_type = trial_proto.getBasicTrialType()
 
             # 6. Check for missing GRFs on footsteps off force plates, for data that is overground and has passed all
             # the other checks -- For now we just check if the total force magnitude is less than 10 N. This has the
@@ -423,7 +334,7 @@ class ThresholdsDetector(AbstractDetector):
             # case is so rare, I'm comfortable just asking users to manually annotate those frames, if they care about
             # getting dynamics on them. We can always come back and add a more sophisticated heuristic later. This is
             # a simple and extremely effective heuristic, which catches 99.8% of remaining bad frames in the dataset.
-            if trial_type == 'Overground':
+            if trial_type == nimble.biomechanics.BasicTrialType.OVERGROUND:
                 missing = []
                 force_mags: List[float] = []
                 # 6.1. Grab the frames with too little force, mark them as missing.

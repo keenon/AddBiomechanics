@@ -3,6 +3,7 @@ import unittest
 import os
 from inspect import getsourcefile
 from dynamics_pass.dynamics_pass import dynamics_pass
+from dynamics_pass.classification_pass import classification_pass
 from dynamics_pass.missing_grf_detection import missing_grf_detection
 from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
 import numpy as np
@@ -32,6 +33,20 @@ class TestDynamicsPass(unittest.TestCase):
             acc_norm_before = np.linalg.norm(passes[num_passes-1].getAccs())
             acc_norm_after = np.linalg.norm(passes[num_passes_after-1].getAccs())
             self.assertLessEqual(acc_norm_after, acc_norm_before)
+
+    def test_classification(self):
+        path = os.path.join(TEST_DATA_PATH, 'b3ds', 'falisse2017_small.b3d')
+        subject = nimble.biomechanics.SubjectOnDisk(path)
+        subject.loadAllFrames(doNotStandardizeForcePlateData=True)
+
+        num_passes = subject.getNumProcessingPasses()
+        classification_pass(subject)
+        num_passes_after = subject.getNumProcessingPasses()
+
+        # This shouldn't add a pass
+        self.assertEqual(num_passes, num_passes_after)
+
+        self.assertEqual(subject.getHeaderProto().getTrials()[0].getBasicTrialType(), nimble.biomechanics.BasicTrialType.OVERGROUND)
 
     def test_missing_grf_detection(self):
         path = os.path.join(TEST_DATA_PATH, 'b3ds', 'falisse2017_small.b3d')
