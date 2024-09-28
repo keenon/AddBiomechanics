@@ -388,6 +388,9 @@ class SubjectToProcess:
                 if os.path.exists(path + self.subjectName + '_dynamics_trials_only.b3d'):
                     self.index.uploadFile(
                         self.pytorchResults, path + self.subjectName + '_dynamics_trials_only.b3d')
+                if os.path.exists(path + 'NO_DYNAMICS_TRIALS'):
+                    self.index.uploadFile(
+                        self.pytorchResults, path + 'NO_DYNAMICS_TRIALS')
 
                 # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
                 # and it starts to be able
