@@ -123,7 +123,7 @@ def main():
         else:
             print('No dynamics trials found', flush=True)
             # Write a flag file to the output directory to indicate that no dynamics trials were found
-            with open(path + output_name + '_no_dynamics_trials.txt', 'w') as f:
+            with open(path + 'NO_DYNAMICS_TRIALS', 'w') as f:
                 f.write('No dynamics trials found')
 
     except Error as e:
