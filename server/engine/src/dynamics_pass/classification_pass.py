@@ -5,6 +5,8 @@ import numpy as np
 
 def get_num_steps(raw_force_plate_forces: List[List[np.ndarray]],
                   raw_force_plate_cops: List[List[np.ndarray]]) -> Tuple[int, List[int]]:
+    if len(raw_force_plate_forces) == 0:
+        return 0, []
     num_force_plates = len(raw_force_plate_forces)
     trial_len = len(raw_force_plate_forces[0])
     num_steps = 0
