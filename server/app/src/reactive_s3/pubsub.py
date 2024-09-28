@@ -159,18 +159,19 @@ class PubSub(PubSubSocket):
         print("Connecting to {} with client ID '{}'...".format(ENDPOINT, CLIENT_ID))
         connectFuture = self.mqttConnection.connect()
         print('Waiting for connection...')
-
-        try:
-            # Future.result() waits until a result is available
-            connection_result = connectFuture.result()
+        # Future.result() waits until a result is available
+        connection_result = connectFuture.result()
+        if connection_result is not None and 'session_present' in connection_result and connection_result['session_present']:
             print('Connected to PubSub')
-            current_subscriptions = list(self.subscriptions.items())
-            for topic, callback in current_subscriptions:
-                print('Resubscribing to topic: ' + topic)
-                self.subscribe(topic, callback)
-        except Exception as e:
-            print('Got exception trying to connect to PubSub:')
-            print(e)
+            if not connection_result['session_present']:
+                print('Session not present, resubscribing to topics...')
+                current_subscriptions: List[Tuple[str, Callable[[str, Any], None]]] = list(self.subscriptions.items())
+                for topic, callback in current_subscriptions:
+                    print(f'Resubscribing to topic: {topic}')
+                    self.subscribe(topic, callback)
+        else:
+            print('Got exception trying to reconnect PubSub: ')
+            print(connection_result)
             print('Will try again to reconnect PubSub in 5 seconds...')
             time.sleep(5)
             self.connect()
@@ -227,19 +228,18 @@ class PubSub(PubSubSocket):
         """
         self.validate_topic_length(topic)
         print('Acquiring PubSub_lock: SUBSCRIBE_TO_TOPIC '+topic)
-        if topic not in self.subscriptions:
-            self.subscriptions[topic] = callback
-            self.lock.acquire()
-            try:
-                subscribeFuture, packetId = self.mqttConnection.subscribe(
-                    topic=('/' + self.deployment + topic),
-                    qos=mqtt.QoS.AT_MOST_ONCE,  # AT_LEAST_ONCE
-                    callback=callback)
-                # Future.result() waits until a result is available
-                subscribeFuture.result()
-            finally:
-                print('Releasing PubSub_lock: SUBSCRIBE_TO_TOPIC '+topic)
-                self.lock.release()
+        self.subscriptions[topic] = callback
+        self.lock.acquire()
+        try:
+            subscribeFuture, packetId = self.mqttConnection.subscribe(
+                topic=('/' + self.deployment + topic),
+                qos=mqtt.QoS.AT_MOST_ONCE,  # AT_LEAST_ONCE
+                callback=callback)
+            # Future.result() waits until a result is available
+            subscribeFuture.result()
+        finally:
+            print('Releasing PubSub_lock: SUBSCRIBE_TO_TOPIC '+topic)
+            self.lock.release()
 
     def publish(self, topic: str, payload: Dict[str, Any] = {}):
         """
