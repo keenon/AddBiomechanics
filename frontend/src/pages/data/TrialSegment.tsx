@@ -201,7 +201,6 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                 csvMissingGrfArray = new Array(dataset.length).fill(true);
             }
 
-            console.log(csvMissingGrfArray);
             setCsvMissingGrfArray(csvMissingGrfArray);
             setPlotCSV(dataset);
         }).catch((e) => { });

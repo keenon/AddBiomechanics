@@ -1272,6 +1272,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                 return trial.segments.map((segment, index) => {
                                     let hasErrors = false;
 
+                                    // console.log(segment.path + + " " + index + " " + trialResults.segments[index].start + " " + trialResults.segments[index].end)
+
                                     if (!('segments' in trialResults) || trialResults.segments.length <= index) {
                                         return <tr key={segment.path} className='table-danger'>
                                             <td><button className="btn btn-dark" onClick={() => {
