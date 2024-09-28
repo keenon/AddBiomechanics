@@ -9,7 +9,7 @@ import Session from "../../model/Session";
 import SubjectViewState from "../../model/SubjectViewState";
 import LiveFile from "../../model/LiveFile";
 import { parseLinks, showToast } from "../../utils"
-import {toast } from 'react-toastify';
+import { toast } from 'react-toastify';
 import { action } from "mobx";
 
 
@@ -73,24 +73,24 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     // Handle checkbox change for dismissing warnings.
     const handleCheckboxChange = (segment: any) => (event: any) => {
-      const isChecked = event.target.checked;
-      if (isChecked) {
-          if (!segment.reviewFlagExists) {
-              home.dir.uploadText(segment.reviewFlagPath, "").then(() => {
-                  action(() => {
-                      segment.reviewFlagExists = false;
-                  })();
-                  });
-          }
-      } else {
-          if (segment.reviewFlagExists) {
-              home.dir.delete(segment.reviewFlagPath).then(() => {
-              action(() => {
-                  segment.reviewFlagExists = false;
-              })();
-              });
-          }
-      }
+        const isChecked = event.target.checked;
+        if (isChecked) {
+            if (!segment.reviewFlagExists) {
+                home.dir.uploadText(segment.reviewFlagPath, "").then(() => {
+                    action(() => {
+                        segment.reviewFlagExists = false;
+                    })();
+                });
+            }
+        } else {
+            if (segment.reviewFlagExists) {
+                home.dir.delete(segment.reviewFlagPath).then(() => {
+                    action(() => {
+                        segment.reviewFlagExists = false;
+                    })();
+                });
+            }
+        }
     };
 
     /////////////////////////////////////////////////////////////////////////
@@ -487,21 +487,21 @@ const SubjectView = observer((props: SubjectViewProps) => {
     if (!disableDynamics && subjectModel === 'custom') {
         totalFormElements++;
         if (formCompleteSoFar) {
-//            let footErrorMessage = null;
-//            if (footBodyNames.length < 2) {
-//                footErrorMessage = (
-//                    <div className="invalid-feedback">
-//                        To fit dynamics to your data, please specify at least two body nodes that we can treat as "feet", and send ground reaction forces through.
-//                    </div>
-//                );
-//            }
-//            else if (footBodyNames.length > 2) {
-//                footErrorMessage = (
-//                    <div className="invalid-feedback">
-//                        Currently AddBiomechanics dynamics fitter only supports treating each foot as a single body segment. Please don't include multiple segments from each foot.
-//                    </div>
-//                );
-//            }
+            //            let footErrorMessage = null;
+            //            if (footBodyNames.length < 2) {
+            //                footErrorMessage = (
+            //                    <div className="invalid-feedback">
+            //                        To fit dynamics to your data, please specify at least two body nodes that we can treat as "feet", and send ground reaction forces through.
+            //                    </div>
+            //                );
+            //            }
+            //            else if (footBodyNames.length > 2) {
+            //                footErrorMessage = (
+            //                    <div className="invalid-feedback">
+            //                        Currently AddBiomechanics dynamics fitter only supports treating each foot as a single body segment. Please don't include multiple segments from each foot.
+            //                    </div>
+            //                );
+            //            }
 
             formElements.push(<div key="feet" className="mb-3">
                 <label>Specify Two Feet in Custom OpenSim Model:</label>
@@ -704,68 +704,68 @@ const SubjectView = observer((props: SubjectViewProps) => {
     }
     //////////////////////////////////////////////////////////////////
     // 1.12. Create the entry for citation ifo
-//    totalFormElements++;
-//    if (formCompleteSoFar) {
-//        formElements.push(<div key="citation" className="mb-3">
-//            <label>Desired Citation:</label>
-//            <textarea
-//                id="citation"
-//                value={subjectCitation == null ? "" : subjectCitation}
-//                className={"form-control" + ((subjectCitation == null) ? " border-primary border-2" : "")}
-//                autoFocus={subjectCitation == null || !subjectCitationComplete}
-//                aria-describedby="citeHelp"
-//                onKeyDown={(e) => {
-//                    if (e.key === 'Enter' || e.key === 'Tab') {
-//                        if (subjectCitation == null) {
-//                            subjectJson.setAttribute("citation", "");
-//                        }
-//                        setSubjectCitationComplete(true);
-//                        const input = e.target as HTMLInputElement;
-//                        input.blur();
-//                    }
-//                }}
-//                disabled={props.readonly}
-//                onFocus={() => {
-//                    subjectJson.onFocusAttribute("citation");
-//                }}
-//                onBlur={() => {
-//                    subjectJson.onBlurAttribute("citation");
-//                }}
-//                onChange={(e) => {
-//                    subjectJson.setAttribute("citation", e.target.value);
-//                }}>
-//            </textarea>
-//            <div id="citeHelp" className="form-text">How do you want this data to be cited?</div>
-//        </div>);
-//
-//        if (subjectCitation == null || !subjectCitationComplete) {
-//            if (subjectCitationComplete) {
-//                setSubjectCitationComplete(false);
-//            }
-//            formCompleteSoFar = false;
-//            formElements.push(<div key='citationConfirm'>
-//                <button type="button" className="btn btn-primary" onClick={() => setSubjectCitationComplete(true)}>Confirm Citation</button> (or press Enter or Tab)
-//            </div>);
-//            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="citationExplanation">
-//                <h4 className="alert-heading">What should I put for my citation?</h4>
-//                <p>
-//                    It's fine to leave this blank, if you don't have a preferred citation. If you do, please include it here.
-//                </p>
-//                <p>
-//                    You can include your citation in any format you like, just note that this information is public.
-//                </p>
-//                <h5>IMPORTANT: NEVER INCLUDE PATIENT IDENTIFYING INFORMATION IN YOUR CITATION!</h5>
-//                <p>
-//                    Definitely do not put something like "Keenon Werling's gait data" in the citation field, unless
-//                    your subject has explicitly given informed consent to be identified and has requested that users
-//                    of the data cite them by name.
-//                </p>
-//            </div>);
-//        }
-//        else {
-//            completedFormElements++;
-//        }
-//    }
+    //    totalFormElements++;
+    //    if (formCompleteSoFar) {
+    //        formElements.push(<div key="citation" className="mb-3">
+    //            <label>Desired Citation:</label>
+    //            <textarea
+    //                id="citation"
+    //                value={subjectCitation == null ? "" : subjectCitation}
+    //                className={"form-control" + ((subjectCitation == null) ? " border-primary border-2" : "")}
+    //                autoFocus={subjectCitation == null || !subjectCitationComplete}
+    //                aria-describedby="citeHelp"
+    //                onKeyDown={(e) => {
+    //                    if (e.key === 'Enter' || e.key === 'Tab') {
+    //                        if (subjectCitation == null) {
+    //                            subjectJson.setAttribute("citation", "");
+    //                        }
+    //                        setSubjectCitationComplete(true);
+    //                        const input = e.target as HTMLInputElement;
+    //                        input.blur();
+    //                    }
+    //                }}
+    //                disabled={props.readonly}
+    //                onFocus={() => {
+    //                    subjectJson.onFocusAttribute("citation");
+    //                }}
+    //                onBlur={() => {
+    //                    subjectJson.onBlurAttribute("citation");
+    //                }}
+    //                onChange={(e) => {
+    //                    subjectJson.setAttribute("citation", e.target.value);
+    //                }}>
+    //            </textarea>
+    //            <div id="citeHelp" className="form-text">How do you want this data to be cited?</div>
+    //        </div>);
+    //
+    //        if (subjectCitation == null || !subjectCitationComplete) {
+    //            if (subjectCitationComplete) {
+    //                setSubjectCitationComplete(false);
+    //            }
+    //            formCompleteSoFar = false;
+    //            formElements.push(<div key='citationConfirm'>
+    //                <button type="button" className="btn btn-primary" onClick={() => setSubjectCitationComplete(true)}>Confirm Citation</button> (or press Enter or Tab)
+    //            </div>);
+    //            formElements.push(<div className="alert alert-dark mt-2" role="alert" key="citationExplanation">
+    //                <h4 className="alert-heading">What should I put for my citation?</h4>
+    //                <p>
+    //                    It's fine to leave this blank, if you don't have a preferred citation. If you do, please include it here.
+    //                </p>
+    //                <p>
+    //                    You can include your citation in any format you like, just note that this information is public.
+    //                </p>
+    //                <h5>IMPORTANT: NEVER INCLUDE PATIENT IDENTIFYING INFORMATION IN YOUR CITATION!</h5>
+    //                <p>
+    //                    Definitely do not put something like "Keenon Werling's gait data" in the citation field, unless
+    //                    your subject has explicitly given informed consent to be identified and has requested that users
+    //                    of the data cite them by name.
+    //                </p>
+    //            </div>);
+    //        }
+    //        else {
+    //            completedFormElements++;
+    //        }
+    //    }
     if (subjectCitation !== null && subjectCitation !== "") {
         formElements.push(<div key="citation" className="mb-3">
             <label>Desired Citation:</label>
@@ -800,7 +800,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <button disabled={props.readonly} className="btn btn-warning" onClick={async (e) => {
                 subjectJson.setAttribute("citation", "");
             }}>Remove Citation</button>
-          </div>)
+        </div>)
     };
 
     const subjectForm = (
@@ -946,23 +946,23 @@ const SubjectView = observer((props: SubjectViewProps) => {
     };
 
     const handleFileSelect = () => {
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.multiple = true; // Allow multiple file selection
-      fileInput.addEventListener('change', (event) => {
-        const inputElement = event.target as HTMLInputElement;
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true; // Allow multiple file selection
+        fileInput.addEventListener('change', (event) => {
+            const inputElement = event.target as HTMLInputElement;
 
-        let acceptedFiles: File[] = [];
-        if (inputElement.files) {
-          const files = Array.from(inputElement.files);
-          files.forEach((file) => {
-            acceptedFiles.push(file);
-          });
+            let acceptedFiles: File[] = [];
+            if (inputElement.files) {
+                const files = Array.from(inputElement.files);
+                files.forEach((file) => {
+                    acceptedFiles.push(file);
+                });
 
-          subjectState.dropFilesToUpload(acceptedFiles);
-        }
-      });
-      fileInput.click();
+                subjectState.dropFilesToUpload(acceptedFiles);
+            }
+        });
+        fileInput.click();
     };
 
     let uploadTrialsDropZone = null;
@@ -1009,41 +1009,41 @@ const SubjectView = observer((props: SubjectViewProps) => {
         if (errorFlagExists) {
 
             let guessedError = <li>
-                  <p>
+                <p>
                     <strong>{subjectState.parsedErrorsJson.type} - </strong>
                     {parseLinks(subjectState.parsedErrorsJson.message)}
-                  </p>
-                  <p>
+                </p>
+                <p>
                     {parseLinks(subjectState.parsedErrorsJson.original_message)}
-                  </p>
-              </li>
+                </p>
+            </li>
 
             if (Object.keys(subjectState.parsedErrorsJson).length > 0) {
-              errorsSection = <div>
-                <h3>Status: <div className="badge bg-danger ">Error</div></h3>
-                <div className="alert alert-danger my-2">
-                <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
-                <p>
-                  There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank" rel="noreferrer">Tips and Tricks page</a> for more suggestions.
-                </p>
-                <hr />
-                <ul>
-                  {guessedError}
-                </ul>
-                <hr />
-                <p>
-                  Please, fix the errors and update your data and/or your OpenSim Model and Markerset and then hit "Reprocess" (below in blue) to fix the problem.
-                </p>
-                <button className="btn btn-secondary" onClick={() => setShowLog(!showLog)}>
-                  {showLog ? "Hide Processing Log": "Show Processing Log"}
-                </button>
-                {showLog && (
-                  <pre className="alert alert-light my-2">
-                    {subjectState.logText}
-                  </pre>
-                )}
-              </div>
-              </div>;
+                errorsSection = <div>
+                    <h3>Status: <div className="badge bg-danger ">Error</div></h3>
+                    <div className="alert alert-danger my-2">
+                        <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
+                        <p>
+                            There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank" rel="noreferrer">Tips and Tricks page</a> for more suggestions.
+                        </p>
+                        <hr />
+                        <ul>
+                            {guessedError}
+                        </ul>
+                        <hr />
+                        <p>
+                            Please, fix the errors and update your data and/or your OpenSim Model and Markerset and then hit "Reprocess" (below in blue) to fix the problem.
+                        </p>
+                        <button className="btn btn-secondary" onClick={() => setShowLog(!showLog)}>
+                            {showLog ? "Hide Processing Log" : "Show Processing Log"}
+                        </button>
+                        {showLog && (
+                            <pre className="alert alert-light my-2">
+                                {subjectState.logText}
+                            </pre>
+                        )}
+                    </div>
+                </div>;
             }
 
             if (!props.readonly) {
@@ -1150,18 +1150,18 @@ const SubjectView = observer((props: SubjectViewProps) => {
             waitingForServer = true
 
             statusSection = <>
-            <button className="btn btn-primary" onClick={async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
+                <button className="btn btn-primary" onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    await subjectState.reprocess();
-                }
-            }}>Force Reprocess</button>
-            <div>
-                <h3>Status: <div className="badge bg-secondary">Waiting for server</div></h3>
-            </div>
+                    if (window.confirm("Are you sure you want to force the reprocessing of your data? If it is still processing, this may result in double-processing the same data.")) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await subjectState.reprocess();
+                    }
+                }}>Force Reprocess</button>
+                <div>
+                    <h3>Status: <div className="badge bg-secondary">Waiting for server</div></h3>
+                </div>
             </>;
         }
 
@@ -1191,7 +1191,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             if (processingFlagExists && !resultsExist && !errorFlagExists) {
                 if (processingFlagFileModified) {
                     possibleProcessingProblem = processingFlagFileModified < aDayAgo
-                  console.log(processingFlagFileModified < aDayAgo)
+                    console.log(processingFlagFileModified < aDayAgo)
                 }
                 console.log("PROCESSING")
                 console.log(processingFlagFileModified)
@@ -1208,10 +1208,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 console.log(aDayAgo)
             }
 
-            if(possibleProcessingProblem)
-                showToast("Your data is taking to much time to process. Please, click on reprocess to try again.", "warning", "reprocess", toast.POSITION.BOTTOM_CENTER, false)
-            else if(!resultsExist && !errorFlagExists)
-                showToast("Your data is being processed. Please, come back later", "info", "processing", toast.POSITION.BOTTOM_CENTER, false)
+            if (possibleProcessingProblem)
+                showToast("Your data is taking too much time to process. Please click on reprocess to try again.", "warning", "reprocess", toast.POSITION.BOTTOM_CENTER, false)
+            else if (!resultsExist && !errorFlagExists)
+                showToast("Your data is being processed. Please come back later", "info", "processing", toast.POSITION.BOTTOM_CENTER, false)
 
         }
     }
@@ -1238,15 +1238,15 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 </div>
                 <div>
                     {subjectJson.getAttribute("showReviewedWarnings", false) ? (
-                      <button className="btn btn-info mt-2 mb-2" onClick={
-                        () => {
-                          subjectJson.setAttribute("showReviewedWarnings", false)
-                      }}>Hide Reviewed Warnings</button>
+                        <button className="btn btn-info mt-2 mb-2" onClick={
+                            () => {
+                                subjectJson.setAttribute("showReviewedWarnings", false)
+                            }}>Hide Reviewed Warnings</button>
                     ) : (
-                      <button className="btn btn-info mt-2" onClick={
-                        () => {
-                          subjectJson.setAttribute("showReviewedWarnings", true)
-                      }}>Show Reviewed Warnings</button>
+                        <button className="btn btn-info mt-2" onClick={
+                            () => {
+                                subjectJson.setAttribute("showReviewedWarnings", true)
+                            }}>Show Reviewed Warnings</button>
                     )}
                 </div>
             </div>;
@@ -1315,13 +1315,13 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                         reviewStatus = <span className='badge bg-success'>Reviewed</span>;
                                         if (!props.readonly) {
                                             reviewStatus = <label className='badge bg-success' style={{ cursor: 'pointer' }}>
-                                              Reviewed
-                                              <input
-                                                type="checkbox"
-                                                onClick={handleCheckboxChange(segment)}
-                                                checked={segment.reviewFlagExists}
-                                                style={{ marginLeft: '10px' }}
-                                              />
+                                                Reviewed
+                                                <input
+                                                    type="checkbox"
+                                                    onClick={handleCheckboxChange(segment)}
+                                                    checked={segment.reviewFlagExists}
+                                                    style={{ marginLeft: '10px' }}
+                                                />
                                             </label>
                                         }
                                     }
@@ -1330,13 +1330,13 @@ const SubjectView = observer((props: SubjectViewProps) => {
                                         </span></>
                                         if (!props.readonly) {
                                             reviewStatus = <label className='badge bg-warning' style={{ cursor: 'pointer' }}>
-                                              Needs Review
-                                              <input
-                                                type="checkbox"
-                                                onClick={handleCheckboxChange(segment)}
-                                                checked={segment.reviewFlagExists}
-                                                style={{ marginLeft: '10px' }}
-                                              />
+                                                Needs Review
+                                                <input
+                                                    type="checkbox"
+                                                    onClick={handleCheckboxChange(segment)}
+                                                    checked={segment.reviewFlagExists}
+                                                    style={{ marginLeft: '10px' }}
+                                                />
                                             </label>
                                         }
                                     }
@@ -1359,24 +1359,23 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
                                     let hasWarnings = false;
                                     let errorMsg = ''
-                                    segmentResults.hasMarkerWarnings = true;
                                     if (segmentResults.hasMarkerWarnings) {
-                                      hasWarnings = true;
-                                      errorMsg = "We've identified warnings in your code regarding your markers. We're actively developing more detailed warnings, which will be included in the next release."
+                                        hasWarnings = true;
+                                        errorMsg = "We've identified warnings in your code regarding your markers. We're actively developing more detailed warnings, which will be included in the next release."
                                     }
 
                                     if (hasWarnings) {
-//                                        return <tr key={segment.path} className='table-warning' style={{display: isHiddenCheckboxWarning(String(trial.name + "_" + segment.name)) ? "none" : "table-row"}}>
-                                        return <tr key={segment.path} className='table-warning' style={{display: subjectJson.getAttribute("showReviewedWarnings", false) || !segment.reviewFlagExists ? "table-row" : "none"}}>
-                                                    <td><button className="btn btn-dark" onClick={() => {
-                                                        navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
-                                                    }}>
-                                                        View Error Results "{trial.name}" {segmentResults.start.toFixed(2)}s to {segmentResults.end.toFixed(2)}s
-                                                    </button></td>
-                                                    <td>{errorMsg}</td>
-                                                    <td>{dynamicsResults}</td>
-                                                    <td>{reviewStatus}</td>
-                                                </tr>
+                                        //                                        return <tr key={segment.path} className='table-warning' style={{display: isHiddenCheckboxWarning(String(trial.name + "_" + segment.name)) ? "none" : "table-row"}}>
+                                        return <tr key={segment.path} className='table-warning' style={{ display: subjectJson.getAttribute("showReviewedWarnings", false) || !segment.reviewFlagExists ? "table-row" : "none" }}>
+                                            <td><button className="btn btn-dark" onClick={() => {
+                                                navigate(Session.getDataURL(props.currentLocationUserId, segment.path));
+                                            }}>
+                                                View Error Results "{trial.name}" {segmentResults.start.toFixed(2)}s to {segmentResults.end.toFixed(2)}s
+                                            </button></td>
+                                            <td>{errorMsg}</td>
+                                            <td>{dynamicsResults}</td>
+                                            <td>{reviewStatus}</td>
+                                        </tr>
                                     }
 
 
