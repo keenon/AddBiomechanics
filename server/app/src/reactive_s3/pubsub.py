@@ -161,12 +161,14 @@ class PubSub(PubSubSocket):
         print('Waiting for connection...')
         # Future.result() waits until a result is available
         connection_result = connectFuture.result()
-        if connection_result is not None and 'session_present' in connection_result and connection_result['session_present']:
+        if connection_result is not None and 'session_present' in connection_result:
             print('Connected to PubSub')
-            current_subscriptions: List[Tuple[str, Callable[[str, Any], None]]] = list(self.subscriptions.items())
-            for topic, callback in current_subscriptions:
-                print('Resubscribing to topic: ' + topic)
-                self.subscribe(topic, callback)
+            if not connection_result['session_present']:
+                print('Session not present, resubscribing to topics...')
+                current_subscriptions: List[Tuple[str, Callable[[str, Any], None]]] = list(self.subscriptions.items())
+                for topic, callback in current_subscriptions:
+                    print(f'Resubscribing to topic: {topic}')
+                    self.subscribe(topic, callback)
         else:
             print('Got exception trying to reconnect PubSub: ')
             print(connection_result)
