@@ -33,7 +33,7 @@ def get_segment_results_json(trial_proto: nimble.biomechanics.SubjectOnDiskTrial
         'kinematicsAvgMax': np.mean(trial_passes[kinematics_pass].getMarkerMax()) if kinematics_pass != -1 else None,
         'kinematicsPerMarkerRMSE': None,
         # Dynamics fit results, if present
-        'dynamicsStatus': 'FINISHED' if dynamics_pass != -1 else 'ERROR',
+        'dynamicsStatus': 'FINISHED' if dynamics_pass != -1 else 'NOT_STARTED',
         'dynanimcsAvgRMSE': np.mean(trial_passes[dynamics_pass].getMarkerRMS()) if dynamics_pass != -1 else None,
         'dynanimcsAvgMax': np.mean(trial_passes[dynamics_pass].getMarkerMax()) if dynamics_pass != -1 else None,
         'dynanimcsPerMarkerRMSE': None,
@@ -91,20 +91,23 @@ def save_segment_to_gui(trial_proto: nimble.biomechanics.SubjectOnDiskTrial,
     if -1 < dynamics_pass_index < len(trial_passes):
         dynamics_poses = trial_passes[dynamics_pass_index].getPoses()
 
+    has_kinematics_pass = kinematics_osim is not None and kinematics_pass_index > -1 and kinematics_poses is not None
+    has_dynamics_pass = dynamics_osim is not None and dynamics_pass_index > -1 and dynamics_poses is not None
+
     # 1.1. Set up the layers
     # We want to show the markers and warnings by default if the processing steps all failed
     default_show_markers_and_warnings = True
-    if kinematics_osim is not None or dynamics_osim is not None:
+    if has_kinematics_pass or has_dynamics_pass:
         default_show_markers_and_warnings = False
     gui.createLayer(markers_layer_name, [0.5, 0.5, 0.5, 1.0], defaultShow=default_show_markers_and_warnings)
     gui.createLayer(warnings_layer_name, [1.0, 0.0, 0.0, 1.0], defaultShow=default_show_markers_and_warnings)
     gui.createLayer(force_plate_layer_name, [1.0, 0.0, 0.0, 1.0], defaultShow=True)
 
-    if kinematics_osim is not None:
+    if has_kinematics_pass:
         # Default to showing kinematics only if dynamics didn't finish
         gui.createLayer(kinematics_fit_layer_name,
-                        defaultShow=(dynamics_osim is None))
-    if dynamics_osim is not None:
+                        defaultShow=(not has_dynamics_pass))
+    if has_dynamics_pass:
         # Default to showing dynamics if it finished
         gui.createLayer(dynamics_fit_layer_name, defaultShow=True)
 
@@ -173,12 +176,12 @@ def save_segment_to_gui(trial_proto: nimble.biomechanics.SubjectOnDiskTrial,
                                width=[2.0, 1.0])
 
         # 4. Render the kinematics skeleton, if we have it
-        if kinematics_osim is not None and kinematics_pass_index > -1 and kinematics_poses is not None:
+        if has_kinematics_pass:
             kinematics_osim.skeleton.setPositions(kinematics_poses[:, t])
             gui.renderSkeleton(kinematics_osim.skeleton, prefix='kinematics_', layer=kinematics_fit_layer_name)
 
         # 5. Render the dynamics skeleton, if we have it
-        if dynamics_osim is not None and dynamics_pass_index > -1 and dynamics_poses is not None:
+        if has_dynamics_pass:
             dynamics_osim.skeleton.setPositions(dynamics_poses[:, t])
             gui.renderSkeleton(dynamics_osim.skeleton, prefix='dynamics_', layer=dynamics_fit_layer_name)
         gui.saveFrame()

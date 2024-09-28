@@ -186,7 +186,8 @@ class ThresholdsDetector(AbstractDetector):
                                                  foot_markers: List[List[Tuple[nimble.dynamics.BodyNode, np.ndarray]]],
                                                  positions: np.ndarray,
                                                  raw_force_plate_forces: List[List[np.ndarray]],
-                                                 raw_force_plate_cops: List[List[np.ndarray]]) -> float:
+                                                 raw_force_plate_cops: List[List[np.ndarray]],
+                                                 dt: float) -> float:
         """
         Get the force-weighted convex foot CoP error for the given skeleton, foot markers, positions, and frames.
 
@@ -232,13 +233,15 @@ class ThresholdsDetector(AbstractDetector):
                         contact_forces[f] += force_mag
                 else:
                     if last_in_contact[f]:
-                        if contact_forces[f] > 100.0:
+                        if contact_forces[f] * dt > 10.0:
                             weighted_average_distances = [contact_distances[f][body] / contact_forces[f] for body in
                                                           range(num_contact_bodies)]
                             min_weighted_distance = min(weighted_average_distances)
                             if min_weighted_distance > largest_min_weighted_distance:
                                 largest_min_weighted_distance = min_weighted_distance
                             total_force += contact_forces[f]
+                        else:
+                            print(f"!! Frame {t} has a contact force of {contact_forces[f] * dt} Ns, which is less than the threshold of 10.0 Ns.")
 
                         last_in_contact[f] = False
                         contact_distances[f] = [0.0 for _ in range(num_contact_bodies)]
@@ -246,7 +249,7 @@ class ThresholdsDetector(AbstractDetector):
                     last_in_contact[f] = False
         for f in range(num_force_plates):
             if last_in_contact[f]:
-                if contact_forces[f] > 100.0:
+                if contact_forces[f] * dt > 10.0:
                     weighted_average_distances = [contact_distances[f][body] / contact_forces[f] for body in
                                                   range(num_contact_bodies)]
                     min_weighted_distance = min(weighted_average_distances)
@@ -274,7 +277,9 @@ class ThresholdsDetector(AbstractDetector):
             trial_len = subject.getTrialLength(trial)
             trial_proto = trial_protos[trial]
 
-            raw_force_plates: List[nimble.biomechanics.ForcePlate] = trial_proto.getForcePlates()
+            passes = trial_proto.getPasses()
+
+            raw_force_plates: List[nimble.biomechanics.ForcePlate] = passes[-1].getProcessedForcePlates()
             raw_force_plate_forces: List[List[np.ndarray]] = [plate.forces for plate in raw_force_plates]
             raw_force_plate_cops: List[List[np.ndarray]] = [plate.centersOfPressure for plate in raw_force_plates]
 
@@ -301,11 +306,11 @@ class ThresholdsDetector(AbstractDetector):
             # 2. Get the smoothed positions and velocities. We do this by getting the poses from the second pass, which
             # is the acceleration minimizing smoother. If the trial doesn't have this pass, we mark the entire trial as
             # excluded.
-            if len(trial_proto.getPasses()) < 2 or trial_proto.getPasses()[1].getType() != nimble.biomechanics.ProcessingPassType.ACC_MINIMIZING_FILTER:
+            if len(passes) < 2 or passes[1].getType() != nimble.biomechanics.ProcessingPassType.ACC_MINIMIZING_FILTER:
                 result.append([nimble.biomechanics.MissingGRFReason.hasInputOutliers] * trial_len)
                 continue
-            poses = trial_proto.getPasses()[1].getPoses()
-            vels = trial_proto.getPasses()[1].getVels()
+            poses = passes[1].getPoses()
+            vels = passes[1].getVels()
 
             # 3. Check if the trial has badly wrapped IK based on the smoothed velocities. In theory, the previous code
             # should prevent this from happening, but it seems in our dataset that sometimes the IK can still produce
@@ -320,7 +325,15 @@ class ThresholdsDetector(AbstractDetector):
             # markers given at the top of the file. If the CoP is outside the convex hull, we mark the frame as bad,
             # because something is probably wrong with the force plate data. Often this can be a force plate that's
             # miscalibrated in space, or someone has a bug in their CoP calculation code.
-            if self.get_force_weighted_convex_foot_cop_error(skel, foot_markers, poses, raw_force_plate_forces, raw_force_plate_cops) > 0.01:
+            dt = subject.getTrialTimestep(trial)
+            cop_foot_error = self.get_force_weighted_convex_foot_cop_error(skel,
+                                                                           foot_markers,
+                                                                           poses,
+                                                                           raw_force_plate_forces,
+                                                                           raw_force_plate_cops,
+                                                                           dt)
+            if cop_foot_error > 0.01:
+                print(f"!! Trial {trial} has a force-weighted center-of-pressure-outside-of-foot error of {cop_foot_error}m, which is higher than the threshold of 0.01m.")
                 result.append([nimble.biomechanics.MissingGRFReason.copOutsideConvexFootError] * trial_len)
                 continue
 

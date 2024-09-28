@@ -121,7 +121,8 @@ def add_acceleration_minimizing_pass(subject: nimble.biomechanics.SubjectOnDisk)
             # 4.2. Lowpass filter each non-zero segment
             for start, end in non_zero_segments:
                 # print(f"Filtering force plate {i} on non-zero range [{start}, {end}]")
-                if end - start < 10:
+                total_impulse = np.sum(np.linalg.norm(force_matrix[:, start:end], axis=0)) * dt
+                if end - start < 10 or total_impulse < 10.0:
                     # print(" - Skipping non-zero segment because it's too short. Zeroing instead")
                     for t in range(start, end):
                         force_plate_raw_forces[i][t] = np.zeros(3)
