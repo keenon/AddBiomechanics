@@ -177,6 +177,8 @@ class SubjectToProcess:
         self.errorsFile = self.subjectPath + '_errors.json'
         self.osimResults = self.subjectPath + self.subjectName + '.zip'
         self.pytorchResults = self.subjectPath + self.subjectName + '.b3d'
+        self.pytorchDynamicsOnlyResults = self.subjectPath + self.subjectName + '_dynamics_trials_only.b3d'
+        self.noDynamicsFlag = self.subjectPath + 'NO_DYNAMICS_TRIALS'
         self.logfile = self.subjectPath + 'log.txt'
 
     def sendNotificationEmail(self, email: str, name: str, path: str, userId: str):
@@ -387,10 +389,10 @@ class SubjectToProcess:
                         self.pytorchResults, path + self.subjectName + '.b3d')
                 if os.path.exists(path + self.subjectName + '_dynamics_trials_only.b3d'):
                     self.index.uploadFile(
-                        self.pytorchResults, path + self.subjectName + '_dynamics_trials_only.b3d')
+                        self.pytorchDynamicsOnlyResults, path + self.subjectName + '_dynamics_trials_only.b3d')
                 if os.path.exists(path + 'NO_DYNAMICS_TRIALS'):
                     self.index.uploadFile(
-                        self.pytorchResults, path + 'NO_DYNAMICS_TRIALS')
+                        self.noDynamicsFlag, path + 'NO_DYNAMICS_TRIALS')
 
                 # 5.2. Upload the _results.json file last, since that marks the trial as DONE on the frontend,
                 # and it starts to be able
