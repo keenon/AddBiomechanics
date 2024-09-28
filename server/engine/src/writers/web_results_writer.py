@@ -21,6 +21,20 @@ def get_segment_results_json(trial_proto: nimble.biomechanics.SubjectOnDiskTrial
     num_not_missing_grf = sum([1 for r in missing_grf if r == nimble.biomechanics.MissingGRFReason.notMissingGRF])
     num_missing_grf = sum([1 for r in missing_grf if r != nimble.biomechanics.MissingGRFReason.notMissingGRF])
 
+    # Compute the linear and angular residuals only on the frames where we have GRF data
+    linear_residual = 0.0
+    angular_residual = 0.0
+    if dynamics_pass != -1:
+        linear_residual_frames = trial_passes[dynamics_pass].getLinearResidual()
+        angular_residual_frames = trial_passes[dynamics_pass].getAngularResidual()
+        for i in range(len(missing_grf)):
+            if missing_grf[i] == nimble.biomechanics.MissingGRFReason.notMissingGRF:
+                linear_residual += linear_residual_frames[i]
+                angular_residual += angular_residual_frames[i]
+    if num_not_missing_grf > 0:
+        linear_residual /= num_not_missing_grf
+        angular_residual /= num_not_missing_grf
+
     results: Dict[str, Any] = {
         'trialName': trial_proto.getOriginalTrialName(),
         'start_frame': trial_proto.getOriginalTrialStartFrame(),
@@ -37,8 +51,8 @@ def get_segment_results_json(trial_proto: nimble.biomechanics.SubjectOnDiskTrial
         'dynanimcsAvgRMSE': np.mean(trial_passes[dynamics_pass].getMarkerRMS()) if dynamics_pass != -1 else None,
         'dynanimcsAvgMax': np.mean(trial_passes[dynamics_pass].getMarkerMax()) if dynamics_pass != -1 else None,
         'dynanimcsPerMarkerRMSE': None,
-        'linearResiduals': np.mean(trial_passes[dynamics_pass].getLinearResidual()) if dynamics_pass != -1 else None,
-        'angularResiduals': np.mean(trial_passes[dynamics_pass].getAngularResidual()) if dynamics_pass != -1 else None,
+        'linearResiduals': linear_residual if dynamics_pass != -1 else None,
+        'angularResiduals': angular_residual if dynamics_pass != -1 else None,
         'totalTimestepsWithGRF': num_not_missing_grf,
         'totalTimestepsMissingGRF': num_missing_grf,
         # Hand scaled marker error results, if present
