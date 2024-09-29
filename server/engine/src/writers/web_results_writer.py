@@ -244,7 +244,7 @@ def save_segment_csv(
 
         for t in range(len(marker_observations)):
             timestamp = t * dt + trial_proto.getOriginalTrialStartTime()
-            f.write(str(timestamp))
+            f.write(str(round(timestamp, 3)))
             if final_skeleton is not None:
                 # Joint positions
                 for i in range(final_skeleton.getNumDofs()):
