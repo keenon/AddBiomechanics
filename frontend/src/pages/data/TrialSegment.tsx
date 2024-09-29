@@ -314,6 +314,21 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
                     };
                 }
             }
+            else if (label.indexOf("pwr") !== -1) {
+                if (!scales.hasOwnProperty("W")) {
+                    scales['W'] = {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        ticks: {
+                            beginAtZero: true,
+                            callback: function (value: any, index: any, values: any) {
+                                return value + ' W';
+                            }
+                        }
+                    };
+                }
+            }
             else if (label.indexOf("force") !== -1) {
                 if (!scales.hasOwnProperty("N")) {
                     scales['N'] = {
@@ -395,7 +410,7 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             let label = plotTags[j];
             let data: any[] = [];
             for (let i = 0; i < plotCSV.length; i++) {
-                if (plotCSV[i].get('missing_grf_data') && (label.indexOf('tau') !== -1 || label.indexOf('force') !== -1 || label.indexOf('moment') !== -1)) {
+                if (plotCSV[i].get('missing_grf_data') && (label.indexOf('tau') !== -1 || label.indexOf('force') !== -1 || label.indexOf('moment') !== -1 || label.indexOf('pwr') !== -1)) {
                     data.push(null);
                 }
                 else {
@@ -415,6 +430,9 @@ const TrialSegmentView = observer((props: TrialSegmentViewProps) => {
             }
             else if (label.indexOf("vel") !== -1) {
                 yAxisID = "units/s";
+            }
+            else if (label.indexOf("pwr") !== -1) {
+                yAxisID = "W";
             }
             else if (label.indexOf("acc") !== -1) {
                 yAxisID = "units/s^2";
