@@ -215,10 +215,13 @@ def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
                     # .setIncludeInertias(True)
                     # .setIncludeCOMs(True)
                     .setIncludeBodyScales(True)
-                    .setIncludeMarkerOffsets(False)
+                    .setIncludeMarkerOffsets(True)
                     .setIncludePoses(True)
                     .setJointWeight(0.0)  # We have to disable this, because we don't have the joint info
                     .setMarkerWeight(50.0)
+                    .setRegularizeAnatomicalMarkerOffsets(0.1)
+                    .setRegularizeTrackingMarkerOffsets(0.01)
+                    .setRegularizeBodyScales(1.0)
                     .setRegularizePoses(0.01)
                     .setRegularizeJointAcc(1e-6))
 

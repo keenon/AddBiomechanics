@@ -37,6 +37,8 @@ def get_foot_travel_distance_in_contact(skel: nimble.dynamics.Skeleton,
                                         positions: np.ndarray,
                                         raw_force_plate_forces: List[List[np.ndarray]],
                                         raw_force_plate_cops: List[List[np.ndarray]]) -> List[float]:
+    if len(raw_force_plate_forces) == 0:
+        return []
     trial_len = len(raw_force_plate_forces[0])
     num_contact_bodies = len(ground_bodies)
     body_last_in_contact = [False for _ in range(num_contact_bodies)]
