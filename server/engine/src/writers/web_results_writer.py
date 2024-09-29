@@ -236,6 +236,9 @@ def save_segment_csv(
             # Joint torques
             for i in range(final_skeleton.getNumDofs()):
                 f.write(',' + final_skeleton.getDofByIndex(i).getName() + '_tau')
+            # Joint powers
+            for i in range(final_skeleton.getNumDofs()):
+                f.write(',' + final_skeleton.getDofByIndex(i).getName() + '_pwr')
             f.write(',missing_grf_data')
         f.write('\n')
 
@@ -255,6 +258,9 @@ def save_segment_csv(
                 # Joint torques
                 for i in range(final_skeleton.getNumDofs()):
                     f.write(',' + str(taus[i, t]))
+                # Joint power
+                for i in range(final_skeleton.getNumDofs()):
+                    f.write(',' + str(vels[i, t] * taus[i, t]))
                 f.write(',' + str(missing_grf_reason[t] != nimble.biomechanics.MissingGRFReason.notMissingGRF))
             f.write('\n')
 
