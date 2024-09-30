@@ -123,7 +123,7 @@ class SubjectSnapshot:
             return
 
         # Download the dataset locally
-        tmp_folder: str = self.index.downloadToTmp(self.path)
+        tmp_folder: str = self.index.download_to_tmp(self.path)
 
         # Identify trials that are too short. We don't want to process these
         trial_paths_to_remove: List[str] = self.id_short_trials(tmp_folder)
@@ -305,7 +305,7 @@ class DataHarvester:
         self.index.addChangeListener(self.on_change)
         self.index.refreshIndex()
         if not disable_pubsub:
-            self.index.registerPubSub()
+            self.index.register_pub_sub()
 
     def on_change(self):
         print('S3 CHANGED!')
