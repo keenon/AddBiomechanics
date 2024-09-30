@@ -602,6 +602,7 @@ class MocapServer:
 
     def onChange(self):
         print('S3 CHANGED!')
+        start_time = time.time()
 
         shouldProcessSubjects: List[SubjectToProcess] = []
 
@@ -622,6 +623,8 @@ class MocapServer:
 
         # 3. Update the queue. There's another thread that busy-waits on the queue changing, that can then grab a queue entry and continue
         self.queue = shouldProcessSubjects
+
+        print('Queue updated in ' + str(time.time() - start_time) + ' seconds')
 
         for subject in self.queue:
             print('- should process: ' + str(subject.subjectPath))
