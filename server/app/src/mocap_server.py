@@ -703,6 +703,12 @@ class MocapServer:
 
         While processing, this blocks, so even though the queue is updating in the background, that shouldn't change the outcome of this process.
         """
+        print('Starting processing queue.')
+        print('Computing inital queue...')
+        start_time = time.time()
+        self.recompute_queue()
+        print('[PERFORMANCE] Initial queue computed in ' + str(time.time() - start_time) + ' seconds')
+        print('Queue length: '+str(len(self.queue)))
         while True:
             try:
                 # First, we process the queue of PubSub messages that the index has received since the last time we
