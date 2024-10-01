@@ -623,9 +623,9 @@ class MocapServer:
         self.queue = should_process_subjects
 
         print('Queue updated in ' + str(time.time() - start_time) + ' seconds')
-
-        for subject in self.queue:
-            print('- should process: ' + str(subject.subjectPath))
+        print('Queue length: '+str(len(self.queue)))
+        if len(self.queue) > 0:
+            print('Queue head: '+str(self.queue[0]))
 
         # 4. Update status file
         self.update_status_file()
@@ -650,7 +650,7 @@ class MocapServer:
             self.lastUploadedStatusTimestamp = currentTimestamp
             self.index.uploadText(
                 'protected/server_status/'+self.serverId, statusStr)
-            print('Uploaded updated status file: \n' + statusStr)
+            print('Uploaded updated status file')
 
     def on_pub_sub_status_received(self, topic: str, payload: bytes):
         print(f'Received PubSub status update on server {self.serverId}')
@@ -744,7 +744,7 @@ class MocapServer:
                         # limit).
                         slurm_new_jobs, slurm_reprocessing_jobs = self.get_slurm_job_queue_len()
                         slurm_total_jobs = slurm_new_jobs + slurm_reprocessing_jobs
-                        print('Queueing subject for processing on SLURM: ' +
+                        print('Checking resource limits before queueing subject for processing on SLURM: ' +
                               self.currentlyProcessing.subjectPath)
                         # We always leave a few slots open for new jobs, since they're more important than reprocessing
                         if (reprocessing_job and slurm_reprocessing_jobs < 15) or \
