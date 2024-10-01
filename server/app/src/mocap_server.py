@@ -625,7 +625,7 @@ class MocapServer:
         print('Queue updated in ' + str(time.time() - start_time) + ' seconds')
         print('Queue length: '+str(len(self.queue)))
         if len(self.queue) > 0:
-            print('Queue head: '+str(self.queue[0]))
+            print('Queue head: '+str(self.queue[0].subjectPath))
 
         # 4. Update status file
         self.update_status_file()
