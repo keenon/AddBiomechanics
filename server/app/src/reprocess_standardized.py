@@ -67,34 +67,48 @@ if __name__ == "__main__":
 
     average_num_hashes = sum([len(x) for x in subject_hashes.values()]) / len(subject_hashes)
 
-    # num_reprocessed = 0
-    # for original_subject, hashes in subject_hashes.items():
-    #     # sort hashes by last modified date
-    #     hashes.sort(key=lambda x: x[1])
-    #     assert(len(hashes) > 0)
-    #     # Get the last hash
-    #     hash_id = hashes[-1][0]
-    #     folder = f'{original_subject}/{hash_id}'
-    #     children = index.getImmediateChildren(folder + '/')
-    #     dynamics_b3d = [x for x in children if x.endswith('_dynamics_trials_only.b3d')]
-    #     no_dynamics_flag = [x for x in children if x.endswith('NO_DYNAMICS_TRIALS')]
-    #     missing_dynamics = ((len(dynamics_b3d) + len(no_dynamics_flag)) == 0)
-    #     b3d_files = [x for x in children if x.endswith('.b3d')]
-    #     results_files = [x for x in children if x.endswith('_results.json')]
-    #
-    #     if len(dynamics_b3d) + len(no_dynamics_flag) == 0:
-    #         if len(b3d_files) > 0 and len(results_files) > 0:
-    #             print(f'Reprocessing {folder}...')
-    #             print('Deleting ' + folder + '/SLURM')
-    #             index.delete(folder + '/SLURM')
-    #             index.delete(folder + '/PROCESSING')
-    #             index.delete(folder + '/_results.json')
-    #             b3d_files = [x for x in children if x.endswith('.b3d')]
-    #             for b3d_file in b3d_files:
-    #                 index.delete(folder + '/' + b3d_file)
-    #             num_reprocessed += 1
-    #             if num_reprocessed >= 150:
-    #                 break
+    num_reprocessed = 0
+    for original_subject, hashes in subject_hashes.items():
+        # sort hashes by last modified date
+        hashes.sort(key=lambda x: x[1])
+        assert(len(hashes) > 0)
+        # Get the last hash
+        hash_id = hashes[-1][0]
+        folder = f'{original_subject}/{hash_id}'
+        children = index.getImmediateChildren(folder + '/')
+        dynamics_b3d = [x for x in children if x.endswith('_dynamics_trials_only.b3d')]
+        no_dynamics_flag = [x for x in children if x.endswith('NO_DYNAMICS_TRIALS')]
+        missing_dynamics = ((len(dynamics_b3d) + len(no_dynamics_flag)) == 0)
+        has_slurm = any([x.endswith('SLURM') for x in children])
+        has_processing = any([x.endswith('PROCESSING') for x in children])
+        b3d_files = [x for x in children if x.endswith('.b3d')]
+        results_files = [x for x in children if x.endswith('_results.json')]
+
+        # Reprocess the subjects we've already processed
+        # if (not missing_dynamics) and (has_processing or has_slurm):
+        #     print(f'Reprocessing {folder}...')
+        #     index.delete(folder + '/SLURM')
+        #     index.delete(folder + '/PROCESSING')
+        #     index.delete(folder + '/NO_DYNAMICS_TRIALS')
+        #     index.delete(folder + '/_results.json')
+        #     b3d_files = [x for x in children if x.endswith('.b3d')]
+        #     for b3d_file in b3d_files:
+        #         index.delete(folder + '/' + b3d_file)
+
+        # Reprocess all the subjects that have not been updated yet
+        if len(dynamics_b3d) + len(no_dynamics_flag) == 0:
+            if len(b3d_files) > 0 and len(results_files) > 0:
+                print(f'Reprocessing {folder}...')
+                print('Deleting ' + folder + '/SLURM')
+                index.delete(folder + '/SLURM')
+                index.delete(folder + '/PROCESSING')
+                index.delete(folder + '/_results.json')
+                b3d_files = [x for x in children if x.endswith('.b3d')]
+                for b3d_file in b3d_files:
+                    index.delete(folder + '/' + b3d_file)
+                num_reprocessed += 1
+                # if num_reprocessed >= 150:
+                #     break
 
     print('Done!')
     print('Average number of hashes per subject: ' + str(average_num_hashes))
