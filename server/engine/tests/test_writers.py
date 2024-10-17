@@ -3,8 +3,8 @@ import unittest
 import os
 from inspect import getsourcefile
 import shutil
-from writers.opensim_writer import write_opensim_results
-from writers.web_results_writer import write_web_results
+from src.writers.opensim_writer import write_opensim_results
+from src.writers.web_results_writer import write_web_results
 import tempfile
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))

@@ -1,16 +1,16 @@
 import shutil
 import unittest
-from kinematics_pass.subject import Subject
-from kinematics_pass.trial import TrialSegment, Trial
+from src.kinematics_pass.subject import Subject
+from src.kinematics_pass.trial import TrialSegment, Trial
 from typing import Dict, List, Any
 import os
 import nimblephysics as nimble
 from inspect import getsourcefile
-from utilities.scale_opensim_model import scale_opensim_model
+from src.utilities.scale_opensim_model import scale_opensim_model
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
-DATA_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')
-TEST_DATA_PATH = os.path.join(TESTS_PATH, '..', 'test_data')
+DATA_FOLDER_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')
+TEST_DATA_PATH = os.path.join(TESTS_PATH, 'data')
 
 def reset_test_data(name: str):
     original_path = os.path.join(TEST_DATA_PATH, f'{name}_original')
@@ -24,7 +24,7 @@ class TestScaleOsim(unittest.TestCase):
     def test_rescale_osim_model(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         subject.kinematics_skeleton = subject.skeleton
         print(os.path.join(TEST_DATA_PATH, 'opencap_test', 'unscaled_generic.osim'))
         self.assertTrue(os.path.exists(os.path.join(TEST_DATA_PATH, 'opencap_test', 'unscaled_generic.osim')))

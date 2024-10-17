@@ -2,14 +2,18 @@ import shutil
 import unittest
 from src.kinematics_pass.subject import Subject
 from src.kinematics_pass.trial import TrialSegment, Trial
+from src.dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
+from src.dynamics_pass.classification_pass import classification_pass
+from src.dynamics_pass.missing_grf_detection import missing_grf_detection
+from src.dynamics_pass.dynamics_pass import dynamics_pass
 from typing import Dict, List, Any
 import os
 import nimblephysics as nimble
 from inspect import getsourcefile
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
-DATA_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')
-TEST_DATA_PATH = os.path.join(TESTS_PATH, '..', 'test_data')
+TEST_DATA_PATH = os.path.join(TESTS_PATH, 'data')
+DATA_FOLDER_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')
 
 def reset_test_data(name: str):
     original_path = os.path.join(TEST_DATA_PATH, f'{name}_original')
@@ -38,7 +42,7 @@ class TestSubject(unittest.TestCase):
         subject = Subject()
         reset_test_data('opencap_test')
         subject.skeletonPreset = 'custom'
-        subject.load_model_files(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_model_files(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
@@ -56,7 +60,7 @@ class TestSubject(unittest.TestCase):
         # If we trigger to export either an SDF or an MJCF, we use simplified joint definitions, so we run a
         # pre-processing step on the data.
         subject.exportSDF = True
-        subject.load_model_files(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_model_files(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
@@ -74,7 +78,7 @@ class TestSubject(unittest.TestCase):
     def test_load_folder(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
@@ -83,7 +87,7 @@ class TestSubject(unittest.TestCase):
     def test_segment_trials(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         subject.segment_trials()
         for trial in subject.trials:
             for segment in trial.segments:
@@ -96,11 +100,11 @@ class TestSubject(unittest.TestCase):
     def test_kinematics_fit(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         subject.segment_trials()
         subject.kinematicsIterations = 20
         subject.initialIKRestarts = 3
-        subject.run_kinematics_pass(DATA_PATH)
+        subject.run_kinematics_pass(DATA_FOLDER_PATH)
         subject_on_disk = subject.create_subject_on_disk('<href>')
         self.assertIsNotNone(subject_on_disk)
 
@@ -108,75 +112,19 @@ class TestRajagopal2015(unittest.TestCase):
     def test_Rajagopal2015(self):
         import opensim as osim
 
-        # Copy the data to the local folder.
-        # ----------------------------------
-        data_fpath = '../data/Rajagopal2015'
-        processed_fpath = os.path.join(data_fpath, 'processed')
-        if os.path.isdir(processed_fpath):
-            shutil.rmtree(processed_fpath)
-        os.mkdir(processed_fpath)
-        model_src = os.path.join(data_fpath, 'raw', 'Rajagopal2015_CustomMarkerSet.osim')
-        model_dst = os.path.join(data_fpath, 'processed', 'unscaled_generic.osim')
-        shutil.copyfile(model_src, model_dst)
+        subject = Subject()
+        reset_test_data('rajagopal2015')
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
+        subject.segment_trials()
+        subject.run_kinematics_pass(DATA_FOLDER_PATH)
+        subject_on_disk = subject.create_subject_on_disk('<href>')
+        add_acceleration_minimizing_pass(subject_on_disk)
+        classification_pass(subject_on_disk)
+        missing_grf_detection(subject_on_disk)
+        dynamics_pass(subject_on_disk)
+        # moco_pass(subject_on_disk)
 
-        json_src = os.path.join(data_fpath, 'raw', '_subject.json')
-        json_dst = os.path.join(processed_fpath, '_subject.json')
-        shutil.copyfile(json_src, json_dst)
 
-        trials_fpath = os.path.join(processed_fpath, 'trials')
-        if not os.path.isdir(trials_fpath):
-            os.mkdir(trials_fpath)
-        trial_fpath = os.path.join(trials_fpath, 'walk')
-        if not os.path.isdir(trial_fpath):
-            os.mkdir(trial_fpath)
-
-        trc_src = os.path.join(data_fpath, 'raw', 'motion_capture_walk.trc')
-        trc_dst = os.path.join(trial_fpath, 'markers.trc')
-        shutil.copyfile(trc_src, trc_dst)
-
-        grf_src = os.path.join(data_fpath, 'raw', 'grf_walk.mot')
-        grf_dst = os.path.join(trial_fpath, 'grf.mot')
-        shutil.copyfile(grf_src, grf_dst)
-
-        self.assertTrue(subject_on_disk)
-
-        # # Main path.
-        # path = os.path.join(data_fpath, 'processed')
-        # if not path.endswith('/'):
-        #     path += '/'
-
-        # # Construct the engine.
-        # # ---------------------
-        # engine = Engine(path=absPath(path),
-        #                 output_name='osim_results',
-        #                 href='')
-
-        # # Run the pipeline.
-        # # -----------------
-        # try:
-        #     engine.validate_paths()
-        #     engine.parse_subject_json()
-        #     engine.load_model_files()
-        #     engine.configure_marker_fitter()
-        #     engine.preprocess_trials()
-        #     engine.run_marker_fitting()
-        #     if engine.fitDynamics:
-        #         engine.run_dynamics_fitting()
-        #     engine.write_result_files()
-        #     if engine.exportMoco:
-        #         engine.run_moco()
-        #     engine.generate_readme()
-        #     engine.create_output_folder()
-
-        #     # If we succeeded, write an empty JSON file.
-        #     with open(engine.errors_json_path, "w") as json_file:
-        #         json_file.write("{}")
-
-        # except Error as e:
-        #     # If we failed, write a JSON file with the error information.
-        #     json_data = json.dumps(e.get_error_dict(), indent=4)
-        #     with open(engine.errors_json_path, "w") as json_file:
-        #         json_file.write(json_data)
 
         # # Check the results
         # # -----------------
