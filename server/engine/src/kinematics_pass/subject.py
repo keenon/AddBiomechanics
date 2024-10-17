@@ -1,9 +1,9 @@
-from kinematics_pass.trial import TrialSegment, Trial, ProcessingStatus
+from src.kinematics_pass.trial import TrialSegment, Trial, ProcessingStatus
 from typing import List, Dict, Tuple, Any, Optional
 import json
 import nimblephysics as nimble
 from nimblephysics import absPath
-from exceptions import LoadingError, TrialPreprocessingError, MarkerFitterError, DynamicsFitterError, WriteError
+from src.exceptions import LoadingError, TrialPreprocessingError, MarkerFitterError, DynamicsFitterError, WriteError
 import numpy as np
 import os
 import shutil
@@ -11,7 +11,7 @@ import subprocess
 import textwrap
 import tempfile
 import os
-from utilities.scale_opensim_model import scale_opensim_model
+from src.utilities.scale_opensim_model import scale_opensim_model
 
 
 # Global paths to the geometry and data folders.

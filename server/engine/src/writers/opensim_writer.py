@@ -2,7 +2,7 @@ import os
 import nimblephysics as nimble
 import shutil
 from typing import List, Optional
-from plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
+from src.plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
 import numpy as np
 
 KINEMATIC_OSIM_NAME = 'match_markers_but_ignore_physics.osim'

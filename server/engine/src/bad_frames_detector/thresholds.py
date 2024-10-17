@@ -1,6 +1,6 @@
 import nimblephysics as nimble
 from typing import List, Tuple, Optional, Dict
-from bad_frames_detector.abstract_detector import AbstractDetector
+from src.bad_frames_detector.abstract_detector import AbstractDetector
 import json
 import numpy as np
 import os
