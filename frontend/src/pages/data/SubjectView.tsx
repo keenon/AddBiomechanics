@@ -11,6 +11,7 @@ import LiveFile from "../../model/LiveFile";
 import { parseLinks, showToast } from "../../utils"
 import { toast } from 'react-toastify';
 import { action } from "mobx";
+import { sub } from "date-fns";
 
 
 type SubjectViewProps = {
@@ -918,12 +919,28 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 When you've uploaded all the files you want, click the "Submit for Processing" button below.
             </p>
         </div>;
-        submitButton =
-            <button className="btn btn-lg btn-primary mt-2" disabled={subjectState.trials.length === 0} style={{ width: '100%' }} onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                subjectState.submitForProcessing();
-            }}>Submit for Processing</button>;
+        if (subjectState.canProcess()) {
+            submitButton =
+                <button className="btn btn-lg btn-primary mt-2" style={{ width: '100%' }} onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    subjectState.submitForProcessing();
+                }}>Submit for Processing</button>;
+        }
+        else {
+            submitButton = <div>
+                <div>
+                    <button className="btn btn-lg btn-primary mt-2" disabled style={{ width: '100%' }} onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        alert("Cannot submit for processing: Some trial(s) are missing markers. Please either upload marker data or detele trials.");
+                    }}>Submit for Processing</button>;
+                </div>
+                <div>
+                    <span className="text-danger">Cannot submit for processing: Some trial(s) are missing markers. Please either upload marker data or detele trials.</span>
+                </div>
+            </div>
+        }
     }
 
     const onDrop = (e: DragEvent) => {
