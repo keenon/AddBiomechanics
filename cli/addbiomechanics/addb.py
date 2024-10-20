@@ -9,6 +9,7 @@ from addbiomechanics.commands.transfer_markerset import TransferMarkersetCommand
 from addbiomechanics.commands.plot import PlotCommand
 from addbiomechanics.commands.debug import DebugCommand
 from addbiomechanics.commands.view import ViewCommand
+from addbiomechanics.commands.view_energy import ViewEnergyCommand
 from addbiomechanics.commands.compare import CompareCommand
 from addbiomechanics.commands.post_process import PostProcessCommand
 from addbiomechanics.commands.export_csv import ExportCSVCommand
@@ -51,6 +52,7 @@ def main():
     local_commands = [PlotCommand(),
                       DebugCommand(),
                       ViewCommand(),
+                      ViewEnergyCommand(),
                       CompareCommand(),
                       TransferMarkersetCommand(),
                       PostProcessCommand(),
