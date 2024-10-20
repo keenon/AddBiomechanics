@@ -1,6 +1,7 @@
 import argparse
 from addbiomechanics.auth import AuthContext
 from addbiomechanics.commands.download import DownloadCommand
+from addbiomechanics.commands.download_files import DownloadFilesCommand
 from addbiomechanics.commands.ls import LsCommand
 from addbiomechanics.commands.upload import UploadCommand
 from addbiomechanics.commands.analytics import AnalyticsCommand
@@ -62,6 +63,7 @@ def main():
 
     commands = [LsCommand(),
                 DownloadCommand(),
+                DownloadFilesCommand(),
                 GenerateCreditsCommand(),
                 UploadCommand(),
                 AnalyticsCommand()]
