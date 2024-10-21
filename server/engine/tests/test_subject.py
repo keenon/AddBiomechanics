@@ -6,6 +6,8 @@ from src.dynamics_pass.acceleration_minimizing_pass import add_acceleration_mini
 from src.dynamics_pass.classification_pass import classification_pass
 from src.dynamics_pass.missing_grf_detection import missing_grf_detection
 from src.dynamics_pass.dynamics_pass import dynamics_pass
+from src.moco_pass.moco_pass import moco_pass
+from src.writers.opensim_writer import write_opensim_results
 from typing import Dict, List, Any
 import os
 import nimblephysics as nimble
@@ -14,6 +16,7 @@ from inspect import getsourcefile
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
 TEST_DATA_PATH = os.path.join(TESTS_PATH, 'data')
 DATA_FOLDER_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')
+GEOMETRY_FOLDER_PATH = os.path.join(TESTS_PATH, '..', 'Geometry')
 
 def reset_test_data(name: str):
     original_path = os.path.join(TEST_DATA_PATH, f'{name}_original')
@@ -147,7 +150,16 @@ class TestRajagopal2015(unittest.TestCase):
         trial_protos[0].setMissingGRFReason(missing_grf)
 
         dynamics_pass(subject_on_disk)
-        # moco_pass(subject_on_disk)
+
+        subject_path = os.path.join(TEST_DATA_PATH, 'subject_walk')
+        write_opensim_results(subject_on_disk, subject_path, GEOMETRY_FOLDER_PATH)
+
+
+        moco_pass(subject_on_disk)
+
+
+        shutil.make_archive(subject_path, 'zip', subject_path, subject_path)
+
 
 
 

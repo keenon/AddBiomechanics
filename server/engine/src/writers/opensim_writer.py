@@ -178,7 +178,4 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
         if os.path.exists(grf_raw_fpath):
             plot_grf_data(grf_raw_fpath)
 
-    print('Zipping up OpenSim files...', flush=True)
-    shutil.make_archive(output_folder, 'zip', output_folder, output_folder)
-    print('Finished outputting OpenSim files.', flush=True)
 

@@ -27,7 +27,6 @@ class ExceptionHandlingMeta(type):
         'load_folder': LoadingError,
         'segment_trials': TrialPreprocessingError,
         'run_kinematics_pass': MarkerFitterError,
-        # 'run_moco': MocoError,
         'write_opensim_results': WriteError,
         'write_b3d_file': WriteError,
         'write_web_results': WriteError,

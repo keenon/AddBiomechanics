@@ -10,6 +10,7 @@ import sys
 import os
 from nimblephysics.loader import absPath
 import json
+import shutil
 from exceptions import Error
 from kinematics_pass.subject import Subject
 from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
@@ -91,15 +92,20 @@ def main():
               flush=True)
         dynamics_pass(subject_on_disk)
 
+        # This will write out a folder of OpenSim results files.
+        print('Writing OpenSim results', flush=True)
+        write_opensim_results(subject_on_disk, path + output_name, GEOMETRY_FOLDER_PATH)
+
         print('Running Moco optimization pass...', flush=True)
         print('-> This pass utilizes the results from the kinematics and dynamics pass as inputs to a trajectory '
               'optimization problem solved by OpenSim Moco. This problem solves for the muscle excitations and '
               'activations that best match the observed motion and ground reaction forces.', flush=True)
         moco_pass(subject_on_disk)
 
-        # This will write out a folder of OpenSim results files.
-        print('Writing OpenSim results', flush=True)
-        write_opensim_results(subject_on_disk, path + output_name, GEOMETRY_FOLDER_PATH)
+        print('Zipping up OpenSim files...', flush=True)
+        shutil.make_archive(path + output_name, 'zip', path + output_name, path + output_name)
+        print('Finished outputting OpenSim files.', flush=True)
+
         # This will write out all the results to display in the web UI back into the existing folder structure
         print('Writing web visualizer results', flush=True)
         write_web_results(subject_on_disk, GEOMETRY_FOLDER_PATH, path)
