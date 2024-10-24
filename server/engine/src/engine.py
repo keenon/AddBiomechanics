@@ -94,7 +94,7 @@ def main():
 
         # This will write out a folder of OpenSim results files.
         print('Writing OpenSim results', flush=True)
-        write_opensim_results(subject_on_disk, path + output_name, GEOMETRY_FOLDER_PATH)
+        write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
 
         print('Running Moco optimization pass...', flush=True)
         print('-> This pass utilizes the results from the kinematics and dynamics pass as inputs to a trajectory '

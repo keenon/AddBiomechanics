@@ -5,13 +5,16 @@ from typing import List, Optional
 from src.plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
 import numpy as np
 
+GENERIC_OSIM_NAME = 'unscaled_generic.osim'
 KINEMATIC_OSIM_NAME = 'match_markers_but_ignore_physics.osim'
 DYNAMICS_OSIM_NAME = 'match_markers_and_physics.osim'
 
 
 def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
-                          output_folder: str,
+                          path: str, output_name: str,                           
                           original_geometry_folder_path: Optional[str] = None):
+    
+    output_folder = path + output_name
     if not output_folder.endswith('/'):
         output_folder += '/'
 
@@ -29,10 +32,21 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
     if not os.path.exists(output_folder + 'MarkerData'):
         os.mkdir(output_folder + 'MarkerData')
 
-    # Write the OpenSim model file to the output folder.
-    model_text = subject.getOpensimFileText(subject.getNumProcessingPasses()-1)
-    with open(output_folder + 'Models/unscaled_generic.osim', 'w') as f:
-        f.write(model_text)
+    # Copy the generic model to the output folder.
+    shutil.copyfile(path + GENERIC_OSIM_NAME, 
+                    output_folder + 'Models/' + GENERIC_OSIM_NAME)
+
+    # Write the OpenSim model files to the output folder.
+    for ipass in range(subject.getNumProcessingPasses()):
+        if subject.getProcessingPassType(ipass) == nimble.biomechanics.ProcessingPassType.KINEMATICS:
+            model_text = subject.getOpensimFileText(ipass)
+            with open(output_folder + 'Models/' + KINEMATIC_OSIM_NAME, 'w') as f:
+                f.write(model_text)
+
+        if subject.getProcessingPassType(ipass) == nimble.biomechanics.ProcessingPassType.DYNAMICS:
+            model_text = subject.getOpensimFileText(ipass)
+            with open(output_folder + 'Models/' + DYNAMICS_OSIM_NAME, 'w') as f:
+                f.write(model_text)
 
     osim_path: str = 'Models/' + KINEMATIC_OSIM_NAME
 

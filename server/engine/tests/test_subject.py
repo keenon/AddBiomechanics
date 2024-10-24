@@ -115,12 +115,14 @@ class TestRajagopal2015(unittest.TestCase):
     def test_Rajagopal2015(self):
         import opensim as osim
         import numpy as np
-        reset_test_data('rajagopal2015')
-
-        # How to save and reload a B3D file?
-        # b3d_path = os.path.join(TEST_DATA_PATH, 'rajagopal2015', 'rajagopal2015.b3d')
-        # subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
-        # subject_on_disk = nimble.biomechanics.SubjectOnDisk(b3d_path)
+        # reset_test_data('rajagopal2015')
+        path = os.path.join(TEST_DATA_PATH, 'rajagopal2015')
+        if not path.endswith('/'):
+            path += '/'
+        b3d_path = os.path.join(path, 'rajagopal2015.b3d')
+        output_name = 'osim_results'
+        output_folder = os.path.join(path, output_name)
+        shutil.rmtree(output_folder, ignore_errors=True)
 
         subject = Subject()
         subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
@@ -133,7 +135,7 @@ class TestRajagopal2015(unittest.TestCase):
     
         # The "missing GRF detection" step is removing too many time steps to make the 
         # dynamics pass valid. Manually set the valid ground reactions time range to 
-        # [0.48, 1.9].
+        # [0.6, 1.75].
         header_proto = subject_on_disk.getHeaderProto()
         trial_protos = header_proto.getTrials()
         dt = trial_protos[0].getTimestep()
@@ -143,22 +145,26 @@ class TestRajagopal2015(unittest.TestCase):
 
         missing_grf: List[nimble.biomechanics.MissingGRFReason] = []
         for time in times:
-            if time < 0.48 or time > 1.9:
+            if time > 0.6 or time < 1.75:
                 missing_grf.append(nimble.biomechanics.MissingGRFReason.notMissingGRF)
             else:
                 missing_grf.append(nimble.biomechanics.MissingGRFReason.zeroForceFrame)
         trial_protos[0].setMissingGRFReason(missing_grf)
 
         dynamics_pass(subject_on_disk)
+        subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
 
-        subject_path = os.path.join(TEST_DATA_PATH, 'subject_walk')
-        write_opensim_results(subject_on_disk, subject_path, GEOMETRY_FOLDER_PATH)
-
-
-        moco_pass(subject_on_disk)
+        # subject_on_disk = nimble.biomechanics.SubjectOnDisk(b3d_path)
+        # subject_on_disk.loadAllFrames(True)
 
 
-        shutil.make_archive(subject_path, 'zip', subject_path, subject_path)
+        write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
+
+
+        moco_pass(subject_on_disk, path, output_name)
+
+
+        shutil.make_archive(output_folder, 'zip', output_folder, output_folder)
 
 
 

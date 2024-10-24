@@ -1,6 +1,12 @@
+import os
 import nimblephysics as nimble
 import numpy as np
 from typing import List, Tuple
+
+GENERIC_OSIM_NAME = 'unscaled_generic.osim'
+KINEMATIC_OSIM_NAME = 'match_markers_but_ignore_physics.osim'
+DYNAMICS_OSIM_NAME = 'match_markers_and_physics.osim'
+
 
 def update_model_for_moco(model_input_fpath, model_output_fpath):
     import opensim as osim
@@ -107,8 +113,10 @@ def run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath,
     modelProcessor.append(osim.ModOpReplaceJointsWithWelds(locked_joints))
     modelProcessor.append(osim.ModOpAddExternalLoads(extloads_fpath))
     modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
+    modelProcessor.append(osim.ModOpIgnoreActivationDynamics())
     modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
     modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
+    modelProcessor.append(osim.ModOpScaleMaxIsometricForce(1.5))
     modelProcessor.append(osim.ModOpAddReserves(50.0))
 
     # Construct the MocoInverse tool.
@@ -171,31 +179,61 @@ def run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath,
     return results
 
 
-def moco_pass(subject: nimble.biomechanics.SubjectOnDisk):
+def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
+              path: str, output_name: str):
     """
     This function is responsible for running the Moco pass on the subject.
     """
+
+    output_folder = path + output_name
+    if not output_folder.endswith('/'):
+        output_folder += '/'
+
+    if not os.path.exists(output_folder + 'Moco'):
+        os.mkdir(output_folder + 'Moco')
 
     header_proto = subject.getHeaderProto()
     trial_protos = header_proto.getTrials()
     num_trials = subject.getNumTrials()
 
-    osim = subject.readOpenSimFile(subject.getNumProcessingPasses()-1, ignoreGeometry=True)
-    skel = osim.skeleton
-    markers_map = osim.markersMap
-
-    import pdb; pdb.set_trace()
-
-    # Filter 
     moco_trials: List[int] = []
     for i in range(subject.getNumTrials()):
-        if trial_protos[i].getPasses()[-1] == nimble.biomechanics.ProcessingPassType.DYNAMICS:
-            # Run the Moco optimization
+        if trial_protos[i].getPasses()[-1].getType() == nimble.biomechanics.ProcessingPassType.DYNAMICS:
             print('Solving the muscle redundancy problem using OpenSim Moco on trial ' 
                   + str(i) + '/' + str(num_trials))
             moco_trials.append(i)
 
     for trial in moco_trials:
+        trial_name = trial_protos[trial].getName()
+        model_fpath = os.path.join(output_folder, 'Models', DYNAMICS_OSIM_NAME)
+        kinematics_fpath = os.path.join(output_folder, 'IK', f'{trial_name}_ik.mot')
+        extloads_fpath = os.path.join(output_folder, 'ID', f'{trial_name}_external_forces.xml')
+        solution_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco.sto')
+        report_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco_report.pdf')
+
+        start_time = trial_protos[trial].getOriginalTrialStartTime()
+        dt = trial_protos[trial].getTimestep()
+        num_steps = trial_protos[trial].getTrialLength()
+        end_time = trial_protos[trial].getOriginalTrialEndTime()
+        missing_grf_reasons = trial_protos[trial].getMissingGRFReason()
+        import pdb; pdb.set_trace()
+
+        initial_time = start_time
+        final_time = end_time
+        found_initial_time = False
+        for itime in range(num_steps):
+            time = start_time + itime * dt
+
+            if missing_grf_reasons[itime] == nimble.biomechanics.MissingGRFReason.notMissingGRF:
+                initial_time = time
+                found_initial_time = True
+
+            if found_initial_time and missing_grf_reasons[itime] != nimble.biomechanics.MissingGRFReason.notMissingGRF:
+                final_time = time
+                break
+
+        run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, 
+                         initial_time, final_time, solution_fpath, report_fpath)
 
     # 11.5.2. Muscle redundancy problem (with Moco) results.
     # if self.runMoco:
