@@ -63,7 +63,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
 
         # 0.2. Subject pipeline parameters.
         self.massKg = 68.0
-        self.heightM = 1.6
+        self.heightM = -1.0 # Indicates that the height is unknown.
         self.biologicalSex = 'unknown'
         self.ageYears = -1
         self.subjectTags = []
@@ -498,13 +498,15 @@ class Subject(metaclass=ExceptionHandlingMeta):
                 cols,
                 0.001)  # mm -> m
         observed_values = {
-            'stature': self.heightM,
             'weightkg': self.massKg * 0.01,
         }
+        if self.heightM > 0:
+            observed_values['stature'] = self.heightM
         gauss = gauss.condition(observed_values)
         anthropometrics.setDistribution(gauss)
         marker_fitter.setAnthropometricPrior(anthropometrics, 0.1)
-        marker_fitter.setExplicitHeightPrior(self.heightM, 0.1)
+        if self.heightM > 0:
+            marker_fitter.setExplicitHeightPrior(self.heightM, 0.1)
 
         marker_fitter.setRegularizePelvisJointsWithVirtualSpring(0.1)
 
@@ -599,7 +601,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
             original_file_text,
             self.kinematics_skeleton,
             self.massKg,
-            self.heightM,
+            self.heightM if self.heightM > 0 else 1.7,
             self.kinematics_markers)
         kinematic_pass.setOpenSimFileText(osim_file_xml)
 
