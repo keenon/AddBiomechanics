@@ -40,7 +40,12 @@ class ViewEnergyCommand(AbstractCommand):
             type=str,
             default=None)
         view_parser.add_argument(
-            '--limit-frames',
+            '--start-frame',
+            help='The frame to start visualization at',
+            type=int,
+            default=0)
+        view_parser.add_argument(
+            '--end-frame',
             help='Only visualize the first N frames of the data, useful for very long trials',
             type=int,
             default=-1)
@@ -64,7 +69,8 @@ class ViewEnergyCommand(AbstractCommand):
         graph_dof: str = args.graph_dof
         playback_speed: float = args.playback_speed
         save_to_file: str = args.save_to_file
-        limit_frames: int = args.limit_frames
+        start_frame: int = args.start_frame
+        end_frame: int = args.end_frame
         num_packets: int = args.num_energy_packets
         particle_lowpass_hz = args.particle_lowpass_hz
 
@@ -116,8 +122,8 @@ class ViewEnergyCommand(AbstractCommand):
 
         num_frames = subject.getTrialLength(trial)
         print('Trial has '+str(num_frames)+' frames')
-        if limit_frames > -1 and limit_frames < num_frames:
-            num_frames = limit_frames
+        if end_frame > -1 and end_frame < num_frames:
+            num_frames = end_frame - start_frame
             print('Limiting to '+str(num_frames)+' frames')
         print('Reading skeleton for pass '+str(trial_pass)+'...')
         if trial_pass == -1:
@@ -408,10 +414,10 @@ class ViewEnergyCommand(AbstractCommand):
         # Animation parameters
         particle_intro_duration = 0.015
         particle_intro_frames = int(particle_intro_duration / subject.getTrialTimestep(trial))
-        particle_intro_distance = 0.15
+        particle_intro_distance = 0.05
         particle_outro_duration = 0.045
         particle_outro_frames = int(particle_outro_duration / subject.getTrialTimestep(trial))
-        particle_outro_distance = 0.25
+        particle_outro_distance = 0.05
         fs = 1 / subject.getTrialTimestep(trial)
         nyquist = fs / 2
         if particle_lowpass_hz < nyquist:
@@ -570,8 +576,8 @@ class ViewEnergyCommand(AbstractCommand):
                 start_time = max(particle.startTime - particle_intro_frames, 0)
                 end_time = min(particle.startTime + len(particle.nodeHistory) + particle_outro_frames, num_frames)
 
-                if particle_lowpass_hz < nyquist and end_time - start_time > 9:
-                    particle_trajectories[s * 3:s * 3 + 3, start_time:end_time] = filtfilt(b, a, particle_trajectories[s * 3:s * 3 + 3, start_time:end_time])
+                # if particle_lowpass_hz < nyquist and end_time - start_time > 9:
+                #     particle_trajectories[s * 3:s * 3 + 3, start_time:end_time] = filtfilt(b, a, particle_trajectories[s * 3:s * 3 + 3, start_time:end_time])
 
                 for t in range(start_time, end_time):
                     particle_age[s, t] = (t - start_time) / (end_time - start_time)
