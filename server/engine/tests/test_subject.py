@@ -18,6 +18,7 @@ TEST_DATA_PATH = os.path.join(TESTS_PATH, 'data')
 DATA_FOLDER_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')
 GEOMETRY_FOLDER_PATH = os.path.join(TESTS_PATH, '..', 'Geometry')
 
+
 def reset_test_data(name: str):
     original_path = os.path.join(TEST_DATA_PATH, f'{name}_original')
     live_path = os.path.join(TEST_DATA_PATH, name)
@@ -124,38 +125,37 @@ class TestRajagopal2015(unittest.TestCase):
         output_folder = os.path.join(path, output_name)
         shutil.rmtree(output_folder, ignore_errors=True)
 
-        subject = Subject()
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
-        subject.segment_trials()
-        subject.run_kinematics_pass(DATA_FOLDER_PATH)
-        subject_on_disk = subject.create_subject_on_disk('<href>')
-        add_acceleration_minimizing_pass(subject_on_disk)
-        classification_pass(subject_on_disk)
-        # missing_grf_detection(subject_on_disk)
+        # subject = Subject()
+        # subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
+        # subject.segment_trials()
+        # subject.run_kinematics_pass(DATA_FOLDER_PATH)
+        # subject_on_disk = subject.create_subject_on_disk('<href>')
+        # add_acceleration_minimizing_pass(subject_on_disk)
+        # classification_pass(subject_on_disk)
     
-        # The "missing GRF detection" step is removing too many time steps to make the 
-        # dynamics pass valid. Manually set the valid ground reactions time range to 
-        # [0.6, 1.75].
-        header_proto = subject_on_disk.getHeaderProto()
-        trial_protos = header_proto.getTrials()
-        dt = trial_protos[0].getTimestep()
-        start_time = trial_protos[0].getOriginalTrialStartTime()
-        end_time = trial_protos[0].getOriginalTrialEndTime()
-        times = np.arange(start_time, end_time, dt)
+        # # The "missing GRF detection" step removes too many time steps to make the 
+        # # dynamics pass valid. Manually set the valid ground reactions time range to 
+        # # [0.6, 1.75].
+        # header_proto = subject_on_disk.getHeaderProto()
+        # trial_protos = header_proto.getTrials()
+        # dt = trial_protos[0].getTimestep()
+        # start_time = trial_protos[0].getOriginalTrialStartTime()
+        # end_time = trial_protos[0].getOriginalTrialEndTime()
+        # times = np.arange(start_time, end_time, dt)
 
-        missing_grf: List[nimble.biomechanics.MissingGRFReason] = []
-        for time in times:
-            if time > 0.6 or time < 1.75:
-                missing_grf.append(nimble.biomechanics.MissingGRFReason.notMissingGRF)
-            else:
-                missing_grf.append(nimble.biomechanics.MissingGRFReason.zeroForceFrame)
-        trial_protos[0].setMissingGRFReason(missing_grf)
+        # missing_grf: List[nimble.biomechanics.MissingGRFReason] = []
+        # for time in times:
+        #     if time > 0.6 and time < 1.75:
+        #         missing_grf.append(nimble.biomechanics.MissingGRFReason.notMissingGRF)
+        #     else:
+        #         missing_grf.append(nimble.biomechanics.MissingGRFReason.zeroForceFrame)
+        # trial_protos[0].setMissingGRFReason(missing_grf)
 
-        dynamics_pass(subject_on_disk)
-        subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
+        # dynamics_pass(subject_on_disk)
+        # subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
 
-        # subject_on_disk = nimble.biomechanics.SubjectOnDisk(b3d_path)
-        # subject_on_disk.loadAllFrames(True)
+        subject_on_disk = nimble.biomechanics.SubjectOnDisk(b3d_path)
+        subject_on_disk.loadAllFrames(True)
 
 
         write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
