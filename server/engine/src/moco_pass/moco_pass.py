@@ -12,7 +12,6 @@ from inspect import getsourcefile
 
 MOCO_PATH = os.path.dirname(getsourcefile(lambda:0))
 TEMPLATES_PATH = os.path.join(MOCO_PATH, 'templates')
-
 GENERIC_OSIM_NAME = 'unscaled_generic.osim'
 KINEMATIC_OSIM_NAME = 'match_markers_but_ignore_physics.osim'
 DYNAMICS_OSIM_NAME = 'match_markers_and_physics.osim'
@@ -85,70 +84,6 @@ def fill_moco_template(moco_template_fpath, script_fpath, model_name, trial_name
 
     with open(script_fpath, 'w') as f:
         f.write(content)
-
-
-def run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, fbpaths_fpath,
-                     initial_time, final_time, solution_fpath, report_fpath):
-
-    # Construct the MocoInverse tool.
-    # -------------------------------
-    inverse = osim.MocoInverse()
-
-    # Set the model processor and time bounds.
-    modelProcessor = osim.ModelProcessor(model_fpath)
-    modelProcessor.append(osim.ModOpAddExternalLoads(extloads_fpath))
-    modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
-    modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
-    modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
-    # modelProcessor.append(osim.ModOpScaleMaxIsometricForce(2.0))
-    modelProcessor.append(osim.ModOpAddReserves(50.0))
-    modelProcessor.append(osim.ModOpReplacePathsWithFunctionBasedPaths(fbpaths_fpath))
-    inverse.setModel(modelProcessor)
-
-    # Set the initial and final times.
-    inverse.set_initial_time(initial_time)
-    inverse.set_final_time(final_time)
-
-    # Load the kinematics data source.
-    table_processor = osim.TableProcessor(kinematics_fpath)
-    table_processor.append(osim.TabOpUseAbsoluteStateNames())
-    table_processor.append(osim.TabOpAppendCoupledCoordinateValues())
-    inverse.setKinematics(table_processor)
-
-    # Configure additional settings for the MocoInverse problem including the mesh
-    # interval, convergence tolerance, constraint tolerance, and max number of iterations.
-    inverse.set_mesh_interval(0.02)
-    inverse.set_convergence_tolerance(1e-5)
-    inverse.set_constraint_tolerance(1e-5)
-    inverse.set_max_iterations(2000)
-    # Skip any extra columns in the kinematics data source.
-    inverse.set_kinematics_allow_extra_columns(True)
-
-    # Solve the problem.
-    # ------------------
-    # Solve the problem and write the solution to a Storage file.
-    inverse_solution = inverse.solve()
-    solution = inverse_solution.getMocoSolution()
-    solution.unseal()
-    solution.write(solution_fpath)
-
-    # Generate a PDF with plots for the solution trajectory.
-    model = modelProcessor.process()
-    report = osim.report.Report(model,
-                                solution_fpath,
-                                output=report_fpath,
-                                bilateral=True)
-    # The PDF is saved to the working directory.
-    report.generate()
-
-    # Save dictionary of results to print to README.
-    results = dict()
-    results['mocoSuccess'] = solution.success()
-    results['mocoObjective'] = solution.getObjective()
-    results['mocoNumIterations'] = solution.getNumIterations()
-    results['mocoSolverDuration'] = solution.getSolverDuration()
-
-    return results
 
 
 def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
