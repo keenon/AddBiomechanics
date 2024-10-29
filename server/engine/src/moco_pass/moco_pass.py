@@ -3,9 +3,15 @@ import nimblephysics as nimble
 import opensim as osim
 import numpy as np
 from typing import List
+import subprocess
+import sys
 import matplotlib; matplotlib.use('Agg')
 from src.moco_pass.plotting import (plot_coordinate_samples, plot_path_lengths,
                                     plot_moment_arms)
+from inspect import getsourcefile
+
+MOCO_PATH = os.path.dirname(getsourcefile(lambda:0))
+TEMPLATES_PATH = os.path.join(MOCO_PATH, 'templates')
 
 GENERIC_OSIM_NAME = 'unscaled_generic.osim'
 KINEMATIC_OSIM_NAME = 'match_markers_but_ignore_physics.osim'
@@ -13,7 +19,7 @@ DYNAMICS_OSIM_NAME = 'match_markers_and_physics.osim'
 MOCO_OSIM_NAME = 'match_markers_and_physics_moco.osim'
 
 
-def update_model_for_moco(model_input_fpath, model_output_fpath):
+def update_model(model_input_fpath, model_output_fpath):
 
     # Replace locked coordinates with weld joints.
     model = osim.Model(model_input_fpath)
@@ -68,14 +74,16 @@ def fit_function_based_paths(model, coordinate_values, results_dir):
     plot_moment_arms(results_dir, model.getName())
 
 
-def fill_moco_template(moco_template_fpath, output_fpath, trial_name, initial_time, final_time):
+def fill_moco_template(moco_template_fpath, script_fpath, model_name, trial_name, 
+                       initial_time, final_time):
     with open(moco_template_fpath) as ft:
         content = ft.read()
         content = content.replace('@TRIAL@', trial_name)
+        content = content.replace('@MODEL_NAME@', model_name)
         content = content.replace('@INITIAL_TIME@', str(initial_time))
         content = content.replace('@FINAL_TIME@', str(final_time))
 
-    with open(output_fpath, 'w') as f:
+    with open(script_fpath, 'w') as f:
         f.write(content)
 
 
@@ -92,7 +100,7 @@ def run_moco_problem(model_fpath, kinematics_fpath, extloads_fpath, fbpaths_fpat
     modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
     modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
     modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
-    modelProcessor.append(osim.ModOpScaleMaxIsometricForce(2.0))
+    # modelProcessor.append(osim.ModOpScaleMaxIsometricForce(2.0))
     modelProcessor.append(osim.ModOpAddReserves(50.0))
     modelProcessor.append(osim.ModOpReplacePathsWithFunctionBasedPaths(fbpaths_fpath))
     inverse.setModel(modelProcessor)
@@ -148,7 +156,6 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     """
     This function is responsible for running the Moco pass on the subject.
     """
-    import pdb; pdb.set_trace()
 
     # Create the output folder.
     output_folder = path + output_name
@@ -166,14 +173,14 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     # -----------------
     dynamics_model_fpath = os.path.join(output_folder, 'Models', DYNAMICS_OSIM_NAME)
     moco_model_fpath = os.path.join(output_folder, 'Models', MOCO_OSIM_NAME)
-    update_model_for_moco(dynamics_model_fpath, moco_model_fpath)
+    update_model(dynamics_model_fpath, moco_model_fpath)
     model = osim.Model(moco_model_fpath)
     model.initSystem()
 
     # Global settings.
     # ----------------
     # The total number of coordinate pose samples used during function-based path fitting.
-    total_samples = 100
+    total_samples = 150
     # The maximum length of a trial, in seconds, to be solved by Moco.
     max_trial_length = 3.0 
     # The directory to save the function-based paths.
@@ -261,6 +268,12 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
         kinematics_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco_kinematics.sto')
         sto.write(kinematics, kinematics_fpath)
 
-        run_moco_problem(model, kinematics_fpath, extloads_fpath, fbpaths_fpath,
-                         initial_time, final_time, solution_fpath, report_fpath)
+        script_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco.py')
+        template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py')
+        fill_moco_template(template_fpath, script_fpath, model.getName(), trial_name, 
+                           initial_time, final_time)
+                
+        moco_dir = os.path.join(output_folder, 'Moco')
+        subprocess.run([sys.executable, script_fpath], stdout=sys.stdout, 
+                       stderr=sys.stderr, cwd=moco_dir)
 
