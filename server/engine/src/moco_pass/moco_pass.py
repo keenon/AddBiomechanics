@@ -2,12 +2,12 @@ import os
 import nimblephysics as nimble
 import opensim as osim
 import numpy as np
-from typing import List
+from typing import List, Dict
 import subprocess
 import sys
 import matplotlib; matplotlib.use('Agg')
-from src.moco_pass.plotting import (plot_coordinate_samples, plot_path_lengths,
-                                    plot_moment_arms)
+from src.plotting import (plot_coordinate_samples, plot_path_lengths, plot_moment_arms,
+                          plot_joint_moment_breakdown)
 from inspect import getsourcefile
 
 MOCO_PATH = os.path.dirname(getsourcefile(lambda:0))
@@ -72,6 +72,19 @@ def fit_function_based_paths(model, coordinate_values, results_dir):
     plot_path_lengths(results_dir, model.getName())
     plot_moment_arms(results_dir, model.getName())
 
+def create_residuals_force_set(output_folder, trial_name, residual_strengths):
+    residuals = osim.ForceSet()
+    for key, value in residual_strengths.items():
+        key_split = key.split('_')
+        coordinate_name = f'{key_split[0]}_{key_split[1]}'
+        residual = osim.CoordinateActuator(coordinate_name)
+        residual.setName(f'residual_{key}')
+        residual.setOptimalForce(value)
+        residuals.append(residual)
+
+    residuals_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_residuals.xml')
+    residuals.printToXML(residuals_fpath)
+
 
 def fill_moco_template(moco_template_fpath, script_fpath, model_name, trial_name, 
                        initial_time, final_time):
@@ -112,6 +125,42 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     model = osim.Model(moco_model_fpath)
     model.initSystem()
 
+    # Get the coordinate names.
+    coordinate_names = osim.ArrayStr()
+    coordinate_set = model.getCoordinateSet()
+    coordinate_set.getNames(coordinate_names)
+    coordinate_names = [coordinate_names.get(i) for i in range(coordinate_names.getSize())]
+
+    # Remove coupled or undefined coordinates from the list of coordinate names.
+    for icoord in range(coordinate_set.getSize()):
+        coord = coordinate_set.get(icoord)
+        motion_type = coord.getMotionType()
+        if not motion_type == 1 and not motion_type == 2:
+            coordinate_names.remove(coord.getName())
+
+    # Find the ground-to-root (usually pelvis) joint coordinates and initialize a 
+    # dictionary to store the residual strengths. Also, remove the root joint
+    # coordinates from the list of coordinate names.
+    jointset = model.getJointSet()
+    residual_strengths = dict()
+    for ijoint in range(jointset.getSize()):
+        joint = jointset.get(ijoint)
+        base_frame = joint.getParentFrame().findBaseFrame()
+        if base_frame.getName() == 'ground':
+            for icoord in range(joint.numCoordinates()):
+                coord = joint.get_coordinates(icoord)
+                coordinate_names.remove(coord.getName())
+                motion_type = coord.getMotionType()
+                if motion_type == 1:
+                    residual_strengths[f'{coord.getName()}_moment'] = 0.0
+                elif motion_type == 2:
+                    residual_strengths[f'{coord.getName()}_force'] = 0.0
+                else:
+                    invalid_type = 'undefined' if motion_type == 0 else 'coupled'
+                    raise Exception(f'Root joint has a coordinate with invalid '
+                                    f'motion type "{invalid_type}".')                
+            break
+
     # Global settings.
     # ----------------
     # The total number of coordinate pose samples used during function-based path fitting.
@@ -131,23 +180,33 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     for itrial in range(num_trials):
         trial_name = trial_protos[itrial].getName()
         ik = osim.TimeSeriesTable(os.path.join(output_folder, 'IK', f'{trial_name}_ik.mot'))
-        num_rows = ik.getNumRows()
-        for irow in range(0, num_rows, int(np.ceil(num_rows / samples_per_trial))):
+        for irow in range(min(samples_per_trial, ik.getNumRows())):
             coordinate_values.appendRow(curr_row, ik.getRowAtIndex(irow))
             curr_row += 1
             
     coordinate_values.setColumnLabels(ik.getColumnLabels())
     coordinate_values.addTableMetaDataString('inDegrees', 
                                              ik.getTableMetaDataAsString('inDegrees'))
-    fit_function_based_paths(model, coordinate_values, fbpaths_dir)
-    fbpaths_fpath = os.path.join(fbpaths_dir, f'{model.getName()}_FunctionBasedPathSet.xml')
+    # fit_function_based_paths(model, coordinate_values, fbpaths_dir)
+
+    # Create a mapping between coordinates and moment arms.
+    moment_arms_fpath = os.path.join(output_folder, 'Moco', 'function_based_paths',
+            f'{model.getName()}_moment_arms_fitted.sto')
+    # moment_arms = osim.TimeSeriesTable(moment_arms_fpath)
+    # moment_arm_map = {cname: [] for cname in coordinate_names}
+    # for label in moment_arms.getColumnLabels():
+    #     label_split = label.split('_moment_arm_')
+    #     muscle_path = label_split[0]
+    #     coordinate_name = label_split[1]
+    #     moment_arm_map[coordinate_name].append(muscle_path)
 
     # Filter trials.
     # --------------
     # Find the trials that have dynamics passes.
     moco_trials: List[int] = []
     for i in range(num_trials):
-        if trial_protos[i].getPasses()[-1].getType() == nimble.biomechanics.ProcessingPassType.DYNAMICS:
+        pass_type = trial_protos[i].getPasses()[-1].getType()
+        if pass_type == nimble.biomechanics.ProcessingPassType.DYNAMICS:
             print('Solving the muscle redundancy problem using OpenSim Moco on trial ' 
                   + str(i) + '/' + str(num_trials))
             moco_trials.append(i)
@@ -160,11 +219,6 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     not_missing_grf = nimble.biomechanics.MissingGRFReason.notMissingGRF
     for trial in moco_trials:
         trial_name = trial_protos[trial].getName()
-        ik_fpath = os.path.join(output_folder, 'IK', f'{trial_name}_ik.mot')
-        extloads_fpath = os.path.join(output_folder, 'ID', f'{trial_name}_external_forces.xml')
-        solution_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco.sto')
-        report_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco_report.pdf')
-
         start_time = trial_protos[trial].getOriginalTrialStartTime()
         dt = trial_protos[trial].getTimestep()
         num_steps = trial_protos[trial].getTrialLength()
@@ -195,20 +249,30 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
                     final_time = time
                     break
 
-        table_processor = osim.TableProcessor(ik_fpath)
-        table_processor.append(osim.TabOpUseAbsoluteStateNames())
-        table_processor.append(osim.TabOpAppendCoupledCoordinateValues())
-        kinematics = table_processor.process(model)
-        kinematics.trim(initial_time-0.05, final_time+0.05)
-        kinematics_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco_kinematics.sto')
-        sto.write(kinematics, kinematics_fpath)
+        # Detect the needed residual strengths based on the trial ID moments.
+        id_fpath = os.path.join(output_folder, 'ID', f'{trial_name}_id.sto')
+        id = osim.TimeSeriesTable(id_fpath)
+        id.trim(initial_time-0.1, final_time+0.1)
+        for key in residual_strengths.keys():
+            max_gen_force = max(abs(id.getDependentColumn(key).to_numpy()))
+            residual_strengths[key] = np.ceil(max_gen_force)
+        create_residuals_force_set(output_folder, trial_name, residual_strengths)
 
+        # Fill the MocoInverse problem template.
         script_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco.py')
         template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py')
         fill_moco_template(template_fpath, script_fpath, model.getName(), trial_name, 
                            initial_time, final_time)
-                
+                            
+        # Run the MocoInverse problem.
         moco_dir = os.path.join(output_folder, 'Moco')
-        subprocess.run([sys.executable, script_fpath], stdout=sys.stdout, 
-                       stderr=sys.stderr, cwd=moco_dir)
+        # subprocess.run([sys.executable, script_fpath], stdout=sys.stdout, 
+        #                stderr=sys.stderr, cwd=moco_dir)
+        
+        # Plot the joint moment breakdown
+        solution_fpath = os.path.join(moco_dir, f'{trial_name}_moco.sto')
+        output_fpath = os.path.join(moco_dir, f'{trial_name}_joint_moment_breakdown.pdf')
+        plot_joint_moment_breakdown(id_fpath, solution_fpath, moment_arms_fpath, coordinate_names, output_fpath)
+
+
 

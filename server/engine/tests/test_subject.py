@@ -123,7 +123,10 @@ class TestRajagopal2015(unittest.TestCase):
         b3d_path = os.path.join(path, 'rajagopal2015.b3d')
         output_name = 'osim_results'
         output_folder = os.path.join(path, output_name)
-        shutil.rmtree(output_folder, ignore_errors=True)
+        # shutil.rmtree(output_folder, ignore_errors=True)
+        geometry_folder = os.path.join(output_folder, 'Models', 'Geometry')
+        shutil.rmtree(geometry_folder, ignore_errors=True)
+
 
         # subject = Subject()
         # subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
