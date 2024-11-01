@@ -68,7 +68,7 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
 
         trial_passes = trial_proto.getPasses()
         any_dynamics_passes = any([p.getType() == nimble.biomechanics.ProcessingPassType.DYNAMICS for p in trial_passes])
-        any_kinematics_passes = any([p.getType() == nimble.biomechanics.ProcessingPassType.DYNAMICS for p in trial_passes])
+        any_kinematics_passes = any([p.getType() == nimble.biomechanics.ProcessingPassType.KINEMATICS for p in trial_passes])
 
         ik_fpath = ''
         id_fpath = ''
@@ -146,9 +146,10 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
         elif any_kinematics_passes:
             # Write out the inverse kinematics results,
             ik_fpath = f'{output_folder}IK/{trial_name}_ik.mot'
+            last_pass = trial_passes[-1]
             poses = last_pass.getPoses()
             marker_observations = trial_proto.getMarkerObservations()
-            timestamps = np.array(range(len(poses))) * subject.getTrialTimestep(i)
+            timestamps = np.array(range(poses.shape[1])) * subject.getTrialTimestep(i)
             print(f'Writing OpenSim {ik_fpath} file, shape={str(poses.shape)}', flush=True)
             nimble.biomechanics.OpenSimParser.saveMot(osim.skeleton, ik_fpath, timestamps,
                                                       poses)
@@ -170,6 +171,7 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
             # Write out the marker trajectories.
             markers_fpath = f'{output_folder}MarkerData/{trial_name}.trc'
             print('Saving TRC for trial ' + trial_name, flush=True)
+            timestamps = np.array(range(len(marker_observations))) * subject.getTrialTimestep(i)
             nimble.biomechanics.OpenSimParser.saveTRC(
                 markers_fpath, timestamps, marker_observations)
             print('Saved', flush=True)

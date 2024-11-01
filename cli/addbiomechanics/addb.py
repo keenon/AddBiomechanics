@@ -1,6 +1,7 @@
 import argparse
 from addbiomechanics.auth import AuthContext
 from addbiomechanics.commands.download import DownloadCommand
+from addbiomechanics.commands.download_files import DownloadFilesCommand
 from addbiomechanics.commands.ls import LsCommand
 from addbiomechanics.commands.upload import UploadCommand
 from addbiomechanics.commands.analytics import AnalyticsCommand
@@ -8,6 +9,7 @@ from addbiomechanics.commands.transfer_markerset import TransferMarkersetCommand
 from addbiomechanics.commands.plot import PlotCommand
 from addbiomechanics.commands.debug import DebugCommand
 from addbiomechanics.commands.view import ViewCommand
+from addbiomechanics.commands.view_energy import ViewEnergyCommand
 from addbiomechanics.commands.compare import CompareCommand
 from addbiomechanics.commands.post_process import PostProcessCommand
 from addbiomechanics.commands.export_csv import ExportCSVCommand
@@ -50,6 +52,7 @@ def main():
     local_commands = [PlotCommand(),
                       DebugCommand(),
                       ViewCommand(),
+                      ViewEnergyCommand(),
                       CompareCommand(),
                       TransferMarkersetCommand(),
                       PostProcessCommand(),
@@ -62,6 +65,7 @@ def main():
 
     commands = [LsCommand(),
                 DownloadCommand(),
+                DownloadFilesCommand(),
                 GenerateCreditsCommand(),
                 UploadCommand(),
                 AnalyticsCommand()]

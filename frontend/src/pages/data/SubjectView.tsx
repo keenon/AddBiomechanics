@@ -120,12 +120,13 @@ const SubjectView = observer((props: SubjectViewProps) => {
     // 1.1. Create the entry for the subject height
     totalFormElements++;
     if (formCompleteSoFar) {
+        const showHeightBoundsWarning = subjectHeightM < 0.8 || subjectHeightM > 2.5;
         formElements.push(<div key="height" className="mb-3">
             <label htmlFor="heightInput" className="form-label">Height (m):</label>
             <input
                 type="number"
                 id="heightInput"
-                className={"form-control" + ((subjectHeightM <= 0 || !subjectHeightComplete) ? " border-primary border-2" : "")}
+                className={"form-control" + ((subjectHeightM <= 0 || !subjectHeightComplete) ? " border-primary border-2" : "") + (showHeightBoundsWarning ? " border-danger border-2" : "")}
                 aria-describedby="heightHelp"
                 value={subjectHeightM}
                 autoFocus={subjectHeightM <= 0 || !subjectHeightComplete}
@@ -147,7 +148,9 @@ const SubjectView = observer((props: SubjectViewProps) => {
                         subjectJson.setAttribute("heightM", parseFloat(e.target.value));
                     }
                 }}></input>
-            <div id="massHelp" className="form-text">The height of the subject, in meters.</div>
+            <div id="massHelp" className="form-text">The height of the subject, in meters.
+                {showHeightBoundsWarning && <span className="text-danger"> Please check that this value is reasonable for a human subject.</span>}
+            </div>
         </div>);
 
         if (subjectHeightM <= 0 || !subjectHeightComplete) {
@@ -173,12 +176,14 @@ const SubjectView = observer((props: SubjectViewProps) => {
     // 1.2. Create the entry for the subject mass
     totalFormElements++;
     if (formCompleteSoFar) {
+        const showMassBoundsWarning = (subjectMassKg < 30 || subjectMassKg > 150) && subjectMassKg != -1;
+
         formElements.push(<div key="mass" className="mb-3">
             <label htmlFor="massInput" className="form-label">Mass (kg):</label>
             <input
                 type="number"
                 id="massInput"
-                className={"form-control" + ((subjectMassKg <= 0 || !subjectMassComplete) ? " border-primary border-2" : "")}
+                className={"form-control" + (((subjectMassKg <= 0 && subjectMassKg != -1) || !subjectMassComplete) ? " border-primary border-2" : "") + (showMassBoundsWarning ? " border-danger border-2" : "")}
                 aria-describedby="massHelp"
                 value={subjectMassKg}
                 autoFocus={subjectMassKg <= 0 || !subjectMassComplete}
@@ -198,10 +203,13 @@ const SubjectView = observer((props: SubjectViewProps) => {
                         subjectJson.setAttribute("massKg", parseFloat(e.target.value));
                     }
                 }}></input>
-            <div id="massHelp" className="form-text">The approximate mass of the subject, in kilograms.</div>
+            <div id="massHelp" className="form-text">
+                The approximate mass of the subject, in kilograms.
+                {showMassBoundsWarning && <span className="text-danger"> Please check that this value is reasonable for a human subject.</span>}
+            </div>
         </div>);
 
-        if (subjectMassKg <= 0 || !subjectMassComplete) {
+        if ((subjectMassKg <= 0 && subjectMassKg != -1) || !subjectMassComplete) {
             if (subjectMassComplete) {
                 setSubjectMassComplete(false);
             }
