@@ -97,11 +97,12 @@ def main():
         print('Writing OpenSim results', flush=True)
         write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
 
-        print('Running Moco optimization pass...', flush=True)
-        print('-> This pass utilizes the results from the kinematics and dynamics pass as inputs to a trajectory '
-              'optimization problem solved by OpenSim Moco. This problem solves for the muscle excitations and '
-              'activations that best match the observed motion and ground reaction forces.', flush=True)
-        moco_pass(subject_on_disk)
+        if subject.runMoco:
+            print('Running Moco optimization pass...', flush=True)
+            print('-> This pass utilizes the results from the kinematics and dynamics pass as inputs to a trajectory '
+                'optimization problem solved by OpenSim Moco. This problem solves for the muscle excitations and '
+                'activations that best match the observed motion and ground reaction forces.', flush=True)
+            moco_pass(subject_on_disk)
 
         print('Zipping up OpenSim files...', flush=True)
         shutil.make_archive(path + output_name, 'zip', path + output_name, path + output_name)

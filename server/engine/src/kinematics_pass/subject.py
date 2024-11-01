@@ -69,7 +69,6 @@ class Subject(metaclass=ExceptionHandlingMeta):
         self.exportSDF = False
         self.exportMJCF = False
         self.exportOSIM = True
-        self.exportMoco = False
         self.kinematicsIterations = 500
         self.initialIKRestarts = 150
         self.ignoreJointLimits = False
@@ -163,12 +162,8 @@ class Subject(metaclass=ExceptionHandlingMeta):
         # Only export OpenSim files if we're not exporting MJCF or SDF files, since they use incompatible skeletons.
         self.exportOSIM = not (self.exportMJCF or self.exportSDF)
 
-        if 'exportMoco' in subject_json:
-            self.exportMoco = subject_json['exportMoco']
-
         if 'runMoco' in subject_json:
             self.runMoco = subject_json['runMoco']
-            self.exportMoco = True if self.runMoco else self.exportMoco
 
         if 'ignoreJointLimits' in subject_json:
             self.ignoreJointLimits = subject_json['ignoreJointLimits']
