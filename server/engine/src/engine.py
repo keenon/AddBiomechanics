@@ -77,20 +77,21 @@ def main():
               'and may be useful for downstream data science as well.', flush=True)
         classification_pass(subject_on_disk)
 
-        print('Detecting missing GRF frames...', flush=True)
-        print('-> This runs a set of heuristics to detect frames in the input data where we believe the subject is in '
-              'contact with the ground, but there is no force plate data. These heuristics are deliberately a bit too '
-              'aggressive in marking frames as "missing GRF", in order to make sure we get almost all the frames where '
-              'there actually is missing GRF labeled correctly. This means the dataset of frames which are marked as '
-              'not missing GRF are going to be very clean, but smaller than we might have with more selective '
-              'heuristics.', flush=True)
-        missing_grf_detection(subject_on_disk)
+        if not subject.disableDynamics:
+            print('Detecting missing GRF frames...', flush=True)
+            print('-> This runs a set of heuristics to detect frames in the input data where we believe the subject is in '
+                'contact with the ground, but there is no force plate data. These heuristics are deliberately a bit too '
+                'aggressive in marking frames as "missing GRF", in order to make sure we get almost all the frames where '
+                'there actually is missing GRF labeled correctly. This means the dataset of frames which are marked as '
+                'not missing GRF are going to be very clean, but smaller than we might have with more selective '
+                'heuristics.', flush=True)
+            missing_grf_detection(subject_on_disk)
 
-        print('Running dynamics pass...', flush=True)
-        print('-> This pass runs the dynamics pipeline on the subject, which jointly optimizes a bunch of properties '
-              'just like the kinematics pass, except now we will balance the marker RMS _and_ the residual RMS.',
-              flush=True)
-        dynamics_pass(subject_on_disk)
+            print('Running dynamics pass...', flush=True)
+            print('-> This pass runs the dynamics pipeline on the subject, which jointly optimizes a bunch of properties '
+                'just like the kinematics pass, except now we will balance the marker RMS _and_ the residual RMS.',
+                flush=True)
+            dynamics_pass(subject_on_disk)
 
         # This will write out a folder of OpenSim results files.
         print('Writing OpenSim results', flush=True)
