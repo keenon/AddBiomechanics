@@ -179,8 +179,9 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     max_trial_length = 3.0 
     # The directory to save the function-based paths.
     fbpaths_dir = os.path.join(output_folder, 'Moco', 'function_based_paths')
-    # The strength of the reserve actuators.
-    reserve_strength = 100.0
+    # The strength of the reserve actuators. Weaker reserves are penalized more heavily
+    # during the MocoInverse problem.
+    reserve_strength = 5.0
     # The global scaling factor applied to muscle max isometric force.
     max_isometric_force_scale = 1.0
 
@@ -251,7 +252,7 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     coordinate_values.setColumnLabels(ik.getColumnLabels())
     coordinate_values.addTableMetaDataString('inDegrees', 
                                              ik.getTableMetaDataAsString('inDegrees'))
-    # fit_function_based_paths(model, coordinate_values, fbpaths_dir)
+    fit_function_based_paths(model, coordinate_values, fbpaths_dir)
     moment_arms_fpath = os.path.join(output_folder, 'Moco', 'function_based_paths',
             f'{model.getName()}_moment_arms_fitted.sto')
 

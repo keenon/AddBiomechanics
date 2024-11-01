@@ -11,6 +11,8 @@ from src.writers.opensim_writer import write_opensim_results
 from typing import Dict, List, Any
 import os
 import nimblephysics as nimble
+import opensim as osim
+import numpy as np
 from inspect import getsourcefile
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
@@ -114,78 +116,66 @@ class TestSubject(unittest.TestCase):
 
 class TestRajagopal2015(unittest.TestCase):
     def test_Rajagopal2015(self):
-        import opensim as osim
-        import numpy as np
-        # reset_test_data('rajagopal2015')
+        reset_test_data('rajagopal2015')
         path = os.path.join(TEST_DATA_PATH, 'rajagopal2015')
         if not path.endswith('/'):
             path += '/'
         b3d_path = os.path.join(path, 'rajagopal2015.b3d')
         output_name = 'osim_results'
         output_folder = os.path.join(path, output_name)
-        # shutil.rmtree(output_folder, ignore_errors=True)
-        geometry_folder = os.path.join(output_folder, 'Models', 'Geometry')
-        shutil.rmtree(geometry_folder, ignore_errors=True)
 
-
-        # subject = Subject()
-        # subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
-        # subject.segment_trials()
-        # subject.run_kinematics_pass(DATA_FOLDER_PATH)
-        # subject_on_disk = subject.create_subject_on_disk('<href>')
-        # add_acceleration_minimizing_pass(subject_on_disk)
-        # classification_pass(subject_on_disk)
+        subject = Subject()
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
+        subject.segment_trials()
+        subject.run_kinematics_pass(DATA_FOLDER_PATH)
+        subject_on_disk = subject.create_subject_on_disk('<href>')
+        add_acceleration_minimizing_pass(subject_on_disk)
+        classification_pass(subject_on_disk)
     
-        # # The "missing GRF detection" step removes too many time steps to make the 
-        # # dynamics pass valid. Manually set the valid ground reactions time range to 
-        # # [0.6, 1.75].
-        # header_proto = subject_on_disk.getHeaderProto()
-        # trial_protos = header_proto.getTrials()
-        # dt = trial_protos[0].getTimestep()
-        # start_time = trial_protos[0].getOriginalTrialStartTime()
-        # end_time = trial_protos[0].getOriginalTrialEndTime()
-        # times = np.arange(start_time, end_time, dt)
+        # The "missing GRF detection" step removes too many time steps to make the 
+        # dynamics pass valid. Manually set the valid ground reactions time range to 
+        # [0.6, 1.75].
+        header_proto = subject_on_disk.getHeaderProto()
+        trial_protos = header_proto.getTrials()
+        dt = trial_protos[0].getTimestep()
+        start_time = trial_protos[0].getOriginalTrialStartTime()
+        end_time = trial_protos[0].getOriginalTrialEndTime()
+        times = np.arange(start_time, end_time, dt)
 
-        # missing_grf: List[nimble.biomechanics.MissingGRFReason] = []
-        # for time in times:
-        #     if time > 0.6 and time < 1.75:
-        #         missing_grf.append(nimble.biomechanics.MissingGRFReason.notMissingGRF)
-        #     else:
-        #         missing_grf.append(nimble.biomechanics.MissingGRFReason.zeroForceFrame)
-        # trial_protos[0].setMissingGRFReason(missing_grf)
+        missing_grf: List[nimble.biomechanics.MissingGRFReason] = []
+        for time in times:
+            if time > 0.6 and time < 1.75:
+                missing_grf.append(nimble.biomechanics.MissingGRFReason.notMissingGRF)
+            else:
+                missing_grf.append(nimble.biomechanics.MissingGRFReason.zeroForceFrame)
+        trial_protos[0].setMissingGRFReason(missing_grf)
 
-        # dynamics_pass(subject_on_disk)
-        # subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
-
-        subject_on_disk = nimble.biomechanics.SubjectOnDisk(b3d_path)
-        subject_on_disk.loadAllFrames(True)
-
-
+        # Run the dynamics and Moco pass.
+        dynamics_pass(subject_on_disk)
+        subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
+        # subject_on_disk = nimble.biomechanics.SubjectOnDisk(b3d_path)
+        # subject_on_disk.loadAllFrames(True)
         write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
-
-
         moco_pass(subject_on_disk, path, output_name)
 
-
-        shutil.make_archive(output_folder, 'zip', output_folder, output_folder)
-
-
-
-
-        # # Check the results
-        # # -----------------
+        # Check the results
+        # -----------------
+        # TODO: where is the results file?
         # results_fpath = os.path.join(processed_fpath, '_results.json')
         # with open(results_fpath) as file:
         #     results = json.loads(file.read())
-
         # self.assertAlmostEqual(results['autoAvgRMSE'], 0.014, delta=0.01)
         # self.assertAlmostEqual(results['autoAvgMax'], 0.035, delta=0.01)
         # self.assertAlmostEqual(results['linearResidual'], 3, delta=5)
         # self.assertAlmostEqual(results['angularResidual'], 7, delta=5)
 
-        # # Load the Moco results.
-        # moco_results_fpath = os.path.join(processed_fpath, 'osim_results', 'Moco', 'walk_moco.sto')
-        # moco_results = osim.TimeSeriesTable(moco_results_fpath)
-        # time = moco_results.getIndependentColumn()
-        # self.assertEqual(time[0], 0.45)
-        # self.assertEqual(time[-1], 2.0)
+        # Load the Moco results.
+        header_proto = subject_on_disk.getHeaderProto()
+        trial_protos = header_proto.getTrials()
+        trial_name = trial_protos[0].getName()
+        solution_fpath = os.path.join(path, output_name, 'Moco', f'{trial_name}_moco.sto')
+        solution = osim.TimeSeriesTable(solution_fpath)
+        self.assertEqual(solution.getTableMetaDataString('success'), 'true')
+        self.assertEqual(solution.getTableMetaDataString('status'), 'Solve_Succeeded')
+        self.assertAlmostEqual(float(solution.getTableMetaDataString('objective')), 
+                               9.18, delta=1e-3)

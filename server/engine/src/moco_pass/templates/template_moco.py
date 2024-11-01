@@ -69,4 +69,3 @@ report = osim.report.Report(model,
                             bilateral=True)
 # The PDF is saved to the working directory.
 report.generate()
-
