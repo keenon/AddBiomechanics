@@ -123,23 +123,25 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
                 [osim.skeleton.getBodyNode(name) for name in subject.getGroundForceBodies()],
                 trial_name + '_grf.mot',
                 output_folder + 'ID/' + trial_name + '_external_forces.xml')
-            nimble.biomechanics.OpenSimParser.saveRawGRFMot(grf_fpath, timestamps, force_plates)
-            nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
-                trial_name,
-                osim.skeleton,
-                poses,
-                force_plates,
-                trial_name + '_grf.mot',
-                output_folder + 'ID/' + trial_name + '_external_forces.xml')
-            nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
-                trial_name,
-                '../Models/' + DYNAMICS_OSIM_NAME,
-                '../IK/' + trial_name + '_ik.mot',
-                trial_name + '_external_forces.xml',
-                trial_name + '_id.sto',
-                trial_name + '_id_body_forces.sto',
-                output_folder + 'ID/' + trial_name + '_id_setup.xml',
-                min(timestamps), max(timestamps))
+
+            # TODO: update to use the subject's ground force bodies.
+            # nimble.biomechanics.OpenSimParser.saveRawGRFMot(grf_raw_fpath, timestamps, force_plates)
+            # nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsRawForcesXMLFile(
+            #     trial_name,
+            #     osim.skeleton,
+            #     poses,
+            #     force_plates,
+            #     trial_name + '_grf_raw.mot',
+            #     output_folder + 'ID/' + trial_name + '_external_forces_raw.xml')
+            # nimble.biomechanics.OpenSimParser.saveOsimInverseDynamicsXMLFile(
+            #     trial_name,
+            #     '../Models/' + DYNAMICS_OSIM_NAME,
+            #     '../IK/' + trial_name + '_ik.mot',
+            #     trial_name + '_external_forces_raw.xml',
+            #     trial_name + '_id.sto',
+            #     trial_name + '_id_body_forces.sto',
+            #     output_folder + 'ID/' + trial_name + '_id_setup.xml',
+            #     min(timestamps), max(timestamps))
 
         elif any_kinematics_passes:
             # Write out the inverse kinematics results,

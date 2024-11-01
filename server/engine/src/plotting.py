@@ -9,6 +9,7 @@ import os
 import numpy as np
 from collections import defaultdict, OrderedDict
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.lines as mlines
 import matplotlib; matplotlib.use('Agg')
@@ -490,37 +491,105 @@ def plot_moment_arms(results_dir, model_name):
                               nrow=4, ncol=4, ylabel='moment arm (cm)', scale=100.0)
     
 
-def plot_joint_moment_breakdown(id_fpath, solution_fpath, moment_arms_fpath, 
-                                coordinate_names, output_fpath):
+def plot_joint_moment_breakdown(solution_fpath, tendon_forces_fpath, moment_arms_fpath,
+                                id_fpath, coordinate_names, reserve_strength, 
+                                output_fpath):
+    
+    # Load the Moco solution and computed tendon forces.
+    solution = osim.TimeSeriesTable(solution_fpath)
+    tendon_forces = osim.TimeSeriesTable(tendon_forces_fpath)
+    
+    # Load the moment arms.
+    moment_arms = osim.TimeSeriesTable(moment_arms_fpath)
+    moment_arm_splines = osim.GCVSplineSet(moment_arms)
+
+    # Load the inverse dynamics results.
+    id = osim.TimeSeriesTable(id_fpath)
+    id_splines = osim.GCVSplineSet(id)
+
+    # Resample the moment arms and ID results to the tendon force times.
+    times = tendon_forces.getIndependentColumn()
+    moment_arms_sampled = osim.TimeSeriesTable()
+    moment_arms_sampled.setColumnLabels(moment_arms.getColumnLabels())
+    id_sampled = osim.TimeSeriesTable()
+    id_sampled.setColumnLabels(id.getColumnLabels())
+    for time in times:
+        timeVec = osim.Vector(1, time)
+
+        moment_arm_row = osim.RowVector(moment_arms.getNumColumns())
+        for ilabel, label in enumerate(moment_arms.getColumnLabels()):
+            moment_arm_row[ilabel] = moment_arm_splines.get(label).calcValue(timeVec)
+        moment_arms_sampled.appendRow(time, moment_arm_row)
+
+        id_row = osim.RowVector(id.getNumColumns())
+        for ilabel, label in enumerate(id.getColumnLabels()):
+            id_row[ilabel] = id_splines.get(label).calcValue(timeVec)
+        id_sampled.appendRow(time, id_row)
     
     # Create a mapping between coordinate names and muscle moment arms.
-    moment_arms = osim.TimeSeriesTable(moment_arms_fpath)
     moment_arm_map = {cname: [] for cname in coordinate_names}
     for label in moment_arms.getColumnLabels():
         label_split = label.split('_moment_arm_')
         muscle_path = label_split[0]
         coordinate_name = label_split[1]
         moment_arm_map[coordinate_name].append(muscle_path)
-    moment_arm_map = {cname: mpaths for cname, mpaths in moment_arm_map.items() if mpaths}    
+    moment_arm_map = {cname: mpaths for cname, mpaths in moment_arm_map.items() if mpaths}
+    muscle_coordinate_names = list(moment_arm_map.keys())
 
+    # Detect reserve actuator names from the Moco solution.
+    reserve_actuator_map = dict()
+    for label in solution.getColumnLabels():
+        for mcname in muscle_coordinate_names:
+            if 'reserve' in label and mcname in label:
+                reserve_actuator_map[mcname] = label
+    
+    # Plot the joint moment breakdown.
     nplots = 3
     nfig = int(np.ceil(len(moment_arm_map) / nplots))    
-    times = moment_arms.getIndependentColumn()
-    coord_names = list(moment_arm_map.keys())
     icoord = 0
     with PdfPages(output_fpath) as pdf:
         for ifig in range(nfig):
-            fig, axs = plt.subplots(3, 1, figsize=(10, 8))
+            fig = plt.figure(figsize=(10, 8)) 
+            gs = gridspec.GridSpec(3, 2, width_ratios=[3, 1])
             for irow in range(3):
-                coord_name = coord_names[icoord]
-                for muscle_path in moment_arm_map[coord_name]:
-                    axs[irow].plot(
-                        times,
-                        moment_arms.getDependentColumn(f'{muscle_path}_moment_arm_{coord_name}').to_numpy())
-                    axs[irow].set_xlim(times[0], times[-1])
-                    # axs[irow].set_title(labels[ilabel], fontsize=6)
+                if icoord >= len(muscle_coordinate_names): break
+                musc_coord_name = muscle_coordinate_names[icoord]
+                ax = fig.add_subplot(gs[irow, 0])
 
-            icoord += 1
+                # Net joint moment.
+                id_moment = id_sampled.getDependentColumn(
+                        f'{musc_coord_name}_moment').to_numpy()
+                ax.plot(times, id_moment, label='net joint moment', color='black', lw=4)
+                ax.set_title(musc_coord_name, fontsize=14)
+                ax.set_xlim(times[0], times[-1])
+
+                # Muscle generated moments.
+                sum_muscle_moments = np.zeros_like(id_moment)
+                for muscle_path in moment_arm_map[musc_coord_name]:
+                    moment_arm = moment_arms_sampled.getDependentColumn(
+                            f'{muscle_path}_moment_arm_{musc_coord_name}').to_numpy()
+                    tendon_force = tendon_forces.getDependentColumn(
+                            f'{muscle_path}|tendon_force').to_numpy()
+                    muscle_moment = np.multiply(moment_arm, tendon_force)
+                    ax.plot(times, muscle_moment, 
+                            label=muscle_path.lstrip('/forceset/'), lw=1.5)
+                    sum_muscle_moments += muscle_moment
+                ax.plot(times, sum_muscle_moments, label='sum of muscle moments', 
+                        color='gray', lw=2.5, ls='--')
+                
+                # Reserve moment.
+                reserve_moment = reserve_strength * solution.getDependentColumn(
+                        reserve_actuator_map[musc_coord_name]).to_numpy()
+                ax.plot(times, reserve_moment, label='reserve moment', 
+                        color='gray', lw=2.5)
+
+                # Legend
+                legend_ax = fig.add_subplot(gs[irow, 1])
+                legend_ax.axis("off")
+                legend_ax.legend(*ax.get_legend_handles_labels(), loc="center", 
+                                 ncol=2, fontsize=6)
+                icoord += 1
+
             plt.tight_layout()
             pdf.savefig(fig)
             plt.close(fig)

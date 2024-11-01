@@ -18,11 +18,12 @@ DYNAMICS_OSIM_NAME = 'match_markers_and_physics.osim'
 MOCO_OSIM_NAME = 'match_markers_and_physics_moco.osim'
 
 
-def update_model(model_input_fpath, model_output_fpath):
+def update_model(generic_model_fpath, model_input_fpath, model_output_fpath):
 
     # Replace locked coordinates with weld joints.
     model = osim.Model(model_input_fpath)
-    model.initSystem()
+    state = model.initSystem()
+    mass = model.getTotalMass(state)
     coordinates = model.getCoordinateSet()
     locked_joints = list()
     locked_coordinates = list()
@@ -42,7 +43,58 @@ def update_model(model_input_fpath, model_output_fpath):
                 if actu.get_coordinate() == coordinate:
                     forceSet.remove(iforce)
                     break
+    
+    # Regression equation from Handsfield et al. (2014), "Relationships of 35 lower 
+    # limb muscles to height and body mass quantified using MRI."
+    # Equation from Figure 5b.
+    def total_muscle_volume_regression(mass):
+        return 91.0*mass + 588.0
+    
+    # Rules for updating muscle max isometric force based on volume scaling.
+    # 
+    # v: volume fraction
+    # V: total volume
+    # F: max isometric force
+    # l: optimal fiber length
+    #
+    # F = v * sigma * V / l
+    #
+    # *_g: generic model.
+    # *_s: subject-specific model.
+    #
+    # F_g = v * sigma * V_g / l_g
+    # F_s = v * sigma * V_s / l_s
+    #
+    # F_s = (F_g * l_g / V_g) * V_s / l_s
+    #     = F_g * (V_s / V_g) * (l_g / l_s)
+    #
+    # Credit: Chris Dembia (https://github.com/chrisdembia/mrsdeviceopt)
+    generic_model = osim.Model(generic_model_fpath)
+    state = generic_model.initSystem()
+    generic_mass = generic_model.getTotalMass(state)
 
+    generic_TMV = total_muscle_volume_regression(generic_mass)
+    subject_TMV = total_muscle_volume_regression(mass)
+
+    generic_mset = generic_model.getMuscles()
+    subject_mset = model.getMuscles()
+    for im in range(subject_mset.getSize()):
+        muscle_name = subject_mset.get(im).getName()
+
+        generic_muscle = generic_mset.get(muscle_name)
+        subject_muscle = subject_mset.get(muscle_name)
+
+        generic_OFL = generic_muscle.get_optimal_fiber_length()
+        subj_OFL = subject_muscle.get_optimal_fiber_length()
+
+        scale_factor = (subject_TMV / generic_TMV) * (generic_OFL / subj_OFL)
+        print("Scaling '%s' muscle force by %f." % (muscle_name, scale_factor))
+
+        generic_force = generic_muscle.getMaxIsometricForce()
+        scaled_force = generic_force * scale_factor
+        subject_muscle.setMaxIsometricForce(scaled_force)
+
+    # Save the updated model.
     model.finalizeConnections()
     modelProcessor = osim.ModelProcessor(model)
     modelProcessor.append(osim.ModOpReplaceJointsWithWelds(locked_joints))
@@ -72,6 +124,7 @@ def fit_function_based_paths(model, coordinate_values, results_dir):
     plot_path_lengths(results_dir, model.getName())
     plot_moment_arms(results_dir, model.getName())
 
+
 def create_residuals_force_set(output_folder, trial_name, residual_strengths):
     residuals = osim.ForceSet()
     for key, value in residual_strengths.items():
@@ -87,13 +140,16 @@ def create_residuals_force_set(output_folder, trial_name, residual_strengths):
 
 
 def fill_moco_template(moco_template_fpath, script_fpath, model_name, trial_name, 
-                       initial_time, final_time):
+                       reserve_strength, max_isometric_force_scale, initial_time, 
+                       final_time):
     with open(moco_template_fpath) as ft:
         content = ft.read()
         content = content.replace('@TRIAL@', trial_name)
         content = content.replace('@MODEL_NAME@', model_name)
         content = content.replace('@INITIAL_TIME@', str(initial_time))
         content = content.replace('@FINAL_TIME@', str(final_time))
+        content = content.replace('@RESERVE_STRENGTH@', str(reserve_strength))
+        content = content.replace('@MAX_ISOMETRIC_FORCE_SCALE@', str(max_isometric_force_scale))
 
     with open(script_fpath, 'w') as f:
         f.write(content)
@@ -105,12 +161,28 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     This function is responsible for running the Moco pass on the subject.
     """
 
-    # Create the output folder.
+    # TODOs
+    # ----
+    # 1. Assumes that muscles are in the ForceSet.
+
+    # Global settings.
+    # ----------------
+    # The output folder.
     output_folder = path + output_name
     if not output_folder.endswith('/'):
         output_folder += '/'
     if not os.path.exists(output_folder + 'Moco'):
         os.mkdir(output_folder + 'Moco')
+    # The total number of coordinate pose samples used during function-based path fitting.
+    total_samples = 150
+    # The maximum length of a trial, in seconds, to be solved by Moco.
+    max_trial_length = 3.0 
+    # The directory to save the function-based paths.
+    fbpaths_dir = os.path.join(output_folder, 'Moco', 'function_based_paths')
+    # The strength of the reserve actuators.
+    reserve_strength = 100.0
+    # The global scaling factor applied to muscle max isometric force.
+    max_isometric_force_scale = 1.0
 
     # Load the subject.
     header_proto = subject.getHeaderProto()
@@ -119,9 +191,10 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
 
     # Update the model.
     # -----------------
+    generic_model_fpath = os.path.join(output_folder, 'Models', GENERIC_OSIM_NAME)
     dynamics_model_fpath = os.path.join(output_folder, 'Models', DYNAMICS_OSIM_NAME)
     moco_model_fpath = os.path.join(output_folder, 'Models', MOCO_OSIM_NAME)
-    update_model(dynamics_model_fpath, moco_model_fpath)
+    update_model(generic_model_fpath, dynamics_model_fpath, moco_model_fpath)
     model = osim.Model(moco_model_fpath)
     model.initSystem()
 
@@ -161,15 +234,6 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
                                     f'motion type "{invalid_type}".')                
             break
 
-    # Global settings.
-    # ----------------
-    # The total number of coordinate pose samples used during function-based path fitting.
-    total_samples = 150
-    # The maximum length of a trial, in seconds, to be solved by Moco.
-    max_trial_length = 3.0 
-    # The directory to save the function-based paths.
-    fbpaths_dir = os.path.join(output_folder, 'Moco', 'function_based_paths')
-
     # Function-based paths.
     # ---------------------
     # Fit a set of function-based paths to the model. Grab the coordinate samples from 
@@ -188,17 +252,8 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     coordinate_values.addTableMetaDataString('inDegrees', 
                                              ik.getTableMetaDataAsString('inDegrees'))
     # fit_function_based_paths(model, coordinate_values, fbpaths_dir)
-
-    # Create a mapping between coordinates and moment arms.
     moment_arms_fpath = os.path.join(output_folder, 'Moco', 'function_based_paths',
             f'{model.getName()}_moment_arms_fitted.sto')
-    # moment_arms = osim.TimeSeriesTable(moment_arms_fpath)
-    # moment_arm_map = {cname: [] for cname in coordinate_names}
-    # for label in moment_arms.getColumnLabels():
-    #     label_split = label.split('_moment_arm_')
-    #     muscle_path = label_split[0]
-    #     coordinate_name = label_split[1]
-    #     moment_arm_map[coordinate_name].append(muscle_path)
 
     # Filter trials.
     # --------------
@@ -231,15 +286,11 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
         for itime in range(num_steps):
             time = start_time + itime * dt
 
-            # Find the first time step in the trial with valid GRF data.
             if not found_initial_time and missing_grf_reasons[itime] == not_missing_grf:
                 initial_time = time
                 found_initial_time = True
                 continue
 
-            # Set the final time step if:
-            # - The current time range is greater than the max trial length.
-            # - The current time step has missing GRF data.
             if found_initial_time:
                 if time - initial_time >= max_trial_length:
                     final_time = time
@@ -262,17 +313,21 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
         script_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco.py')
         template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py')
         fill_moco_template(template_fpath, script_fpath, model.getName(), trial_name, 
-                           initial_time, final_time)
+                           reserve_strength, max_isometric_force_scale, initial_time, 
+                           final_time)
                             
         # Run the MocoInverse problem.
         moco_dir = os.path.join(output_folder, 'Moco')
-        # subprocess.run([sys.executable, script_fpath], stdout=sys.stdout, 
-        #                stderr=sys.stderr, cwd=moco_dir)
+        subprocess.run([sys.executable, script_fpath], stdout=sys.stdout, 
+                       stderr=sys.stderr, cwd=moco_dir)
         
-        # Plot the joint moment breakdown
+        # Plot the joint moment breakdown.
         solution_fpath = os.path.join(moco_dir, f'{trial_name}_moco.sto')
+        tendon_forces_fpath = os.path.join(moco_dir, f'{trial_name}_tendon_forces.sto')
         output_fpath = os.path.join(moco_dir, f'{trial_name}_joint_moment_breakdown.pdf')
-        plot_joint_moment_breakdown(id_fpath, solution_fpath, moment_arms_fpath, coordinate_names, output_fpath)
+        plot_joint_moment_breakdown(solution_fpath, tendon_forces_fpath, 
+                                    moment_arms_fpath, id_fpath, coordinate_names, 
+                                    reserve_strength, output_fpath)
 
 
 
