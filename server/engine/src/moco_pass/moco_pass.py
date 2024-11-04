@@ -312,7 +312,7 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
 
         # Fill the MocoInverse problem template.
         script_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco.py')
-        template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py')
+        template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py.txt')
         fill_moco_template(template_fpath, script_fpath, model.getName(), trial_name, 
                            reserve_strength, max_isometric_force_scale, initial_time, 
                            final_time)
