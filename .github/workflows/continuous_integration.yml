@@ -32,4 +32,4 @@ jobs:
       - name: Run tests
         run: |
            cd server/engine/src
-           python -m unittest discover -s ../tests/ -p 'test_*.py
+           python -m unittest discover -s ../tests/ -p 'test_*.py'
