@@ -1,7 +1,7 @@
 import nimblephysics as nimble
 import numpy as np
 from typing import List, Tuple
-from src.bad_frames_detector.thresholds import ThresholdsDetector
+from bad_frames_detector.thresholds import ThresholdsDetector
 
 
 def missing_grf_detection(subject: nimble.biomechanics.SubjectOnDisk):

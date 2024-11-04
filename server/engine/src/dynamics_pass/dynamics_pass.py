@@ -1,7 +1,7 @@
 import nimblephysics as nimble
 import numpy as np
 from typing import List, Tuple
-from src.utilities.scale_opensim_model import scale_opensim_model
+from utilities.scale_opensim_model import scale_opensim_model
 
 
 def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
