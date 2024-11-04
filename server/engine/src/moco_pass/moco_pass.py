@@ -6,8 +6,8 @@ from typing import List, Dict
 import subprocess
 import sys
 import matplotlib; matplotlib.use('Agg')
-from src.plotting import (plot_coordinate_samples, plot_path_lengths, plot_moment_arms,
-                          plot_joint_moment_breakdown)
+from plotting import (plot_coordinate_samples, plot_path_lengths, plot_moment_arms,
+                      plot_joint_moment_breakdown)
 from inspect import getsourcefile
 
 MOCO_PATH = os.path.dirname(getsourcefile(lambda:0))

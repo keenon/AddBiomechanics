@@ -2,7 +2,7 @@ import os
 import nimblephysics as nimble
 import shutil
 from typing import List, Optional
-from src.plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
+from plotting import plot_ik_results, plot_id_results, plot_marker_errors, plot_grf_data
 import numpy as np
 
 GENERIC_OSIM_NAME = 'unscaled_generic.osim'
@@ -14,7 +14,7 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
                           path: str, output_name: str,                           
                           original_geometry_folder_path: Optional[str] = None):
     
-    output_folder = path + output_name
+    output_folder = os.path.join(path, output_name)
     if not output_folder.endswith('/'):
         output_folder += '/'
 
@@ -33,7 +33,7 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
         os.mkdir(output_folder + 'MarkerData')
 
     # Copy the generic model to the output folder.
-    shutil.copyfile(path + GENERIC_OSIM_NAME, 
+    shutil.copyfile(os.path.join(path, GENERIC_OSIM_NAME), 
                     output_folder + 'Models/' + GENERIC_OSIM_NAME)
 
     # Write the OpenSim model files to the output folder.

@@ -1,12 +1,12 @@
 import shutil
 import unittest
-from src.kinematics_pass.subject import Subject
-from src.kinematics_pass.trial import TrialSegment, Trial
+from kinematics_pass.subject import Subject
+from kinematics_pass.trial import TrialSegment, Trial
 from typing import Dict, List, Any
 import os
 import nimblephysics as nimble
 from inspect import getsourcefile
-from src.utilities.scale_opensim_model import scale_opensim_model
+from utilities.scale_opensim_model import scale_opensim_model
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
 DATA_FOLDER_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')

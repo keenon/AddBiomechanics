@@ -1,13 +1,13 @@
 import shutil
 import unittest
-from src.kinematics_pass.subject import Subject
-from src.kinematics_pass.trial import TrialSegment, Trial
-from src.dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
-from src.dynamics_pass.classification_pass import classification_pass
-from src.dynamics_pass.missing_grf_detection import missing_grf_detection
-from src.dynamics_pass.dynamics_pass import dynamics_pass
-from src.moco_pass.moco_pass import moco_pass
-from src.writers.opensim_writer import write_opensim_results
+from kinematics_pass.subject import Subject
+from kinematics_pass.trial import TrialSegment, Trial
+from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
+from dynamics_pass.classification_pass import classification_pass
+from dynamics_pass.missing_grf_detection import missing_grf_detection
+from dynamics_pass.dynamics_pass import dynamics_pass
+from moco_pass.moco_pass import moco_pass
+from writers.opensim_writer import write_opensim_results
 from typing import Dict, List, Any
 import os
 import nimblephysics as nimble

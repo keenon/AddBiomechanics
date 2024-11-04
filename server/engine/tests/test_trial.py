@@ -1,6 +1,6 @@
 import json
 import unittest
-from src.kinematics_pass.trial import Trial, TrialSegment
+from kinematics_pass.trial import Trial, TrialSegment
 import numpy as np
 import nimblephysics as nimble
 from typing import List, Dict, Any

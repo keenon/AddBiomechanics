@@ -2,10 +2,10 @@ import nimblephysics as nimble
 import unittest
 import os
 from inspect import getsourcefile
-from src.dynamics_pass.dynamics_pass import dynamics_pass
-from src.dynamics_pass.classification_pass import classification_pass
-from src.dynamics_pass.missing_grf_detection import missing_grf_detection
-from src.dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
+from dynamics_pass.dynamics_pass import dynamics_pass
+from dynamics_pass.classification_pass import classification_pass
+from dynamics_pass.missing_grf_detection import missing_grf_detection
+from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
 import numpy as np
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))

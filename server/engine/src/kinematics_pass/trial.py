@@ -4,7 +4,7 @@ import numpy as np
 import os
 import enum
 import json
-from src.memory_utils import deep_copy_marker_observations
+from memory_utils import deep_copy_marker_observations
 from scipy.signal import butter, filtfilt, resample_poly
 import mmap
 
