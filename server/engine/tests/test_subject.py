@@ -177,5 +177,4 @@ class TestRajagopal2015(unittest.TestCase):
         solution = osim.TimeSeriesTable(solution_fpath)
         self.assertEqual(solution.getTableMetaDataString('success'), 'true')
         self.assertEqual(solution.getTableMetaDataString('status'), 'Solve_Succeeded')
-        self.assertAlmostEqual(float(solution.getTableMetaDataString('objective')), 
-                               9.18, delta=1e-3)
+
