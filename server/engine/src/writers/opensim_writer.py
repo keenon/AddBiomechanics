@@ -33,8 +33,10 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
         os.mkdir(output_folder + 'MarkerData')
 
     # Copy the generic model to the output folder.
-    shutil.copyfile(os.path.join(path, GENERIC_OSIM_NAME), 
-                    output_folder + 'Models/' + GENERIC_OSIM_NAME)
+    generic_model_fpath = os.path.join(path, GENERIC_OSIM_NAME)
+    if os.path.exists(generic_model_fpath):
+        shutil.copyfile(generic_model_fpath, 
+                        output_folder + 'Models/' + GENERIC_OSIM_NAME)
 
     # Write the OpenSim model files to the output folder.
     for ipass in range(subject.getNumProcessingPasses()):
