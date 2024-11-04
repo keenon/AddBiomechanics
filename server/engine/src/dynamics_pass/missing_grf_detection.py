@@ -13,9 +13,17 @@ def missing_grf_detection(subject: nimble.biomechanics.SubjectOnDisk):
     forces that are supposed to be holding the body up).
     """
     detector = ThresholdsDetector()
-    missing_grf: List[List[nimble.biomechanics.MissingGRFReason]] = detector.estimate_missing_grfs(subject, list(
-        range(subject.getNumTrials())))
     header_proto = subject.getHeaderProto()
     trial_protos = header_proto.getTrials()
+
+    trials_to_evaluate: List[int] = []
     for i in range(subject.getNumTrials()):
-        trial_protos[i].setMissingGRFReason(missing_grf[i])
+        missing_reasons = trial_protos[i].getMissingGRFReason()
+        has_any_manual_review = any([reason == nimble.biomechanics.MissingGRFReason.manualReview for reason in missing_reasons])
+        if not has_any_manual_review:
+            trials_to_evaluate.append(i)
+
+    missing_grf: List[List[nimble.biomechanics.MissingGRFReason]] = detector.estimate_missing_grfs(subject, trials_to_evaluate)
+    assert len(missing_grf) == len(trials_to_evaluate)
+    for i in range(len(missing_grf)):
+        trial_protos[trials_to_evaluate[i]].setMissingGRFReason(missing_grf[i])
