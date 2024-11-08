@@ -22,6 +22,8 @@ def missing_grf_detection(subject: nimble.biomechanics.SubjectOnDisk):
         has_any_manual_review = any([reason == nimble.biomechanics.MissingGRFReason.manualReview for reason in missing_reasons])
         if not has_any_manual_review:
             trials_to_evaluate.append(i)
+        else:
+            print(f"Trial {i} has been manually reviewed, skipping missing GRF detection...")
 
     missing_grf: List[List[nimble.biomechanics.MissingGRFReason]] = detector.estimate_missing_grfs(subject, trials_to_evaluate)
     assert len(missing_grf) == len(trials_to_evaluate)
