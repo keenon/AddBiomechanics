@@ -28,8 +28,8 @@ def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
         num_not_missing = sum(
             [missing == nimble.biomechanics.MissingGRFReason.notMissingGRF for missing in missing_grf])
         print(f"Trial {i} has {num_not_missing} frames of good GRF data")
-        if num_not_missing < 50:
-            print(f"Trial {i} has less than 50 frames of good GRF data. Skipping dynamics optimization.")
+        if num_not_missing < 5:
+            print(f"Trial {i} has less than 5 frames of good GRF data. Skipping dynamics optimization.")
             continue
         # Run the dynamics optimization
         print('Running dynamics optimization on trial ' + str(i) + '/' + str(num_trials))
