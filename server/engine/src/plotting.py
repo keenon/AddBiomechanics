@@ -544,7 +544,7 @@ def plot_joint_moment_breakdown(solution_fpath, tendon_forces_fpath, moment_arms
                 reserve_actuator_map[mcname] = label
     
     # Plot the joint moment breakdown.
-    nplots = 3
+    nplots = 2
     nfig = int(np.ceil(len(moment_arm_map) / nplots))    
     icoord = 0
     with PdfPages(output_fpath) as pdf:
