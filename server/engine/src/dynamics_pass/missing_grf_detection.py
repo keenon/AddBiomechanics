@@ -18,8 +18,7 @@ def missing_grf_detection(subject: nimble.biomechanics.SubjectOnDisk):
 
     trials_to_evaluate: List[int] = []
     for i in range(subject.getNumTrials()):
-        missing_reasons = trial_protos[i].getMissingGRFReason()
-        has_any_manual_review = any([reason == nimble.biomechanics.MissingGRFReason.manualReview for reason in missing_reasons])
+        has_any_manual_review = any(trial_protos[i].getHasManualGRFAnnotation())
         if not has_any_manual_review:
             trials_to_evaluate.append(i)
         else:
