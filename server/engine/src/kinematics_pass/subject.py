@@ -12,6 +12,7 @@ import textwrap
 import tempfile
 import os
 from utilities.scale_opensim_model import scale_opensim_model
+import traceback
 
 
 # Global paths to the geometry and data folders.
@@ -47,7 +48,8 @@ class ExceptionHandlingMeta(type):
             try:
                 method(*args, **kwargs)
             except Exception as e:
-                msg = f"Exception caught in {method.__name__}: {e}"
+                stack_trace = textwrap.indent('\n'.join(traceback.format_stack()), '  ')
+                msg = f"Exception caught in {method.__name__}: {e} {stack_trace}"
                 exc_type = ExceptionHandlingMeta.EXCEPTION_MAP.get(method.__name__, Exception)
                 raise exc_type(msg)
 
@@ -337,16 +339,65 @@ class Subject(metaclass=ExceptionHandlingMeta):
     # Processing the Subject
     ###################################################################################################################
 
+    def clean_marker_traces(self):
+        """
+        This function attempts to de-swap the marker traces by using a number of heuristics on a beam search.
+        """
+        markers_by_body: Dict[str, List[str]] = {}
+        for key, (body, offset) in self.customOsim.markersMap.items():
+            body_name = body.getName()
+            if body_name not in markers_by_body:
+                markers_by_body[body_name] = []
+            markers_by_body[body_name].append(key)
+
+        marker_groups = []
+        for body_name, markers in markers_by_body.items():
+            marker_groups.append(markers)
+        print('Marker groups: ', marker_groups)
+
+        pair_weight = 100.0
+        pair_threshold = 0.01
+        vel_threshold = 5.0
+        vel_weight = 0.1
+        acc_threshold = 1000.0
+        acc_weight = 0.001
+        beam_width = 10
+        for trial in self.trials:
+            if not trial.error:
+                updated_marker_timesteps, updated_timestamps = nimble.biomechanics.MarkerMultiBeamSearch.process_markers(marker_groups, trial.marker_observations, trial.timestamps, beam_width=beam_width, pair_weight=pair_weight, pair_threshold=pair_threshold, vel_threshold=vel_threshold, vel_weight=vel_weight, acc_threshold=acc_threshold, acc_weight=acc_weight, print_interval=10000, crysatilize_interval=1000000, multithread=False)
+
+                # First collect all the updated marker observations
+                all_marker_timesteps = {}
+                for i in range(len(updated_marker_timesteps)):
+                    all_marker_timesteps[updated_timestamps[i]] = updated_marker_timesteps[i]
+
+                # Fill in all the timesteps that were not corrected during processing, so that our arrays still match
+                # the force plates in length.
+                for i in range(len(trial.marker_observations)):
+                    if trial.timestamps[i] not in all_marker_timesteps:
+                        all_marker_timesteps[trial.timestamps[i]] = trial.marker_observations[i]
+
+                finished_timestamps = list(all_marker_timesteps.keys())
+                finished_marker_observations = list(all_marker_timesteps.values())
+
+                trial.marker_observations = finished_marker_observations
+                trial.timestamps = finished_timestamps
+
     def segment_trials(self):
         """
         This function splits the trials into segments based on when the GRF is zero, and also based on a maximum length
         per trial, to allow the kinematics and dynamics pipelines to run more efficiently.
         """
-        for trial in self.trials:
-            if not trial.error:
-                # Ablation #1: Remove the right force plate
-                # trial.zero_force_plate(0)
-                trial.split_segments(max_grf_gap_fill_size=1.0, max_segment_frames=2000)
+        try:
+            for trial in self.trials:
+                if not trial.error:
+                    # Ablation #1: Remove the right force plate
+                    # trial.zero_force_plate(0)
+                    trial.split_segments(max_grf_gap_fill_size=1.0, max_segment_frames=2000)
+        except Exception as e:
+            print('Error segmenting trials:', e, flush=True)
+            print(traceback.format_exc(), flush=True)
+            raise e
 
     def evaluate_manually_scaled_error(self):
         """

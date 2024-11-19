@@ -280,12 +280,17 @@ class Trial:
         # threshold, but allow short sections to be contained in a normal GRF segment without splitting.
         total_forces: List[float] = [0.0] * len(self.marker_observations)
         for i in range(len(self.force_plates)):
-            forces = self.force_plate_raw_forces[i]
-            moments = self.force_plate_raw_moments[i]
-            assert (len(forces) == len(total_forces))
-            assert (len(moments) == len(total_forces))
-            for t in range(len(total_forces)):
-                total_forces[t] += np.linalg.norm(forces[t]) + np.linalg.norm(moments[t])
+            if len(self.force_plate_raw_forces) > i and len(self.force_plate_raw_forces[i]) > 0:
+                forces = self.force_plate_raw_forces[i]
+                moments = self.force_plate_raw_moments[i]
+                if len(forces) != len(total_forces):
+                    print('Force plate '+str(i)+' has '+str(len(forces))+' frames of force_plate_raw_forces, but trial has '+str(len(total_forces))+' frames of total_forces')
+                assert (len(forces) == len(total_forces))
+                if len(moments) != len(total_forces):
+                    print('Force plate ' + str(i) + ' has ' + str(len(moments)) + ' frames of force_plate_raw_moments, but trial has ' + str(len(total_forces)) + ' frames of total_forces')
+                assert (len(moments) == len(total_forces))
+                for t in range(len(total_forces)):
+                    total_forces[t] += np.linalg.norm(forces[t]) + np.linalg.norm(moments[t])
         has_forces = [f > 1e-3 for f in total_forces]
         # Now we need to go through and fill in the "short gaps" in the has_forces array.
         last_transition_off = 0

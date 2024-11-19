@@ -50,6 +50,9 @@ def main():
     try:
         print('Loading folder ' + path, flush=True)
         subject.load_folder(path, DATA_FOLDER_PATH)
+        # This will attempt to un-swap the marker data, by using a number of beam search heuristics.
+        print('Cleaning marker data', flush=True)
+        subject.clean_marker_traces()
         # This auto-segments the trials, without throwing away any segments. The segments are split based on which parts
         # of the trial have GRF data, and also based on ensuring that the segments don't get beyond a certain length.
         print('Segmenting trials', flush=True)
