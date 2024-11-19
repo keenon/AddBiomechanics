@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/398424759.svg)](https://zenodo.org/badge/latestdoi/398424759)
 
-This is an open effort to assemble a large dataset of human motion. We're hoping to faccilitate this by providing easy-to-use tools that can automatically process motion capture data, and prepare it for biomechanical analysis. We're also working to provide large aggregate datasets in standard formats, along with tools to easily handle the data, at some point in the near future.
+This is an open effort to assemble a large dataset of human motion. We're hoping to facilitate this by providing easy-to-use tools that can automatically process motion capture data, and prepare it for biomechanical analysis. We're also working to provide large aggregate datasets in standard formats, along with tools to easily handle the data, at some point in the near future.
 
 ### Getting Set Up (for Stanford Developers)
 

@@ -699,6 +699,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
                     trial_data.setMarkerObservations(segment.marker_observations)
                     # TODO: Acc, Gyro, EMG, Exo
                     trial_data.setMissingGRFReason(segment.missing_grf_reason)
+                    trial_data.setHasManualGRFAnnotation([status != nimble.biomechanics.MissingGRFStatus.unknown for status in segment.missing_grf_manual_review]) 
                     trial_data.setTrialTags(trial.tags)
                     trial_data.setForcePlates(segment.force_plates)
 
