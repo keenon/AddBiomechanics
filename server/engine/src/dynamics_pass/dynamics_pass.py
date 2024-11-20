@@ -41,11 +41,9 @@ def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
     if len(dynamics_trials) > 0:
         foot_bodies = [skel.getBodyNode(body) for body in subject.getGroundForceBodies()]
 
-        dynamics_fitter = nimble.biomechanics.DynamicsFitter(
-            skel, foot_bodies, osim.trackingMarkers)
-
         dynamics_prefit_poses = []
         dynamics_prefit_trials = []
+        dynamics_trials_estimated_subject_masses = []
         for trial in dynamics_trials:
             trial_len = subject.getTrialLength(trial)
             missing_grf = subject.getMissingGRF(trial)
@@ -76,6 +74,29 @@ def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
             num_force_plates = int(cop_torque_force_in_root.shape[0] / 9)
             for j in range(num_force_plates):
                 total_forces += cop_torque_force_in_root[j * 9 + 6:j * 9 + 9, :]
+
+            # Make a rough subject mass estimate
+            if num_tracked > 0:
+                total_observed_forces = np.zeros(3)
+                total_observed_accs = np.zeros(3)
+                for t in range(trial_len):
+                    if track_indices[t]:
+                        total_observed_forces += total_forces[:, t]
+                        total_observed_accs += com_accs[:, t]
+                total_observed_forces /= num_tracked
+                total_observed_accs /= num_tracked
+                print("Averaged observed forces: " + str(total_observed_forces))
+                print("Averaged observed COM accs: " + str(total_observed_accs))
+                if np.linalg.norm(total_observed_accs) < 1e-6:
+                    print("COM acceleration is zero, skipping mass estimation")
+                estimated_mass = np.linalg.norm(total_observed_forces) / np.linalg.norm(total_observed_accs)
+                if estimated_mass < 10:
+                    print("Estimated mass is too low (" + str(estimated_mass) + " kg), skipping this trial's mass estimation")
+                else:
+                    print("Estimated mass based on COM acceleration and force: " + str(estimated_mass)+' kg')
+                    print('User-supplied mass: ' + str(skel.getMass()) + ' kg')
+                    print('Difference: ' + str(estimated_mass - skel.getMass()) + ' kg')
+                    dynamics_trials_estimated_subject_masses.append(estimated_mass)
 
             # We want our root linear acceleration to offset enough to match the total forces
             goal_com_accs = total_forces / subject.getMassKg()
@@ -137,6 +158,23 @@ def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
             else:
                 print("Average root offset distance too large, not applying dynamics to this trial: " + str(
                     average_root_offset_distance))
+
+        if len(dynamics_trials_estimated_subject_masses) > 0:
+            print('Trial estimated subject masses: ' + str(dynamics_trials_estimated_subject_masses))
+            estimated_mass = np.mean(dynamics_trials_estimated_subject_masses)
+            # Adjust the skeleton mass to match the estimated mass
+            mass_scale_factor = estimated_mass / skel.getMass()
+            print('Mass scale factor: ' + str(mass_scale_factor))
+            for i_body in range(skel.getNumBodyNodes()):
+                body = skel.getBodyNode(i_body)
+                updated_mass = body.getMass() * mass_scale_factor
+                print('Updating mass of ' + body.getName() + ' from ' + str(body.getMass()) + ' to ' + str(updated_mass))
+                body.setMass(body.getMass() * mass_scale_factor)
+            print('Updated mass of skeleton is ' + str(skel.getMass()))
+            subject.getHeaderProto().setMassKg(estimated_mass)
+
+        dynamics_fitter = nimble.biomechanics.DynamicsFitter(
+            skel, foot_bodies, osim.trackingMarkers)
 
         ##########################################################################################################
         # Stage 2: Full "kitchen sink" optimization
