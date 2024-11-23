@@ -22,7 +22,7 @@ class TestWriters(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             print(f"Temporary directory created: {temp_dir}")
 
-            write_opensim_results(subject, temp_dir)
+            write_opensim_results(subject, temp_dir, 'osim_results')
 
     def test_write_web_results(self):
         path = os.path.join(TEST_DATA_PATH, 'b3ds', 'falisse2017_small.b3d')
