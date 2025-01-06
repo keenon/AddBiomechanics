@@ -172,6 +172,12 @@ class Trial:
                 else:
                     pre_loaded_review_frames += [nimble.biomechanics.MissingGRFStatus.unknown] * segment_length
             else:
+                if os.path.exists(reviewed_path):
+                    print(f'Segment {segment_index} has no review data, but it has a REVIEWED flag.')
+                elif os.path.exists(segment_json_path):
+                    print(f'Segment {segment_index} has no REVIEWED flag, but it has a review.json file.')
+                else:
+                    print(f'Segment {segment_index} has no review data.')
                 pre_loaded_review_frames += [nimble.biomechanics.MissingGRFStatus.unknown] * segment_length
 
             segment_index += 1
