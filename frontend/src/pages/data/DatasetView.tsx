@@ -5,6 +5,8 @@ import UserHomeDirectory, { DatasetContents, AttributionContents } from "../../m
 import Session from "../../model/Session";
 import LiveJsonFile from "../../model/LiveJsonFile";
 import { Spinner, OverlayTrigger, Tooltip, Row, Col} from "react-bootstrap";
+import { toast } from 'react-toastify';
+import { parseLinks, showToast } from "../../utils"
 import { useLocation } from 'react-router-dom';
 
 type DatasetViewProps = {
@@ -73,6 +75,15 @@ const DatasetView = observer((props: DatasetViewProps) => {
     const home = props.home;
     const path = props.path;
     const dir = home.dir;
+
+    // Informative toast
+    showToast(
+      "Scheduled Maintenance: AddBiomechanics will be unavailable on Tuesday, February 4, 2025, from 8:00 AM to 6:00 PM due to maintenance of the Stanford Computing Cluster. Tasks queued during this time will be paused and resume automatically afterward. Thank you for your understanding.",
+      "warning",
+      "processing",
+      toast.POSITION.BOTTOM_CENTER,
+      false
+    );
 
     const datasetContents: DatasetContents = home.getDatasetContents(path);
 
