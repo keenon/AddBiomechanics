@@ -12,12 +12,90 @@
   <script src="js/bootstrap.bundle.min.js"></script>
   <!-- Global site tag (gtag.js) - Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-7HWW3SL108"></script>
+    <style>
+    /* Toast notification styles */
+    .toast-notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1050;
+      background-color: #fff3cd; /* Warning background */
+      color: #856404; /* Warning text color */
+      border: 1px solid #ffeeba; /* Warning border */
+      border-radius: 5px;
+      padding: 15px;
+      box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: fadeIn 0.5s ease-out, fadeOut 0.5s ease-in 9.5s forwards;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeOut {
+      from {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+    }
+
+    .toast-notification .close-btn {
+      background: none;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      color: #856404; /* Warning text color for close button */
+      font-weight: bold;
+    }
+
+    .toast-notification .close-btn:hover {
+      color: #533f03;
+    }
+  </style>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag() { dataLayer.push(arguments); }
     gtag('js', new Date());
     gtag('config', 'G-7HWW3SL108');
-  </script>
+
+    // JavaScript to show the toast notification
+    function showToast() {
+      const toast = document.createElement('div');
+      toast.className = 'toast-notification';
+      toast.innerHTML = `
+        <span>
+          <strong>Scheduled Maintenance:</strong> AddBiomechanics will be unavailable on Tuesday, February 4, 2025, from 8:00 AM to 6:00 PM due to maintenance of the Stanford Computing Cluster. Tasks queued during this time will be paused and resume automatically afterward. Thank you for your understanding.
+        </span>
+        <button class="close-btn" onclick="this.parentElement.style.display='none';">&times;</button>
+      `;
+      document.body.appendChild(toast);
+
+      // Remove the toast after 10 seconds
+      setTimeout(() => {
+        if (toast.parentElement) {
+          toast.parentElement.removeChild(toast);
+        }
+      }, 10000);
+    }
+
+    // Show the toast when the page loads
+    window.onload = showToast;  </script>
 </head>
 
 <body>
