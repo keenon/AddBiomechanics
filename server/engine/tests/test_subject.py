@@ -2,14 +2,26 @@ import shutil
 import unittest
 from kinematics_pass.subject import Subject
 from kinematics_pass.trial import TrialSegment, Trial
+from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
+from dynamics_pass.classification_pass import classification_pass
+from dynamics_pass.missing_grf_detection import missing_grf_detection
+from dynamics_pass.dynamics_pass import dynamics_pass
+from moco_pass.moco_pass import moco_pass
+from writers.opensim_writer import write_opensim_results
+from writers.web_results_writer import write_web_results
+
 from typing import Dict, List, Any
 import os
 import nimblephysics as nimble
+import opensim as osim
+import numpy as np
 from inspect import getsourcefile
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
-DATA_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')
-TEST_DATA_PATH = os.path.join(TESTS_PATH, '..', 'test_data')
+TEST_DATA_PATH = os.path.join(TESTS_PATH, 'data')
+DATA_FOLDER_PATH = os.path.join(TESTS_PATH, '..', '..', 'data')
+GEOMETRY_FOLDER_PATH = os.path.join(TESTS_PATH, '..', 'Geometry')
+
 
 def reset_test_data(name: str):
     original_path = os.path.join(TEST_DATA_PATH, f'{name}_original')
@@ -38,7 +50,7 @@ class TestSubject(unittest.TestCase):
         subject = Subject()
         reset_test_data('opencap_test')
         subject.skeletonPreset = 'custom'
-        subject.load_model_files(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_model_files(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
@@ -56,7 +68,7 @@ class TestSubject(unittest.TestCase):
         # If we trigger to export either an SDF or an MJCF, we use simplified joint definitions, so we run a
         # pre-processing step on the data.
         subject.exportSDF = True
-        subject.load_model_files(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_model_files(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
@@ -74,7 +86,7 @@ class TestSubject(unittest.TestCase):
     def test_load_folder(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
@@ -83,7 +95,7 @@ class TestSubject(unittest.TestCase):
     def test_segment_trials(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         subject.segment_trials()
         for trial in subject.trials:
             for segment in trial.segments:
@@ -96,10 +108,88 @@ class TestSubject(unittest.TestCase):
     def test_kinematics_fit(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_PATH)
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
         subject.segment_trials()
         subject.kinematicsIterations = 20
         subject.initialIKRestarts = 3
-        subject.run_kinematics_pass(DATA_PATH)
+        subject.run_kinematics_pass(DATA_FOLDER_PATH)
         subject_on_disk = subject.create_subject_on_disk('<href>')
         self.assertIsNotNone(subject_on_disk)
+
+class TestRajagopal2015(unittest.TestCase):
+    def test_Rajagopal2015(self):
+        reset_test_data('rajagopal2015')
+        path = os.path.join(TEST_DATA_PATH, 'rajagopal2015')
+        if not path.endswith('/'):
+            path += '/'
+        output_name = 'osim_results'
+
+        subject = Subject()
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
+        subject.segment_trials()
+        subject.run_kinematics_pass(DATA_FOLDER_PATH)
+        subject_on_disk = subject.create_subject_on_disk('<href>')
+        add_acceleration_minimizing_pass(subject_on_disk)
+        classification_pass(subject_on_disk)
+    
+        # The "missing GRF detection" step removes many valid timesteps due to the set 
+        # ground reaction force heuristics. Manually set the valid ground reactions 
+        # time range to [0.6, 1.75].
+        header_proto = subject_on_disk.getHeaderProto()
+        trial_protos = header_proto.getTrials()
+        dt = trial_protos[0].getTimestep()
+        start_time = trial_protos[0].getOriginalTrialStartTime()
+        end_time = trial_protos[0].getOriginalTrialEndTime()
+        times = np.arange(start_time, end_time, dt)
+
+        missing_grf: List[nimble.biomechanics.MissingGRFReason] = []
+        for time in times:
+            if time > 0.6 and time < 1.75:
+                missing_grf.append(nimble.biomechanics.MissingGRFReason.notMissingGRF)
+            else:
+                missing_grf.append(nimble.biomechanics.MissingGRFReason.zeroForceFrame)
+        trial_protos[0].setMissingGRFReason(missing_grf)
+
+        # Run the dynamics and Moco pass.
+        dynamics_pass(subject_on_disk)
+        # b3d_path = os.path.join(path, 'rajagopal2015.b3d')
+        # subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
+        # subject_on_disk = nimble.biomechanics.SubjectOnDisk(b3d_path)
+        # subject_on_disk.loadAllFrames(True)
+        write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
+        moco_pass(subject_on_disk, path, output_name, subject.genericMassKg, 
+                      subject.genericHeightM)
+        
+        # Load the Moco results.
+        header_proto = subject_on_disk.getHeaderProto()
+        trial_protos = header_proto.getTrials()
+        trial_name = trial_protos[0].getName()
+        solution_fpath = os.path.join(path, output_name, 'Moco', 
+                                      f'{trial_name}_moco.sto')
+        solution = osim.TimeSeriesTable(solution_fpath)
+        self.assertEqual(solution.getTableMetaDataString('success'), 'true')
+        self.assertEqual(solution.getTableMetaDataString('status'), 'Solve_Succeeded')
+
+# TODO: enable when we add support for muscle paths dependent on more than 6
+#       coordinates.
+# class TestOpenCap(unittest.TestCase):
+#     def test_TestOpenCap(self):
+#         reset_test_data('opencap_test')
+#         path = os.path.join(TEST_DATA_PATH, 'opencap_test')
+#         if not path.endswith('/'):
+#             path += '/'
+#         output_name = 'osim_results'
+
+#         subject = Subject()
+#         subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
+#         subject.segment_trials()
+#         subject.run_kinematics_pass(DATA_FOLDER_PATH)
+#         subject_on_disk = subject.create_subject_on_disk('<href>')
+#         add_acceleration_minimizing_pass(subject_on_disk)
+#         classification_pass(subject_on_disk)
+#         missing_grf_detection(subject_on_disk)
+#         dynamics_pass(subject_on_disk)
+#         write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
+#         moco_pass(subject_on_disk, path, output_name, subject.genericMassKg, 
+#                   subject.genericHeightM)
+
