@@ -491,49 +491,54 @@ def plot_moment_arms(results_dir, model_name):
                               nrow=4, ncol=4, ylabel='moment arm (cm)', scale=100.0)
     
 
-def plot_joint_moment_breakdown(solution_fpath, tendon_forces_fpath, moment_arms_fpath,
-                                id_fpath, coordinate_names, reserve_strength, 
-                                output_fpath):
+def plot_joint_moment_breakdown(model, solution_fpath, tendon_forces_fpath, id_fpath, 
+                                coordinate_names, reserve_strength, output_fpath):
     
     # Load the Moco solution and computed tendon forces.
     solution = osim.TimeSeriesTable(solution_fpath)
     tendon_forces = osim.TimeSeriesTable(tendon_forces_fpath)
-    
-    # Load the moment arms.
-    moment_arms = osim.TimeSeriesTable(moment_arms_fpath)
-    moment_arm_splines = osim.GCVSplineSet(moment_arms)
+    times = tendon_forces.getIndependentColumn()
 
     # Load the inverse dynamics results.
     id = osim.TimeSeriesTable(id_fpath)
     id_splines = osim.GCVSplineSet(id)
 
-    # Resample the moment arms and ID results to the tendon force times.
-    times = tendon_forces.getIndependentColumn()
-    moment_arms_sampled = osim.TimeSeriesTable()
-    moment_arms_sampled.setColumnLabels(moment_arms.getColumnLabels())
+    # Resample the ID results to the tendon force times.
     id_sampled = osim.TimeSeriesTable()
     id_sampled.setColumnLabels(id.getColumnLabels())
     for time in times:
         timeVec = osim.Vector(1, time)
-
-        moment_arm_row = osim.RowVector(moment_arms.getNumColumns())
-        for ilabel, label in enumerate(moment_arms.getColumnLabels()):
-            moment_arm_row[ilabel] = moment_arm_splines.get(label).calcValue(timeVec)
-        moment_arms_sampled.appendRow(time, moment_arm_row)
-
         id_row = osim.RowVector(id.getNumColumns())
         for ilabel, label in enumerate(id.getColumnLabels()):
             id_row[ilabel] = id_splines.get(label).calcValue(timeVec)
         id_sampled.appendRow(time, id_row)
-    
+
+    # Compute the moment arms.
+    #  N times x N muscles x N coordinates
+    trajectory = osim.MocoTrajectory(solution_fpath)
+    statesTraj = trajectory.exportToStatesTrajectory(model)
+    coordSet = model.getCoordinateSet()
+    muscles = model.getMuscles()
+    moment_arm_matrix = np.zeros((len(times), muscles.getSize(), 
+                                  len(coordinate_names)))
+    muscle_path_to_index = defaultdict(int)
+    for istate in range(statesTraj.getSize()):
+        state = statesTraj.get(istate)
+        model.realizePosition(state)
+        for imusc, muscle in enumerate(muscles):
+            muscle_path = muscle.getAbsolutePathString()
+            muscle_path_to_index[muscle_path] = imusc
+            for icoord, cname in enumerate(coordinate_names):
+                moment_arm = muscle.getPath().computeMomentArm(state, coordSet.get(cname))
+                moment_arm_matrix[istate, imusc, icoord] = moment_arm
+
     # Create a mapping between coordinate names and muscle moment arms.
-    moment_arm_map = {cname: [] for cname in coordinate_names}
-    for label in moment_arms.getColumnLabels():
-        label_split = label.split('_moment_arm_')
-        muscle_path = label_split[0]
-        coordinate_name = label_split[1]
-        moment_arm_map[coordinate_name].append(muscle_path)
-    moment_arm_map = {cname: mpaths for cname, mpaths in moment_arm_map.items() if mpaths}
+    moment_arm_map = defaultdict(list)
+    for icoord, cname in enumerate(coordinate_names):
+        for imusc, muscle in enumerate(muscles):
+            muscle_path = muscle.getAbsolutePathString()
+            if moment_arm_matrix[:, imusc, icoord].any():
+                moment_arm_map[cname].append(muscle_path)
     muscle_coordinate_names = list(moment_arm_map.keys())
 
     # Detect reserve actuator names from the Moco solution.
@@ -545,7 +550,7 @@ def plot_joint_moment_breakdown(solution_fpath, tendon_forces_fpath, moment_arms
     
     # Plot the joint moment breakdown.
     nplots = 2
-    nfig = int(np.ceil(len(moment_arm_map) / nplots))    
+    nfig = int(np.ceil(len(muscle_coordinate_names) / nplots))    
     icoord = 0
     with PdfPages(output_fpath) as pdf:
         for ifig in range(nfig):
@@ -566,8 +571,8 @@ def plot_joint_moment_breakdown(solution_fpath, tendon_forces_fpath, moment_arms
                 # Muscle generated moments.
                 sum_muscle_moments = np.zeros_like(id_moment)
                 for muscle_path in moment_arm_map[musc_coord_name]:
-                    moment_arm = moment_arms_sampled.getDependentColumn(
-                            f'{muscle_path}_moment_arm_{musc_coord_name}').to_numpy()
+                    imusc = muscle_path_to_index[muscle_path]
+                    moment_arm = moment_arm_matrix[:, imusc, icoord]
                     tendon_force = tendon_forces.getDependentColumn(
                             f'{muscle_path}|tendon_force').to_numpy()
                     muscle_moment = np.multiply(moment_arm, tendon_force)

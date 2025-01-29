@@ -18,12 +18,11 @@ DYNAMICS_OSIM_NAME = 'match_markers_and_physics.osim'
 MOCO_OSIM_NAME = 'match_markers_and_physics_moco.osim'
 
 
-def update_model(generic_model_fpath, model_input_fpath, model_output_fpath):
+def update_model(generic_model_fpath, model_input_fpath, model_output_fpath,
+                 mass, height, generic_mass, generic_height):
 
     # Replace locked coordinates with weld joints.
     model = osim.Model(model_input_fpath)
-    state = model.initSystem()
-    mass = model.getTotalMass(state)
     coordinates = model.getCoordinateSet()
     locked_joints = list()
     locked_coordinates = list()
@@ -44,10 +43,14 @@ def update_model(generic_model_fpath, model_input_fpath, model_output_fpath):
                     forceSet.remove(iforce)
                     break
     
-    # Regression equation from Handsfield et al. (2014), "Relationships of 35 lower 
+    # Regression equations from Handsfield et al. (2014), "Relationships of 35 lower 
     # limb muscles to height and body mass quantified using MRI."
+    # Equation from Figure 5a.
+    def total_muscle_volume_regression_mass_height(mass, height):
+        return 47.0*mass*height + 1285.0
+    
     # Equation from Figure 5b.
-    def total_muscle_volume_regression(mass):
+    def total_muscle_volume_regression_mass(mass):
         return 91.0*mass + 588.0
     
     # Rules for updating muscle max isometric force based on volume scaling.
@@ -70,11 +73,20 @@ def update_model(generic_model_fpath, model_input_fpath, model_output_fpath):
     #
     # Credit: Chris Dembia (https://github.com/chrisdembia/mrsdeviceopt)
     generic_model = osim.Model(generic_model_fpath)
-    state = generic_model.initSystem()
-    generic_mass = generic_model.getTotalMass(state)
+    generic_model.initSystem()
 
-    generic_TMV = total_muscle_volume_regression(generic_mass)
-    subject_TMV = total_muscle_volume_regression(mass)
+    if height > 0 and generic_height > 0:
+        print("Using Handsfield et al. (2014) height and mass muscle volume "
+              "regression equations to scale muscle forces...")
+        generic_TMV = total_muscle_volume_regression_mass_height(generic_mass, 
+                                                                 generic_height)
+        subject_TMV = total_muscle_volume_regression_mass_height(mass, height)
+    else:
+        print("Generic and/or subject height is not available or invalid. Using "
+              "mass-only Handsfield et al. (2014) muscle volume regression equation "
+              "to scale muscle forces...")
+        generic_TMV = total_muscle_volume_regression_mass(generic_mass)
+        subject_TMV = total_muscle_volume_regression_mass(mass)
 
     generic_mset = generic_model.getMuscles()
     subject_mset = model.getMuscles()
@@ -93,6 +105,26 @@ def update_model(generic_model_fpath, model_input_fpath, model_output_fpath):
         generic_force = generic_muscle.getMaxIsometricForce()
         scaled_force = generic_force * scale_factor
         subject_muscle.setMaxIsometricForce(scaled_force)
+
+    # Ignore tendon compliance if the tendon slack length is less than the optimal
+    # fiber length.
+    print("Updating muscle tendon compliance based on the ratio of tendon slack "
+          "length (TSL) to optimal fiber length (OFL)...")
+    for im in range(subject_mset.getSize()):
+        muscle_name = subject_mset.get(im).getName()
+        subject_muscle = subject_mset.get(muscle_name)
+        TSL = subject_muscle.get_tendon_slack_length()
+        OFL = subject_muscle.get_optimal_fiber_length()
+
+        ratio = TSL / OFL
+        if ratio >= 1.0:
+            print(f'Enabling tendon compliance for {muscle_name}. '
+                  f'Ratio (TSL/OFL): {ratio}')
+            subject_muscle.set_ignore_tendon_compliance(False)
+        else:
+            print(f'Ignoring tendon compliance for {muscle_name}. '
+                  f'Ratio (TSL/OFL): {ratio}')
+            subject_muscle.set_ignore_tendon_compliance(True)
 
     # Save the updated model.
     model.finalizeConnections()
@@ -141,7 +173,7 @@ def create_residuals_force_set(output_folder, trial_name, residual_strengths):
 
 def fill_moco_template(moco_template_fpath, script_fpath, model_name, trial_name, 
                        reserve_strength, max_isometric_force_scale, initial_time, 
-                       final_time):
+                       final_time, excitation_effort, activation_effort):
     with open(moco_template_fpath) as ft:
         content = ft.read()
         content = content.replace('@TRIAL@', trial_name)
@@ -149,14 +181,18 @@ def fill_moco_template(moco_template_fpath, script_fpath, model_name, trial_name
         content = content.replace('@INITIAL_TIME@', str(initial_time))
         content = content.replace('@FINAL_TIME@', str(final_time))
         content = content.replace('@RESERVE_STRENGTH@', str(reserve_strength))
-        content = content.replace('@MAX_ISOMETRIC_FORCE_SCALE@', str(max_isometric_force_scale))
+        content = content.replace('@MAX_ISOMETRIC_FORCE_SCALE@', 
+                                  str(max_isometric_force_scale))
+        content = content.replace('@EXCITATION_EFFORT@', str(excitation_effort))
+        content = content.replace('@ACTIVATION_EFFORT@', str(activation_effort))
 
     with open(script_fpath, 'w') as f:
         f.write(content)
 
 
 def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
-              path: str, output_name: str):
+              path: str, output_name: str, 
+              generic_mass: float, generic_height: float):
     """
     This function is responsible for running the Moco pass on the subject.
     """
@@ -184,6 +220,10 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     reserve_strength = 5.0
     # The global scaling factor applied to muscle max isometric force.
     max_isometric_force_scale = 1.0
+    # The weight on the muscle excitation effort in the MocoInverse problem.
+    excitation_effort = 0.1
+    # The weight on the activation effort in the MocoInverse problem.
+    activation_effort = 1.0
 
     # Load the subject.
     header_proto = subject.getHeaderProto()
@@ -195,7 +235,10 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     generic_model_fpath = os.path.join(output_folder, 'Models', GENERIC_OSIM_NAME)
     dynamics_model_fpath = os.path.join(output_folder, 'Models', DYNAMICS_OSIM_NAME)
     moco_model_fpath = os.path.join(output_folder, 'Models', MOCO_OSIM_NAME)
-    update_model(generic_model_fpath, dynamics_model_fpath, moco_model_fpath)
+    mass = subject.getMassKg()
+    height = subject.getHeightM()
+    update_model(generic_model_fpath, dynamics_model_fpath, moco_model_fpath, 
+                 mass, height, generic_mass, generic_height)
     model = osim.Model(moco_model_fpath)
     model.initSystem()
 
@@ -253,8 +296,6 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     coordinate_values.addTableMetaDataString('inDegrees', 
                                              ik.getTableMetaDataAsString('inDegrees'))
     fit_function_based_paths(model, coordinate_values, fbpaths_dir)
-    moment_arms_fpath = os.path.join(output_folder, 'Moco', 'function_based_paths',
-            f'{model.getName()}_moment_arms_fitted.sto')
 
     # Filter trials.
     # --------------
@@ -315,19 +356,30 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
         template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py.txt')
         fill_moco_template(template_fpath, script_fpath, model.getName(), trial_name, 
                            reserve_strength, max_isometric_force_scale, initial_time, 
-                           final_time)
+                           final_time, excitation_effort, activation_effort)
                             
         # Run the MocoInverse problem.
         moco_dir = os.path.join(output_folder, 'Moco')
         subprocess.run([sys.executable, script_fpath], stdout=sys.stdout, 
                        stderr=sys.stderr, cwd=moco_dir)
+        solution_fpath = os.path.join(moco_dir, f'{trial_name}_moco.sto')
+        model_fpath = os.path.join(moco_dir, f'{trial_name}_moco.osim')
+
+        # Load the model.
+        model_moco = osim.Model(model_fpath)
+        # Point the ExternalLoads component in the model to the location of the 
+        # ground reaction forces, so we can initialize the model's system.
+        extloads = osim.ExternalLoads.safeDownCast(
+                model_moco.updComponent('/componentset/externalloads'))
+        extloads.setDataFileName(
+                os.path.join(output_folder, 'ID', f'{trial_name}_grf.mot'))
+        model_moco.initSystem()
         
         # Plot the joint moment breakdown.
-        solution_fpath = os.path.join(moco_dir, f'{trial_name}_moco.sto')
         tendon_forces_fpath = os.path.join(moco_dir, f'{trial_name}_tendon_forces.sto')
         output_fpath = os.path.join(moco_dir, f'{trial_name}_joint_moment_breakdown.pdf')
-        plot_joint_moment_breakdown(solution_fpath, tendon_forces_fpath, 
-                                    moment_arms_fpath, id_fpath, coordinate_names, 
+        plot_joint_moment_breakdown(model_moco, solution_fpath, 
+                                    tendon_forces_fpath, id_fpath, coordinate_names, 
                                     reserve_strength, output_fpath)
 
 

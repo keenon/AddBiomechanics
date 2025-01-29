@@ -59,6 +59,8 @@ class Subject(metaclass=ExceptionHandlingMeta):
         # 0.2. Subject pipeline parameters.
         self.massKg = 68.0
         self.heightM = -1.0 # Indicates that the height is unknown.
+        self.genericMassKg = 68.0
+        self.genericHeightM = -1.0
         self.biologicalSex = 'unknown'
         self.ageYears = -1
         self.subjectTags = []
@@ -266,6 +268,8 @@ class Subject(metaclass=ExceptionHandlingMeta):
         self.customOsim.skeleton.autogroupSymmetricPrefixes("ulna", "radius")
 
         self.skeleton = self.customOsim.skeleton
+        self.genericMassKg = self.skeleton.getMass()
+        self.genericHeightM = self.skeleton.getHeight(self.skeleton.getPositions())
         self.markerSet = self.customOsim.markersMap
 
         # 3.3. Output both SDF and MJCF versions of the skeleton.
