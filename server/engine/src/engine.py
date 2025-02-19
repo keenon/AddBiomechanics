@@ -106,7 +106,8 @@ def main():
                       subject.genericHeightM)
 
         print('Zipping up OpenSim files...', flush=True)
-        shutil.make_archive(path + output_name, 'zip', path + output_name, path + output_name)
+        shutil.make_archive(path + output_name, 'zip', root_dir=path + output_name, 
+                            base_dir=output_name)
         print('Finished outputting OpenSim files.', flush=True)
 
         # This will write out all the results to display in the web UI back into the existing folder structure
