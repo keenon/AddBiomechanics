@@ -70,8 +70,6 @@ def update_model(generic_model_fpath, model_input_fpath, model_output_fpath,
     #
     # F_s = (F_g * l_g / V_g) * V_s / l_s
     #     = F_g * (V_s / V_g) * (l_g / l_s)
-    #
-    # Credit: Chris Dembia (https://github.com/chrisdembia/mrsdeviceopt)
     generic_model = osim.Model(generic_model_fpath)
     generic_model.initSystem()
 
