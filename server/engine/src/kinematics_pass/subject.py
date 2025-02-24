@@ -1,15 +1,12 @@
 from kinematics_pass.trial import TrialSegment, Trial, ProcessingStatus
-from typing import List, Dict, Tuple, Any, Optional
+from typing import List, Dict, Tuple, Any
 import json
 import nimblephysics as nimble
 from nimblephysics import absPath
-from exceptions import LoadingError, TrialPreprocessingError, MarkerFitterError, DynamicsFitterError, WriteError
+from exceptions import LoadingError, TrialPreprocessingError, MarkerFitterError, WriteError
 import numpy as np
 import os
 import shutil
-import subprocess
-import textwrap
-import tempfile
 import os
 from utilities.scale_opensim_model import scale_opensim_model
 import traceback
@@ -18,7 +15,6 @@ import traceback
 # Global paths to the geometry and data folders.
 GEOMETRY_FOLDER_PATH = absPath('../../Geometry')
 DATA_FOLDER_PATH = absPath('../../../data')
-TEMPLATES_PATH = absPath('../../templates')
 
 
 # This metaclass wraps all methods in the Subject class with a try-except block, except for the __init__ method.
@@ -28,7 +24,6 @@ class ExceptionHandlingMeta(type):
         'load_folder': LoadingError,
         'segment_trials': TrialPreprocessingError,
         'run_kinematics_pass': MarkerFitterError,
-        # 'run_moco': MocoError,
         'write_opensim_results': WriteError,
         'write_b3d_file': WriteError,
         'write_web_results': WriteError,
@@ -66,6 +61,8 @@ class Subject(metaclass=ExceptionHandlingMeta):
         # 0.2. Subject pipeline parameters.
         self.massKg = 68.0
         self.heightM = -1.0 # Indicates that the height is unknown.
+        self.genericMassKg = 68.0
+        self.genericHeightM = -1.0 # Indicates that the height is unknown.
         self.biologicalSex = 'unknown'
         self.ageYears = -1
         self.subjectTags = []
@@ -73,7 +70,6 @@ class Subject(metaclass=ExceptionHandlingMeta):
         self.exportSDF = False
         self.exportMJCF = False
         self.exportOSIM = True
-        self.exportMoco = False
         self.kinematicsIterations = 500
         self.initialIKRestarts = 150
         self.ignoreJointLimits = False
@@ -167,12 +163,8 @@ class Subject(metaclass=ExceptionHandlingMeta):
         # Only export OpenSim files if we're not exporting MJCF or SDF files, since they use incompatible skeletons.
         self.exportOSIM = not (self.exportMJCF or self.exportSDF)
 
-        if 'exportMoco' in subject_json:
-            self.exportMoco = subject_json['exportMoco']
-
         if 'runMoco' in subject_json:
             self.runMoco = subject_json['runMoco']
-            self.exportMoco = True if self.runMoco else self.exportMoco
 
         if 'ignoreJointLimits' in subject_json:
             self.ignoreJointLimits = subject_json['ignoreJointLimits']
@@ -278,6 +270,8 @@ class Subject(metaclass=ExceptionHandlingMeta):
         self.customOsim.skeleton.autogroupSymmetricPrefixes("ulna", "radius")
 
         self.skeleton = self.customOsim.skeleton
+        self.genericMassKg = self.skeleton.getMass()
+        self.genericHeightM = self.skeleton.getHeight(self.skeleton.getPositions())
         self.markerSet = self.customOsim.markersMap
 
         # 3.3. Output both SDF and MJCF versions of the skeleton.

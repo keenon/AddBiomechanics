@@ -8,7 +8,7 @@ import os
 from inspect import getsourcefile
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
-TEST_DATA_PATH = os.path.join(TESTS_PATH, '..', 'test_data')
+TEST_DATA_PATH = os.path.join(TESTS_PATH, 'data')
 
 class TestTrial(unittest.TestCase):
     def test_trivial_split(self):

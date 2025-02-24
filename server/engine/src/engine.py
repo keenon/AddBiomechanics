@@ -10,12 +10,14 @@ import sys
 import os
 from nimblephysics.loader import absPath
 import json
+import shutil
 from exceptions import Error
 from kinematics_pass.subject import Subject
 from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
 from dynamics_pass.classification_pass import classification_pass
 from dynamics_pass.missing_grf_detection import missing_grf_detection
 from dynamics_pass.dynamics_pass import dynamics_pass
+from moco_pass.moco_pass import moco_pass
 from writers.opensim_writer import write_opensim_results
 from writers.web_results_writer import write_web_results
 
@@ -90,12 +92,26 @@ def main():
 
             print('Running dynamics pass...', flush=True)
             print('-> This pass runs the dynamics pipeline on the subject, which jointly optimizes a bunch of properties '
-                  'just like the kinematics pass, except now we will balance the marker RMS _and_ the residual RMS.')
+                  'just like the kinematics pass, except now we will balance the marker RMS _and_ the residual RMS.',
+                  flush=True)
             dynamics_pass(subject_on_disk)
 
         # This will write out a folder of OpenSim results files.
         print('Writing OpenSim results', flush=True)
-        write_opensim_results(subject_on_disk, path + output_name, GEOMETRY_FOLDER_PATH)
+        write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
+
+        if subject.runMoco:
+            print('Running Moco optimization pass...', flush=True)
+            print('-> This pass utilizes the results from the kinematics and dynamics pass as inputs to a trajectory '
+                  'optimization problem solved by OpenSim Moco. This problem solves for the muscle excitations and '
+                  'activations that best match the observed motion and ground reaction forces.', flush=True)
+            moco_pass(subject_on_disk, path, output_name, subject.genericMassKg, 
+                      subject.genericHeightM)
+
+        print('Zipping up OpenSim files...', flush=True)
+        shutil.make_archive(path + output_name, 'zip', root_dir=path, base_dir=output_name)
+        print('Finished outputting OpenSim files.', flush=True)
+
         # This will write out all the results to display in the web UI back into the existing folder structure
         print('Writing web visualizer results', flush=True)
         write_web_results(subject_on_disk, GEOMETRY_FOLDER_PATH, path)
