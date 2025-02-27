@@ -327,4 +327,3 @@ def dynamics_pass(subject: nimble.biomechanics.SubjectOnDisk):
                                                                      trial_foot_force_plates[segment])
                     trial_dynamics_data.setMarkerRMS(dynamics_ik_error_report.rootMeanSquaredError)
                     trial_dynamics_data.setMarkerMax(dynamics_ik_error_report.maxError)
-                    any_good_dynamics_trials = True
