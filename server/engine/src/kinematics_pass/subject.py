@@ -340,7 +340,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
         # Check that all trials have loaded successfully.
         all_trials_have_errors = all([trial.error for trial in self.trials])
         if all_trials_have_errors:
-            raise FileNotFoundError('All trials failed to load successfully.')
+            raise FileNotFoundError('All trials failed to load.')
 
     def load_folder(self, subject_folder: str, data_folder_path: str):
         # This is just a convenience wrapper to load a subject folder in a standard format.
