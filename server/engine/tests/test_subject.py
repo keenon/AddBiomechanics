@@ -126,7 +126,7 @@ class TestLoadingNoData(unittest.TestCase):
             subject.load_trials(os.path.join(TEST_DATA_PATH, 
                                              'rajagopal2015_no_data', 'trials'))
         except Exception as e:
-            expected = 'All trials failed to load successfully.'
+            expected = 'tests/data/rajagopal2015_no_data/trials/" does not exist'
             self.assertTrue(expected in str(e))     
 
     def test_load_folder(self):
@@ -137,7 +137,7 @@ class TestLoadingNoData(unittest.TestCase):
                                              'rajagopal2015_no_data'), DATA_FOLDER_PATH)
         except Exception as e:
             self.assertEqual("LoadingError", e.type)
-            expected = 'All trials failed to load successfully.'
+            expected = 'tests/data/rajagopal2015_no_data/trials/" does not exist'
             self.assertTrue(expected in e.original_message)    
 
 
