@@ -846,6 +846,7 @@ class LiveDirectoryImpl extends LiveDirectory {
     delete(path: string): Promise<void>
     {
         const fullPath = this.normalizePath(path);
+        console.log("Deleting " + fullPath);
         return this.s3.delete(fullPath).then(() => {
             const topic = this.pubsub.makeTopicPubSubSafe("/DELETE/" + fullPath);
             const updatedFile: FileMetadata = {

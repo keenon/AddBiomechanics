@@ -163,10 +163,12 @@ class PubSub(PubSubSocket):
         connection_result = connectFuture.result()
         if connection_result is not None and 'session_present' in connection_result and connection_result['session_present']:
             print('Connected to PubSub')
-            current_subscriptions: List[Tuple[str, Callable[[str, Any], None]]] = list(self.subscriptions.items())
-            for topic, callback in current_subscriptions:
-                print('Resubscribing to topic: ' + topic)
-                self.subscribe(topic, callback)
+            if not connection_result['session_present']:
+                print('Session not present, resubscribing to topics...')
+                current_subscriptions: List[Tuple[str, Callable[[str, Any], None]]] = list(self.subscriptions.items())
+                for topic, callback in current_subscriptions:
+                    print(f'Resubscribing to topic: {topic}')
+                    self.subscribe(topic, callback)
         else:
             print('Got exception trying to reconnect PubSub: ')
             print(connection_result)
@@ -194,7 +196,7 @@ class PubSub(PubSubSocket):
                     sendFuture, packetId = self.mqttConnection.publish(
                         topic=full_topic,
                         payload=payload_json,
-                        qos=mqtt.QoS.AT_MOST_ONCE)  # AT_LEAST_ONCE
+                        qos=mqtt.QoS.AT_LEAST_ONCE)  # AT_LEAST_ONCE
                     # Future.result() waits until a result is available
                     sendFuture.result(timeout=5.0)
 
@@ -206,11 +208,11 @@ class PubSub(PubSubSocket):
                     print('PubSub got an error sending message to topic: ' + topic)
                     print(e)
                     traceback.print_exc()
-                    print('Will try again to send a message to topic ' + topic + ' in 5 seconds...')
-                    # Put the task back in the queue
-                    self.message_queue.put((topic, payload))
+                    print('Will try again to send a message to topic ' + topic + ' in 1 second...')
+                    print('Outgoing message queue len is currently: ' +
+                          str(self.message_queue.qsize()))
 
-                    time.sleep(5)
+                    time.sleep(1)
                 finally:
                     print('Releasing PubSub_lock: SEND_A_MESSAGE')
                     self.lock.release()

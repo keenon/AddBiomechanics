@@ -65,7 +65,6 @@ class ReactiveS3Index:
     pubSub: PubSub
     files: Dict[str, FileMetadata]
     children: Dict[str, List[str]]
-    changeListeners: List[Callable]
     bucketName: str
     deployment: str
     lock: threading.Lock
@@ -87,7 +86,7 @@ class ReactiveS3Index:
                 self.disable_pubsub = True
         self.files = {}
         self.children = {}
-        self.changeListeners = []
+        self.incomingMessages = []
 
     # Add pickling support
     def __getstate__(self):
@@ -97,7 +96,6 @@ class ReactiveS3Index:
         del state['lock']
         if 'pubSub' in state:
             del state['pubSub']
-        del state['changeListeners']
         del state['bucket']
         return state
 
@@ -110,16 +108,22 @@ class ReactiveS3Index:
         self.bucket = self.s3.Bucket(self.bucketName)
         self.lock = threading.Lock()
         self.disable_pubsub = True
-        self.changeListeners = []
+        self.incomingMessages = []
 
-    def registerPubSub(self) -> None:
+    def queue_pub_sub_update_message(self, topic: str, payload: bytes) -> None:
+        self.incomingMessages.append(('UPDATE', topic, payload))
+
+    def queue_pub_sub_delete_message(self, topic: str, payload: bytes) -> None:
+        self.incomingMessages.append(('DELETE', topic, payload))
+
+    def register_pub_sub(self) -> None:
         """
         This registers a PubSub listener
         """
         if self.disable_pubsub:
             return
-        self.pubSub.subscribe("/UPDATE/#", self._onUpdate)
-        self.pubSub.subscribe("/DELETE/#", self._onDelete)
+        self.pubSub.subscribe("/UPDATE/#", self.queue_pub_sub_update_message)
+        self.pubSub.subscribe("/DELETE/#", self.queue_pub_sub_delete_message)
 
         # Make sure we refresh our index when our connection resumes, if our connection was interrupted
         #
@@ -127,49 +131,52 @@ class ReactiveS3Index:
         #
         # self.pubSub.addResumeListener(self.refreshIndex)
 
+    def process_incoming_messages(self) -> bool:
+        """
+        This processes incoming PubSub messages
+        """
+        any_changes = False
+        while len(self.incomingMessages) > 0:
+            message = self.incomingMessages.pop(0)
+            if message[0] == 'UPDATE':
+                any_changes |= self._onUpdate(message[1], message[2])
+            elif message[0] == 'DELETE':
+                any_changes |= self._onDelete(message[1], message[2])
+        return any_changes
+
     def load_only_folder(self, folder: str) -> None:
         """
         This updates the index
         """
-        self.lock.acquire()
-        try:
-            print('Loading folder '+folder)
-            self.files.clear()
-            self.children.clear()
-            for object in self.bucket.objects.filter(Prefix=folder):
-                key: str = object.key
-                lastModified: int = int(object.last_modified.timestamp() * 1000)
-                eTag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
-                size: int = object.size
-                file = FileMetadata(key, lastModified, size, eTag)
-                self.updateChildrenOnAddFile(key)
-                self.files[key] = file
-            print('Folder load finished!')
-        finally:
-            self.lock.release()
-            self._onRefresh()
+        print('Loading folder '+folder)
+        self.files.clear()
+        self.children.clear()
+        for object in self.bucket.objects.filter(Prefix=folder):
+            key: str = object.key
+            lastModified: int = int(object.last_modified.timestamp() * 1000)
+            eTag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
+            size: int = object.size
+            file = FileMetadata(key, lastModified, size, eTag)
+            self.updateChildrenOnAddFile(key)
+            self.files[key] = file
+        print('Folder load finished!')
 
     def refreshIndex(self) -> None:
         """
         This updates the index
         """
-        self.lock.acquire()
-        try:
-            print('Doing full index refresh...')
-            self.files.clear()
-            self.children.clear()
-            for object in self.bucket.objects.all():
-                key: str = object.key
-                lastModified: int = int(object.last_modified.timestamp() * 1000)
-                eTag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
-                size: int = object.size
-                file = FileMetadata(key, lastModified, size, eTag)
-                self.updateChildrenOnAddFile(key)
-                self.files[key] = file
-            print('Full index refresh finished!')
-        finally:
-            self.lock.release()
-            self._onRefresh()
+        print('Doing full index refresh...')
+        self.files.clear()
+        self.children.clear()
+        for object in self.bucket.objects.all():
+            key: str = object.key
+            lastModified: int = int(object.last_modified.timestamp() * 1000)
+            eTag = object.e_tag[1:-1]  # Remove the double quotes around the ETag value
+            size: int = object.size
+            file = FileMetadata(key, lastModified, size, eTag)
+            self.updateChildrenOnAddFile(key)
+            self.files[key] = file
+        print('Full index refresh finished!')
 
     def updateChildrenOnAddFile(self, path: str):
         cursor = -1
@@ -293,9 +300,6 @@ class ReactiveS3Index:
                 return False
         return True
 
-    def addChangeListener(self, listener: Callable) -> None:
-        self.changeListeners.append(listener)
-
     def uploadFile(self, bucketPath: str, localPath: str):
         """
         This uploads a local file to a given spot in the bucket
@@ -304,8 +308,10 @@ class ReactiveS3Index:
         self.s3.Object(self.bucketName, bucketPath).put(
             Body=open(localPath, 'rb'))
         if 'pubSub' in self.__dict__ and self.pubSub is not None:
-            self.pubSub.publish(
-                makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': os.path.getsize(localPath)})
+            topic = makeTopicPubSubSafe("/UPDATE/"+bucketPath)
+            body = {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': os.path.getsize(localPath)}
+            self.queue_pub_sub_update_message(topic, json.dumps(body).encode('utf-8'))
+            self.pubSub.publish(topic, body)
 
     def uploadText(self, bucketPath: str, text: str):
         """
@@ -313,8 +319,10 @@ class ReactiveS3Index:
         """
         self.s3.Object(self.bucketName, bucketPath).put(Body=text)
         if 'pubSub' in self.__dict__ and self.pubSub is not None:
-            self.pubSub.publish(
-                makeTopicPubSubSafe("/UPDATE/"+bucketPath), {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': len(text.encode('utf-8'))})
+            topic = makeTopicPubSubSafe("/UPDATE/"+bucketPath)
+            body = {'key': bucketPath, 'lastModified': time.time() * 1000, 'size': len(text.encode('utf-8'))}
+            self.queue_pub_sub_update_message(topic, json.dumps(body).encode('utf-8'))
+            self.pubSub.publish(topic, body)
 
     def uploadJSON(self, bucketPath: str, contents: Dict[str, Any]):
         """
@@ -331,14 +339,16 @@ class ReactiveS3Index:
             return bytearray()
         self.s3.Object(self.bucketName, bucketPath).delete()
         if 'pubSub' in self.__dict__ and self.pubSub is not None:
-            self.pubSub.publish(
-                makeTopicPubSubSafe("/DELETE/"+bucketPath), {'key': bucketPath})
+            topic = makeTopicPubSubSafe("/DELETE/"+bucketPath)
+            body = {'key': bucketPath}
+            self.queue_pub_sub_delete_message(topic, json.dumps(body).encode('utf-8'))
+            self.pubSub.publish(topic, body)
 
     def download(self, bucketPath: str, localPath: str) -> None:
         print('downloading file '+bucketPath+' into '+localPath)
         self.bucket.download_file(bucketPath, localPath)
 
-    def downloadToTmp(self, bucketPath: str) -> str:
+    def download_to_tmp(self, bucketPath: str) -> str:
         """
         This downloads a folder, or a file, creating a temporary folder.
         This returns the temporary file path.
@@ -382,61 +392,45 @@ class ReactiveS3Index:
     def getJSON(self, bucketPath: str) -> Dict[str, Any]:
         return json.loads(self.getText(bucketPath))
 
-    def _onUpdate(self, topic: str, payload: bytes) -> None:
+    def _onUpdate(self, topic: str, payload: bytes) -> bool:
         """
         We received a PubSub message telling us a file was created
         """
-        self.lock.acquire()
+        body = json.loads(payload)
+        key: str = body['key']
+        last_modified_str: str = body['lastModified']
+        last_modified: int
         try:
-            body = json.loads(payload)
-            key: str = body['key']
-            last_modified_str: str = body['lastModified']
-            last_modified: int
+            last_modified = int(last_modified_str)
+        except ValueError:
             try:
-                last_modified = int(last_modified_str)
-            except ValueError:
-                try:
-                    # Removing 'Z' and manually handling it as UTC
-                    last_modified_str_utc = last_modified_str.replace("Z", "+00:00")
-                    dt = datetime.fromisoformat(last_modified_str_utc)
-                    last_modified = int(dt.timestamp() * 1000)
-                except ValueError as e:
-                    print("Error parsing lastModified: "+last_modified_str)
-                    print(e)
-                    print('Defaulting to current time')
-                    last_modified = int(time.time() * 1000)
-            size: int = body['size']
-            e_tag: str = body['eTag'] if 'eTag' in body else ''
-            file = FileMetadata(key, last_modified, size, e_tag)
-            print("onUpdate() file: "+str(file))
-            self.files[key] = file
-            self.updateChildrenOnAddFile(key)
-        finally:
-            self.lock.release()
-            self._onRefresh()
+                # Removing 'Z' and manually handling it as UTC
+                last_modified_str_utc = last_modified_str.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(last_modified_str_utc)
+                last_modified = int(dt.timestamp() * 1000)
+            except ValueError as e:
+                print("Error parsing lastModified: "+last_modified_str)
+                print(e)
+                print('Defaulting to current time')
+                last_modified = int(time.time() * 1000)
+        size: int = body['size']
+        e_tag: str = body['eTag'] if 'eTag' in body else ''
+        file = FileMetadata(key, last_modified, size, e_tag)
+        print("onUpdate() file: "+str(file))
+        self.files[key] = file
+        self.updateChildrenOnAddFile(key)
+        return True
 
-    def _onDelete(self, topic: str, payload: bytes) -> None:
+    def _onDelete(self, topic: str, payload: bytes) -> bool:
         """
         We received a PubSub message telling us a file was deleted
         """
-        self.lock.acquire()
-        try:
-            body = json.loads(payload)
-            key: str = body['key']
-            print("onDelete() key: "+str(key))
-            anyDeleted = False
-            if key in self.files:
-                self.updateChildrenOnRemoveFile(key)
-                del self.files[key]
-                anyDeleted = True
-        finally:
-            self.lock.release()
-            if anyDeleted:
-                self._onRefresh()
-
-    def _onRefresh(self) -> None:
-        """
-        Iterate through all the files in the bucket, looking for updates
-        """
-        for listener in self.changeListeners:
-            listener()
+        body = json.loads(payload)
+        key: str = body['key']
+        print("onDelete() key: "+str(key))
+        anyDeleted = False
+        if key in self.files:
+            self.updateChildrenOnRemoveFile(key)
+            del self.files[key]
+            anyDeleted = True
+        return anyDeleted

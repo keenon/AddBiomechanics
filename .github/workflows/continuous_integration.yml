@@ -1,0 +1,35 @@
+name: continuous-integration
+
+on:
+  pull_request:
+    branches:
+      - '*'
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+
+jobs:
+  backend:
+    name: Backend CI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+           conda install -c opensim-org opensim=4.5.1=py310np125
+           pip install -r server/engine/requirements.txt
+
+      - name: Run tests
+        run: |
+           cd server/engine/src
+           python -m unittest discover -s ../tests/ -p 'test_*.py'

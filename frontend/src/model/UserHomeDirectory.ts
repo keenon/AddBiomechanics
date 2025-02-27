@@ -582,6 +582,19 @@ class UserHomeDirectory {
         const trcFilePath = path + '/markers.trc';
         const grfMotFilePath = path + '/grf.mot';
 
+        let folders = trial?.folders;
+        // Sort the folders by segment number
+        if (folders != null) {
+            folders = folders.sort((a, b) => {
+                const aMatch = a.match(/segment_(\d+)/);
+                const bMatch = b.match(/segment_(\d+)/);
+                if (aMatch != null && bMatch != null) {
+                    return parseInt(aMatch[1]) - parseInt(bMatch[1]);
+                }
+                return a.localeCompare(b);
+            });
+        }
+
         return {
             loading: trial?.loading ?? true,
             path: path + '/',
@@ -599,7 +612,7 @@ class UserHomeDirectory {
                 return file.key;
             }).includes(grfMotFilePath) ?? false,
             trialJson,
-            segments: trial?.folders.map((folder) => this.getTrialSegmentContents(folder)) ?? []
+            segments: folders?.map((folder) => this.getTrialSegmentContents(folder)) ?? []
         };
     }
 
