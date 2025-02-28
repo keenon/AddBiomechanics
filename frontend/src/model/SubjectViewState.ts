@@ -497,9 +497,7 @@ class SubjectViewState {
     canProcess(): boolean {
         // Check that all the trials have files that exist:
         for (let trial of this.trials) {
-            console.log("ALBERTO: " + JSON.stringify(trial))
             if (!trial.c3dFileExists && !trial.trcFileExists) {
-                console.log("ALBERTO: FALSE 1")
                 return false;
             }
         }
