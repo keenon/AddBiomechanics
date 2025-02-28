@@ -951,10 +951,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
                         e.preventDefault();
                         e.stopPropagation();
                         alert("Cannot submit for processing: Some trial(s) are missing markers. Please either upload marker data or detele trials.");
-                    }}>Submit for Processing</button>;
+                    }}>Submit for Processing</button>
                 </div>
                 <div>
-                    <span className="text-danger">Cannot submit for processing: Some trial(s) are missing markers. Please either upload marker data or detele trials.</span>
+                    <span className="text-danger">Cannot submit for processing: Some trial(s) are missing markers. Please either upload marker data (trc or c3d) or detele trials with missing markers.</span>
                 </div>
             </div>
         }
