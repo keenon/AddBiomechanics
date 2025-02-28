@@ -500,9 +500,6 @@ class SubjectViewState {
             if (!trial.c3dFileExists && !trial.trcFileExists) {
                 return false;
             }
-            if (trial.trcFileExists && !trial.c3dFileExists) {
-                return false;
-            }
         }
         return true;
     }

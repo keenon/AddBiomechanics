@@ -36,6 +36,15 @@ const SubjectView = observer((props: SubjectViewProps) => {
     // Show or hide extended log.
     const [showLog, setShowLog] = useState<boolean>(false);
 
+    // Informative toast
+    // showToast(
+    //   "Scheduled Maintenance: AddBiomechanics will be unavailable on Tuesday, February 4, 2025, from 8:00 AM to 6:00 PM due to maintenance of the Stanford Computing Cluster. Tasks queued during this time will be paused and resume automatically afterward. Thank you for your understanding.",
+    //   "warning",
+    //   "processing",
+    //   toast.POSITION.BOTTOM_CENTER,
+    //   false
+    // );
+
     // Check on the value of the key _subject.json attributes unconditionally, to ensure that MobX updates if the attributes change
     let subjectDataSource: '' | 'public' | 'pilot' | 'study' = subjectJson.getAttribute("dataSource", "");
     if (subjectDataSource as any === 'published') {
@@ -942,10 +951,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
                         e.preventDefault();
                         e.stopPropagation();
                         alert("Cannot submit for processing: Some trial(s) are missing markers. Please either upload marker data or detele trials.");
-                    }}>Submit for Processing</button>;
+                    }}>Submit for Processing</button>
                 </div>
                 <div>
-                    <span className="text-danger">Cannot submit for processing: Some trial(s) are missing markers. Please either upload marker data or detele trials.</span>
+                    <span className="text-danger">Cannot submit for processing: Some trial(s) are missing markers. Please either upload marker data (trc or c3d) or detele trials with missing markers.</span>
                 </div>
             </div>
         }
