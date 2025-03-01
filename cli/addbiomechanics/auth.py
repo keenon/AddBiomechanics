@@ -85,7 +85,7 @@ class AuthContext:
             except Exception as e:
                 print('Login failed! Please try again.')
                 print(e)
-                username, password = ensure_login(force_retype=True)
+                username, password = self.ensure_login(force_retype=True)
 
     def get_user_identity_id(self, id_token: str, region: str, userPoolId: str, identityPool: str) -> str:
         # Use the temporary credentials to get the Cognito Identity ID

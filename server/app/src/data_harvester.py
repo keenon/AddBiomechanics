@@ -123,7 +123,7 @@ class SubjectSnapshot:
             return
 
         # Download the dataset locally
-        tmp_folder: str = self.index.downloadToTmp(self.path)
+        tmp_folder: str = self.index.download_to_tmp(self.path)
 
         # Identify trials that are too short. We don't want to process these
         trial_paths_to_remove: List[str] = self.id_short_trials(tmp_folder)
@@ -302,14 +302,12 @@ class DataHarvester:
         self.queue = []
         self.datasets = []
         self.index = ReactiveS3Index(bucket, deployment, disable_pubsub)
-        self.index.addChangeListener(self.on_change)
         self.index.refreshIndex()
         if not disable_pubsub:
-            self.index.registerPubSub()
+            self.index.register_pub_sub()
 
-    def on_change(self):
-        print('S3 CHANGED!')
-
+    def recompute_queue(self):
+        start_time = time.time()
         # 1. Collect all Trials
         new_queue: List[SubjectSnapshot] = []
         new_datasets: List[StandardizedDataset] = []
@@ -345,6 +343,9 @@ class DataHarvester:
         print('Updating queue to have ' + str(len(new_queue)) + ' items')
         self.queue = new_queue
 
+        print('Queue updated in ' + str(time.time() - start_time) + ' seconds')
+        print('Queue length: '+str(len(self.queue)))
+
     def process_queue_forever(self):
         """
         This busy-waits on the queue updating, and will process the head of the queue one at a time when it
@@ -353,8 +354,26 @@ class DataHarvester:
         While processing, this blocks, so even though the queue is updating in the background, that shouldn't change
         the outcome of this process.
         """
+        print('Starting processing queue.')
+        print('Computing inital queue...')
+        start_time = time.time()
+        self.recompute_queue()
+        print('[PERFORMANCE] Initial queue computed in ' + str(time.time() - start_time) + ' seconds')
+        print('Queue length: '+str(len(self.queue)))
         while True:
             try:
+                # First, we process the queue of PubSub messages that the index has received since the last time we
+                # checked.
+                print('Processing incoming messages...')
+                start_time = time.time()
+                any_changed = self.index.process_incoming_messages()
+                print('[PERFORMANCE] Processed incoming messages in ' + str(time.time() - start_time) + ' seconds')
+                if any_changed:
+                    print('Incoming messages changed the state of the index, recomputing queue')
+                    start_time = time.time()
+                    self.recompute_queue()
+                    print('[PERFORMANCE] Recomputed queue in ' + str(time.time() - start_time) + ' seconds')
+
                 if len(self.queue) > 0:
                     print('Processing queue: ' +
                           str(len(self.queue)) + ' items remaining')
