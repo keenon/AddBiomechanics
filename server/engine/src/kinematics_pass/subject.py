@@ -10,6 +10,7 @@ import shutil
 import os
 from utilities.scale_opensim_model import scale_opensim_model
 import traceback
+import textwrap
 
 
 # Global paths to the geometry and data folders.
@@ -309,6 +310,15 @@ class Subject(metaclass=ExceptionHandlingMeta):
         if not trials_folder_path.endswith('/'):
             trials_folder_path += '/'
 
+        # Check that the trials folder exists.
+        if not os.path.exists(trials_folder_path):
+            raise IsADirectoryError(f'Trials folder "{trials_folder_path}" does not '
+                                     'exist.')
+        
+        # Check that the trials folder is not empty.
+        if not os.listdir(trials_folder_path):
+            raise IsADirectoryError(f'Trials folder "{trials_folder_path}" is empty.')
+
         # This loads all the trials in the subject folder.
         for trial_name in os.listdir(trials_folder_path):
             # We only want to load folders, not files
@@ -320,6 +330,17 @@ class Subject(metaclass=ExceptionHandlingMeta):
                 trial_index=len(self.trials)
             )
             self.trials.append(trial)
+
+        # Print all errors.
+        for trial in self.trials:
+            if trial.error:
+                print(f'Trial "{trial.trial_name}" has the following loading error: '
+                        f'{trial.error_loading_files}')
+
+        # Check that all trials have loaded successfully.
+        all_trials_have_errors = all([trial.error for trial in self.trials])
+        if all_trials_have_errors:
+            raise FileNotFoundError('All trials failed to load.')
 
     def load_folder(self, subject_folder: str, data_folder_path: str):
         # This is just a convenience wrapper to load a subject folder in a standard format.

@@ -9,6 +9,7 @@ from dynamics_pass.dynamics_pass import dynamics_pass
 from moco_pass.moco_pass import moco_pass
 from writers.opensim_writer import write_opensim_results
 from writers.web_results_writer import write_web_results
+from exceptions import LoadingError
 
 from typing import Dict, List, Any
 import os
@@ -115,6 +116,30 @@ class TestSubject(unittest.TestCase):
         subject.run_kinematics_pass(DATA_FOLDER_PATH)
         subject_on_disk = subject.create_subject_on_disk('<href>')
         self.assertIsNotNone(subject_on_disk)
+
+
+class TestLoadingNoData(unittest.TestCase):
+    def test_load_trial(self):
+        subject = Subject()
+        reset_test_data('rajagopal2015_no_data')
+        try:
+            subject.load_trials(os.path.join(TEST_DATA_PATH, 
+                                             'rajagopal2015_no_data', 'trials'))
+        except Exception as e:
+            expected = 'tests/data/rajagopal2015_no_data/trials/" does not exist'
+            self.assertTrue(expected in str(e))     
+
+    def test_load_folder(self):
+        subject = Subject()
+        reset_test_data('rajagopal2015_no_data')
+        try:    
+            subject.load_folder(os.path.join(TEST_DATA_PATH, 
+                                             'rajagopal2015_no_data'), DATA_FOLDER_PATH)
+        except Exception as e:
+            self.assertEqual("LoadingError", e.type)
+            expected = 'tests/data/rajagopal2015_no_data/trials/" does not exist'
+            self.assertTrue(expected in e.original_message)    
+
 
 class TestRajagopal2015(unittest.TestCase):
     def test_Rajagopal2015(self):
