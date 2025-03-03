@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 # This gets published to Docker Hub as keenon/biomechnet_base
 
 RUN apt-get update && apt-get install -y build-essential
@@ -55,16 +55,23 @@ RUN wget -nc -q --show-progress https://github.com/swig/swig/archive/refs/tags/v
     cd .. && \
     rm -rf swig-4.1.1 v4.1.1.tar.gz
 
+ENV CORE_BRANCH="moco_linux_dependencies_fix"
+
 # Install OpenSim dependencies
 RUN git clone https://github.com/opensim-org/opensim-core.git
+RUN cd opensim-core && \
+    git checkout $CORE_BRANCH && \
+    cd .. 
+
 RUN mkdir opensim_dependencies_build && \
     cd opensim_dependencies_build && \
     cmake ../opensim-core/dependencies \
         -DCMAKE_INSTALL_PREFIX="~/opensim_dependencies_install" \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DOPENSIM_WITH_CASADI=ON \
-        -DOPENSIM_WITH_TROPTER=OFF && \
-    make -j4
+        -DCMAKE_LIBRARY_PATH="/lib/x86_64-linux-gnu" && \
+    cmake . -LAH && \
+    cmake --build . --config RelWithDebInfo -j4
 
 # Install OpenSim
 RUN mkdir opensim_build && \
@@ -73,26 +80,27 @@ RUN mkdir opensim_build && \
         -DCMAKE_INSTALL_PREFIX="~/opensim_install" \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DOPENSIM_WITH_CASADI=ON \
-        -DOPENSIM_WITH_TROPTER=OFF \
         -DBUILD_PYTHON_WRAPPING=ON \
         -DBUILD_JAVA_WRAPPING=OFF \
+        -DBUILD_TESTING=OFF \
         -DOPENSIM_DEPENDENCIES_DIR="~/opensim_dependencies_install" \
         -DOPENSIM_INSTALL_UNIX_FHS=OFF \
         -DSWIG_DIR="~/swig/share/swig" \
         -DSWIG_EXECUTABLE="~/swig/bin/swig" \
         -DWITH_BTK=ON && \
-    make -j8 && \
-    make install
+    cmake . -LAH && \
+    cmake --build . --config RelWithDebInfo -j4 && \
+    cmake --install .
 
-# Install OpenSim Python interface
-RUN cd ~/opensim_install/sdk/Python && \
-    python3 setup.py install
-ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/opensim_dependencies_install/simbody/lib"
+# # Install OpenSim Python interface
+# RUN cd ~/opensim_install/sdk/Python && \
+#     python3 setup.py install
+# ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/opensim_dependencies_install/simbody/lib"
 
-# Test our installation
-RUN cd ~/opensim_install/bin && \
-    sed -i 's/sudo -k//g' ./opensim-install-command-line.sh && \
-    sed -i 's/sudo //g' ./opensim-install-command-line.sh && \
-    cat ./opensim-install-command-line.sh && \
-    ./opensim-install-command-line.sh
-RUN LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opensim_dependencies_install/ipopt/lib" opensim-cmd
+# # Test our installation
+# RUN cd ~/opensim_install/bin && \
+#     sed -i 's/sudo -k//g' ./opensim-install-command-line.sh && \
+#     sed -i 's/sudo //g' ./opensim-install-command-line.sh && \
+#     cat ./opensim-install-command-line.sh && \
+#     ./opensim-install-command-line.sh
+# RUN LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opensim_dependencies_install/ipopt/lib" opensim-cmd
