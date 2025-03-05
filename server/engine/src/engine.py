@@ -206,7 +206,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
                 self.subject_on_disk.getHeaderProto())
         else:
             print('No dynamics trials found', flush=True)
-            # Write a flag file to the output directory to indicate that no dynamics trials were found
+            # Write a flag file to the output directory to indicate that no dynamics 
+            # trials were found.
             with open(self.path + 'NO_DYNAMICS_TRIALS', 'w') as f:
                 f.write('No dynamics trials found')
 
