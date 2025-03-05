@@ -84,8 +84,12 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
             poses = last_pass.getPoses()
             taus = last_pass.getTaus()
             marker_observations = trial_proto.getMarkerObservations()
+            start_time = trial_proto.getOriginalTrialStartTime()
+            dt = trial_proto.getTimestep()
+            num_steps = trial_proto.getTrialLength()
+            timestamps = [start_time + i * dt for i in range(num_steps)]
+            assert(len(timestamps) == poses.shape[1])
             print(f'Writing OpenSim ID file, shape={str(poses.shape)}', flush=True)
-            timestamps = np.array(list(range(poses.shape[1]))) * subject.getTrialTimestep(i)
 
             # Write out the inverse kinematics results,
             ik_fpath = f'{output_folder}IK/{trial_name}_ik.mot'
@@ -151,7 +155,11 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
             last_pass = trial_passes[-1]
             poses = last_pass.getPoses()
             marker_observations = trial_proto.getMarkerObservations()
-            timestamps = np.array(range(poses.shape[1])) * subject.getTrialTimestep(i)
+            start_time = trial_proto.getOriginalTrialStartTime()
+            dt = trial_proto.getTimestep()
+            num_steps = trial_proto.getTrialLength()
+            timestamps = [start_time + i * dt for i in range(num_steps)]
+            assert(len(timestamps) == poses.shape[1])
             print(f'Writing OpenSim {ik_fpath} file, shape={str(poses.shape)}', flush=True)
             nimble.biomechanics.OpenSimParser.saveMot(osim.skeleton, ik_fpath, timestamps,
                                                       poses)
@@ -173,7 +181,11 @@ def write_opensim_results(subject: nimble.biomechanics.SubjectOnDisk,
             # Write out the marker trajectories.
             markers_fpath = f'{output_folder}MarkerData/{trial_name}.trc'
             print('Saving TRC for trial ' + trial_name, flush=True)
-            timestamps = np.array(range(len(marker_observations))) * subject.getTrialTimestep(i)
+            start_time = trial_proto.getOriginalTrialStartTime()
+            dt = trial_proto.getTimestep()
+            num_steps = trial_proto.getTrialLength()
+            timestamps = [start_time + i * dt for i in range(num_steps)]
+            assert(len(timestamps) == len(marker_observations))
             nimble.biomechanics.OpenSimParser.saveTRC(
                 markers_fpath, timestamps, marker_observations)
             print('Saved', flush=True)
