@@ -2,7 +2,8 @@
 """
 engine.py
 ---------
-Description: The main pipeline that servers as the "engine" for the AddBiomechanics data processing software.
+Description: The main pipeline that servers as the "engine" for the AddBiomechanics data 
+             processing software.
 Author(s): Keenon Werling, Nicholas Bianco
 """
 
@@ -20,7 +21,8 @@ from dynamics_pass.dynamics_pass import dynamics_pass
 from moco_pass.moco_pass import moco_pass
 from writers.opensim_writer import write_opensim_results
 from writers.web_results_writer import write_web_results
-from exceptions import LoadingError, TrialPreprocessingError, MarkerFitterError, DynamicsFitterError, MocoError, WriteError
+from exceptions import LoadingError, TrialPreprocessingError, MarkerFitterError, \
+                       DynamicsFitterError, MocoError, WriteError
 import traceback
 import textwrap
 
@@ -107,32 +109,40 @@ class Engine(metaclass=ExceptionHandlingMeta):
 
     def run_dynamics_fitting(self):
         print('Running acceleration minimizing pass...', flush=True)
-        print('-> This pass runs a simple least-squares optimization to minimize the acceleration of each DOF for the '
-              'subject over each trial, subject to also tracking the original trajectory closely. This is akin to a '
-              'Butterworth lowpass filtering step, except that it is better able to ensure that the high frequency '
-              'noise in the finite-differenced accelerations is knocked down, which makes the torque plots smoother.', flush=True)
+        print('-> This pass runs a simple least-squares optimization to minimize the '
+              'acceleration of each DOF for the subject over each trial, subject to '
+              'also tracking the original trajectory closely. This is akin to a '
+              'Butterworth lowpass filtering step, except that it is better able to '
+              'ensure that the high frequency noise in the finite-differenced '
+              'accelerations is knocked down, which makes the torque plots smoother.', 
+              flush=True)
         add_acceleration_minimizing_pass(self.subject_on_disk)
 
         print('Heuristically classifying trials...', flush=True)
-        print('-> This runs a set of heuristics to classify trials as overground, treadmill, static, or other. This '
-              'coarse classification is useful for subsequent stages in the pipeline, like the missing GRF detector, '
+        print('-> This runs a set of heuristics to classify trials as overground, '
+              'treadmill, static, or other. This coarse classification is useful for '
+              'subsequent stages in the pipeline, like the missing GRF detector, '
               'and may be useful for downstream data science as well.', flush=True)
         classification_pass(self.subject_on_disk)
 
         if not self.subject.disableDynamics:
             print('Detecting missing GRF frames...', flush=True)
-            print('-> This runs a set of heuristics to detect frames in the input data where we believe the subject is in '
-                  'contact with the ground, but there is no force plate data. These heuristics are deliberately a bit too '
-                  'aggressive in marking frames as "missing GRF", in order to make sure we get almost all the frames where '
-                  'there actually is missing GRF labeled correctly. This means the dataset of frames which are marked as '
-                  'not missing GRF are going to be very clean, but smaller than we might have with more selective '
-                  'heuristics.', flush=True)
+            print('-> This runs a set of heuristics to detect frames in the input data '
+                  'where we believe the subject is in contact with the ground, but '
+                  'there is no force plate data. These heuristics are deliberately a '
+                  'bit too aggressive in marking frames as "missing GRF", in order to '
+                  'make sure we get almost all the frames where there actually is '
+                  'missing GRF labeled correctly. This means the dataset of frames '
+                  'which are marked as not missing GRF are going to be very clean, but '
+                  'smaller than we might have with more selective heuristics.', 
+                  flush=True)
             missing_grf_detection(self.subject_on_disk)
 
             print('Running dynamics pass...', flush=True)
-            print('-> This pass runs the dynamics pipeline on the subject, which jointly optimizes a bunch of properties '
-                  'just like the kinematics pass, except now we will balance the marker RMS _and_ the residual RMS.',
-                  flush=True)
+            print('-> This pass runs the dynamics pipeline on the subject, which '
+                  'jointly optimizes a bunch of properties just like the kinematics '
+                  'pass, except now we will balance the marker RMS _and_ the residual '
+                  'RMS.', flush=True)
             dynamics_pass(self.subject_on_disk)
 
     def run_write_openim(self):
@@ -144,9 +154,11 @@ class Engine(metaclass=ExceptionHandlingMeta):
     def run_moco(self):
         if self.subject.runMoco:
             print('Running Moco optimization pass...', flush=True)
-            print('-> This pass utilizes the results from the kinematics and dynamics pass as inputs to a trajectory '
-                  'optimization problem solved by OpenSim Moco. This problem solves for the muscle excitations and '
-                  'activations that best match the observed motion and ground reaction forces.', flush=True)
+            print('-> This pass utilizes the results from the kinematics and dynamics '
+                  'pass as inputs to a trajectory optimization problem solved by '
+                  'OpenSim Moco. This problem solves for the muscle excitations and '
+                  'activations that best match the observed motion and ground reaction '
+                  'forces.', flush=True)
             moco_pass(self.subject_on_disk, self.path, self.output_name, 
                       self.subject.genericMassKg, self.subject.genericHeightM)
 
@@ -171,7 +183,8 @@ class Engine(metaclass=ExceptionHandlingMeta):
         # Check if we have any dynamics trials
         pass_index = -1
         for p in range(self.subject_on_disk.getNumProcessingPasses()):
-            if self.subject_on_disk.getProcessingPassType(p) == nimble.biomechanics.ProcessingPassType.DYNAMICS:
+            if (self.subject_on_disk.getProcessingPassType(p) == 
+                nimble.biomechanics.ProcessingPassType.DYNAMICS):
                 pass_index = p
 
         num_dynamics_trials = 0
@@ -185,9 +198,12 @@ class Engine(metaclass=ExceptionHandlingMeta):
                     include_dynamics_trials.append(False)
 
         if num_dynamics_trials > 0:
-            print('Writing B3D file encoded results which have been filtered to only include dynamics trials', flush=True)
+            print('Writing B3D file encoded results which have been filtered to only '
+                  'include dynamics trials', flush=True)
             self.subject_on_disk.getHeaderProto().filterTrials(include_dynamics_trials)
-            nimble.biomechanics.SubjectOnDisk.writeB3D(self.path + self.output_name + '_dynamics_trials_only.b3d', self.subject_on_disk.getHeaderProto())
+            nimble.biomechanics.SubjectOnDisk.writeB3D(
+                self.path + self.output_name + '_dynamics_trials_only.b3d', 
+                self.subject_on_disk.getHeaderProto())
         else:
             print('No dynamics trials found', flush=True)
             # Write a flag file to the output directory to indicate that no dynamics trials were found
