@@ -36,15 +36,15 @@ const DropFile = observer((props: DropFileProps) => {
     if (exists) {
       if (metadata != null) {
         const file: FileMetadata = metadata;
-        return(<Button className="btn-light ml-2" onClick={() => props.file.download()}>
+        return (<Button className="btn-light ml-2" onClick={() => props.file.download()}>
           <i className="mdi mdi-download me-2 vertical-middle middle"></i>
-            Download <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
+          Download <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
         </Button>);
       }
       else {
-        return(<Button className="btn-light ml-2" onClick={() => props.file.download()}>
+        return (<Button className="btn-light ml-2" onClick={() => props.file.download()}>
           <i className="mdi mdi-download me-2 vertical-middle middle"></i>
-            Download
+          Download
         </Button>);
       }
     }
@@ -71,25 +71,29 @@ const DropFile = observer((props: DropFileProps) => {
         const file: FileMetadata = metadata;
         if (props.hideDate) {
           body = <>Uploaded <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b></>
-          body_download = <Button className="btn-light form-text" onClick={() => props.file.download()}>
+          body_download = <Button className="btn-light DropFile__light_button form-text" onClick={() => props.file.download()}>
             <i className="mdi mdi-download me-2 vertical-middle"></i>
-            Download <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
+            Download {/*<b>{path.basename(file.key)}</b> - */} <b>{humanFileSize(file.size)}</b>
           </Button>
         }
         else {
           body = <>Uploaded <b>{path.basename(file.key)}</b> on {format(file.lastModified.toString(), 'yyyy/MM/dd kk:mm:ss')} - {humanFileSize(file.size)}</>
-          body_download = <Button className="btn-light form-text" onClick={() => props.file.download()}>
+          body_download = <Button className="btn-light DropFile__light_button form-text" onClick={() => props.file.download()}>
             <i className="mdi mdi-download me-2 vertical-middle"></i>
-            Download <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
+            Download {/*<b>{path.basename(file.key)}</b> - */} <b>{humanFileSize(file.size)}</b>
           </Button>
         }
-        body_remove = <Button className="btn-danger form-text" onClick={() => {props.file.delete(); if(props.onDeleteFile !== undefined) props.onDeleteFile();}}>
-          <i className="mdi mdi-download me-2 vertical-middle"></i>
-          Delete <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
+        body_remove = <Button className="btn-light DropFile__delete_button form-text" onClick={() => {
+          if (window.confirm(`Are you sure you want to delete ${path.basename(file.key)}?`)) {
+            props.file.delete(); if (props.onDeleteFile !== undefined) props.onDeleteFile();
+          }
+        }}>
+          <i className="mdi mdi-delete me-2 vertical-middle"></i>
+          Delete {/*<b>{path.basename(file.key)}</b>*/}
         </Button>
       }
       else {
-          body = <>Loading size...</>
+        body = <>Loading size...</>
       }
     }
     else {
@@ -97,69 +101,69 @@ const DropFile = observer((props: DropFileProps) => {
     }
   }
 
-    const onDrop = action((e: DragEvent) => {
-        setIsDragActive(false);
-        e.preventDefault();
+  const onDrop = action((e: DragEvent) => {
+    setIsDragActive(false);
+    e.preventDefault();
 
-        let acceptedFiles: File[] = [];
-        if (e.dataTransfer && e.dataTransfer.items) {
-            for (let i = 0; i < e.dataTransfer.items.length; i++) {
-                if (e.dataTransfer.items[i].kind === 'file') {
-                    const file = e.dataTransfer.items[i].getAsFile();
-                    if (file) {
-                        acceptedFiles.push(file);
-                    }
-                }
-            }
+    let acceptedFiles: File[] = [];
+    if (e.dataTransfer && e.dataTransfer.items) {
+      for (let i = 0; i < e.dataTransfer.items.length; i++) {
+        if (e.dataTransfer.items[i].kind === 'file') {
+          const file = e.dataTransfer.items[i].getAsFile();
+          if (file) {
+            acceptedFiles.push(file);
+          }
         }
+      }
+    }
+
+    props.onDrop(acceptedFiles).catch((e) => {
+      console.error(e);
+      alert(e);
+    });
+  });
+
+  const handleFileSelect = () => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.multiple = true; // Allow multiple file selection
+    fileInput.addEventListener('change', (event) => {
+      const inputElement = event.target as HTMLInputElement;
+
+      let acceptedFiles: File[] = [];
+      if (inputElement.files) {
+        const files = Array.from(inputElement.files);
+        files.forEach((file) => {
+          acceptedFiles.push(file);
+        });
+
 
         props.onDrop(acceptedFiles).catch((e) => {
           console.error(e);
           alert(e);
         });
-      });
-
-      const handleFileSelect = () => {
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.multiple = true; // Allow multiple file selection
-        fileInput.addEventListener('change', (event) => {
-          const inputElement = event.target as HTMLInputElement;
-
-          let acceptedFiles: File[] = [];
-          if (inputElement.files) {
-            const files = Array.from(inputElement.files);
-            files.forEach((file) => {
-              acceptedFiles.push(file);
-            });
-
-
-            props.onDrop(acceptedFiles).catch((e) => {
-              console.error(e);
-              alert(e);
-            });
-          }
-        });
-        fileInput.click();
-      };
+      }
+    });
+    fileInput.click();
+  };
 
   return (
     <>
-      <div className={"dropzone dropzone-sm" + (exists ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && !exists && !uploading) ? ' dropzone-error' : ''))}
-          onDrop={onDrop as any}
-          onDragOver={(e) => {
-            e.preventDefault();
-          }}
-          onDragEnter={() => {
-            setIsDragActive(true);
-          }}
-          onDragLeave={() => {
-            setIsDragActive(false);
-          }}
-          onClick={(e) => {
-            //e.preventDefault();
-            handleFileSelect();
-          }}>
+      <div className={"DropFile dropzone dropzone-sm" + (exists ? " dropzone-replace" : "") + (isDragActive ? ' dropzone-hover' : ((props.required && !exists && !uploading) ? ' dropzone-error' : ''))}
+        onDrop={onDrop as any}
+        onDragOver={(e) => {
+          e.preventDefault();
+        }}
+        onDragEnter={() => {
+          setIsDragActive(true);
+        }}
+        onDragLeave={() => {
+          setIsDragActive(false);
+        }}
+        onClick={(e) => {
+          //e.preventDefault();
+          handleFileSelect();
+        }}>
         <div className="dz-message needsclick" style={{
           whiteSpace: 'nowrap',
           overflow: 'hidden',

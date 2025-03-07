@@ -4,5 +4,28 @@
 }
 
 .flex-container .form-text {
-    margin-left: auto; /* Optional if you want to push the element to the far right */
+    margin-left: auto;
+    /* Optional if you want to push the element to the far right */
+}
+
+.DropFile__light_button {
+    margin: 3px;
+    flex: 1 1 auto;
+}
+
+.DropFile__light_button:hover {
+    background-color: #dfe2e6;
+}
+
+.DropFile__delete_button {
+    margin: 3px;
+}
+
+.DropFile__delete_button:hover {
+    background-color: #dc3545;
+    /* btn-danger background color */
+    color: white;
+    /* btn-danger text color */
+    border-color: #dc3545;
+    /* btn-danger border color */
 }

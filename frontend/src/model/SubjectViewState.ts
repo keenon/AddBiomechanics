@@ -434,8 +434,9 @@ class SubjectViewState {
         if (path.endsWith('/')) {
             path = path.substring(0, path.length-1);
         }
+        console.log("Deleting: "+path);
         this.uploadedTrialPaths.delete(path);
-        return this.home.dir.delete(path);
+        return this.home.dir.deleteByPrefix(path);
     }
 
     /**
@@ -492,6 +493,16 @@ class SubjectViewState {
             return Promise.reject("Don't support multiple files for a drop");
         }
     };
+
+    canProcess(): boolean {
+        // Check that all the trials have files that exist:
+        for (let trial of this.trials) {
+            if (!trial.c3dFileExists && !trial.trcFileExists) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     submitForProcessing(): Promise<void> {
         return this.readyFlagFile.uploadFlag().then(action(() => {
