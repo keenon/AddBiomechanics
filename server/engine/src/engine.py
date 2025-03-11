@@ -9,10 +9,14 @@ Author(s): Keenon Werling, Nicholas Bianco
 
 import sys
 import os
-from nimblephysics.loader import absPath
 import json
 import shutil
-from exceptions import Error
+import traceback
+import textwrap
+import numpy as np
+import nimblephysics as nimble
+from nimblephysics.loader import absPath
+
 from kinematics_pass.subject import Subject
 from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
 from dynamics_pass.classification_pass import classification_pass
@@ -21,13 +25,9 @@ from dynamics_pass.dynamics_pass import dynamics_pass
 from moco_pass.moco_pass import moco_pass
 from writers.opensim_writer import write_opensim_results
 from writers.web_results_writer import write_web_results
-from exceptions import LoadingError, TrialPreprocessingError, MarkerFitterError, \
+from exceptions import Error, LoadingError, TrialPreprocessingError, MarkerFitterError, \
                        DynamicsFitterError, MocoError, WriteError
-import traceback
-import textwrap
 
-import numpy as np
-import nimblephysics as nimble
 
 # Global paths to the geometry and data folders.
 GEOMETRY_FOLDER_PATH = absPath('Geometry') + '/'
@@ -260,4 +260,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
