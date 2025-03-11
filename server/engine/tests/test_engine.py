@@ -31,7 +31,7 @@ class TestEngine(unittest.TestCase):
         engine.run()
 
         solution_fpath = os.path.join(path, output_name, 'Moco', 
-                                      f'walk_segement_0_moco.sto')
+                                      f'walk_segment_0_moco.sto')
         solution = osim.TimeSeriesTable(solution_fpath)
         self.assertEqual(solution.getTableMetaDataString('success'), 'true')
         self.assertEqual(solution.getTableMetaDataString('status'), 'Solve_Succeeded')
