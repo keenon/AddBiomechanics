@@ -336,12 +336,12 @@ const DatasetView = observer((props: DatasetViewProps) => {
                         <br />
                         <button className='btn btn-primary mt-1' onClick={() => {
                             if (subjectName === "") {
-                                alert("Subject name cannot be empty");
+                                alert("Subject name cannot be empty! Please insert a new, unique subject name");
                                 return;
                             }
                             const exists = datasetContents.contents.some(obj => obj.name === subjectName);
                             if (exists) {
-                                alert("Subject name already exists");
+                                alert("Subject name already exists! Please choose a new, unique subject name");
                                 return;
                             }
                             home.createSubject(path, subjectName);
