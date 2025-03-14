@@ -408,6 +408,40 @@ class UserHomeDirectory {
         return dataset;
     }
 
+    deleteDatasetContent(name: string, path: string): void {
+        const pathData: PathData | undefined = this.dir.getCachedPath(path, false);
+        if (path.startsWith('/')) {
+            path = path.substring(1);
+        }
+
+        // Update the observable cache
+        let dataset = this.datasetContentsCache.get(path);
+        if (dataset == null) {
+            dataset = {
+                loading: pathData?.loading ?? true,
+                status: this.getPathStatus(path),
+                contents: pathData?.folders.filter(folder => folder !== path).map((folder) => {
+                    return {
+                        name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
+                        path: folder,
+                        status: this.getPathStatus(folder),
+                        type: this.getPathType(folder),
+                    };
+                }) ?? []
+            }
+            if (pathData != null) {
+                action(() => {
+                    this.datasetContentsCache.set(path, dataset!);
+                });
+            }
+        }
+        if (dataset) {
+            dataset.contents = dataset.contents.filter(item => item.name !== name);
+            this.datasetContentsCache.set(path, dataset);
+        }
+
+    }
+
     /**
      * This will reprocess all the subjects within a directory
      * 
@@ -444,15 +478,64 @@ class UserHomeDirectory {
         return dir.uploadText(path + (path.length > 0 ? '/' : '') + folderName + '/_dataset.json', '{}');
     }
 
-    /**
-     * This call will create a stub file to hold a new subject
-     * 
-     * @param path The path to the folder to create the new folder in
-     * @param folderName The name of the new folder
-     */
     createSubject(path: string, folderName: string): Promise<void> {
-        const dir = this.dir;
-        return dir.uploadText(path + (path.length > 0 ? '/' : '') + folderName + '/_subject.json', '{}');
+        return new Promise(async (resolve, reject) => {
+            try {
+                const dir = this.dir;
+                const fullPath = path + (path.length > 0 && path.slice(-1) !== "/" ? '/' : '') + folderName + '/_subject.json';
+
+                // Wait for the file creation to finish before updating state
+                await dir.uploadText(fullPath, '{}');
+
+                const pathData: PathData | undefined = this.dir.getCachedPath(path, false);
+                if (path.startsWith('/')) {
+                    path = path.substring(1);
+                }
+
+                // Ensure datasetContentsCache updates
+                action(() => {
+                    let dataset = this.datasetContentsCache.get(path);
+
+                    // If no cached, load into cache.
+                    if (dataset == null) {
+                        dataset = {
+                            loading: pathData?.loading ?? true,
+                            status: this.getPathStatus(path),
+                            contents: pathData?.folders.filter(folder => folder !== path).map((folder) => {
+                                return {
+                                    name: folder.substring(path.length).replace(/\/$/, '').replace(/^\//, ''),
+                                    path: folder,
+                                    status: this.getPathStatus(folder),
+                                    type: this.getPathType(folder),
+                                };
+                            }) ?? []
+                        }
+                        if (pathData != null) {
+                            action(() => {
+                                this.datasetContentsCache.set(path, dataset!);
+                            });
+                        }
+                    // If cached, just add the new one.
+                    } else {
+                        if (path.endsWith("/"))
+                            path = path.slice(0, -1);
+                        // Add the new folder to the dataset contents
+                        dataset.contents.push({
+                            name: folderName,
+                            path: path + '/' + folderName,
+                            status: this.getPathStatus(path + '/' + folderName),
+                            type: this.getPathType(path + '/' + folderName),
+                        });
+                    }
+
+                    this.datasetContentsCache.set(path, dataset);
+                })();
+
+                resolve();
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 
     /**
