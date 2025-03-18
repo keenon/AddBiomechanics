@@ -70,6 +70,7 @@ class SubjectViewState {
     logPath: string;
     processingFlagFile: LiveFile; // "PROCESSING"
     readyFlagFile: LiveFile; // "READY_TO_PROCESS"
+    incompleteSubjectFlagFlagFile: LiveFile; // "INCOMPLETE"
     errorFlagFile: LiveFile; // "ERROR"
     slurmFlagFile: LiveFile; // "SLURM"
 
@@ -120,6 +121,7 @@ class SubjectViewState {
         this.resultsB3dPath = path + '/' + this.name + '.b3d';
         this.processingFlagFile = dir.getLiveFile(path + "/PROCESSING");
         this.readyFlagFile = dir.getLiveFile(path + "/READY_TO_PROCESS");
+        this.incompleteSubjectFlagFlagFile = dir.getLiveFile(path + "/INCOMPLETE")
         this.errorFlagFile = dir.getLiveFile(path + "/ERROR");
         this.slurmFlagFile = dir.getLiveFile(path + "/SLURM");
 
@@ -512,24 +514,26 @@ class SubjectViewState {
 
     reprocess(): Promise<void> {
         return this.readyFlagFile.delete().then(() => {
-          return this.errorFlagFile.delete().then(() => {
-              return this.slurmFlagFile.delete().then(() => {
-                  return this.processingFlagFile.delete().then(() => {
-                      return this.home.dir.delete(this.resultsJsonPath).then(() => {
-                          return this.home.dir.delete(this.logPath).then(action(() => {
-                              this.submitForProcessing();
+          return this.incompleteSubjectFlagFlagFile.delete().then(() => {
+            return this.errorFlagFile.delete().then(() => {
+                return this.slurmFlagFile.delete().then(() => {
+                    return this.processingFlagFile.delete().then(() => {
+                        return this.home.dir.delete(this.resultsJsonPath).then(() => {
+                            return this.home.dir.delete(this.logPath).then(action(() => {
+                                this.submitForProcessing();
 
-                              this.parsedResultsJson = {};
-                              this.loadingResultsJsonPromise = null;
-                              this.loadedResultsJsonFirstTime = false;
+                                this.parsedResultsJson = {};
+                                this.loadingResultsJsonPromise = null;
+                                this.loadedResultsJsonFirstTime = false;
 
-                              this.logText = '';
-                              this.loadingLogsPromise = null;
-                              this.loadingLogsFirstTime = false;
-                          }));
-                      });
-                  });
-              });
+                                this.logText = '';
+                                this.loadingLogsPromise = null;
+                                this.loadingLogsFirstTime = false;
+                            }));
+                        });
+                    });
+                });
+            });
           });
         });
     }

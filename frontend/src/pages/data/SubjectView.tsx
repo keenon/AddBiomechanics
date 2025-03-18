@@ -29,6 +29,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const subjectState: SubjectViewState = home.getSubjectViewState(path);
     const subjectJson = subjectState.subjectJson;
     const readyFlagFile = subjectState.readyFlagFile;
+    const incompleteSubjectFlagFlagFile = subjectState.incompleteSubjectFlagFlagFile;
     const processingFlagFile = subjectState.processingFlagFile;
     const slurmFlagFile = subjectState.slurmFlagFile;
     const errorFlagFile = subjectState.errorFlagFile;
@@ -74,6 +75,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     // Check on the existence of each flag unconditionally, to ensure that MobX updates if the flags change
     const resultsExist = subjectState.resultsExist;
     const readyFlagExists = readyFlagFile.exists && !readyFlagFile.loading;
+    const incompleteSubjectFlagExists = incompleteSubjectFlagFlagFile.exists && !incompleteSubjectFlagFlagFile.loading;
     const errorFlagExists = errorFlagFile.exists && !errorFlagFile.loading;
     const processingFlagExists = processingFlagFile.exists && !processingFlagFile.loading;
     const slurmFlagExists = slurmFlagFile.exists && !slurmFlagFile.loading;
@@ -112,7 +114,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     /////////////////////////////////////////////////////////////////////////
 
     // 0. We're still loading
-    if (subjectState.loading || subjectJson.isLoadingFirstTime() || readyFlagFile.loading || processingFlagFile.loading) {
+    if (subjectState.loading || subjectJson.isLoadingFirstTime() || readyFlagFile.loading || processingFlagFile.loading || incompleteSubjectFlagFlagFile.loading) {
         return <div>Loading...</div>;
     }
 
@@ -1199,7 +1201,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             </>;
         }
 
-        if (readyFlagExists || processingFlagExists || slurmFlagExists || waitingForServer) {
+        if (readyFlagExists || incompleteSubjectFlagExists || processingFlagExists || slurmFlagExists || waitingForServer) {
             // Check if flags were created less than 6 hours ago.
             let possibleProcessingProblem = false
 
@@ -1211,7 +1213,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             const pacificTimeOptions = { timeZone: 'America/Los_Angeles' };
             aDayAgo = new Date(aDayAgo.toLocaleString('en-US', pacificTimeOptions));
 
-            if (readyFlagExists && !resultsExist && !errorFlagExists && !processingFlagExists && !slurmFlagExists) {
+            if (readyFlagExists && !incompleteSubjectFlagExists && !resultsExist && !errorFlagExists && !processingFlagExists && !slurmFlagExists) {
                 if (readyFlagFileModified) {
                     possibleProcessingProblem = readyFlagFileModified < aDayAgo
                     console.log(readyFlagFileModified)
