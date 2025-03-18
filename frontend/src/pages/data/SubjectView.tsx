@@ -1058,7 +1058,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     <div className="alert alert-danger my-2">
                         <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
                         <p>
-                            There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank" rel="noreferrer">Tips and Tricks page</a> for more suggestions.
+                            There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank" rel="noreferrer">Tips and Tricks page</a> for more suggestions, ask a question in our <a href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402" target="_blank" rel="noreferrer">Forum</a> or submit an issue to our <a href="https://github.com/keenon/AddBiomechanics/issues" target="_blank" rel="noreferrer">GitHub repository</a>.
                         </p>
                         <hr />
                         <ul>
