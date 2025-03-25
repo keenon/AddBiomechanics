@@ -833,6 +833,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     );
     // If we haven't completed the form yet, then that's the only thing we need to render, along with a progress bar for filling out the form
     if (completedFormElements < totalFormElements) {
+        subjectState.markIncomplete()
         return <div className='container'>
             {subjectForm}
             <hr />
@@ -841,7 +842,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 {completedFormElements} of {totalFormElements} fields complete.
             </p>
         </div>
-    }
+      }
+
 
     const markerLiveFiles: LiveFile[] = [];
     for (let i = 0; i < subjectState.trials.length; i++) {
@@ -939,6 +941,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             </p>
         </div>;
         if (subjectState.canProcess()) {
+            subjectState.markReadyForProcess()
             submitButton =
                 <button className="btn btn-lg btn-primary mt-2" style={{ width: '100%' }} onClick={(e) => {
                     e.preventDefault();
@@ -947,6 +950,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 }}>Submit for Processing</button>;
         }
         else {
+            subjectState.markIncomplete()
             submitButton = <div>
                 <div>
                     <button className="btn btn-lg btn-primary mt-2" disabled style={{ width: '100%' }} onClick={(e) => {

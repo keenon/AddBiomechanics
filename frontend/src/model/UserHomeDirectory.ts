@@ -24,7 +24,7 @@ type SubjectContents = {
     resultsJsonPath: string;
     processingFlagFile: LiveFile; // "PROCESSING"
     readyFlagFile: LiveFile; // "READY_TO_PROCESS"
-    incompleteSubjectFlagFlagFile: LiveFile; // "INCOMPLETE"
+    incompleteSubjectFlagFile: LiveFile; // "INCOMPLETE"
     errorFlagFile: LiveFile; // "ERROR"
 
     trials: TrialContents[]
@@ -334,7 +334,7 @@ class UserHomeDirectory {
                 return 'needs_data';
             }
             else {
-                return 'incomplete';
+                return 'ready_to_process';
             }
         }
 
@@ -427,7 +427,7 @@ class UserHomeDirectory {
         for (let folder of pathData.folders) {
             if (this.getPathType(folder) === 'subject') {
                 const status = this.getPathStatus(folder);
-                if (status !== 'waiting_for_server' && status !== 'slurm' && status !== 'processing') {
+                if (status !== 'waiting_for_server' && status !== 'slurm' && status !== 'processing' && status !== 'incomplete') {
                     await this.getSubjectViewState(folder).reprocess();
                 }
                 else {
@@ -456,6 +456,7 @@ class UserHomeDirectory {
      */
     createSubject(path: string, folderName: string): Promise<void> {
         const dir = this.dir;
+        this.getSubjectContents(path + "/" + folderName).incompleteSubjectFlagFile.uploadFlag();
         return dir.uploadText(path + (path.length > 0 ? '/' : '') + folderName + '/_subject.json', '{}');
     }
 
@@ -545,7 +546,7 @@ class UserHomeDirectory {
 
             const processingFlagFile: LiveFile = dir.getLiveFile(path + "/PROCESSING");
             const readyFlagFile: LiveFile = dir.getLiveFile(path + "/READY_TO_PROCESS");
-            const incompleteSubjectFlagFlagFile: LiveFile = dir.getLiveFile(path + "/INCOMPLETE")
+            const incompleteSubjectFlagFile: LiveFile = dir.getLiveFile(path + "/INCOMPLETE")
             const errorFlagFile: LiveFile = dir.getLiveFile(path + "/ERROR");
 
             subject = {
@@ -558,7 +559,7 @@ class UserHomeDirectory {
                 }).includes(resultsJsonPath) ?? false,
                 processingFlagFile,
                 readyFlagFile,
-                incompleteSubjectFlagFlagFile,
+                incompleteSubjectFlagFile,
                 errorFlagFile,
                 trials: trialsPathData?.folders.map((folder) => this.getTrialContents(folder)) ?? []
             };

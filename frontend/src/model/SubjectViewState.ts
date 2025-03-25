@@ -498,6 +498,9 @@ class SubjectViewState {
 
     canProcess(): boolean {
         // Check that all the trials have files that exist:
+        if (this.trials.length === 0) {
+          return false;
+        }
         for (let trial of this.trials) {
             if (!trial.c3dFileExists && !trial.trcFileExists) {
                 return false;
@@ -511,6 +514,19 @@ class SubjectViewState {
             this.wizardCollapsed = true;
         }));
     }
+
+    markReadyForProcess(): void {
+        if (this.incompleteSubjectFlagFlagFile.exists) {
+          this.incompleteSubjectFlagFlagFile.delete();
+        };
+    }
+
+    markIncomplete(): void {
+        if (!this.incompleteSubjectFlagFlagFile.exists) {
+          this.incompleteSubjectFlagFlagFile.uploadFlag();
+        };
+    }
+
 
     reprocess(): Promise<void> {
         return this.readyFlagFile.delete().then(() => {
