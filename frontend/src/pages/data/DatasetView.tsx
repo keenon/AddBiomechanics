@@ -123,8 +123,6 @@ const DatasetView = observer((props: DatasetViewProps) => {
 
     let parent_path = get_parent_path_absolute(path)
     const showCitationData = parent_path == "";
-    console.log("PATH: " + path)
-    console.log("PARENT PATH: " + parent_path)
     let citationDetails: React.ReactNode = null;
     if (showCitationData) {
 
@@ -221,7 +219,6 @@ const DatasetView = observer((props: DatasetViewProps) => {
             </thead>
             <tbody>
                 {datasetContents.contents.map(({ name, type, path, status }) => {
-                    console.log(name + " " + type + " " + path + " " + status)
                     const typeFirstLetterCapitalized = type.charAt(0).toUpperCase() + type.slice(1);
                     let statusBadge = <span className="badge bg-secondary">Unknown</span>;
                     if (status === 'done') {
