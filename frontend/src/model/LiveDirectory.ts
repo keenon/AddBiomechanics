@@ -42,7 +42,7 @@ abstract class LiveDirectory {
 
     abstract getSignedURL(path: string, expiresIn: number): Promise<string>;
     abstract downloadText(path: string): Promise<string>;
-    abstract downloadFile(path: string): void;
+    abstract downloadFile(path: string, download_name?: string): void;
     abstract uploadText(path: string, text: string): Promise<void>;
     abstract uploadFile(path: string, contents: File, progressCallback: (percentage: number) => void): Promise<void>;
     getJsonFile(path: string): LiveJsonFile {
@@ -791,18 +791,24 @@ class LiveDirectoryImpl extends LiveDirectory {
         return this.s3.downloadText(this.normalizePath(path));
     }
 
-    downloadFile(path: string): void
-    {
-        this.getSignedURL(path, 3600).then((url) => {
-            // Download the file in the browser
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', '');
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        });
-    }
+downloadFile(path: string, download_name = ""): void {
+    alert(download_name);
+    this.getSignedURL(path, 3600).then(async (url) => {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobURL = window.URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = blobURL;
+        link.setAttribute('download', download_name || "downloaded_file");
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        // Revoke the object URL to free up memory
+        window.URL.revokeObjectURL(blobURL);
+    });
+}
 
     uploadText(path: string, text: string): Promise<void>
     {

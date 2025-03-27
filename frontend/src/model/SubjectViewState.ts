@@ -70,7 +70,7 @@ class SubjectViewState {
     logPath: string;
     processingFlagFile: LiveFile; // "PROCESSING"
     readyFlagFile: LiveFile; // "READY_TO_PROCESS"
-    incompleteSubjectFlagFlagFile: LiveFile; // "INCOMPLETE"
+    incompleteSubjectFlagFile: LiveFile; // "INCOMPLETE"
     errorFlagFile: LiveFile; // "ERROR"
     slurmFlagFile: LiveFile; // "SLURM"
 
@@ -121,7 +121,7 @@ class SubjectViewState {
         this.resultsB3dPath = path + '/' + this.name + '.b3d';
         this.processingFlagFile = dir.getLiveFile(path + "/PROCESSING");
         this.readyFlagFile = dir.getLiveFile(path + "/READY_TO_PROCESS");
-        this.incompleteSubjectFlagFlagFile = dir.getLiveFile(path + "/INCOMPLETE")
+        this.incompleteSubjectFlagFile = dir.getLiveFile(path + "/INCOMPLETE")
         this.errorFlagFile = dir.getLiveFile(path + "/ERROR");
         this.slurmFlagFile = dir.getLiveFile(path + "/SLURM");
 
@@ -516,21 +516,21 @@ class SubjectViewState {
     }
 
     markReadyForProcess(): void {
-        if (this.incompleteSubjectFlagFlagFile.exists) {
-          this.incompleteSubjectFlagFlagFile.delete();
+        if (this.incompleteSubjectFlagFile.exists) {
+          this.incompleteSubjectFlagFile.delete();
         };
     }
 
     markIncomplete(): void {
-        if (!this.incompleteSubjectFlagFlagFile.exists) {
-          this.incompleteSubjectFlagFlagFile.uploadFlag();
+        if (!this.incompleteSubjectFlagFile.exists) {
+          this.incompleteSubjectFlagFile.uploadFlag();
         };
     }
 
 
     reprocess(): Promise<void> {
         return this.readyFlagFile.delete().then(() => {
-          return this.incompleteSubjectFlagFlagFile.delete().then(() => {
+          return this.incompleteSubjectFlagFile.delete().then(() => {
             return this.errorFlagFile.delete().then(() => {
                 return this.slurmFlagFile.delete().then(() => {
                     return this.processingFlagFile.delete().then(() => {
