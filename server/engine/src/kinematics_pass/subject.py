@@ -18,7 +18,8 @@ GEOMETRY_FOLDER_PATH = absPath('../../Geometry')
 DATA_FOLDER_PATH = absPath('../../../data')
 
 
-# This metaclass wraps all methods in the Subject class with a try-except block, except for the __init__ method.
+# This metaclass wraps all methods in the Subject class with a try-except block, 
+# except for the __init__ method.
 class ExceptionHandlingMeta(type):
     # Only the methods in this map will be wrapped with a try-except block.
     EXCEPTION_MAP = {

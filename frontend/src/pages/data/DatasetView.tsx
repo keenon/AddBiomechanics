@@ -7,7 +7,6 @@ import LiveJsonFile from "../../model/LiveJsonFile";
 import { Spinner, OverlayTrigger, Tooltip, Row, Col} from "react-bootstrap";
 import { toast } from 'react-toastify';
 import { parseLinks, showToast } from "../../utils"
-import { useLocation } from 'react-router-dom';
 
 type DatasetViewProps = {
     home: UserHomeDirectory;
@@ -59,7 +58,7 @@ const get_parent_path_absolute = (path:string|undefined) => {
       for(var i = 0; i < path_parts.length-2; i++)
         parent += path_parts[i] + "/";
     } else {
-      for(var i = 0; i < path_parts.length-1; i++)
+      for(i = 0; i < path_parts.length-1; i++)
         parent += path_parts[i] + "/";
     }
   }
@@ -67,14 +66,11 @@ const get_parent_path_absolute = (path:string|undefined) => {
 }
 
 const DatasetView = observer((props: DatasetViewProps) => {
-    const location = useLocation();
-
     const [folderName, setFolderName] = useState("");
     const [subjectName, setSubjectName] = useState("");
 
     const home = props.home;
     const path = props.path;
-    const dir = home.dir;
 
     // Informative toast
     // showToast(
@@ -86,6 +82,16 @@ const DatasetView = observer((props: DatasetViewProps) => {
     // );
 
     const datasetContents: DatasetContents = home.getDatasetContents(path);
+
+    const handleDelete = (name:string, path:any) => {
+        const dataset = get_parent_path_absolute(path)
+        if (window.confirm(`Are you sure you want to delete ${name} from ${dataset}?`)) {
+            console.log(`Deleting ${name} from ${dataset}`);
+            home.deleteFolder(path);
+
+            home.deleteDatasetContent(name, dataset);
+        }
+    };
 
     const attributionContents: AttributionContents | undefined = home.getAttributionContents(path);
     const searchJson:LiveJsonFile | undefined = attributionContents?.searchJson;
@@ -122,7 +128,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
     const [inheritButton, setInheritButton] = useState(inheritFromParent)
 
     let parent_path = get_parent_path_absolute(path)
-    const showCitationData = parent_path == "";
+    const showCitationData = parent_path === "";
     let citationDetails: React.ReactNode = null;
     if (showCitationData) {
 
@@ -265,12 +271,9 @@ const DatasetView = observer((props: DatasetViewProps) => {
                             {statusBadge}
                         </td>
                         <td>
-                            <button className='btn btn-dark' onClick={() => {
-                                if (window.confirm("Are you sure you want to delete " + name + "?")) {
-                                    console.log("Deleting " + name + " from " + path);
-                                    home.deleteFolder(path);
-                                }
-                            }}>Delete</button>
+                            <button className='btn btn-dark' onClick={() => {console.log("PATH DELETE: " + path); handleDelete(name, path)}}>
+                                Delete
+                            </button>
                         </td>
                     </tr>;
                 })}
@@ -336,10 +339,16 @@ const DatasetView = observer((props: DatasetViewProps) => {
                         <br />
                         <button className='btn btn-primary mt-1' onClick={() => {
                             if (subjectName === "") {
-                                alert("Subject name cannot be empty");
+                                alert("Subject name cannot be empty! Please insert a new, unique subject name");
+                                return;
+                            }
+                            const exists = datasetContents.contents.some(obj => obj.name === subjectName);
+                            if (exists) {
+                                alert("Subject name already exists! Please choose a new, unique subject name");
                                 return;
                             }
                             home.createSubject(path, subjectName);
+
                             setSubjectName("");
                         }}>Create New Subject</button>
                       </div>
