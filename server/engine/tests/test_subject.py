@@ -1,22 +1,21 @@
+import os
 import shutil
 import unittest
+from typing import Dict, List, Any
+from inspect import getsourcefile
+
+import numpy as np
+import opensim as osim
+import nimblephysics as nimble
+
 from kinematics_pass.subject import Subject
-from kinematics_pass.trial import TrialSegment, Trial
 from dynamics_pass.acceleration_minimizing_pass import add_acceleration_minimizing_pass
 from dynamics_pass.classification_pass import classification_pass
 from dynamics_pass.missing_grf_detection import missing_grf_detection
 from dynamics_pass.dynamics_pass import dynamics_pass
 from moco_pass.moco_pass import moco_pass
 from writers.opensim_writer import write_opensim_results
-from writers.web_results_writer import write_web_results
-from exceptions import LoadingError
 
-from typing import Dict, List, Any
-import os
-import nimblephysics as nimble
-import opensim as osim
-import numpy as np
-from inspect import getsourcefile
 
 TESTS_PATH = os.path.dirname(getsourcefile(lambda:0))
 TEST_DATA_PATH = os.path.join(TESTS_PATH, 'data')
