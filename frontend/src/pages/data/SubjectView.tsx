@@ -29,7 +29,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const subjectState: SubjectViewState = home.getSubjectViewState(path);
     const subjectJson = subjectState.subjectJson;
     const readyFlagFile = subjectState.readyFlagFile;
-    const incompleteSubjectFlagFlagFile = subjectState.incompleteSubjectFlagFlagFile;
+    const incompleteSubjectFlagFile = subjectState.incompleteSubjectFlagFile;
     const processingFlagFile = subjectState.processingFlagFile;
     const slurmFlagFile = subjectState.slurmFlagFile;
     const errorFlagFile = subjectState.errorFlagFile;
@@ -75,7 +75,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     // Check on the existence of each flag unconditionally, to ensure that MobX updates if the flags change
     const resultsExist = subjectState.resultsExist;
     const readyFlagExists = readyFlagFile.exists && !readyFlagFile.loading;
-    const incompleteSubjectFlagExists = incompleteSubjectFlagFlagFile.exists && !incompleteSubjectFlagFlagFile.loading;
+    const incompleteSubjectFlagExists = incompleteSubjectFlagFile.exists && !incompleteSubjectFlagFile.loading;
     const errorFlagExists = errorFlagFile.exists && !errorFlagFile.loading;
     const processingFlagExists = processingFlagFile.exists && !processingFlagFile.loading;
     const slurmFlagExists = slurmFlagFile.exists && !slurmFlagFile.loading;
@@ -114,7 +114,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     /////////////////////////////////////////////////////////////////////////
 
     // 0. We're still loading
-    if (subjectState.loading || subjectJson.isLoadingFirstTime() || readyFlagFile.loading || processingFlagFile.loading || incompleteSubjectFlagFlagFile.loading) {
+    if (subjectState.loading || subjectJson.isLoadingFirstTime() || readyFlagFile.loading || processingFlagFile.loading || incompleteSubjectFlagFile.loading) {
         return <div>Loading...</div>;
     }
 
