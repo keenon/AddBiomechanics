@@ -18,6 +18,7 @@ type DropFileProps = {
   text?: string;
   hideDate?: boolean;
   required?: boolean;
+  original_name?: string;
 };
 
 const DropFile = observer((props: DropFileProps) => {
@@ -70,15 +71,15 @@ const DropFile = observer((props: DropFileProps) => {
       if (metadata != null) {
         const file: FileMetadata = metadata;
         if (props.hideDate) {
-          body = <>Uploaded <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b></>
-          body_download = <Button className="btn-light DropFile__light_button form-text" onClick={() => props.file.download()}>
+          body = <>Uploaded <b>{path.basename(path.dirname(file.key)) + ".trc"} - {humanFileSize(file.size)}</b></>
+          body_download = <Button className="btn-light DropFile__light_button form-text" onClick={() => props.file.download(path.basename(path.dirname(file.key)) + ".trc")}>
             <i className="mdi mdi-download me-2 vertical-middle"></i>
             Download {/*<b>{path.basename(file.key)}</b> - */} <b>{humanFileSize(file.size)}</b>
           </Button>
         }
         else {
-          body = <>Uploaded <b>{path.basename(file.key)}</b> on {format(file.lastModified.toString(), 'yyyy/MM/dd kk:mm:ss')} - {humanFileSize(file.size)}</>
-          body_download = <Button className="btn-light DropFile__light_button form-text" onClick={() => props.file.download()}>
+          body = <>Uploaded <b>{path.basename(path.dirname(file.key)) + ".trc"}</b> on {format(file.lastModified.toString(), 'yyyy/MM/dd kk:mm:ss')} - {humanFileSize(file.size)}</>
+          body_download = <Button className="btn-light DropFile__light_button form-text" onClick={() => props.file.download(path.basename(path.dirname(file.key)) + ".trc")}>
             <i className="mdi mdi-download me-2 vertical-middle"></i>
             Download {/*<b>{path.basename(file.key)}</b> - */} <b>{humanFileSize(file.size)}</b>
           </Button>
