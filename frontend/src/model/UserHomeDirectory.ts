@@ -6,7 +6,7 @@ import SubjectViewState from "./SubjectViewState";
 
 type PathType = 'dataset' | 'subject' | 'trial' | 'trial_segment' | 'trials_folder' | '404' | 'loading';
 
-type PathStatus = 'loading' | 'dataset' | 'needs_data' | 'ready_to_process' | 'waiting_for_server' | 'slurm' | 'processing' | 'error' | 'needs_review' | 'done';
+type PathStatus = 'loading' | 'dataset' | 'needs_data' | 'ready_to_process' | 'waiting_for_server' | 'slurm' | 'processing' | 'error' | 'needs_review' | 'done' | 'incomplete';
 
 type DatasetContents = {
     loading: boolean;
@@ -24,6 +24,7 @@ type SubjectContents = {
     resultsJsonPath: string;
     processingFlagFile: LiveFile; // "PROCESSING"
     readyFlagFile: LiveFile; // "READY_TO_PROCESS"
+    incompleteSubjectFlagFile: LiveFile; // "INCOMPLETE"
     errorFlagFile: LiveFile; // "ERROR"
 
     trials: TrialContents[]
@@ -321,6 +322,9 @@ class UserHomeDirectory {
             else if (child_files.includes('SLURM')) {
                 return 'slurm';
             }
+            else if (child_files.includes('INCOMPLETE')) {
+              return 'incomplete';
+            }
             else if (child_files.includes('READY_TO_PROCESS')) {
                 return 'waiting_for_server';
             }
@@ -457,7 +461,7 @@ class UserHomeDirectory {
         for (let folder of pathData.folders) {
             if (this.getPathType(folder) === 'subject') {
                 const status = this.getPathStatus(folder);
-                if (status !== 'waiting_for_server' && status !== 'slurm' && status !== 'processing') {
+                if (status !== 'waiting_for_server' && status !== 'slurm' && status !== 'processing' && status !== 'incomplete') {
                     await this.getSubjectViewState(folder).reprocess();
                 }
                 else {
@@ -479,6 +483,7 @@ class UserHomeDirectory {
     }
 
     createSubject(path: string, folderName: string): Promise<void> {
+        this.getSubjectContents(path + "/" + folderName).incompleteSubjectFlagFile.uploadFlag();
         return new Promise(async (resolve, reject) => {
             try {
                 const dir = this.dir;
@@ -624,6 +629,7 @@ class UserHomeDirectory {
 
             const processingFlagFile: LiveFile = dir.getLiveFile(path + "/PROCESSING");
             const readyFlagFile: LiveFile = dir.getLiveFile(path + "/READY_TO_PROCESS");
+            const incompleteSubjectFlagFile: LiveFile = dir.getLiveFile(path + "/INCOMPLETE")
             const errorFlagFile: LiveFile = dir.getLiveFile(path + "/ERROR");
 
             subject = {
@@ -636,6 +642,7 @@ class UserHomeDirectory {
                 }).includes(resultsJsonPath) ?? false,
                 processingFlagFile,
                 readyFlagFile,
+                incompleteSubjectFlagFile,
                 errorFlagFile,
                 trials: trialsPathData?.folders.map((folder) => this.getTrialContents(folder)) ?? []
             };

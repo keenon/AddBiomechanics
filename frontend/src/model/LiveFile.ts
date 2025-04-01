@@ -81,8 +81,8 @@ class LiveFile {
     /**
      * This downloads a file
      */
-    download(): void {
-        return this.dir.downloadFile(this.path);
+    download(download_name = ""): void {
+        return this.dir.downloadFile(this.path, download_name);
     }
 
     /**

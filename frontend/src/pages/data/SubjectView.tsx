@@ -29,6 +29,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     const subjectState: SubjectViewState = home.getSubjectViewState(path);
     const subjectJson = subjectState.subjectJson;
     const readyFlagFile = subjectState.readyFlagFile;
+    const incompleteSubjectFlagFile = subjectState.incompleteSubjectFlagFile;
     const processingFlagFile = subjectState.processingFlagFile;
     const slurmFlagFile = subjectState.slurmFlagFile;
     const errorFlagFile = subjectState.errorFlagFile;
@@ -74,6 +75,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     // Check on the existence of each flag unconditionally, to ensure that MobX updates if the flags change
     const resultsExist = subjectState.resultsExist;
     const readyFlagExists = readyFlagFile.exists && !readyFlagFile.loading;
+    const incompleteSubjectFlagExists = incompleteSubjectFlagFile.exists && !incompleteSubjectFlagFile.loading;
     const errorFlagExists = errorFlagFile.exists && !errorFlagFile.loading;
     const processingFlagExists = processingFlagFile.exists && !processingFlagFile.loading;
     const slurmFlagExists = slurmFlagFile.exists && !slurmFlagFile.loading;
@@ -112,7 +114,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     /////////////////////////////////////////////////////////////////////////
 
     // 0. We're still loading
-    if (subjectState.loading || subjectJson.isLoadingFirstTime() || readyFlagFile.loading || processingFlagFile.loading) {
+    if (subjectState.loading || subjectJson.isLoadingFirstTime() || readyFlagFile.loading || processingFlagFile.loading || incompleteSubjectFlagFile.loading) {
         return <div>Loading...</div>;
     }
 
@@ -831,6 +833,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
     );
     // If we haven't completed the form yet, then that's the only thing we need to render, along with a progress bar for filling out the form
     if (completedFormElements < totalFormElements) {
+        subjectState.markIncomplete()
         return <div className='container'>
             {subjectForm}
             <hr />
@@ -839,7 +842,8 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 {completedFormElements} of {totalFormElements} fields complete.
             </p>
         </div>
-    }
+      }
+
 
     const markerLiveFiles: LiveFile[] = [];
     for (let i = 0; i < subjectState.trials.length; i++) {
@@ -937,6 +941,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             </p>
         </div>;
         if (subjectState.canProcess()) {
+            subjectState.markReadyForProcess()
             submitButton =
                 <button className="btn btn-lg btn-primary mt-2" style={{ width: '100%' }} onClick={(e) => {
                     e.preventDefault();
@@ -945,6 +950,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 }}>Submit for Processing</button>;
         }
         else {
+            subjectState.markIncomplete()
             submitButton = <div>
                 <div>
                     <button className="btn btn-lg btn-primary mt-2" disabled style={{ width: '100%' }} onClick={(e) => {
@@ -1058,7 +1064,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     <div className="alert alert-danger my-2">
                         <h4><i className="mdi mdi-alert me-2 vertical-middle"></i>  Detected errors while processing the data!</h4>
                         <p>
-                            There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank" rel="noreferrer">Tips and Tricks page</a> for more suggestions.
+                            There were some errors while processing the data. See our <a href="https://addbiomechanics.org/instructions.html" target="_blank" rel="noreferrer">Tips and Tricks page</a> for more suggestions, ask a question in our <a href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402" target="_blank" rel="noreferrer">Forum</a> or submit an issue to our <a href="https://github.com/keenon/AddBiomechanics/issues" target="_blank" rel="noreferrer">GitHub Repository</a>.
                         </p>
                         <hr />
                         <ul>
@@ -1199,7 +1205,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             </>;
         }
 
-        if (readyFlagExists || processingFlagExists || slurmFlagExists || waitingForServer) {
+        if (readyFlagExists || incompleteSubjectFlagExists || processingFlagExists || slurmFlagExists || waitingForServer) {
             // Check if flags were created less than 6 hours ago.
             let possibleProcessingProblem = false
 
@@ -1211,7 +1217,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             const pacificTimeOptions = { timeZone: 'America/Los_Angeles' };
             aDayAgo = new Date(aDayAgo.toLocaleString('en-US', pacificTimeOptions));
 
-            if (readyFlagExists && !resultsExist && !errorFlagExists && !processingFlagExists && !slurmFlagExists) {
+            if (readyFlagExists && !incompleteSubjectFlagExists && !resultsExist && !errorFlagExists && !processingFlagExists && !slurmFlagExists) {
                 if (readyFlagFileModified) {
                     possibleProcessingProblem = readyFlagFileModified < aDayAgo
                     console.log(readyFlagFileModified)

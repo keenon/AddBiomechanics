@@ -239,6 +239,9 @@ const DatasetView = observer((props: DatasetViewProps) => {
                     else if (status === 'ready_to_process') {
                         statusBadge = <span className="badge bg-info">Ready to Process</span>;
                     }
+                    else if (status === 'incomplete') {
+                        statusBadge = <span className="badge bg-warning">Incomplete</span>;
+                    }
                     else if (status === 'loading') {
                         statusBadge = <span className="badge bg-secondary">Loading</span>;
                     }
