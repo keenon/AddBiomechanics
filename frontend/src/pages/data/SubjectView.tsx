@@ -1142,17 +1142,21 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     <div className='col-md-12'>
                         <p>
                             <button className="btn btn-primary" onClick={async (e) => {
-                                props.home.dir.downloadFile(subjectState.resultsOsimZipPath);
+                                var t_id = showToast("Preparing download of results in OpenSim format....", "info", "Download", toast.POSITION.BOTTOM_CENTER, false)
+                                props.home.dir.downloadFile(subjectState.resultsOsimZipPath, "", false, t_id);
+
                             }}>Download Results, OpenSim Format</button>
                         </p>
                         <p>
                             <button className="btn btn-primary" onClick={async (e) => {
-                                props.home.dir.downloadFile(subjectState.resultsB3dPath);
+                                var t_id = showToast("Preparing download of results in B3D format....", "info", "Download", toast.POSITION.BOTTOM_CENTER, false)
+                                props.home.dir.downloadFile(subjectState.resultsB3dPath, "", false, t_id);
                             }}>Download Results, B3D Format</button>
                         </p>
                         <p>
                             <button className="btn btn-secondary" onClick={async (e) => {
-                                props.home.dir.downloadFile(subjectState.logPath);
+                                var t_id = showToast("Preparing download of log file....", "info", "Download", toast.POSITION.BOTTOM_CENTER, false)
+                                props.home.dir.downloadFile(subjectState.logPath, "", false, t_id);
                             }}>Download Processing Logs</button>
                         </p>
                         {reprocessButton}
