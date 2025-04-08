@@ -366,26 +366,23 @@ const DatasetView = observer((props: DatasetViewProps) => {
 
         {/* This folder is not a dataset.*/}
         {showCitationData ?
-          <Row>
-          <Col xs={3}>
-            <Row className="align-items-center">
-                <Row className="align-items-center">
-                  <div className="row mt-2">
-                    {citationDetails}
-                  </div>
-                </Row>
-            </Row>
-          </Col>
-          <Col>
-            {dataTable}
-          </Col>
-        </Row>
+          <Row className="flex-wrap">
+            <Col xs={12} md={3} className="mb-3">
+              <div className="mt-2">
+                {citationDetails}
+              </div>
+            </Col>
+
+            <Col xs={12} md={9}>
+              {dataTable}
+            </Col>
+          </Row>
         :
-        <Row>
-          <Col>
-            {dataTable}
-          </Col>
-        </Row>}
+          <Row>
+            <Col>
+              {dataTable}
+            </Col>
+          </Row>}
 
     </div>
 });
