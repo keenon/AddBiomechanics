@@ -810,7 +810,8 @@ class LiveDirectoryImpl extends LiveDirectory {
 
             // Revoke the object URL to free up memory
             window.URL.revokeObjectURL(blobURL);
-            toast.dismiss( toast_id )
+            if (toast_id !== undefined)
+              toast.dismiss( toast_id )
         });
     }
 
