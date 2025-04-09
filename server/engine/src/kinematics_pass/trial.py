@@ -145,14 +145,34 @@ class Trial:
                 trial.tags = trial_json['tags']
 
         # Load in any manual segment reviews for this trial
-        pre_loaded_review_frames: List[nimble.biomechanics.MissingGRFStatus] = []
-        segment_index = 1
+        print(f'Checking for existing trial segments at {trial_path}...')
+        for subdir in os.listdir(trial_path):
+            full_path = os.path.join(trial_path, subdir)
+            if os.path.isdir(full_path):
+                print(f'--> Found sub-directory {subdir}')
+
+        segment_paths = list()
+        segment_indexes = list()
+        current_index = 1
         while True:
-            data_path = trial_path + f'segment_{segment_index}/data.csv'
-            reviewed_path = trial_path + f'segment_{segment_index}/REVIEWED'
-            segment_json_path = trial_path + f'segment_{segment_index}/review.json'
+            segment_path = os.path.join(trial_path, f'segment_{current_index}')
+            if os.path.exists(segment_path):
+                segment_paths.append(segment_path)
+                segment_indexes.append(current_index)
+                print(f'--> Found segment {current_index} at {segment_path}')
+                current_index += 1
+            else:
+                break
+
+        pre_loaded_review_frames: List[nimble.biomechanics.MissingGRFStatus] = []
+        for segment_path, segment_index in zip(segment_paths, segment_indexes):
+            print(f"Checking manual GRF reviews in trial segment '{segment_path}'...")
+            data_path = os.path.join(segment_path, 'data.csv')
+            reviewed_path = os.path.join(segment_path, 'REVIEWED')
+            segment_json_path = os.path.join(segment_path, 'review.json')
 
             if not os.path.exists(data_path):
+                print(f'Segment {segment_index} has no file {data_path}. Skipping...')
                 break
 
             # Number of rows in data_path - 1 is the length of this segment
@@ -180,12 +200,13 @@ class Trial:
                     print(f'Segment {segment_index} has no review data.')
                 pre_loaded_review_frames += [nimble.biomechanics.MissingGRFStatus.unknown] * segment_length
 
-            segment_index += 1
         # Pad with unknown, if necessary
         if len(pre_loaded_review_frames) < len(trial.marker_observations):
             pre_loaded_review_frames += [nimble.biomechanics.MissingGRFStatus.unknown] * (len(trial.marker_observations) - len(pre_loaded_review_frames))
         assert(len(pre_loaded_review_frames) == len(trial.marker_observations))
         trial.missing_grf_manual_review = pre_loaded_review_frames
+        print(f'Manually reviewed frames for trial {trial_name}: ', 
+              trial.missing_grf_manual_review)
 
         # Set an error if there are no marker data frames
         if len(trial.marker_observations) == 0 and not trial.error:
