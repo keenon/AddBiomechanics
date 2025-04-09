@@ -151,7 +151,6 @@ class TestRajagopal2015(unittest.TestCase):
         subject = Subject()
         subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
         subject.segment_trials()
-
         subject.run_kinematics_pass(DATA_FOLDER_PATH)
         subject_on_disk = subject.create_subject_on_disk('<href>')
         add_acceleration_minimizing_pass(subject_on_disk)
