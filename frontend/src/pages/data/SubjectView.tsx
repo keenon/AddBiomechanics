@@ -11,7 +11,6 @@ import LiveFile from "../../model/LiveFile";
 import { parseLinks, showToast } from "../../utils"
 import { toast } from 'react-toastify';
 import { action } from "mobx";
-import { sub } from "date-fns";
 
 
 type SubjectViewProps = {
@@ -188,14 +187,14 @@ const SubjectView = observer((props: SubjectViewProps) => {
     // 1.2. Create the entry for the subject mass
     totalFormElements++;
     if (formCompleteSoFar) {
-        const showMassBoundsWarning = (subjectMassKg < 30 || subjectMassKg > 150) && subjectMassKg != -1;
+        const showMassBoundsWarning = (subjectMassKg < 30 || subjectMassKg > 150) && subjectMassKg !== -1;
 
         formElements.push(<div key="mass" className="mb-3">
             <label htmlFor="massInput" className="form-label">Mass (kg):</label>
             <input
                 type="number"
                 id="massInput"
-                className={"form-control" + (((subjectMassKg <= 0 && subjectMassKg != -1) || !subjectMassComplete) ? " border-primary border-2" : "") + (showMassBoundsWarning ? " border-danger border-2" : "")}
+                className={"form-control" + (((subjectMassKg <= 0 && subjectMassKg !== -1) || !subjectMassComplete) ? " border-primary border-2" : "") + (showMassBoundsWarning ? " border-danger border-2" : "")}
                 aria-describedby="massHelp"
                 value={subjectMassKg}
                 autoFocus={subjectMassKg <= 0 || !subjectMassComplete}
@@ -221,7 +220,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             </div>
         </div>);
 
-        if ((subjectMassKg <= 0 && subjectMassKg != -1) || !subjectMassComplete) {
+        if ((subjectMassKg <= 0 && subjectMassKg !== -1) || !subjectMassComplete) {
             if (subjectMassComplete) {
                 setSubjectMassComplete(false);
             }

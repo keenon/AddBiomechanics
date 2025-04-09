@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { observer } from "mobx-react-lite";
 import UserHomeDirectory, { DatasetContents, AttributionContents } from "../../model/UserHomeDirectory";
 import Session from "../../model/Session";
 import LiveJsonFile from "../../model/LiveJsonFile";
 import { Spinner, OverlayTrigger, Tooltip, Row, Col} from "react-bootstrap";
-import { toast } from 'react-toastify';
-import { parseLinks, showToast } from "../../utils"
 
 type DatasetViewProps = {
     home: UserHomeDirectory;
@@ -120,12 +118,6 @@ const DatasetView = observer((props: DatasetViewProps) => {
 //      datasetFunding = searchJsonParent?.getAttribute("funding", "")
 //      datasetAcknowledgements = searchJsonParent?.getAttribute("acknowledgements", "")
 //    }
-
-    useEffect(() => {
-      setInheritButton(inheritFromParent);
-    }, [inheritFromParent]);
-
-    const [inheritButton, setInheritButton] = useState(inheritFromParent)
 
     let parent_path = get_parent_path_absolute(path)
     const showCitationData = parent_path === "";
@@ -255,7 +247,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
                         statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
                     }
                     else if (status === 'slurm') {
-                        statusBadge = <span className="badge bg-warning">Queued on SLURM</span>;
+                        statusBadge = <span className="badge bg-warning">Queued on Sherlock</span>;
                     }
                     else if (status === 'needs_data') {
                         statusBadge = <span className="badge bg-secondary">Needs Data</span>;
