@@ -172,7 +172,7 @@ class Trial:
             segment_json_path = os.path.join(segment_path, 'review.json')
 
             if not os.path.exists(data_path):
-                print(f'Segment {segment_index} has no file {data_path}. Skipping...')
+                print(f' --> Segment {segment_index} has no file {data_path}. Skipping...')
                 break
 
             # Number of rows in data_path - 1 is the length of this segment
@@ -185,6 +185,7 @@ class Trial:
                     # Some early versions of the annotator would (harmlessly) tack on extra frames to the end of the
                     # segment, so we need to make sure we don't read in too many frames.
                     assert(len(segment_json['missing_grf_data']) == segment_length)
+                    print(f' --> Found review data in segment {segment_index}!.')
                     pre_loaded_review_frames += [
                         nimble.biomechanics.MissingGRFStatus.yes if missing else nimble.biomechanics.MissingGRFStatus.no
                         for missing in segment_json['missing_grf_data'][0:segment_length]
@@ -193,11 +194,11 @@ class Trial:
                     pre_loaded_review_frames += [nimble.biomechanics.MissingGRFStatus.unknown] * segment_length
             else:
                 if os.path.exists(reviewed_path):
-                    print(f'Segment {segment_index} has no review data, but it has a REVIEWED flag.')
+                    print(f' --> Segment {segment_index} has no review data, but it has a REVIEWED flag.')
                 elif os.path.exists(segment_json_path):
-                    print(f'Segment {segment_index} has no REVIEWED flag, but it has a review.json file.')
+                    print(f' --> Segment {segment_index} has no REVIEWED flag, but it has a review.json file.')
                 else:
-                    print(f'Segment {segment_index} has no review data.')
+                    print(f' --> Segment {segment_index} has no review data.')
                 pre_loaded_review_frames += [nimble.biomechanics.MissingGRFStatus.unknown] * segment_length
 
         # Pad with unknown, if necessary
