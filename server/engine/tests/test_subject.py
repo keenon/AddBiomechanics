@@ -155,26 +155,7 @@ class TestRajagopal2015(unittest.TestCase):
         subject_on_disk = subject.create_subject_on_disk('<href>')
         add_acceleration_minimizing_pass(subject_on_disk)
         classification_pass(subject_on_disk)
-    
-        # The "missing GRF detection" step removes many valid timesteps due to the set 
-        # ground reaction force heuristics. Manually set the valid ground reactions 
-        # time range to [0.6, 1.75].
-        header_proto = subject_on_disk.getHeaderProto()
-        trial_protos = header_proto.getTrials()
-        dt = trial_protos[0].getTimestep()
-        start_time = trial_protos[0].getOriginalTrialStartTime()
-        end_time = trial_protos[0].getOriginalTrialEndTime()
-        times = np.arange(start_time, end_time, dt)
-
-        missing_grf: List[nimble.biomechanics.MissingGRFReason] = []
-        for time in times:
-            if time > 0.6 and time < 1.75:
-                missing_grf.append(nimble.biomechanics.MissingGRFReason.notMissingGRF)
-            else:
-                missing_grf.append(nimble.biomechanics.MissingGRFReason.zeroForceFrame)
-        trial_protos[0].setMissingGRFReason(missing_grf)
-
-        # Run the dynamics and Moco pass.
+        missing_grf_detection(subject_on_disk)
         dynamics_pass(subject_on_disk)
         # b3d_path = os.path.join(path, 'rajagopal2015.b3d')
         # subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
