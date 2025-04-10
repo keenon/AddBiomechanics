@@ -37,9 +37,17 @@ const DropFile = observer((props: DropFileProps) => {
     if (exists) {
       if (metadata != null) {
         const file: FileMetadata = metadata;
-        return (<Button className="btn-light ml-2" onClick={() => props.file.download()}>
+        const file_path:string = metadata.key;
+        let fileName: string = "";
+
+        if (path.basename(file_path).split('.').pop() === "trc" || path.basename(file_path).split('.').pop() === "mot")
+          fileName = path.basename(path.dirname(file_path)) + "." + path.basename(file_path).split('.').pop();
+        else
+          fileName = path.basename(file_path)
+        console.log(fileName)
+        return (<Button className="btn-light ml-2" onClick={() => props.file.download(fileName)}>
           <i className="mdi mdi-download me-2 vertical-middle middle"></i>
-          Download <b>{path.basename(file.key)} - {humanFileSize(file.size)}</b>
+          Download <b>{fileName} - {humanFileSize(file.size)}</b>
         </Button>);
       }
       else {
@@ -77,14 +85,14 @@ const DropFile = observer((props: DropFileProps) => {
           fileName = path.basename(file.key)
         if (props.hideDate) {
           body = <>Uploaded <b>{fileName} - {humanFileSize(file.size)}</b></>
-          body_download = <Button className="btn-light DropFile__light_button form-text" onClick={() => props.file.download(path.basename(path.dirname(file.key)) + ".trc")}>
+          body_download = <Button className="btn-light DropFile__light_button form-text" onClick={() => props.file.download(fileName)}>
             <i className="mdi mdi-download me-2 vertical-middle"></i>
             Download {/*<b>{path.basename(file.key)}</b> - */} <b>{humanFileSize(file.size)}</b>
           </Button>
         }
         else {
           body = <>Uploaded <b>{fileName}</b> on {format(file.lastModified.toString(), 'yyyy/MM/dd kk:mm:ss')} - {humanFileSize(file.size)}</>
-          body_download = <Button className="btn-light DropFile__light_button form-text" onClick={() => props.file.download(path.basename(path.dirname(file.key)) + ".trc")}>
+          body_download = <Button className="btn-light DropFile__light_button form-text" onClick={() => props.file.download(fileName)}>
             <i className="mdi mdi-download me-2 vertical-middle"></i>
             Download {/*<b>{path.basename(file.key)}</b> - */} <b>{humanFileSize(file.size)}</b>
           </Button>

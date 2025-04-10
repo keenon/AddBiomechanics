@@ -796,6 +796,9 @@ class LiveDirectoryImpl extends LiveDirectory {
         if (show_alert) {
           alert("Preparing download for: " + path.split('/').reverse()[0]);
         }
+        if (download_name === "") {
+            download_name = path.split('/').reverse()[0]
+        }
         this.getSignedURL(path, 3600).then(async (url) => {
             const response = await fetch(url);
             const blob = await response.blob();
