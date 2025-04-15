@@ -215,6 +215,8 @@ class Subject(metaclass=ExceptionHandlingMeta):
 
         if self.skeletonPreset == 'vicon' or self.skeletonPreset == 'cmu' or self.skeletonPreset == 'complete':
             self.footBodyNames = ['calcn_l', 'calcn_r']
+        elif self.skeletonPreset == "opencap-full" or self.skeletonPreset == "opencap-full-shoulder":
+            self.bootBodyNames = ['toes_l', 'toes_r']
         elif 'footBodyNames' in subject_json:
             self.footBodyNames = subject_json['footBodyNames']
 
@@ -244,6 +246,12 @@ class Subject(metaclass=ExceptionHandlingMeta):
                         subject_path + 'unscaled_generic.osim')
         elif self.skeletonPreset == 'cmu':
             shutil.copy(data_folder_path + '/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
+                        subject_path + 'unscaled_generic.osim')
+        elif self.skeletonPreset == "opencap-full":
+            shutil.copy(data_folder_path + '/PresetSkeletons/LaiUhlrich.osim',
+                        subject_path + 'unscaled_generic.osim')
+        elif self.skeletonPreset ==" opencap-full-shoulder":
+            shutil.copy(data_folder_path + '/PresetSkeletons/LaiUhlrich_shoulder.osim',
                         subject_path + 'unscaled_generic.osim')
         elif self.skeletonPreset == 'complete':
             shutil.copy(data_folder_path + '/PresetSkeletons/CompleteHumanModel.osim',
