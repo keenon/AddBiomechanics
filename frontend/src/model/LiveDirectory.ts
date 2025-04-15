@@ -3,6 +3,7 @@ import { FileMetadata, S3API } from "./S3API";
 import { makeObservable, action, observable, ObservableMap } from 'mobx';
 import LiveJsonFile from "./LiveJsonFile";
 import LiveFile from "./LiveFile";
+import { toast } from 'react-toastify';
 
 type PathData = {
     loading: boolean;
@@ -42,7 +43,7 @@ abstract class LiveDirectory {
 
     abstract getSignedURL(path: string, expiresIn: number): Promise<string>;
     abstract downloadText(path: string): Promise<string>;
-    abstract downloadFile(path: string, download_name?: string): void;
+    abstract downloadFile(path: string, download_name?: string, show_alert?: boolean, toast_id?: any): void;
     abstract uploadText(path: string, text: string): Promise<void>;
     abstract uploadFile(path: string, contents: File, progressCallback: (percentage: number) => void): Promise<void>;
     getJsonFile(path: string): LiveJsonFile {
@@ -791,8 +792,13 @@ class LiveDirectoryImpl extends LiveDirectory {
         return this.s3.downloadText(this.normalizePath(path));
     }
 
-    downloadFile(path: string, download_name = ""): void {
-        alert(download_name);
+    downloadFile(path: string, download_name = "", show_alert = true, toast_id = undefined): void {
+        if (show_alert) {
+          alert("Preparing download for: " + path.split('/').reverse()[0]);
+        }
+        if (download_name === "") {
+            download_name = path.split('/').reverse()[0]
+        }
         this.getSignedURL(path, 3600).then(async (url) => {
             const response = await fetch(url);
             const blob = await response.blob();
@@ -807,6 +813,8 @@ class LiveDirectoryImpl extends LiveDirectory {
 
             // Revoke the object URL to free up memory
             window.URL.revokeObjectURL(blobURL);
+            if (toast_id !== undefined)
+              toast.dismiss( toast_id )
         });
     }
 

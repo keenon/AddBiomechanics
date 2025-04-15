@@ -388,7 +388,7 @@ class SubjectViewState {
      * 
      * @param files A list of files that just landed on the "Drop files here to upload" zone
      */
-    dropFilesToUpload(files: File[]): Promise<void> {
+    dropFilesToUpload(files: File[], existingTrials: string[]=[], disableDynamics=undefined): Promise<string[]> {
         let markerFiles: Map<string, File> = new Map();
         let grfFiles: Map<string, File> = new Map();
         for (let i = 0; i < files.length; i++) {
@@ -404,14 +404,19 @@ class SubjectViewState {
         // De-duplicate trialNames
         const trialNames: string[] = [...new Set([...markerFiles.keys(), ...grfFiles.keys()])];
 
+        const excludedNames: string[] = [...grfFiles.keys()].filter(name => !markerFiles.has(name) && !existingTrials.includes(name));
+
+        const includedTrials: string[] = trialNames.filter(name => !excludedNames.includes(name));
+
+
         // Ensure all the trialPaths are in this.uploadedTrialPaths
-        for (let name of trialNames) {
+        for (let name of includedTrials) {
             this.uploadedTrialPaths.set(this.path + '/trials/' + name, markerFiles.get(name)?.name ?? '');
         }
 
-        return Promise.all(trialNames.map((name) => {
+        return Promise.all(includedTrials.map((name) => {
             return this.home.createTrial(this.path, name, markerFiles.get(name), grfFiles.get(name));
-        })).then(() => {});
+        })).then(() => {return excludedNames});
     }
 
     /**
