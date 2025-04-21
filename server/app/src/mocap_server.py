@@ -257,33 +257,34 @@ class SubjectToProcess:
             # inefficient), but hopefully it reduces collisions.
             self.pushProcessingFlag(procLogTopic)
 
-            # 2. Download the files to a tmp folder
-            path = tempfile.mkdtemp()
-            if not path.endswith('/'):
-                path += '/'
-            self.index.download(self.subjectStatusFile, path+'_subject.json')
-            if self.index.exists(self.opensimFile):
-                self.index.download(self.opensimFile, path +
-                                    'unscaled_generic.osim')
-            if self.index.exists(self.goldscalesFile):
-                self.index.download(self.goldscalesFile,
-                                    path+'manually_scaled.osim')
-            trialsFolderPath = path + 'trials/'
-            os.mkdir(trialsFolderPath)
-            for trialName in self.trials:
-                self.trials[trialName].download(trialsFolderPath)
-                self.trials[trialName].updateTrialSize(trialsFolderPath)
-
-            print('Done downloading, ready to process', flush=True)
-
-            # 3. That download can take a while, so re-up our processing soft-lock
-            self.pushProcessingFlag(procLogTopic)
-
-            # 4. Launch a processing process
-            enginePath = absPath('../../engine/src/engine.py')
-            print('Calling Command:\n'+enginePath+' ' +
-                  path+' '+self.subjectName+' '+self.getHref(), flush=True)
             with open(path + 'log.txt', 'wb+') as logFile:
+                # 2. Download the files to a tmp folder
+                path = tempfile.mkdtemp()
+                if not path.endswith('/'):
+                    path += '/'
+                self.index.download(self.subjectStatusFile, path+'_subject.json')
+                if self.index.exists(self.opensimFile):
+                    self.index.download(self.opensimFile, path +
+                                        'unscaled_generic.osim')
+                if self.index.exists(self.goldscalesFile):
+                    self.index.download(self.goldscalesFile,
+                                        path+'manually_scaled.osim')
+                trialsFolderPath = path + 'trials/'
+                os.mkdir(trialsFolderPath)
+                for trialName in self.trials:
+                    self.trials[trialName].download(trialsFolderPath)
+                    self.trials[trialName].updateTrialSize(trialsFolderPath)
+
+                print('Done downloading, ready to process', flush=True)
+
+                # 3. That download can take a while, so re-up our processing soft-lock
+                self.pushProcessingFlag(procLogTopic)
+
+                # 4. Launch a processing process
+                enginePath = absPath('../../engine/src/engine.py')
+                print('Calling Command:\n'+enginePath+' ' +
+                    path+' '+self.subjectName+' '+self.getHref(), flush=True)
+                
                 with subprocess.Popen([enginePath, path, self.subjectName, self.getHref()], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as proc:
                     print('Process created: '+str(proc.pid), flush=True)
 
