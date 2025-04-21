@@ -56,10 +56,14 @@ class TrialToProcess:
         self.plotCSVFile = self.trialPath + 'plot.csv'
 
     def download(self, trialsFolderPath: str):
+        print(f'self.trialPath: {self.trialPath}')
+        print(f'trialsFolderPath: {trialsFolderPath}')
+        print(f'self.trialName: {self.trialName}')
+
         file_system_trial_path = trialsFolderPath + self.trialName
         os.mkdir(file_system_trial_path)
 
-        all_children: Dict[str, FileMetadata] = self.index.getChildren(self.trialPath)
+        print(f'File system trial path: {file_system_trial_path}')
 
         if self.index.exists(self.c3dFile):
             self.index.download(self.c3dFile, file_system_trial_path+'markers.c3d')
@@ -69,8 +73,13 @@ class TrialToProcess:
             self.index.download(self.grfFile, file_system_trial_path+'grf.mot')
         if self.index.exists(self.goldIKFile):
             self.index.download(self.goldIKFile, file_system_trial_path+'manual_ik.mot')
+
+        print(f'Children of {self.trialPath}:')
+        all_children: Dict[str, FileMetadata] = self.index.getChildren(self.trialPath)
         for child in all_children:
+            print(f' --> {child}')
             if child.endswith('.json') or child.endswith('REVIEWED') or child.endswith('.csv'):
+                print (f' --> Downloading {child}')
                 os.makedirs(os.path.dirname(file_system_trial_path+child), exist_ok=True)
                 self.index.download(self.trialPath+child, file_system_trial_path+child)
 
@@ -247,7 +256,6 @@ class SubjectToProcess:
         This tries to download the whole set of necessary files, launch the processor, and re-upload the results,
         while also managing the processing flag age.
         """
-        print('Processing Subject '+str(self.subjectPath), flush=True)
 
         try:
             procLogTopic = str(uuid.uuid4())
@@ -258,6 +266,8 @@ class SubjectToProcess:
             self.pushProcessingFlag(procLogTopic)
 
             with open(path + 'log.txt', 'wb+') as logFile:
+                print('Processing Subject '+str(self.subjectPath), flush=True)
+
                 # 2. Download the files to a tmp folder
                 path = tempfile.mkdtemp()
                 if not path.endswith('/'):
