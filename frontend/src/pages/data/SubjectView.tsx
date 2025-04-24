@@ -1036,7 +1036,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <div className="dz-message needsclick">
                     <i className="h3 text-muted dripicons-cloud-upload"></i>
                     <h5>
-                        "Drop C3D or TRC files here to create trials. You can also drop MOT files, but they must have a TRC or C3D file associated (same name)."
+                        Drop C3D or TRC files here to create trials. You can also drop MOT files, but they must have a TRC or C3D file associated (same name).
                     </h5>
                     <span className="text-muted font-13">
                         (You can drop multiple files at once to create multiple
