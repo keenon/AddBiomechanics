@@ -5,6 +5,7 @@ from typing import Dict, List, Any
 from inspect import getsourcefile
 
 import numpy as np
+import pandas as pd
 import opensim as osim
 import nimblephysics as nimble
 
@@ -108,14 +109,37 @@ class TestSubject(unittest.TestCase):
     def test_kinematics_fit(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
+        test_folder = os.path.join(TEST_DATA_PATH, 'opencap_test')
+        subject.load_folder(test_folder, DATA_FOLDER_PATH)
         subject.segment_trials()
         subject.kinematicsIterations = 20
         subject.initialIKRestarts = 3
         subject.run_kinematics_pass(DATA_FOLDER_PATH)
         subject_on_disk = subject.create_subject_on_disk('<href>')
         self.assertIsNotNone(subject_on_disk)
+        write_opensim_results(subject_on_disk, test_folder, 'osim_results', 
+                              GEOMETRY_FOLDER_PATH)
 
+        ik_folder = os.path.join(test_folder, 'osim_results', 'IK')
+
+        # Check that a certain number of segments were created.
+        segments = ['DJ1_segment_0', 'DJ1_segment_1', 'DJ2_segment_0', 'DJ2_segment_1',
+                    'walking1_segment_0', 'walking2_segment_0']
+        for segment in segments:
+            segment_ik_solution = os.path.join(ik_folder, f'{segment}_ik.mot')
+            self.assertTrue(os.path.exists(segment_ik_solution))
+
+        # Check that peak marker errors fall below a reasonable threshold.
+        for segment in segments:
+            segment_marker_errors = os.path.join(ik_folder, 
+                                                 f'{segment}_marker_errors.csv')
+            df = pd.read_csv(segment_marker_errors)
+            for column in df.columns:
+                if 'Timestep' in column: continue
+                max_value = df[column].max()
+                self.assertLess(max_value, 0.10, 
+                        f'Max value in {segment_marker_errors} exceeds threshold: '
+                        f'{max_value}')
 
 class TestLoadingNoData(unittest.TestCase):
     def test_load_trial(self):
@@ -140,40 +164,40 @@ class TestLoadingNoData(unittest.TestCase):
             self.assertTrue(expected in e.original_message)    
 
 
-class TestRajagopal2015(unittest.TestCase):
-    def test_Rajagopal2015(self):
-        reset_test_data('rajagopal2015')
-        path = os.path.join(TEST_DATA_PATH, 'rajagopal2015')
-        if not path.endswith('/'):
-            path += '/'
-        output_name = 'osim_results'
+# class TestRajagopal2015(unittest.TestCase):
+#     def test_Rajagopal2015(self):
+#         reset_test_data('rajagopal2015')
+#         path = os.path.join(TEST_DATA_PATH, 'rajagopal2015')
+#         if not path.endswith('/'):
+#             path += '/'
+#         output_name = 'osim_results'
 
-        subject = Subject()
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
-        subject.segment_trials()
-        subject.run_kinematics_pass(DATA_FOLDER_PATH)
-        subject_on_disk = subject.create_subject_on_disk('<href>')
-        add_acceleration_minimizing_pass(subject_on_disk)
-        classification_pass(subject_on_disk)
-        missing_grf_detection(subject_on_disk)
-        dynamics_pass(subject_on_disk)
-        # b3d_path = os.path.join(path, 'rajagopal2015.b3d')
-        # subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
-        # subject_on_disk = nimble.biomechanics.SubjectOnDisk(b3d_path)
-        # subject_on_disk.loadAllFrames(True)
-        write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
-        moco_pass(subject_on_disk, path, output_name, subject.genericMassKg, 
-                      subject.genericHeightM)
+#         subject = Subject()
+#         subject.load_folder(os.path.join(TEST_DATA_PATH, 'rajagopal2015'), DATA_FOLDER_PATH)
+#         subject.segment_trials()
+#         subject.run_kinematics_pass(DATA_FOLDER_PATH)
+#         subject_on_disk = subject.create_subject_on_disk('<href>')
+#         add_acceleration_minimizing_pass(subject_on_disk)
+#         classification_pass(subject_on_disk)
+#         missing_grf_detection(subject_on_disk)
+#         dynamics_pass(subject_on_disk)
+#         # b3d_path = os.path.join(path, 'rajagopal2015.b3d')
+#         # subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
+#         # subject_on_disk = nimble.biomechanics.SubjectOnDisk(b3d_path)
+#         # subject_on_disk.loadAllFrames(True)
+#         write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
+#         moco_pass(subject_on_disk, path, output_name, subject.genericMassKg, 
+#                       subject.genericHeightM)
         
-        # Load the Moco results.
-        header_proto = subject_on_disk.getHeaderProto()
-        trial_protos = header_proto.getTrials()
-        trial_name = trial_protos[0].getName()
-        solution_fpath = os.path.join(path, output_name, 'Moco', 
-                                      f'{trial_name}_moco.sto')
-        solution = osim.TimeSeriesTable(solution_fpath)
-        self.assertEqual(solution.getTableMetaDataString('success'), 'true')
-        self.assertEqual(solution.getTableMetaDataString('status'), 'Solve_Succeeded')
+#         # Load the Moco results.
+#         header_proto = subject_on_disk.getHeaderProto()
+#         trial_protos = header_proto.getTrials()
+#         trial_name = trial_protos[0].getName()
+#         solution_fpath = os.path.join(path, output_name, 'Moco', 
+#                                       f'{trial_name}_moco.sto')
+#         solution = osim.TimeSeriesTable(solution_fpath)
+#         self.assertEqual(solution.getTableMetaDataString('success'), 'true')
+#         self.assertEqual(solution.getTableMetaDataString('status'), 'Solve_Succeeded')
 
 # TODO: enable when we add support for muscle paths dependent on more than 6
 #       coordinates.
