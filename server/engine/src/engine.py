@@ -85,10 +85,13 @@ class Engine(metaclass=ExceptionHandlingMeta):
         self.subject.load_folder(self.path, DATA_FOLDER_PATH)
 
     def run_preprocessing(self):
+
+        # TODO: This too aggressively modifies already clean data. Need to revisit.
         # This will attempt to un-swap the marker data, by using a number of beam 
         # search heuristics.
-        print('Cleaning marker data', flush=True)
-        self.subject.clean_marker_traces()
+        # print('Cleaning marker data', flush=True)
+        # self.subject.clean_marker_traces()
+
         # This auto-segments the trials, without throwing away any segments. The 
         # segments are split based on which parts of the trial have GRF data, and also 
         # based on ensuring that the segments don't get beyond a certain length.
