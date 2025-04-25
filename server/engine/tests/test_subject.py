@@ -5,6 +5,7 @@ from typing import Dict, List, Any
 from inspect import getsourcefile
 
 import numpy as np
+import pandas as pd
 import opensim as osim
 import nimblephysics as nimble
 
@@ -108,14 +109,37 @@ class TestSubject(unittest.TestCase):
     def test_kinematics_fit(self):
         subject = Subject()
         reset_test_data('opencap_test')
-        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
+        test_folder = os.path.join(TEST_DATA_PATH, 'opencap_test')
+        subject.load_folder(test_folder, DATA_FOLDER_PATH)
         subject.segment_trials()
         subject.kinematicsIterations = 20
         subject.initialIKRestarts = 3
         subject.run_kinematics_pass(DATA_FOLDER_PATH)
         subject_on_disk = subject.create_subject_on_disk('<href>')
         self.assertIsNotNone(subject_on_disk)
+        write_opensim_results(subject_on_disk, test_folder, 'osim_results', 
+                              GEOMETRY_FOLDER_PATH)
 
+        ik_folder = os.path.join(test_folder, 'osim_results', 'IK')
+
+        # Check that a certain number of segments were created.
+        segments = ['DJ1_segment_0', 'DJ1_segment_1', 'DJ2_segment_0', 'DJ2_segment_1',
+                    'walking1_segment_0', 'walking2_segment_0']
+        for segment in segments:
+            segment_ik_solution = os.path.join(ik_folder, f'{segment}_ik.mot')
+            self.assertTrue(os.path.exists(segment_ik_solution))
+
+        # Check that peak marker errors fall below a reasonable threshold.
+        for segment in segments:
+            segment_marker_errors = os.path.join(ik_folder, 
+                                                 f'{segment}_marker_errors.csv')
+            df = pd.read_csv(segment_marker_errors)
+            for column in df.columns:
+                if 'Timestep' in column: continue
+                max_value = df[column].max()
+                self.assertLess(max_value, 0.15, 
+                        f'Max value in {segment_marker_errors} exceeds threshold: '
+                        f'{max_value}')
 
 class TestLoadingNoData(unittest.TestCase):
     def test_load_trial(self):

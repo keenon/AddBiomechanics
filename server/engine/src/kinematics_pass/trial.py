@@ -206,8 +206,6 @@ class Trial:
             pre_loaded_review_frames += [nimble.biomechanics.MissingGRFStatus.unknown] * (len(trial.marker_observations) - len(pre_loaded_review_frames))
         assert(len(pre_loaded_review_frames) == len(trial.marker_observations))
         trial.missing_grf_manual_review = pre_loaded_review_frames
-        print(f'Manually reviewed frames for trial {trial_name}: ', 
-              trial.missing_grf_manual_review)
 
         # Set an error if there are no marker data frames
         if len(trial.marker_observations) == 0 and not trial.error:
