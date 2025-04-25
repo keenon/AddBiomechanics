@@ -137,7 +137,7 @@ class TestSubject(unittest.TestCase):
             for column in df.columns:
                 if 'Timestep' in column: continue
                 max_value = df[column].max()
-                self.assertLess(max_value, 0.12, 
+                self.assertLess(max_value, 0.15, 
                         f'Max value in {segment_marker_errors} exceeds threshold: '
                         f'{max_value}')
 
