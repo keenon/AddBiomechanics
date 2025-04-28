@@ -36,6 +36,9 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     // Show or hide extended log.
     const [showLog, setShowLog] = useState<boolean>(false);
+    // Show or hide fit physics info.
+    const [showFitPhysicsInfo, setShowFitPhysicsInfo] = useState(false);
+
 
     // Informative toast
     // showToast(
@@ -478,11 +481,32 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <option value="false">Fit Physics</option>
                 <option value="true">Do Not Fit Physics</option>
             </select>
-            <div id="physicsHelp" className="form-text">Should AddBiomechanics use ground reaction force data?</div>
+            <div id="physicsHelp" className="form-text">Should AddBiomechanics use ground reaction force data?
+                <button
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    font: 'inherit',
+                    cursor: 'pointer',
+                    outline: 'inherit',
+                    color: 'inherit'
+                  }}
+                  onClick={() => showFitPhysicsInfo ? setShowFitPhysicsInfo(false) : setShowFitPhysicsInfo(true)}
+                  aria-label="More information"
+                >
+                  ⓘ
+                </button>
+            </div>
         </div>);
 
         if (disableDynamics == null) {
             formCompleteSoFar = false;
+        }
+        else {
+            completedFormElements++;
+        }
+
+        if (disableDynamics == null || showFitPhysicsInfo) {
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
                 <h4 className="alert-heading">Should I Fit Physics Data?</h4>
                 <p>
@@ -496,9 +520,6 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     You can disable this behavior by selecting "Do Not Fit Physics".
                 </p>
             </div>);
-        }
-        else {
-            completedFormElements++;
         }
     }
 
