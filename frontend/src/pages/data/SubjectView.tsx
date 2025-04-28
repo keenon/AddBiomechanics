@@ -11,7 +11,6 @@ import LiveFile from "../../model/LiveFile";
 import { parseLinks, showToast } from "../../utils"
 import { toast } from 'react-toastify';
 import { action } from "mobx";
-import { sub } from "date-fns";
 
 
 type SubjectViewProps = {
@@ -188,14 +187,14 @@ const SubjectView = observer((props: SubjectViewProps) => {
     // 1.2. Create the entry for the subject mass
     totalFormElements++;
     if (formCompleteSoFar) {
-        const showMassBoundsWarning = (subjectMassKg < 30 || subjectMassKg > 150) && subjectMassKg != -1;
+        const showMassBoundsWarning = (subjectMassKg < 30 || subjectMassKg > 150) && subjectMassKg !== -1;
 
         formElements.push(<div key="mass" className="mb-3">
             <label htmlFor="massInput" className="form-label">Mass (kg):</label>
             <input
                 type="number"
                 id="massInput"
-                className={"form-control" + (((subjectMassKg <= 0 && subjectMassKg != -1) || !subjectMassComplete) ? " border-primary border-2" : "") + (showMassBoundsWarning ? " border-danger border-2" : "")}
+                className={"form-control" + (((subjectMassKg <= 0 && subjectMassKg !== -1) || !subjectMassComplete) ? " border-primary border-2" : "") + (showMassBoundsWarning ? " border-danger border-2" : "")}
                 aria-describedby="massHelp"
                 value={subjectMassKg}
                 autoFocus={subjectMassKg <= 0 || !subjectMassComplete}
@@ -221,7 +220,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             </div>
         </div>);
 
-        if ((subjectMassKg <= 0 && subjectMassKg != -1) || !subjectMassComplete) {
+        if ((subjectMassKg <= 0 && subjectMassKg !== -1) || !subjectMassComplete) {
             if (subjectMassComplete) {
                 setSubjectMassComplete(false);
             }
@@ -856,7 +855,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
             <thead>
                 <tr>
                     <th scope="col" style={{ width: '100px', maxWidth: '30%' }}>Name</th>
-                    <th scope="col">Marker {disableDynamics ? '' : ' and Forces'} Data</th>
+                    <th scope="col">Marker and Forces Data</th>
                     <th scope="col">Tags</th>
                     <th scope="col" style={{ width: '100px' }}>Delete?</th>
                 </tr>
@@ -871,7 +870,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                             <DropFile file={markerLiveFile} accept=".c3d,.trc" readonly={props.readonly} onDrop={(files: File[]) => subjectState.dropMarkerFiles(trial, files)} />
                         </div>
                     );
-                    if (trial.trcFileExists && !trial.c3dFileExists && !disableDynamics) {
+                    if (trial.trcFileExists && !trial.c3dFileExists) {
                         const grfMotLiveFile = home.dir.getLiveFile(trial.grfMotFilePath);
                         dataFiles.push(
                             <div key='grf' className="mt-2">
@@ -946,6 +945,13 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <button className="btn btn-lg btn-primary mt-2" style={{ width: '100%' }} onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+
+                    if (disableDynamics) {
+                        alert(
+                            'Looks like you uploaded GRF data (.mot) files, but you selected "Do not Fit Physics". GRF data will be ignored.'
+                        );
+                    }
+
                     subjectState.submitForProcessing();
                 }}>Submit for Processing</button>;
         }
@@ -960,7 +966,11 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     }}>Submit for Processing</button>
                 </div>
                 <div>
-                    <span className="text-danger">Cannot submit for processing: Some trial(s) are missing markers. Please either upload marker data (trc or c3d) or detele trials with missing markers.</span>
+                    {subjectState.trials.length === 0 ? (
+                        <span className="text-danger">Cannot submit for processing: There are no trials to process. Please upload marker data (trc or c3d).</span>
+                    ) : (
+                        <span className="text-danger">Cannot submit for processing: Some trial(s) are missing markers. Please either upload marker data (trc or c3d) or delete trials with missing markers.</span>
+                    )}
                 </div>
             </div>
         }
@@ -982,7 +992,10 @@ const SubjectView = observer((props: SubjectViewProps) => {
             }
         }
 
-        subjectState.dropFilesToUpload(acceptedFiles);
+        subjectState.dropFilesToUpload(acceptedFiles, subjectState.trials.map(obj => obj.name)).then(excludedNames => {
+        if (excludedNames.length > 0)
+            alert("The following .mot files that you tried to upload have no .trc or .c3d file associated: " + excludedNames.map(name => name + ".mot").join(", ") + ". Please, assign the same name to associated .trc/.c3d and .mot files." );
+        });
     };
 
     const handleFileSelect = () => {
@@ -1023,7 +1036,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <div className="dz-message needsclick">
                     <i className="h3 text-muted dripicons-cloud-upload"></i>
                     <h5>
-                        Drop C3D or TRC files here to create trials.
+                        Drop C3D or TRC files here to create trials. You can also drop MOT files, but they must have a TRC or C3D file associated (same name).
                     </h5>
                     <span className="text-muted font-13">
                         (You can drop multiple files at once to create multiple
@@ -1128,17 +1141,21 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     <div className='col-md-12'>
                         <p>
                             <button className="btn btn-primary" onClick={async (e) => {
-                                props.home.dir.downloadFile(subjectState.resultsOsimZipPath);
+                                var t_id = showToast("Preparing download of results in OpenSim format....", "info", "Download", toast.POSITION.BOTTOM_CENTER, false)
+                                props.home.dir.downloadFile(subjectState.resultsOsimZipPath, "", false, t_id);
+
                             }}>Download Results, OpenSim Format</button>
                         </p>
                         <p>
                             <button className="btn btn-primary" onClick={async (e) => {
-                                props.home.dir.downloadFile(subjectState.resultsB3dPath);
+                                var t_id = showToast("Preparing download of results in B3D format....", "info", "Download", toast.POSITION.BOTTOM_CENTER, false)
+                                props.home.dir.downloadFile(subjectState.resultsB3dPath, "", false, t_id);
                             }}>Download Results, B3D Format</button>
                         </p>
                         <p>
                             <button className="btn btn-secondary" onClick={async (e) => {
-                                props.home.dir.downloadFile(subjectState.logPath);
+                                var t_id = showToast("Preparing download of log file....", "info", "Download", toast.POSITION.BOTTOM_CENTER, false)
+                                props.home.dir.downloadFile(subjectState.logPath, "", false, t_id);
                             }}>Download Processing Logs</button>
                         </p>
                         {reprocessButton}
