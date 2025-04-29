@@ -107,7 +107,7 @@ const trialOptions: Option[] = [
      { value: 'dance', label: 'Dancing' },
      { value: 'gait_initiation', label: 'Gait Initiation' },
      { value: 'jump', label: 'Jumping' },
-     { value: 'drop_jump', label: 'Drop Jumping' },
+     { value: 'drop_jump', label: 'Drop Jump' },
      { value: 'kneeling', label: 'Kneeling' },
      { value: 'lifting', label: 'Lifting' },
      { value: 'loaded_walking', label: 'Loaded Walking', addedNumberUnits: 'kg' },

@@ -589,7 +589,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
         totalFormElements++;
         if (formCompleteSoFar) {
             formElements.push(<div key="moco" className="mb-3">
-                <label>Solve For Muscle Activations (Experimental):</label>
+                <label>Solve for Muscle Activity:</label>
                 <select
                     id="moco"
                     value={runMoco == null ? "" : (runMoco ? "true" : "false")}
