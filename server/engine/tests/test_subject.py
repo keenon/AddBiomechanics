@@ -199,26 +199,25 @@ class TestRajagopal2015(unittest.TestCase):
         self.assertEqual(solution.getTableMetaDataString('success'), 'true')
         self.assertEqual(solution.getTableMetaDataString('status'), 'Solve_Succeeded')
 
-# TODO: enable when we add support for muscle paths dependent on more than 6
-#       coordinates.
-# class TestOpenCap(unittest.TestCase):
-#     def test_TestOpenCap(self):
-#         reset_test_data('opencap_test')
-#         path = os.path.join(TEST_DATA_PATH, 'opencap_test')
-#         if not path.endswith('/'):
-#             path += '/'
-#         output_name = 'osim_results'
 
-#         subject = Subject()
-#         subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
-#         subject.segment_trials()
-#         subject.run_kinematics_pass(DATA_FOLDER_PATH)
-#         subject_on_disk = subject.create_subject_on_disk('<href>')
-#         add_acceleration_minimizing_pass(subject_on_disk)
-#         classification_pass(subject_on_disk)
-#         missing_grf_detection(subject_on_disk)
-#         dynamics_pass(subject_on_disk)
-#         write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
-#         moco_pass(subject_on_disk, path, output_name, subject.genericMassKg, 
-#                   subject.genericHeightM)
+class TestOpenCap(unittest.TestCase):
+    def test_TestOpenCap(self):
+        reset_test_data('opencap_test')
+        path = os.path.join(TEST_DATA_PATH, 'opencap_test')
+        if not path.endswith('/'):
+            path += '/'
+        output_name = 'osim_results'
+
+        subject = Subject()
+        subject.load_folder(os.path.join(TEST_DATA_PATH, 'opencap_test'), DATA_FOLDER_PATH)
+        subject.segment_trials()
+        subject.run_kinematics_pass(DATA_FOLDER_PATH)
+        subject_on_disk = subject.create_subject_on_disk('<href>')
+        add_acceleration_minimizing_pass(subject_on_disk)
+        classification_pass(subject_on_disk)
+        missing_grf_detection(subject_on_disk)
+        dynamics_pass(subject_on_disk)
+        write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
+        moco_pass(subject_on_disk, path, output_name, subject.genericMassKg, 
+                  subject.genericHeightM)
 
