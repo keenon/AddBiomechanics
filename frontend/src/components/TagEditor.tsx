@@ -16,9 +16,6 @@ type Option = {
 }
 
 const subjectOptions: Option[] = [
-  { value: 'demographics', label: 'Demographics', isHeader:true, isNonSelectable: true, children: [
-     { value: 'age', label: 'Age', addedNumberUnits: 'years', min: 10, max: 90, integer: true },
-  ]},
   { value: 'phenotypes', label: 'Phenotypes', isHeader:true, isNonSelectable: true, children: [
      { value: 'alzheimers', label: 'Alzheimers' },
      { value: 'athlete', label: 'Athlete' },
@@ -110,6 +107,7 @@ const trialOptions: Option[] = [
      { value: 'dance', label: 'Dancing' },
      { value: 'gait_initiation', label: 'Gait Initiation' },
      { value: 'jump', label: 'Jumping' },
+     { value: 'drop_jump', label: 'Drop Jump' },
      { value: 'kneeling', label: 'Kneeling' },
      { value: 'lifting', label: 'Lifting' },
      { value: 'loaded_walking', label: 'Loaded Walking', addedNumberUnits: 'kg' },

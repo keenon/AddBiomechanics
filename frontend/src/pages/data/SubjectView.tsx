@@ -35,6 +35,9 @@ const SubjectView = observer((props: SubjectViewProps) => {
 
     // Show or hide extended log.
     const [showLog, setShowLog] = useState<boolean>(false);
+    // Show or hide fit physics info.
+    const [showFitPhysicsInfo, setShowFitPhysicsInfo] = useState(false);
+
 
     // Informative toast
     // showToast(
@@ -477,11 +480,32 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <option value="false">Fit Physics</option>
                 <option value="true">Do Not Fit Physics</option>
             </select>
-            <div id="physicsHelp" className="form-text">Should AddBiomechanics use ground reaction force data?</div>
+            <div id="physicsHelp" className="form-text">Should AddBiomechanics use ground reaction force data?
+                <button
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    font: 'inherit',
+                    cursor: 'pointer',
+                    outline: 'inherit',
+                    color: 'inherit'
+                  }}
+                  onClick={() => showFitPhysicsInfo ? setShowFitPhysicsInfo(false) : setShowFitPhysicsInfo(true)}
+                  aria-label="More information"
+                >
+                  ⓘ
+                </button>
+            </div>
         </div>);
 
         if (disableDynamics == null) {
             formCompleteSoFar = false;
+        }
+        else {
+            completedFormElements++;
+        }
+
+        if (disableDynamics == null || showFitPhysicsInfo) {
             formElements.push(<div className="alert alert-dark mt-2" role="alert" key="modelExplanation">
                 <h4 className="alert-heading">Should I Fit Physics Data?</h4>
                 <p>
@@ -495,9 +519,6 @@ const SubjectView = observer((props: SubjectViewProps) => {
                     You can disable this behavior by selecting "Do Not Fit Physics".
                 </p>
             </div>);
-        }
-        else {
-            completedFormElements++;
         }
     }
 
@@ -568,7 +589,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
         totalFormElements++;
         if (formCompleteSoFar) {
             formElements.push(<div key="moco" className="mb-3">
-                <label>Solve For Muscle Activations:</label>
+                <label>Solve for Muscle Activity:</label>
                 <select
                     id="moco"
                     value={runMoco == null ? "" : (runMoco ? "true" : "false")}
@@ -1036,7 +1057,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <div className="dz-message needsclick">
                     <i className="h3 text-muted dripicons-cloud-upload"></i>
                     <h5>
-                        Drop C3D or TRC files here to create trials. You can also drop MOT files, but they must have a TRC or C3D file associated (same name).
+                        Drop C3D or TRC files here to create trials. You can also drop MOT files, but they must have a TRC file associated (same name).
                     </h5>
                     <span className="text-muted font-13">
                         (You can drop multiple files at once to create multiple
