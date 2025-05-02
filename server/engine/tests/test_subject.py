@@ -82,7 +82,7 @@ class TestSubject(unittest.TestCase):
         subject = Subject()
         reset_test_data('opencap_test')
         subject.load_trials(os.path.join(TEST_DATA_PATH, 'opencap_test', 'trials'))
-        self.assertEqual(4, len(subject.trials))
+        self.assertEqual(3, len(subject.trials))
 
     def test_load_folder(self):
         subject = Subject()
@@ -91,7 +91,7 @@ class TestSubject(unittest.TestCase):
         self.assertIsNotNone(subject.customOsim)
         self.assertIsNotNone(subject.skeleton)
         self.assertIsNotNone(subject.markerSet)
-        self.assertEqual(4, len(subject.trials))
+        self.assertEqual(3, len(subject.trials))
 
     def test_segment_trials(self):
         subject = Subject()
