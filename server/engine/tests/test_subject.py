@@ -187,7 +187,7 @@ class TestRajagopal2015(unittest.TestCase):
         # subject_on_disk.loadAllFrames(True)
         write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
         moco_pass(subject_on_disk, path, output_name, subject.genericMassKg, 
-                      subject.genericHeightM)
+                      subject.ge nericHeightM)
         
         # Load the Moco results.
         header_proto = subject_on_disk.getHeaderProto()
@@ -218,6 +218,12 @@ class TestOpenCap(unittest.TestCase):
         missing_grf_detection(subject_on_disk)
         dynamics_pass(subject_on_disk)
         write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
+
+        # b3d_path = os.path.join(path, 'opencap_test.b3d')
+        # subject_on_disk.writeB3D(b3d_path, subject_on_disk.getHeaderProto())
+        # subject_on_disk = nimble.biomechanics.SubjectOnDisk(b3d_path)
+        # subject_on_disk.loadAllFrames(True)
+
         moco_pass(subject_on_disk, path, output_name, subject.genericMassKg, 
                   subject.genericHeightM)
 

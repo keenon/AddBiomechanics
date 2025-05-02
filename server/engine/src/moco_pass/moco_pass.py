@@ -107,21 +107,22 @@ def update_model(generic_model_fpath, model_input_fpath, model_output_fpath,
     # Ignore tendon compliance if the tendon slack length is less than the optimal
     # fiber length.
     print("Updating muscle tendon compliance based on the ratio of tendon slack "
-          "length (TSL) to optimal fiber length (OFL)...")
+          "length (TSL) to optimal fiber length (OFL) and max isometric force...")
     for im in range(subject_mset.getSize()):
         muscle_name = subject_mset.get(im).getName()
         subject_muscle = subject_mset.get(muscle_name)
         TSL = subject_muscle.get_tendon_slack_length()
         OFL = subject_muscle.get_optimal_fiber_length()
+        Fmax = subject_muscle.getMaxIsometricForce()
 
         ratio = TSL / OFL
-        if ratio >= 1.0:
+        if ratio >= 3.0 and Fmax > 1500.0:
             print(f'Enabling tendon compliance for {muscle_name}. '
-                  f'Ratio (TSL/OFL): {ratio}')
+                  f'Ratio (TSL/OFL): {ratio:.2f} | Max Isometric Force: {Fmax:.2f}')
             subject_muscle.set_ignore_tendon_compliance(False)
         else:
             print(f'Ignoring tendon compliance for {muscle_name}. '
-                  f'Ratio (TSL/OFL): {ratio}')
+                  f'Ratio (TSL/OFL): {ratio:.2f} | Max Isometric Force: {Fmax:.2f}')
             subject_muscle.set_ignore_tendon_compliance(True)
 
     # Save the updated model.
@@ -146,8 +147,8 @@ def fit_function_based_paths(model, coordinate_values, results_dir):
     fitter.setGlobalCoordinateSamplingBounds(osim.Vec2(-45, 45))
     fitter.setUseStepwiseRegression(True)
     # Fitted path lengths and moment arms must be within 1mm RMSE.
-    fitter.setPathLengthTolerance(1e-3)
-    fitter.setMomentArmTolerance(1e-3)
+    fitter.setPathLengthTolerance(5e-3)
+    fitter.setMomentArmTolerance(5e-3)
     fitter.run()
 
     plot_coordinate_samples(results_dir, model.getName())
@@ -210,12 +211,12 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     # The total number of coordinate pose samples used during function-based path fitting.
     total_samples = 150
     # The maximum length of a trial, in seconds, to be solved by Moco.
-    max_trial_length = 3.0 
+    max_trial_length = 2.0 
     # The directory to save the function-based paths.
     fbpaths_dir = os.path.join(output_folder, 'Moco', 'function_based_paths')
     # The strength of the reserve actuators. Weaker reserves are penalized more heavily
     # during the MocoInverse problem.
-    reserve_strength = 5.0
+    reserve_strength = 25.0
     # The global scaling factor applied to muscle max isometric force.
     max_isometric_force_scale = 1.0
     # The weight on the muscle excitation effort in the MocoInverse problem.
@@ -340,12 +341,27 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
                     final_time = time
                     break
 
+        # Check that initial_time and final_time are valid.
+        ik = osim.TimeSeriesTable(os.path.join(output_folder, 'IK', f'{trial_name}_ik.mot'))
+        ik_time = ik.getIndependentColumn()
+        if initial_time < ik_time[0]:
+            initial_time = ik_time[0]
+        if final_time > ik_time[-1]:
+            final_time = ik_time[-1]
+
+        grf = osim.TimeSeriesTable(os.path.join(output_folder, 'ID', f'{trial_name}_grf.mot'))
+        grf_time = grf.getIndependentColumn()
+        if initial_time < grf_time[0]:
+            initial_time = grf_time[0]
+        if final_time > grf_time[-1]:
+            final_time = grf_time[-1]
+        
         # Detect the needed residual strengths based on the trial ID moments.
         id_fpath = os.path.join(output_folder, 'ID', f'{trial_name}_id.sto')
         id = osim.TimeSeriesTable(id_fpath)
         id.trim(initial_time-0.1, final_time+0.1)
         for key in residual_strengths.keys():
-            max_gen_force = max(abs(id.getDependentColumn(key).to_numpy()))
+            max_gen_force = 1.5*max(abs(id.getDependentColumn(key).to_numpy()))
             residual_strengths[key] = np.ceil(max_gen_force)
         create_residuals_force_set(output_folder, trial_name, residual_strengths)
 
