@@ -123,8 +123,8 @@ class TestSubject(unittest.TestCase):
         ik_folder = os.path.join(test_folder, 'osim_results', 'IK')
 
         # Check that a certain number of segments were created.
-        segments = ['DJ1_segment_0', 'DJ1_segment_1', 'DJ2_segment_0', 'DJ2_segment_1',
-                    'walking1_segment_0', 'walking2_segment_0']
+        segments = ['DJ1_segment_0', 'DJ1_segment_1', 'squats1_segment_0',
+                    'walking1_segment_0']
         for segment in segments:
             segment_ik_solution = os.path.join(ik_folder, f'{segment}_ik.mot')
             self.assertTrue(os.path.exists(segment_ik_solution))
@@ -187,7 +187,7 @@ class TestRajagopal2015(unittest.TestCase):
         # subject_on_disk.loadAllFrames(True)
         write_opensim_results(subject_on_disk, path, output_name, GEOMETRY_FOLDER_PATH)
         moco_pass(subject_on_disk, path, output_name, subject.genericMassKg, 
-                      subject.ge nericHeightM)
+                      subject.genericHeightM)
         
         # Load the Moco results.
         header_proto = subject_on_disk.getHeaderProto()
