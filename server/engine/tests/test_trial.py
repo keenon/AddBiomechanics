@@ -285,7 +285,7 @@ class TestTrial(unittest.TestCase):
 
     def test_load_trials(self):
         trial_index = 0
-        trial = Trial.load_trial('walking2', os.path.join(TEST_DATA_PATH, 'opencap_test_original' ,'trials', 'walking2'), trial_index)
+        trial = Trial.load_trial('walking1', os.path.join(TEST_DATA_PATH, 'opencap_test_original' ,'trials', 'walking1'), trial_index)
         self.assertEqual(False, trial.error)
         trial.split_segments()
         self.assertEqual(1, len(trial.segments))
