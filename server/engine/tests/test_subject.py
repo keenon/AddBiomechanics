@@ -112,8 +112,8 @@ class TestSubject(unittest.TestCase):
         test_folder = os.path.join(TEST_DATA_PATH, 'opencap_test')
         subject.load_folder(test_folder, DATA_FOLDER_PATH)
         subject.segment_trials()
-        subject.kinematicsIterations = 20
-        subject.initialIKRestarts = 3
+        subject.kinematicsIterations = 500
+        subject.initialIKRestarts = 100
         subject.run_kinematics_pass(DATA_FOLDER_PATH)
         subject_on_disk = subject.create_subject_on_disk('<href>')
         self.assertIsNotNone(subject_on_disk)
@@ -130,6 +130,8 @@ class TestSubject(unittest.TestCase):
             self.assertTrue(os.path.exists(segment_ik_solution))
 
         # Check that peak marker errors fall below a reasonable threshold.
+        max_value_threshold = 0.10
+        rms_value_threshold = 0.05
         for segment in segments:
             segment_marker_errors = os.path.join(ik_folder, 
                                                  f'{segment}_marker_errors.csv')
@@ -137,9 +139,14 @@ class TestSubject(unittest.TestCase):
             for column in df.columns:
                 if 'Timestep' in column: continue
                 max_value = df[column].max()
-                self.assertLess(max_value, 0.15, 
-                        f'Max value in {segment_marker_errors} exceeds threshold: '
-                        f'{max_value}')
+                rms_value = np.sqrt(np.mean(np.square(df[column])))
+                self.assertLess(max_value, max_value_threshold, 
+                        f'Max error in marker {column} ({100.0*max_value:.1f} cm) is '
+                        f'greater than {100.0*max_value_threshold:.1f} cm.')
+                self.assertLess(rms_value, rms_value_threshold,
+                        f'RMS error in marker {column} ({100.0*rms_value:.1f} cm) is '
+                        f'greater than {100.0*rms_value_threshold:.1f} cm.')
+                        
 
 class TestLoadingNoData(unittest.TestCase):
     def test_load_trial(self):
