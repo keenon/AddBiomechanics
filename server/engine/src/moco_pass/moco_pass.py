@@ -211,12 +211,12 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     # The total number of coordinate pose samples used during function-based path fitting.
     total_samples = 150
     # The maximum length of a trial, in seconds, to be solved by Moco.
-    max_trial_length = 2.0 
+    max_trial_length = 3.0 
     # The directory to save the function-based paths.
     fbpaths_dir = os.path.join(output_folder, 'Moco', 'function_based_paths')
     # The strength of the reserve actuators. Weaker reserves are penalized more heavily
     # during the MocoInverse problem.
-    reserve_strength = 25.0
+    reserve_strength = 5.0
     # The global scaling factor applied to muscle max isometric force.
     max_isometric_force_scale = 1.0
     # The weight on the muscle excitation effort in the MocoInverse problem.
