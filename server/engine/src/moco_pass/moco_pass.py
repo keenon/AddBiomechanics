@@ -216,7 +216,7 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     fbpaths_dir = os.path.join(output_folder, 'Moco', 'function_based_paths')
     # The strength of the reserve actuators. Weaker reserves are penalized more heavily
     # during the MocoInverse problem.
-    reserve_strength = 10.0
+    reserve_strength = 20.0
     # The global scaling factor applied to muscle max isometric force.
     max_isometric_force_scale = 1.0
     # The weight on the muscle excitation effort in the MocoInverse problem.
@@ -355,13 +355,21 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
             initial_time = grf_time[0]
         if final_time > grf_time[-1]:
             final_time = grf_time[-1]
-        
+
+        # Final trim and safety checks.
+        initial_time += 0.05
+        final_time -= 0.05
+        if final_time <= initial_time:
+            print(f"Skipping trial '{trial_name}' because the time range is invalid: "
+                  f"initial_time={initial_time}, final_time={final_time}.")
+            continue
+
         # Detect the needed residual strengths based on the trial ID moments.
         id_fpath = os.path.join(output_folder, 'ID', f'{trial_name}_id.sto')
         id = osim.TimeSeriesTable(id_fpath)
-        id.trim(initial_time-0.1, final_time+0.1)
+        id.trim(initial_time, final_time)
         for key in residual_strengths.keys():
-            max_gen_force = 2.5*max(abs(id.getDependentColumn(key).to_numpy()))
+            max_gen_force = 4.0*max(abs(id.getDependentColumn(key).to_numpy()))
             residual_strengths[key] = np.ceil(max_gen_force)
         create_residuals_force_set(output_folder, trial_name, residual_strengths)
 
