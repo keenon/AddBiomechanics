@@ -64,6 +64,7 @@ activation_effort.setWeight(@ACTIVATION_EFFORT@)
 solver = osim.MocoCasADiSolver.safeDownCast(study.updSolver())
 solver.set_minimize_implicit_auxiliary_derivatives(True)
 solver.set_implicit_auxiliary_derivatives_weight(1e-3)
+solver.set_optim_max_iterations(500)
 solver.resetProblem(problem)
 
 # Solve the problem.
