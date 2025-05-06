@@ -382,8 +382,8 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
         for coord_name in coordinate_names:
             moment_name = f'{coord_name}_moment'
             max_reserve_strength = max(abs(id.getDependentColumn(moment_name).to_numpy()))
-            if 0.10*max_reserve_strength > reserve_strength:
-                reserve_strength = np.ceil(0.10*max_reserve_strength)
+            if 0.20*max_reserve_strength > reserve_strength:
+                reserve_strength = np.ceil(0.20*max_reserve_strength)
 
         # Fill the MocoInverse problem template.
         script_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco.py')
