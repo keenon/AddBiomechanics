@@ -46,6 +46,9 @@
             <a class="nav-link" href="faq.html">FAQ</a>
           </li>
           <li class="nav-item">
+            <a class="nav-link" href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB">Forum</a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link" href="tos.html">Terms of Service</a>
           </li>
         </ul>
@@ -87,6 +90,41 @@
         Project</a>
       <a href="assets/AddBiomechanics_Dataset_Paper.pdf" class="btn btn-secondary btn-lg">Read the Pre-Print</a>
     </p>
+    
+    <h4>Command-line Download Options</h4>
+    <p>
+      You can download the entire AddBiomechanics Dataset using the following commands. Depending on your download speed, this may
+      take several hours to complete (~4 hours with a 50 Mbps connection).
+    </p>
+    <p>
+      Download via "curl":
+    </p>
+    <p>
+      <div class="code-container">
+        <button class="copy-button" onclick="copyCode(this)">Copy</button>
+        <pre><code>curl -o AddBiomechanicsDataset.zip http://archive.simtk.org/addbiomechanics/addbiomechanics.zip</code></pre>
+      </div>
+    </p>
+    <p>
+      Download via "wget":
+    </p>
+    <p>
+      <div class="code-container">
+        <button class="copy-button" onclick="copyCode(this)">Copy</button>
+        <pre><code>wget -O AddBiomechanicsDataset.zip http://archive.simtk.org/addbiomechanics/addbiomechanics.zip</code></pre>
+      </div>
+    </p>
+    <script>
+      function copyCode(button) {
+        const code = button.nextElementSibling.innerText;
+        navigator.clipboard.writeText(code).then(() => {
+        button.textContent = "Copied!";
+        setTimeout(() => button.textContent = "Copy", 2000);
+        });
+      }
+    </script>
+
+    <h4>Dataset Sources</h4>
     <p>
       The dataset is composed of the following sources:
     <table class="table table-striped">
