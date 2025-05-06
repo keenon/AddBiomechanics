@@ -14186,7 +14186,7 @@
 					<!--Name of the generalized coordinate to which the actuator applies.-->
 					<coordinate>lumbar_extension</coordinate>
 					<!--The maximum generalized force produced by this actuator.-->
-					<optimal_force>10</optimal_force>
+					<optimal_force>50</optimal_force>
 				</CoordinateActuator>
 				<CoordinateActuator name="lumbar_bend">
 					<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
@@ -14196,7 +14196,7 @@
 					<!--Name of the generalized coordinate to which the actuator applies.-->
 					<coordinate>lumbar_bending</coordinate>
 					<!--The maximum generalized force produced by this actuator.-->
-					<optimal_force>10</optimal_force>
+					<optimal_force>50</optimal_force>
 				</CoordinateActuator>
 				<CoordinateActuator name="lumbar_rot">
 					<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
@@ -14206,7 +14206,7 @@
 					<!--Name of the generalized coordinate to which the actuator applies.-->
 					<coordinate>lumbar_rotation</coordinate>
 					<!--The maximum generalized force produced by this actuator.-->
-					<optimal_force>10</optimal_force>
+					<optimal_force>50</optimal_force>
 				</CoordinateActuator>
 				<CoordinateActuator name="shoulder_flex_r">
 					<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
@@ -14216,7 +14216,7 @@
 					<!--Name of the generalized coordinate to which the actuator applies.-->
 					<coordinate>arm_flex_r</coordinate>
 					<!--The maximum generalized force produced by this actuator.-->
-					<optimal_force>10</optimal_force>
+					<optimal_force>25</optimal_force>
 				</CoordinateActuator>
 				<CoordinateActuator name="shoulder_add_r">
 					<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
@@ -14226,7 +14226,7 @@
 					<!--Name of the generalized coordinate to which the actuator applies.-->
 					<coordinate>arm_add_r</coordinate>
 					<!--The maximum generalized force produced by this actuator.-->
-					<optimal_force>10</optimal_force>
+					<optimal_force>25</optimal_force>
 				</CoordinateActuator>
 				<CoordinateActuator name="shoulder_rot_r">
 					<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
@@ -14236,7 +14236,7 @@
 					<!--Name of the generalized coordinate to which the actuator applies.-->
 					<coordinate>arm_rot_r</coordinate>
 					<!--The maximum generalized force produced by this actuator.-->
-					<optimal_force>10</optimal_force>
+					<optimal_force>25</optimal_force>
 				</CoordinateActuator>
 				<CoordinateActuator name="elbow_flex_r">
 					<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
@@ -14266,7 +14266,7 @@
 					<!--Name of the generalized coordinate to which the actuator applies.-->
 					<coordinate>arm_flex_l</coordinate>
 					<!--The maximum generalized force produced by this actuator.-->
-					<optimal_force>10</optimal_force>
+					<optimal_force>25</optimal_force>
 				</CoordinateActuator>
 				<CoordinateActuator name="shoulder_add_l">
 					<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
@@ -14276,7 +14276,7 @@
 					<!--Name of the generalized coordinate to which the actuator applies.-->
 					<coordinate>arm_add_l</coordinate>
 					<!--The maximum generalized force produced by this actuator.-->
-					<optimal_force>10</optimal_force>
+					<optimal_force>25</optimal_force>
 				</CoordinateActuator>
 				<CoordinateActuator name="shoulder_rot_l">
 					<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
@@ -14286,7 +14286,7 @@
 					<!--Name of the generalized coordinate to which the actuator applies.-->
 					<coordinate>arm_rot_l</coordinate>
 					<!--The maximum generalized force produced by this actuator.-->
-					<optimal_force>10</optimal_force>
+					<optimal_force>25</optimal_force>
 				</CoordinateActuator>
 				<CoordinateActuator name="elbow_flex_l">
 					<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
