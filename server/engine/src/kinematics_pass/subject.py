@@ -213,9 +213,10 @@ class Subject(metaclass=ExceptionHandlingMeta):
         if 'mergeZeroForceSegmentsThreshold' in subject_json:
             self.mergeZeroForceSegmentsThreshold = subject_json['mergeZeroForceSegmentsThreshold']
 
-        if self.skeletonPreset == 'vicon' or self.skeletonPreset == 'cmu' or self.skeletonPreset == 'complete':
-            self.footBodyNames = ['calcn_l', 'calcn_r']
-        elif self.skeletonPreset == "opencap-full":
+        if (self.skeletonPreset == 'vicon' or 
+                self.skeletonPreset == 'cmu' or 
+                self.skeletonPreset == 'complete' or
+                self.skeletonPreset == "opencap-full"):
             self.footBodyNames = ['calcn_l', 'calcn_r']
         elif 'footBodyNames' in subject_json:
             self.footBodyNames = subject_json['footBodyNames']
@@ -248,7 +249,7 @@ class Subject(metaclass=ExceptionHandlingMeta):
             shutil.copy(data_folder_path + '/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
                         subject_path + 'unscaled_generic.osim')
         elif self.skeletonPreset == "opencap-full":
-            shutil.copy(data_folder_path + '/PresetSkeletons/LaiUhlrich.osim',
+            shutil.copy(data_folder_path + '/PresetSkeletons/LaiUhlrich2022.osim',
                         subject_path + 'unscaled_generic.osim')
         elif self.skeletonPreset == 'complete':
             shutil.copy(data_folder_path + '/PresetSkeletons/CompleteHumanModel.osim',
