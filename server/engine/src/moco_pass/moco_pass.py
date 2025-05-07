@@ -32,14 +32,15 @@ def update_model(generic_model_fpath, model_input_fpath, model_output_fpath,
             locked_coordinates.append(coord.getName())
             locked_joints.append(coord.getJoint().getName())
 
-    # Remove actuators associated with removed coordinates.
-    for coordinate in locked_coordinates:
+    # Remove all coordinate actuators.
+    for icoord in range(coordinates.getSize()):
+        coord = coordinates.get(icoord)
         forceSet = model.updForceSet()
         for iforce in range(forceSet.getSize()):
             force = forceSet.get(iforce)
             if force.getConcreteClassName().endswith('CoordinateActuator'):
                 actu = osim.CoordinateActuator.safeDownCast(force)
-                if actu.get_coordinate() == coordinate:
+                if actu.get_coordinate() == coord.getName():
                     forceSet.remove(iforce)
                     break
     
@@ -216,17 +217,16 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     # The directory to save the function-based paths.
     fbpaths_dir = os.path.join(output_folder, 'Moco', 'function_based_paths')
     # The global scaling factor applied to muscle max isometric force.
-    max_isometric_force_scale = 1.0
+    max_isometric_force_scale = 1.5
     # The weight on the muscle excitation effort in the MocoInverse problem.
     excitation_effort = 0.1
     # The weight on the activation effort in the MocoInverse problem.
     activation_effort = 1.0
     # The strength of the reserve actuators. Weaker reserves are penalized more heavily
-    # during the MocoInverse problem. This will be updated on a per-trial basis below
-    # based on the trial ID moments.
-    default_reserve_strength = 10.0
+    # during the MocoInverse problem.
+    default_reserve_strength = 250.0
     # The weight on the reserve actuator effort in the MocoInverse problem.
-    reserve_effort = 1.0
+    reserve_effort = 20.0
 
     # Load the subject.
     header_proto = subject.getHeaderProto()
@@ -382,8 +382,8 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
         for coord_name in coordinate_names:
             moment_name = f'{coord_name}_moment'
             max_reserve_strength = max(abs(id.getDependentColumn(moment_name).to_numpy()))
-            if 0.10*max_reserve_strength > reserve_strength:
-                reserve_strength = np.ceil(0.10*max_reserve_strength)
+            if max_reserve_strength > reserve_strength:
+                reserve_strength = np.ceil(max_reserve_strength)
 
         # Fill the MocoInverse problem template.
         script_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco.py')

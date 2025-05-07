@@ -25,7 +25,7 @@ model_processor.append(osim.ModOpIgnoreTendonCompliance())
 # model_processor.append(osim.ModOpUseImplicitTendonComplianceDynamicsDGF())
 
 model_processor.append(osim.ModOpScaleMaxIsometricForce(@MAX_ISOMETRIC_FORCE_SCALE@))
-model_processor.append(osim.ModOpAddReserves(@RESERVE_STRENGTH@, 10.0))
+model_processor.append(osim.ModOpAddReserves(@RESERVE_STRENGTH@))
 model_processor.append(osim.ModOpReplacePathsWithFunctionBasedPaths(
         'function_based_paths/@MODEL_NAME@_FunctionBasedPathSet.xml'))
 inverse.setModel(model_processor)
