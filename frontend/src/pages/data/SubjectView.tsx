@@ -402,6 +402,7 @@ const SubjectView = observer((props: SubjectViewProps) => {
                 <option value="custom">Upload my own model</option>
                 <option value="vicon">Rajagopal 2016 with Vicon Markerset</option>
                 <option value="cmu">Rajagopal 2016 with CMU Markerset</option>
+                <option value="opencap-full">OpenCap - Full Body</option>
             </select>
             <div id="modelHelp" className="form-text">Musculoskeletal model to use as a starting point to personalize for the subject.</div>
         </div>);
