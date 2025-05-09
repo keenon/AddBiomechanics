@@ -95,8 +95,8 @@
         Keenon Werling, Nicholas A. Bianco, Michael Raitor, Jon Stingel, Jennifer L. Hicks, Steven H. Collins, Scott L.
         Delp, C. Karen Liu
         </br>
-        bioRxiv 2023.06.15.545116; doi: <a href="https://doi.org/10.1101/2023.06.15.545116"
-          target="_blank">https://doi.org/10.1101/2023.06.15.545116</a>
+        PLOS ONE 18(11): e0295152. 2023. doi: <a href="https://doi.org/10.1371/journal.pone.0295152"
+          target="_blank">https://doi.org/10.1371/journal.pone.0295152</a>
       </p>
     </div>
 
@@ -109,7 +109,7 @@
 
     <div id="faq" class="mb-5">
       <h1 class="mt-5">Frequently Asked Questions</h1>
-      <p><u>Last updated</u>: October 26, 2023</p>
+      <p><u>Last updated</u>: May 09, 2025</p>
 
       <h2 id="data-input-types">Data Input Types</h2>
       <p><b>Q. How do you see this working with markerless data, without trajectories, and only segment rotation
@@ -199,14 +199,14 @@
         AddBiomechanics supports (e.g., standard OpenSim joints and no kinematic constraints). However, currently, the
         inverse dynamics will not be possible since we only support applying external loads to foot bodies in the model.
       </p>
-      <p><b>Q. Is there a way to optimize a new trajectory using the model and processed data I get from
+      <p><b>Q. Is there a way to estimate muscle activity using the model and processed data I get from
           AddBiomechanics?</b></p>
-      <p>A. AddBiomechanics now features an option to export your processed data and model directly into a trajectory
-        optimization problem in <a href="https://simtk.org/projects/opensim-moco" target="_blank">OpenSim Moco</a>. By
-        default, we exported an “inverse” problem, where the kinematic trajectory and external forces are prescribed to
-        the model, so you can estimate muscle activations. But you can visit the <a
-          href="https://opensim-org.github.io/opensim-moco-site/" target="_blank">Moco API documentation</a> to learn
-        more about how to customize a new problem that suits your needs.</p>
+      <p>A. AddBiomechanics now features an option to use your processed data and model to estimate muscle excitations 
+        activations, and tendon forces using a trajectory optimization problem in 
+        <a href="https://simtk.org/projects/opensim-moco" target="_blank">OpenSim Moco</a>. By default, this is an 
+        “inverse” problem, where the kinematic trajectory and external forces are prescribed to the model. But you can 
+        visit the <a href="https://opensim-org.github.io/opensim-moco-site/" target="_blank">Moco API documentation and
+        forum</a> to learn more about how to customize a new problem that suits your needs.</p>
       <p><b>Q. Are there plans to provide more flexibility in specifying weights for individual markers (e.g., similar
           to the OpenSim InverseKinematicsTool)?</b></p>
       <p>A. We are considering this feature for future development plans.</p>
@@ -271,13 +271,13 @@
         Keenon Werling, Nicholas A. Bianco, Michael Raitor, Jon Stingel, Jennifer L. Hicks, Steven H. Collins, Scott L.
         Delp, C. Karen Liu
         </br>
-        bioRxiv 2023.06.15.545116; doi: <a href="https://doi.org/10.1101/2023.06.15.545116"
-          target="_blank">https://doi.org/10.1101/2023.06.15.545116</a>
+        PLOS ONE 18(11): e0295152. 2023. doi: <a href="https://doi.org/10.1371/journal.pone.0295152"
+          target="_blank">https://doi.org/10.1371/journal.pone.0295152</a>
       </p>
       <p><b>Q.How do I cite AddBiomechanics Core Dataset?</b></p>
-      <p>A. The manuscript is in submission. In the mean time, please cite the pre-print:</p>
+      <p>A. Please cite the ECCV 2024 manuscript:</p>
       <p>
-        <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0295152"
+        <a href="https://doi.org/10.1007/978-3-031-73223-2_27"
           target="_blank">AddBiomechanics Dataset:
           Capturing the Physics of Human Motion at Scale</a>
         </br>
@@ -286,11 +286,14 @@
         Antoine Falisse, Shardul Sapkota, Aidan Chandra, Joshua Carter, Ezio
         Preatoni, Benjamin Fregly, Jennifer Hicks, Scott Delp, C. Karen Liu
         </br>
+        Computer Vision - ECCV 2024: 18th European Conference, Milan, Italy, September 29-October 4, 2024, Proceedings, Part LXXXVIII.
+        Pages 490-508. doi: <a href="https://doi.org/10.1007/978-3-031-73223-2_27"
+        target="_blank">https://doi.org/10.1007/978-3-031-73223-2_27</a>
       </p>
       <p><b>Q.How do I cite AddBiomechanics User-Generated Datasets?</b></p>
       <p>A. Each data download contains a LICENSE.txt, which includes the names
         of the uploaders who should be credited under the Creative Commons license
-        that the data is released under. Please also cite the AddBiomechanics Dataset pre-print.</p>
+        that the data is released under. Please also cite the AddBiomechanics Dataset manuscript.</p>
     </div>
 
   </main>
