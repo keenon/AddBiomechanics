@@ -150,6 +150,8 @@ def fit_function_based_paths(model, coordinate_values, results_dir):
     # Fitted path lengths and moment arms must be within 1mm RMSE.
     fitter.setPathLengthTolerance(5e-3)
     fitter.setMomentArmTolerance(5e-3)
+    if os.cpu_count() > 50:
+        fitter.setNumParallelThreads(50)
     fitter.run()
 
     plot_coordinate_samples(results_dir, model.getName())
