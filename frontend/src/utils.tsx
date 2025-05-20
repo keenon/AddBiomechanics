@@ -43,35 +43,35 @@ function showToast(message:string | any, type:string, toastId:string, position:T
     if (autoCloseTime === -1)
       autoCloseTime = false
     if(type === "success") {
-        toast.success(message, {
+        return toast.success(message, {
             position: position,
             autoClose: autoCloseTime,
             closeOnClick: false,
             toastId: toastId
         });
     } else if (type === "error") {
-        toast.error(message, {
+        return toast.error(message, {
             position: position,
             autoClose: autoCloseTime,
             closeOnClick: false,
             toastId: toastId
         });
     } else if (type === "info") {
-        toast.info(message, {
+        return toast.info(message, {
             position: position,
             autoClose: autoCloseTime,
             closeOnClick: false,
             toastId: toastId
         });
     } else if (type === "warning") {
-        toast.warning(message, {
+        return toast.warning(message, {
             position: position,
             autoClose: autoCloseTime,
             closeOnClick: false,
             toastId: toastId
         });
     } else {
-        toast(message, {
+        return toast(message, {
             position: position,
             autoClose: autoCloseTime,
             closeOnClick: false,

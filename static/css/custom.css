@@ -30,3 +30,31 @@ body {
   font-size: 18px;
   vertical-align: middle;
 }
+
+.code-container {
+    position: relative;
+    margin: 1em 0;
+}
+
+.copy-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 5px 10px;
+    font-size: 0.9em;
+    cursor: pointer;
+    border: none;
+    background-color: #4CAF50;
+    color: white;
+    border-radius: 3px;
+}
+
+pre {
+    background-color: #f4f4f4;
+    padding: 1em;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    overflow-x: auto;
+    font-family: Consolas, Monaco, monospace;
+    white-space: pre-wrap;
+}

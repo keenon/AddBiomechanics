@@ -32,14 +32,15 @@ def update_model(generic_model_fpath, model_input_fpath, model_output_fpath,
             locked_coordinates.append(coord.getName())
             locked_joints.append(coord.getJoint().getName())
 
-    # Remove actuators associated with removed coordinates.
-    for coordinate in locked_coordinates:
+    # Remove all coordinate actuators.
+    for icoord in range(coordinates.getSize()):
+        coord = coordinates.get(icoord)
         forceSet = model.updForceSet()
         for iforce in range(forceSet.getSize()):
             force = forceSet.get(iforce)
             if force.getConcreteClassName().endswith('CoordinateActuator'):
                 actu = osim.CoordinateActuator.safeDownCast(force)
-                if actu.get_coordinate() == coordinate:
+                if actu.get_coordinate() == coord.getName():
                     forceSet.remove(iforce)
                     break
     
@@ -107,21 +108,22 @@ def update_model(generic_model_fpath, model_input_fpath, model_output_fpath,
     # Ignore tendon compliance if the tendon slack length is less than the optimal
     # fiber length.
     print("Updating muscle tendon compliance based on the ratio of tendon slack "
-          "length (TSL) to optimal fiber length (OFL)...")
+          "length (TSL) to optimal fiber length (OFL) and max isometric force...")
     for im in range(subject_mset.getSize()):
         muscle_name = subject_mset.get(im).getName()
         subject_muscle = subject_mset.get(muscle_name)
         TSL = subject_muscle.get_tendon_slack_length()
         OFL = subject_muscle.get_optimal_fiber_length()
+        Fmax = subject_muscle.getMaxIsometricForce()
 
         ratio = TSL / OFL
-        if ratio >= 1.0:
+        if ratio >= 1.5 and Fmax > 2000.0:
             print(f'Enabling tendon compliance for {muscle_name}. '
-                  f'Ratio (TSL/OFL): {ratio}')
+                  f'Ratio (TSL/OFL): {ratio:.2f} | Max Isometric Force: {Fmax:.2f}')
             subject_muscle.set_ignore_tendon_compliance(False)
         else:
             print(f'Ignoring tendon compliance for {muscle_name}. '
-                  f'Ratio (TSL/OFL): {ratio}')
+                  f'Ratio (TSL/OFL): {ratio:.2f} | Max Isometric Force: {Fmax:.2f}')
             subject_muscle.set_ignore_tendon_compliance(True)
 
     # Save the updated model.
@@ -146,8 +148,10 @@ def fit_function_based_paths(model, coordinate_values, results_dir):
     fitter.setGlobalCoordinateSamplingBounds(osim.Vec2(-45, 45))
     fitter.setUseStepwiseRegression(True)
     # Fitted path lengths and moment arms must be within 1mm RMSE.
-    fitter.setPathLengthTolerance(1e-3)
-    fitter.setMomentArmTolerance(1e-3)
+    fitter.setPathLengthTolerance(5e-3)
+    fitter.setMomentArmTolerance(5e-3)
+    if os.cpu_count() > 50:
+        fitter.setNumParallelThreads(50)
     fitter.run()
 
     plot_coordinate_samples(results_dir, model.getName())
@@ -171,7 +175,7 @@ def create_residuals_force_set(output_folder, trial_name, residual_strengths):
 
 def fill_moco_template(moco_template_fpath, script_fpath, model_name, trial_name, 
                        reserve_strength, max_isometric_force_scale, initial_time, 
-                       final_time, excitation_effort, activation_effort):
+                       final_time, excitation_effort, activation_effort, reserve_effort):
     with open(moco_template_fpath) as ft:
         content = ft.read()
         content = content.replace('@TRIAL@', trial_name)
@@ -183,6 +187,7 @@ def fill_moco_template(moco_template_fpath, script_fpath, model_name, trial_name
                                   str(max_isometric_force_scale))
         content = content.replace('@EXCITATION_EFFORT@', str(excitation_effort))
         content = content.replace('@ACTIVATION_EFFORT@', str(activation_effort))
+        content = content.replace('@RESERVE_EFFORT@', str(reserve_effort))
 
     with open(script_fpath, 'w') as f:
         f.write(content)
@@ -213,15 +218,17 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
     max_trial_length = 3.0 
     # The directory to save the function-based paths.
     fbpaths_dir = os.path.join(output_folder, 'Moco', 'function_based_paths')
-    # The strength of the reserve actuators. Weaker reserves are penalized more heavily
-    # during the MocoInverse problem.
-    reserve_strength = 5.0
     # The global scaling factor applied to muscle max isometric force.
-    max_isometric_force_scale = 1.0
+    max_isometric_force_scale = 1.5
     # The weight on the muscle excitation effort in the MocoInverse problem.
     excitation_effort = 0.1
     # The weight on the activation effort in the MocoInverse problem.
     activation_effort = 1.0
+    # The strength of the reserve actuators. Weaker reserves are penalized more heavily
+    # during the MocoInverse problem.
+    default_reserve_strength = 250.0
+    # The weight on the reserve actuator effort in the MocoInverse problem.
+    reserve_effort = 20.0
 
     # Load the subject.
     header_proto = subject.getHeaderProto()
@@ -340,26 +347,58 @@ def moco_pass(subject: nimble.biomechanics.SubjectOnDisk,
                     final_time = time
                     break
 
+        # Check that initial_time and final_time are valid.
+        ik = osim.TimeSeriesTable(os.path.join(output_folder, 'IK', f'{trial_name}_ik.mot'))
+        ik_time = ik.getIndependentColumn()
+        if initial_time < ik_time[0]:
+            initial_time = ik_time[0]
+        if final_time > ik_time[-1]:
+            final_time = ik_time[-1]
+
+        grf = osim.TimeSeriesTable(os.path.join(output_folder, 'ID', f'{trial_name}_grf.mot'))
+        grf_time = grf.getIndependentColumn()
+        if initial_time < grf_time[0]:
+            initial_time = grf_time[0]
+        if final_time > grf_time[-1]:
+            final_time = grf_time[-1]
+
+        # Final trim and safety checks.
+        initial_time += 0.05
+        final_time -= 0.05
+        if final_time <= initial_time:
+            print(f"Skipping trial '{trial_name}' because the time range is invalid: "
+                  f"initial_time={initial_time}, final_time={final_time}.")
+            continue
+
         # Detect the needed residual strengths based on the trial ID moments.
         id_fpath = os.path.join(output_folder, 'ID', f'{trial_name}_id.sto')
         id = osim.TimeSeriesTable(id_fpath)
-        id.trim(initial_time-0.1, final_time+0.1)
+        id.trim(initial_time, final_time)
         for key in residual_strengths.keys():
-            max_gen_force = max(abs(id.getDependentColumn(key).to_numpy()))
+            max_gen_force = 4.0*max(abs(id.getDependentColumn(key).to_numpy()))
             residual_strengths[key] = np.ceil(max_gen_force)
         create_residuals_force_set(output_folder, trial_name, residual_strengths)
+
+        # Detect the needed reserve strength based on the trial ID moments.
+        reserve_strength = 1.0*default_reserve_strength
+        for coord_name in coordinate_names:
+            moment_name = f'{coord_name}_moment'
+            max_reserve_strength = max(abs(id.getDependentColumn(moment_name).to_numpy()))
+            if max_reserve_strength > reserve_strength:
+                reserve_strength = np.ceil(max_reserve_strength)
 
         # Fill the MocoInverse problem template.
         script_fpath = os.path.join(output_folder, 'Moco', f'{trial_name}_moco.py')
         template_fpath = os.path.join(TEMPLATES_PATH, 'template_moco.py.txt')
         fill_moco_template(template_fpath, script_fpath, model.getName(), trial_name, 
                            reserve_strength, max_isometric_force_scale, initial_time, 
-                           final_time, excitation_effort, activation_effort)
+                           final_time, excitation_effort, activation_effort,
+                           reserve_effort)
                             
         # Run the MocoInverse problem.
         moco_dir = os.path.join(output_folder, 'Moco')
         subprocess.run([sys.executable, script_fpath], stdout=sys.stdout, 
-                       stderr=sys.stderr, cwd=moco_dir)
+                    stderr=sys.stderr, cwd=moco_dir)
         solution_fpath = os.path.join(moco_dir, f'{trial_name}_moco.sto')
         model_fpath = os.path.join(moco_dir, f'{trial_name}_moco.osim')
 
