@@ -16,10 +16,12 @@ type Option = {
 }
 
 const subjectOptions: Option[] = [
-  { value: 'demographics', label: 'Demographics', isHeader:true, isNonSelectable: true, children: [
-     { value: 'age', label: 'Age', addedNumberUnits: 'years', min: 10, max: 90, integer: true },
-  ]},
   { value: 'phenotypes', label: 'Phenotypes', isHeader:true, isNonSelectable: true, children: [
+     { value: 'anterior_cruciate_ligament_header', label: 'Anterior Cruciate Ligament', isHeader:true, isNonSelectable: true, children: [
+        { value: 'anterior_cruciate_ligament', label: 'Anterior Cruciate Ligament (ACL)'},
+        { value: 'anterior_cruciate_ligament_replacement_left', label: 'Anterior Cruciate Ligament Replacement (ACLR) - Left'},
+        { value: 'anterior_cruciate_ligament_replacement_right', label: 'Anterior Cruciate Ligament Replacement (ACLR) - Right'},
+     ]},
      { value: 'alzheimers', label: 'Alzheimers' },
      { value: 'athlete', label: 'Athlete' },
      { value: 'blind', label: 'Blind' },
@@ -57,6 +59,8 @@ const subjectOptions: Option[] = [
      { value: 'post_partum', label: 'Postpartum' },
      { value: 'ptsd', label: 'Post-Traumatic Stress Disorder (PTSD)' },
      { value: 'pregnant', label: 'Pregnant' },
+     { value: 'slipped_capital_femoral_epiphysis', label: 'Slipped Capital Femoral Epiphysis' },
+     { value: 'spinal_cord_injury', label: 'Spinal Cord Injury (SCI)' },
      { value: 'spina_bifida', label: 'Spina Bifida' },
      { value: 'stroke_header', label: 'Stroke', isHeader:true, isNonSelectable: true, children: [
         { value: 'stroke', label: 'Stroke' },
@@ -110,6 +114,7 @@ const trialOptions: Option[] = [
      { value: 'dance', label: 'Dancing' },
      { value: 'gait_initiation', label: 'Gait Initiation' },
      { value: 'jump', label: 'Jumping' },
+     { value: 'drop_jump', label: 'Drop Jump' },
      { value: 'kneeling', label: 'Kneeling' },
      { value: 'lifting', label: 'Lifting' },
      { value: 'loaded_walking', label: 'Loaded Walking', addedNumberUnits: 'kg' },

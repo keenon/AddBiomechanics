@@ -70,7 +70,7 @@ class TrialToProcess:
         if self.index.exists(self.goldIKFile):
             self.index.download(self.goldIKFile, file_system_trial_path+'manual_ik.mot')
         for child in all_children:
-            if child.endswith('.json') or child.endswith('REVIEWED'):
+            if child.endswith('.json') or child.endswith('REVIEWED') or child.endswith('.csv'):
                 os.makedirs(os.path.dirname(file_system_trial_path+child), exist_ok=True)
                 self.index.download(self.trialPath+child, file_system_trial_path+child)
 

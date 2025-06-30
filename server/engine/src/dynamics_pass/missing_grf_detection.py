@@ -18,11 +18,16 @@ def missing_grf_detection(subject: nimble.biomechanics.SubjectOnDisk):
 
     trials_to_evaluate: List[int] = []
     for i in range(subject.getNumTrials()):
+        print(f"Checking trial segment '{trial_protos[i].getName()}' for manual reviews...")
+
         has_any_manual_review = any(trial_protos[i].getHasManualGRFAnnotation())
         if not has_any_manual_review:
+            print(f"Trial segment '{trial_protos[i].getName()}' has not been manually reviewed. "
+                  f"Proceeding to missing GRF detection...")
             trials_to_evaluate.append(i)
         else:
-            print(f"Trial {i} has been manually reviewed, skipping missing GRF detection...")
+            print(f"Trial segment '{trial_protos[i].getName()}' has been manually reviewed, "
+                  f"skipping missing GRF detection...")
 
     missing_grf: List[List[nimble.biomechanics.MissingGRFReason]] = detector.estimate_missing_grfs(subject, trials_to_evaluate)
     assert len(missing_grf) == len(trials_to_evaluate)
