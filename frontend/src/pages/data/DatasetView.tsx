@@ -1,13 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { observer } from "mobx-react-lite";
 import UserHomeDirectory, { DatasetContents, AttributionContents } from "../../model/UserHomeDirectory";
 import Session from "../../model/Session";
 import LiveJsonFile from "../../model/LiveJsonFile";
 import { Spinner, OverlayTrigger, Tooltip, Row, Col} from "react-bootstrap";
-import { toast } from 'react-toastify';
-import { parseLinks, showToast } from "../../utils"
-import { useLocation } from 'react-router-dom';
 
 type DatasetViewProps = {
     home: UserHomeDirectory;
@@ -59,7 +56,7 @@ const get_parent_path_absolute = (path:string|undefined) => {
       for(var i = 0; i < path_parts.length-2; i++)
         parent += path_parts[i] + "/";
     } else {
-      for(var i = 0; i < path_parts.length-1; i++)
+      for(i = 0; i < path_parts.length-1; i++)
         parent += path_parts[i] + "/";
     }
   }
@@ -67,14 +64,11 @@ const get_parent_path_absolute = (path:string|undefined) => {
 }
 
 const DatasetView = observer((props: DatasetViewProps) => {
-    const location = useLocation();
-
     const [folderName, setFolderName] = useState("");
     const [subjectName, setSubjectName] = useState("");
 
     const home = props.home;
     const path = props.path;
-    const dir = home.dir;
 
     // Informative toast
     // showToast(
@@ -86,6 +80,16 @@ const DatasetView = observer((props: DatasetViewProps) => {
     // );
 
     const datasetContents: DatasetContents = home.getDatasetContents(path);
+
+    const handleDelete = (name:string, path:any) => {
+        const dataset = get_parent_path_absolute(path)
+        if (window.confirm(`Are you sure you want to delete ${name} from ${dataset}?`)) {
+            console.log(`Deleting ${name} from ${dataset}`);
+            home.deleteFolder(path);
+
+            home.deleteDatasetContent(name, dataset);
+        }
+    };
 
     const attributionContents: AttributionContents | undefined = home.getAttributionContents(path);
     const searchJson:LiveJsonFile | undefined = attributionContents?.searchJson;
@@ -115,16 +119,8 @@ const DatasetView = observer((props: DatasetViewProps) => {
 //      datasetAcknowledgements = searchJsonParent?.getAttribute("acknowledgements", "")
 //    }
 
-    useEffect(() => {
-      setInheritButton(inheritFromParent);
-    }, [inheritFromParent]);
-
-    const [inheritButton, setInheritButton] = useState(inheritFromParent)
-
     let parent_path = get_parent_path_absolute(path)
-    const showCitationData = parent_path == "";
-    console.log("PATH: " + path)
-    console.log("PARENT PATH: " + parent_path)
+    const showCitationData = parent_path === "";
     let citationDetails: React.ReactNode = null;
     if (showCitationData) {
 
@@ -235,6 +231,9 @@ const DatasetView = observer((props: DatasetViewProps) => {
                     else if (status === 'ready_to_process') {
                         statusBadge = <span className="badge bg-info">Ready to Process</span>;
                     }
+                    else if (status === 'incomplete') {
+                        statusBadge = <span className="badge bg-warning">Incomplete</span>;
+                    }
                     else if (status === 'loading') {
                         statusBadge = <span className="badge bg-secondary">Loading</span>;
                     }
@@ -248,7 +247,7 @@ const DatasetView = observer((props: DatasetViewProps) => {
                         statusBadge = <span className="badge bg-secondary">Waiting for server</span>;
                     }
                     else if (status === 'slurm') {
-                        statusBadge = <span className="badge bg-warning">Queued on SLURM</span>;
+                        statusBadge = <span className="badge bg-warning">Queued on Sherlock</span>;
                     }
                     else if (status === 'needs_data') {
                         statusBadge = <span className="badge bg-secondary">Needs Data</span>;
@@ -264,12 +263,9 @@ const DatasetView = observer((props: DatasetViewProps) => {
                             {statusBadge}
                         </td>
                         <td>
-                            <button className='btn btn-dark' onClick={() => {
-                                if (window.confirm("Are you sure you want to delete " + name + "?")) {
-                                    console.log("Deleting " + name + " from " + path);
-                                    home.deleteFolder(path);
-                                }
-                            }}>Delete</button>
+                            <button className='btn btn-dark' onClick={() => {console.log("PATH DELETE: " + path); handleDelete(name, path)}}>
+                                Delete
+                            </button>
                         </td>
                     </tr>;
                 })}
@@ -335,10 +331,16 @@ const DatasetView = observer((props: DatasetViewProps) => {
                         <br />
                         <button className='btn btn-primary mt-1' onClick={() => {
                             if (subjectName === "") {
-                                alert("Subject name cannot be empty");
+                                alert("Subject name cannot be empty! Please insert a new, unique subject name");
+                                return;
+                            }
+                            const exists = datasetContents.contents.some(obj => obj.name === subjectName);
+                            if (exists) {
+                                alert("Subject name already exists! Please choose a new, unique subject name");
                                 return;
                             }
                             home.createSubject(path, subjectName);
+
                             setSubjectName("");
                         }}>Create New Subject</button>
                       </div>
@@ -356,26 +358,23 @@ const DatasetView = observer((props: DatasetViewProps) => {
 
         {/* This folder is not a dataset.*/}
         {showCitationData ?
-          <Row>
-          <Col xs={3}>
-            <Row className="align-items-center">
-                <Row className="align-items-center">
-                  <div className="row mt-2">
-                    {citationDetails}
-                  </div>
-                </Row>
-            </Row>
-          </Col>
-          <Col>
-            {dataTable}
-          </Col>
-        </Row>
+          <Row className="flex-wrap">
+            <Col xs={12} md={3} className="mb-3">
+              <div className="mt-2">
+                {citationDetails}
+              </div>
+            </Col>
+
+            <Col xs={12} md={9}>
+              {dataTable}
+            </Col>
+          </Row>
         :
-        <Row>
-          <Col>
-            {dataTable}
-          </Col>
-        </Row>}
+          <Row>
+            <Col>
+              {dataTable}
+            </Col>
+          </Row>}
 
     </div>
 });

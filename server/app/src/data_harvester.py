@@ -248,6 +248,9 @@ class SubjectSnapshot:
         elif skeleton_preset == 'cmu':
             shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
                         tmp_folder + 'unscaled_generic.osim')
+        elif skeleton_preset == "opencap-full":
+            shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/LaiUhlrich.osim',
+                        tmp_folder + 'unscaled_generic.osim')
         elif skeleton_preset == 'complete':
             shutil.copy(DATA_FOLDER_PATH + '/PresetSkeletons/CompleteHumanModel.osim',
                         tmp_folder + 'unscaled_generic.osim')

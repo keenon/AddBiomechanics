@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 # This gets published to Docker Hub as keenon/biomechnet_base
 
 RUN apt-get update && apt-get install -y build-essential
@@ -62,9 +62,9 @@ RUN mkdir opensim_dependencies_build && \
     cmake ../opensim-core/dependencies \
         -DCMAKE_INSTALL_PREFIX="~/opensim_dependencies_install" \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DOPENSIM_WITH_CASADI=ON \
-        -DOPENSIM_WITH_TROPTER=OFF && \
-    make -j4
+        -DOPENSIM_WITH_CASADI=ON && \
+    cmake . -LAH && \
+    cmake --build . --config RelWithDebInfo -j4
 
 # Install OpenSim
 RUN mkdir opensim_build && \
@@ -73,16 +73,17 @@ RUN mkdir opensim_build && \
         -DCMAKE_INSTALL_PREFIX="~/opensim_install" \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DOPENSIM_WITH_CASADI=ON \
-        -DOPENSIM_WITH_TROPTER=OFF \
         -DBUILD_PYTHON_WRAPPING=ON \
         -DBUILD_JAVA_WRAPPING=OFF \
+        -DBUILD_TESTING=OFF \
         -DOPENSIM_DEPENDENCIES_DIR="~/opensim_dependencies_install" \
         -DOPENSIM_INSTALL_UNIX_FHS=OFF \
         -DSWIG_DIR="~/swig/share/swig" \
         -DSWIG_EXECUTABLE="~/swig/bin/swig" \
         -DWITH_BTK=ON && \
-    make -j8 && \
-    make install
+    cmake . -LAH && \
+    cmake --build . --config RelWithDebInfo -j4 && \
+    cmake --install .
 
 # Install OpenSim Python interface
 RUN cd ~/opensim_install/sdk/Python && \

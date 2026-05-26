@@ -47,6 +47,12 @@
             <a class="nav-link active" href="faq.html">FAQ</a>
           </li>
           <li class="nav-item">
+            <a class="nav-link" href="news.html">News</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="https://simtk.org/plugins/phpBB/indexPhpbb.php?group_id=2402&pluginname=phpBB">Forum</a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link" href="tos.html">Terms of Service</a>
           </li>
         </ul>
@@ -84,16 +90,15 @@
         web application, please see our associated manuscript.</p>
 
       <p>
-        <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0295152"
-          target="_blank">AddBiomechanics:
-          Automating model scaling, inverse kinematics, and inverse dynamics from human motion data through sequential
-          optimization</a>
-        </br>
-        Keenon Werling, Nicholas A. Bianco, Michael Raitor, Jon Stingel, Jennifer L. Hicks, Steven H. Collins, Scott L.
-        Delp, C. Karen Liu
-        </br>
-        bioRxiv 2023.06.15.545116; doi: <a href="https://doi.org/10.1101/2023.06.15.545116"
-          target="_blank">https://doi.org/10.1101/2023.06.15.545116</a>
+		<blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin-left: 0;">
+			<div class="csl-bib-body" style="margin-left: 0em">
+				<div class="csl-bib-body" style="line-height: 2; margin-left: 2em; text-indent:-2em;">
+				  <div class="csl-entry">Werling, K., Bianco, N. A., Raitor, M., Stingel, J., Hicks, J. L., Collins, S. H., Delp, S. L., &amp; Liu, C. K. (2023). AddBiomechanics: Automating model scaling, inverse kinematics, and inverse dynamics from human motion data through sequential optimization. <i>PLOS ONE</i>, <i>18</i>(11), e0295152. <a href="https://doi.org/10.1371/journal.pone.0295152">https://doi.org/10.1371/journal.pone.0295152</a></div>
+				  <span class="Z3988" title="url_ver=Z39.88-2004&amp;ctx_ver=Z39.88-2004&amp;rfr_id=info%3Asid%2Fzotero.org%3A2&amp;rft_id=info%3Adoi%2F10.1371%2Fjournal.pone.0295152&amp;rft_val_fmt=info%3Aofi%2Ffmt%3Akev%3Amtx%3Ajournal&amp;rft.genre=article&amp;rft.atitle=AddBiomechanics%3A%20Automating%20model%20scaling%2C%20inverse%20kinematics%2C%20and%20inverse%20dynamics%20from%20human%20motion%20data%20through%20sequential%20optimization&amp;rft.jtitle=PLOS%20ONE&amp;rft.stitle=PLOS%20ONE&amp;rft.volume=18&amp;rft.issue=11&amp;rft.aufirst=Keenon&amp;rft.aulast=Werling&amp;rft.au=Keenon%20Werling&amp;rft.au=Nicholas%20A.%20Bianco&amp;rft.au=Michael%20Raitor&amp;rft.au=Jon%20Stingel&amp;rft.au=Jennifer%20L.%20Hicks&amp;rft.au=Steven%20H.%20Collins&amp;rft.au=Scott%20L.%20Delp&amp;rft.au=C.%20Karen%20Liu&amp;rft.date=2023-11-30&amp;rft.pages=e0295152&amp;rft.issn=1932-6203&amp;rft.language=en"></span>
+				</div>
+			</div>
+		</blockquote>
+      </p>
       </p>
     </div>
 
@@ -106,7 +111,7 @@
 
     <div id="faq" class="mb-5">
       <h1 class="mt-5">Frequently Asked Questions</h1>
-      <p><u>Last updated</u>: October 26, 2023</p>
+      <p><u>Last updated</u>: May 09, 2025</p>
 
       <h2 id="data-input-types">Data Input Types</h2>
       <p><b>Q. How do you see this working with markerless data, without trajectories, and only segment rotation
@@ -196,14 +201,14 @@
         AddBiomechanics supports (e.g., standard OpenSim joints and no kinematic constraints). However, currently, the
         inverse dynamics will not be possible since we only support applying external loads to foot bodies in the model.
       </p>
-      <p><b>Q. Is there a way to optimize a new trajectory using the model and processed data I get from
+      <p><b>Q. Is there a way to estimate muscle activity using the model and processed data I get from
           AddBiomechanics?</b></p>
-      <p>A. AddBiomechanics now features an option to export your processed data and model directly into a trajectory
-        optimization problem in <a href="https://simtk.org/projects/opensim-moco" target="_blank">OpenSim Moco</a>. By
-        default, we exported an “inverse” problem, where the kinematic trajectory and external forces are prescribed to
-        the model, so you can estimate muscle activations. But you can visit the <a
-          href="https://opensim-org.github.io/opensim-moco-site/" target="_blank">Moco API documentation</a> to learn
-        more about how to customize a new problem that suits your needs.</p>
+      <p>A. AddBiomechanics now features an option to use your processed data and model to estimate muscle excitations 
+        activations, and tendon forces using a trajectory optimization problem in 
+        <a href="https://simtk.org/projects/opensim-moco" target="_blank">OpenSim Moco</a>. By default, this is an 
+        “inverse” problem, where the kinematic trajectory and external forces are prescribed to the model. But you can 
+        visit the <a href="https://opensim-org.github.io/opensim-moco-site/" target="_blank">Moco API documentation and
+        forum</a> to learn more about how to customize a new problem that suits your needs.</p>
       <p><b>Q. Are there plans to provide more flexibility in specifying weights for individual markers (e.g., similar
           to the OpenSim InverseKinematicsTool)?</b></p>
       <p>A. We are considering this feature for future development plans.</p>
@@ -260,34 +265,31 @@
       <p><b>Q.How do I cite AddBiomechanics?</b></p>
       <p>A. Please cite the PLOS One manuscript:</p>
       <p>
-        <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0295152"
-          target="_blank">AddBiomechanics:
-          Automating model scaling, inverse kinematics, and inverse dynamics from human motion data through sequential
-          optimization</a>
-        </br>
-        Keenon Werling, Nicholas A. Bianco, Michael Raitor, Jon Stingel, Jennifer L. Hicks, Steven H. Collins, Scott L.
-        Delp, C. Karen Liu
-        </br>
-        bioRxiv 2023.06.15.545116; doi: <a href="https://doi.org/10.1101/2023.06.15.545116"
-          target="_blank">https://doi.org/10.1101/2023.06.15.545116</a>
+		<blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin-left: 0;">
+			<div class="csl-bib-body" style="margin-left: 0em">
+				<div class="csl-bib-body" style="line-height: 2; margin-left: 2em; text-indent:-2em;">
+				  <div class="csl-entry">Werling, K., Bianco, N. A., Raitor, M., Stingel, J., Hicks, J. L., Collins, S. H., Delp, S. L., &amp; Liu, C. K. (2023). AddBiomechanics: Automating model scaling, inverse kinematics, and inverse dynamics from human motion data through sequential optimization. <i>PLOS ONE</i>, <i>18</i>(11), e0295152. <a href="https://doi.org/10.1371/journal.pone.0295152">https://doi.org/10.1371/journal.pone.0295152</a></div>
+				  <span class="Z3988" title="url_ver=Z39.88-2004&amp;ctx_ver=Z39.88-2004&amp;rfr_id=info%3Asid%2Fzotero.org%3A2&amp;rft_id=info%3Adoi%2F10.1371%2Fjournal.pone.0295152&amp;rft_val_fmt=info%3Aofi%2Ffmt%3Akev%3Amtx%3Ajournal&amp;rft.genre=article&amp;rft.atitle=AddBiomechanics%3A%20Automating%20model%20scaling%2C%20inverse%20kinematics%2C%20and%20inverse%20dynamics%20from%20human%20motion%20data%20through%20sequential%20optimization&amp;rft.jtitle=PLOS%20ONE&amp;rft.stitle=PLOS%20ONE&amp;rft.volume=18&amp;rft.issue=11&amp;rft.aufirst=Keenon&amp;rft.aulast=Werling&amp;rft.au=Keenon%20Werling&amp;rft.au=Nicholas%20A.%20Bianco&amp;rft.au=Michael%20Raitor&amp;rft.au=Jon%20Stingel&amp;rft.au=Jennifer%20L.%20Hicks&amp;rft.au=Steven%20H.%20Collins&amp;rft.au=Scott%20L.%20Delp&amp;rft.au=C.%20Karen%20Liu&amp;rft.date=2023-11-30&amp;rft.pages=e0295152&amp;rft.issn=1932-6203&amp;rft.language=en"></span>
+				</div>
+			</div>
+		</blockquote>
       </p>
       <p><b>Q.How do I cite AddBiomechanics Core Dataset?</b></p>
-      <p>A. The manuscript is in submission. In the mean time, please cite the pre-print:</p>
+      <p>A. Please cite the ECCV 2024 manuscript:</p>
       <p>
-        <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0295152"
-          target="_blank">AddBiomechanics Dataset:
-          Capturing the Physics of Human Motion at Scale</a>
-        </br>
-        Keenon Werling, Janelle Kaneda, Alan Tan, Rishi Agarwal, Six Skov,
-        Tom Van Wouwe, Scott Uhlrich, Nicholas A. Bianco, Carmichael Ong,
-        Antoine Falisse, Shardul Sapkota, Aidan Chandra, Joshua Carter, Ezio
-        Preatoni, Benjamin Fregly, Jennifer Hicks, Scott Delp, C. Karen Liu
-        </br>
+		<blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin-left: 0;">
+			<div class="csl-bib-body" style="margin-left: 0em">
+				<div class="csl-bib-body" style="line-height: 2; margin-left: 2em; text-indent:-2em;">
+					<div class="csl-entry">Werling, K., Kaneda, J., Tan, T., Agarwal, R., Skov, S., Van Wouwe, T., Uhlrich, S., Bianco, N., Ong, C., Falisse, A., Sapkota, S., Chandra, A., Carter, J., Preatoni, E., Fregly, B., Hicks, J., Delp, S., &amp; Liu, C. K. (2025). AddBiomechanics Dataset: Capturing the&nbsp;Physics of&nbsp;Human Motion at&nbsp;Scale. In A. Leonardis, E. Ricci, S. Roth, O. Russakovsky, T. Sattler, &amp; G. Varol (Eds.), <i>Computer Vision – ECCV 2024</i> (pp. 490–508). Springer Nature Switzerland. <a href="https://doi.org/10.1007/978-3-031-73223-2_27">https://doi.org/10.1007/978-3-031-73223-2_27</a></div>
+					  <span class="Z3988" title="url_ver=Z39.88-2004&amp;ctx_ver=Z39.88-2004&amp;rfr_id=info%3Asid%2Fzotero.org%3A2&amp;rft_id=info%3Adoi%2F10.1007%2F978-3-031-73223-2_27&amp;rft_id=urn%3Aisbn%3A978-3-031-73223-2&amp;rft_val_fmt=info%3Aofi%2Ffmt%3Akev%3Amtx%3Abook&amp;rft.genre=proceeding&amp;rft.atitle=AddBiomechanics%20Dataset%3A%20Capturing%20the%C2%A0Physics%20of%C2%A0Human%20Motion%20at%C2%A0Scale&amp;rft.btitle=Computer%20Vision%20%E2%80%93%20ECCV%202024&amp;rft.place=Cham&amp;rft.publisher=Springer%20Nature%20Switzerland&amp;rft.aufirst=Keenon&amp;rft.aulast=Werling&amp;rft.au=Keenon%20Werling&amp;rft.au=Janelle%20Kaneda&amp;rft.au=Tian%20Tan&amp;rft.au=Rishi%20Agarwal&amp;rft.au=Six%20Skov&amp;rft.au=Tom%20Van%20Wouwe&amp;rft.au=Scott%20Uhlrich&amp;rft.au=Nicholas%20Bianco&amp;rft.au=Carmichael%20Ong&amp;rft.au=Antoine%20Falisse&amp;rft.au=Shardul%20Sapkota&amp;rft.au=Aidan%20Chandra&amp;rft.au=Joshua%20Carter&amp;rft.au=Ezio%20Preatoni&amp;rft.au=Benjamin%20Fregly&amp;rft.au=Jennifer%20Hicks&amp;rft.au=Scott%20Delp&amp;rft.au=C.%20Karen%20Liu&amp;rft.au=Ale%C5%A1%20Leonardis&amp;rft.au=Elisa%20Ricci&amp;rft.au=Stefan%20Roth&amp;rft.au=Olga%20Russakovsky&amp;rft.au=Torsten%20Sattler&amp;rft.au=G%C3%BCl%20Varol&amp;rft.date=2025&amp;rft.pages=490-508&amp;rft.spage=490&amp;rft.epage=508&amp;rft.isbn=978-3-031-73223-2&amp;rft.language=en"></span>
+					</div>
+			</div>
+		</blockquote>
       </p>
       <p><b>Q.How do I cite AddBiomechanics User-Generated Datasets?</b></p>
       <p>A. Each data download contains a LICENSE.txt, which includes the names
         of the uploaders who should be credited under the Creative Commons license
-        that the data is released under. Please also cite the AddBiomechanics Dataset pre-print.</p>
+        that the data is released under. Please also cite the AddBiomechanics Dataset manuscript.</p>
     </div>
 
   </main>

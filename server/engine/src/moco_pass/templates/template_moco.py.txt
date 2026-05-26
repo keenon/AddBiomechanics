@@ -16,8 +16,14 @@ for ires in range(residuals.getSize()):
 model_processor = osim.ModelProcessor(model)
 model_processor.append(osim.ModOpAddExternalLoads('../ID/@TRIAL@_external_forces.xml'))
 model_processor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
+
+# Comment out this line to enable passive forces.
 model_processor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
-model_processor.append(osim.ModOpUseImplicitTendonComplianceDynamicsDGF())
+
+# Comment out this line and uncomment the following line to enable tendon compliance.
+model_processor.append(osim.ModOpIgnoreTendonCompliance())
+# model_processor.append(osim.ModOpUseImplicitTendonComplianceDynamicsDGF())
+
 model_processor.append(osim.ModOpScaleMaxIsometricForce(@MAX_ISOMETRIC_FORCE_SCALE@))
 model_processor.append(osim.ModOpAddReserves(@RESERVE_STRENGTH@))
 model_processor.append(osim.ModOpReplacePathsWithFunctionBasedPaths(
@@ -43,7 +49,7 @@ inverse.set_mesh_interval(0.01)
 inverse.set_minimize_sum_squared_activations(True)
 inverse.set_convergence_tolerance(1e-4)
 inverse.set_constraint_tolerance(1e-6)
-inverse.set_max_iterations(2000)
+inverse.set_max_iterations(500)
 # Skip any extra columns in the kinematics data source.
 inverse.set_kinematics_allow_extra_columns(True)
 
@@ -54,8 +60,9 @@ study = inverse.initialize()
 # Update the MocoProblem.
 problem = study.updProblem();
 excitation_effort = osim.MocoControlGoal.safeDownCast(problem.updGoal('excitation_effort'))
+excitation_effort.setWeightForControlPattern('.*residual.*', 0.01)
 excitation_effort.setWeightForControlPattern('/forceset/.*', @EXCITATION_EFFORT@)
-excitation_effort.setWeightForControlPattern('.*reserve.*', 1.0)
+excitation_effort.setWeightForControlPattern('.*reserve.*', @RESERVE_EFFORT@)
 activation_effort = osim.MocoSumSquaredStateGoal.safeDownCast(
         problem.updGoal('activation_effort'))
 activation_effort.setWeight(@ACTIVATION_EFFORT@)

@@ -18,7 +18,8 @@ GEOMETRY_FOLDER_PATH = absPath('../../Geometry')
 DATA_FOLDER_PATH = absPath('../../../data')
 
 
-# This metaclass wraps all methods in the Subject class with a try-except block, except for the __init__ method.
+# This metaclass wraps all methods in the Subject class with a try-except block, 
+# except for the __init__ method.
 class ExceptionHandlingMeta(type):
     # Only the methods in this map will be wrapped with a try-except block.
     EXCEPTION_MAP = {
@@ -212,7 +213,10 @@ class Subject(metaclass=ExceptionHandlingMeta):
         if 'mergeZeroForceSegmentsThreshold' in subject_json:
             self.mergeZeroForceSegmentsThreshold = subject_json['mergeZeroForceSegmentsThreshold']
 
-        if self.skeletonPreset == 'vicon' or self.skeletonPreset == 'cmu' or self.skeletonPreset == 'complete':
+        if (self.skeletonPreset == 'vicon' or 
+                self.skeletonPreset == 'cmu' or 
+                self.skeletonPreset == 'complete' or
+                self.skeletonPreset == "opencap-full"):
             self.footBodyNames = ['calcn_l', 'calcn_r']
         elif 'footBodyNames' in subject_json:
             self.footBodyNames = subject_json['footBodyNames']
@@ -243,6 +247,9 @@ class Subject(metaclass=ExceptionHandlingMeta):
                         subject_path + 'unscaled_generic.osim')
         elif self.skeletonPreset == 'cmu':
             shutil.copy(data_folder_path + '/PresetSkeletons/Rajagopal2015_CMUMarkerSet.osim',
+                        subject_path + 'unscaled_generic.osim')
+        elif self.skeletonPreset == "opencap-full":
+            shutil.copy(data_folder_path + '/PresetSkeletons/LaiUhlrich2022.osim',
                         subject_path + 'unscaled_generic.osim')
         elif self.skeletonPreset == 'complete':
             shutil.copy(data_folder_path + '/PresetSkeletons/CompleteHumanModel.osim',
