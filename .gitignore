@@ -10,4 +10,5 @@ test_dataset.db
 TODO
 .DS_Store
 /test_data
+/server/engine/test_data
 .idea/
